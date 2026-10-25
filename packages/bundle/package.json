@@ -1,0 +1,33 @@
+{
+  "name": "pod-bundle",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DeepSeek Pod：本地多 bot 协作。主管、bot 管理和单聊，bot 都跑在 dsh 的会话上",
+  "type": "module",
+  "icon": "./icon.svg",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "icon.svg"
+  ],
+  "engines": {
+    "node": ">=24",
+    "dsh": ">=0.2.1-rc.2 <0.3.0"
+  },
+  "dependencies": {
+    "pod-runtime": "workspace:*",
+    "pod-ui": "workspace:*"
+  },
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

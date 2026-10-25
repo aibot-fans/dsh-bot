@@ -1,0 +1,161 @@
+# DeepSeek Pod 组合包。
+#
+# 插入的行：
+# - pod-runtime：宿主插件，数据库放在 $DSH_HOME/pod，bot 的工作目录默认在 ~/Pod；
+# - pod-ui：浏览器插件，侧栏的 DeepSeek Pod 入口和 Pod 页面；
+# - 三个 agent 预设，对应三种工具档案：执行（pod）、研究（pod-research）、对话（pod-talk）。
+#   每个预设的第一行 pod-agent 按会话注入 bot 的人设；Pod 自己的工具（组织、任务、记忆、浏览器）
+#   由 pod-runtime 在 agent 创建时按会话装进 agent 作用域，不写在这里。
+#   预设里不放 ask_user、子代理和 goal：bot 找你一律走 Pod 的等你卡，协作只走 Pod。
+#
+# 安装：dsh plugin --profile web add link:<仓库>/packages/bundle
+- insert:
+    - id: pod-runtime
+      name: 'pod-runtime'
+      config:
+        dataRoot: !!js dshHomePath('pod')
+
+    - id: pod-ui
+      name: 'pod-ui'
+
+    - id: preset-pod
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: pod
+        name: DeepSeek Pod · 执行
+        description: Pod 的 bot 会话：文件、沙箱 shell、web 搜索
+        order: 40
+        plugins:
+          - id: pod-agent
+            name: 'pod-runtime/agent'
+          - id: time-context
+            name: '@deepseek-ai/dsh-time-context'
+          - id: tool-bash
+            name: '@deepseek-ai/dsh-tool-bash'
+            disabled: !!js process.platform === 'win32'
+          - id: tool-pwsh
+            name: '@deepseek-ai/dsh-tool-pwsh'
+            disabled: !!js process.platform !== 'win32'
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+          - id: skill-filesystem
+            name: '@deepseek-ai/dsh-skill-filesystem'
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+              toolResultPruner: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+              - id: command-compact
+                name: '@deepseek-ai/dsh-command-compact'
+              - id: tool-result-pruner
+                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+                config:
+                  thresholdChars: 8192
+                  headChars: 4096
+                  tailChars: 1024
+          - id: tool-todo
+            name: '@deepseek-ai/dsh-tool-todo'
+            config:
+              allowParallelInProgress: true
+          - id: tool-web
+            name: '@deepseek-ai/dsh-tool-web'
+            config:
+              fetch: true
+              searchTimeoutMs: 60000
+          - id: present
+            name: '@deepseek-ai/dsh-tool-present'
+
+    - id: preset-pod-research
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: pod-research
+        name: DeepSeek Pod · 研究
+        description: Pod 的 bot 会话：文件和 web 搜索，没有 shell
+        order: 41
+        plugins:
+          - id: pod-agent
+            name: 'pod-runtime/agent'
+          - id: time-context
+            name: '@deepseek-ai/dsh-time-context'
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+          - id: skill-filesystem
+            name: '@deepseek-ai/dsh-skill-filesystem'
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+              toolResultPruner: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+              - id: command-compact
+                name: '@deepseek-ai/dsh-command-compact'
+              - id: tool-result-pruner
+                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+                config:
+                  thresholdChars: 8192
+                  headChars: 4096
+                  tailChars: 1024
+          - id: tool-todo
+            name: '@deepseek-ai/dsh-tool-todo'
+            config:
+              allowParallelInProgress: true
+          - id: tool-web
+            name: '@deepseek-ai/dsh-tool-web'
+            config:
+              fetch: true
+              searchTimeoutMs: 60000
+          - id: present
+            name: '@deepseek-ai/dsh-tool-present'
+
+    - id: preset-pod-talk
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: pod-talk
+        name: DeepSeek Pod · 对话
+        description: Pod 的 bot 会话：只聊天、读记忆、搜聊天记录
+        order: 42
+        plugins:
+          - id: pod-agent
+            name: 'pod-runtime/agent'
+          - id: time-context
+            name: '@deepseek-ai/dsh-time-context'
+          - id: skill-filesystem
+            name: '@deepseek-ai/dsh-skill-filesystem'
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+              toolResultPruner: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+              - id: command-compact
+                name: '@deepseek-ai/dsh-command-compact'
+              - id: tool-result-pruner
+                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+                config:
+                  thresholdChars: 8192
+                  headChars: 4096
+                  tailChars: 1024

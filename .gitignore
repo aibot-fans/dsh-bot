@@ -1,0 +1,6 @@
+node_modules/
+lib/
+.dev/
+*.log
+docs/PROGRESS.md
+dist/

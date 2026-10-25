@@ -1,0 +1,13 @@
+{
+  "name": "pod-store",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DeepSeek Pod 的存储层：node:sqlite 表结构、迁移和读写",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "devDependencies": {
+    "pod-domain": "workspace:*"
+  }
+}

@@ -1,0 +1,231 @@
+import { useState } from 'react'
+import { BOT_NAME_MAX, ROOM_TITLE_MAX, addSidebarFolder, archiveSidebarItem, moveSidebarItem, type Bot, type SidebarItem } from 'pod-domain'
+import { api } from '../../api/endpoints.ts'
+import { errorText } from '../../api/http.ts'
+import { Avatar, Badge, nameColor } from '../../components/common.tsx'
+import { GroupMark } from '../../components/GroupMark.tsx'
+import { Icon } from '../../components/Icon.tsx'
+import { MenuDivider, MenuItem, MenuPanel, useMenu } from '../../components/Menu.tsx'
+import { RenameInput } from '../../components/RenameInput.tsx'
+import { useApp, useNav } from '../../state/app.ts'
+import type { RowDrag } from './drag.ts'
+import { folderId, type SidebarStore } from './prefs.ts'
+
+export interface SideItemProps {
+  readonly item: SidebarItem
+  readonly members: readonly Bot[]
+  readonly busy: boolean
+  readonly collapsed: boolean
+  readonly store: SidebarStore
+  readonly onError: (message: string) => void
+  /** 拖动排序；不给就不能拖。 */
+  readonly drag?: RowDrag
+}
+
+/** 未读条数的红色角标：超过 99 写 99+。 */
+function UnreadBadge(props: { readonly count: number }) {
+  return (
+    <span className="pod-side-badge" aria-label={`${props.count} 条未读`}>
+      {props.count > 99 ? '99+' : props.count}
+    </span>
+  )
+}
+
+type MenuView = 'main' | 'move' | 'new-folder'
+
+/**
+ * 侧栏的一行：点开对话，拖动排顺序；悬停时右边出现“…”，可以置顶、改名、移到分组、归档、删除（右键也行）。
+ * 主管固定置顶，菜单里没有置顶、移到分组和归档。
+ */
+export function SideItem(props: SideItemProps) {
+  const app = useApp()
+  const nav = useNav()
+  const { item, store } = props
+  const [view, setView] = useState<MenuView>('main')
+  const [folderName, setFolderName] = useState('')
+  const [renaming, setRenaming] = useState(false)
+  const menu = useMenu('end', view)
+  const room = item.room
+  const bot = item.bot
+  const title = bot?.name ?? room?.title ?? ''
+  // bot 和你可以有好几段对话：在其中哪一段都算“正在看”，未读和等你处理的按每一段加起来。
+  const active = item.rooms.some((thread) => thread.id === nav.roomId)
+  const archived = store.prefs.archived.includes(item.key)
+  const placed = store.prefs.placement[item.key]
+  const lead = bot?.role === 'lead'
+  const unread = item.rooms.reduce((sum, thread) => sum + (thread.id === nav.roomId ? 0 : thread.unread), 0)
+  const waits = item.rooms.reduce((sum, thread) => sum + thread.waits, 0)
+  const drag = renaming ? undefined : props.drag
+
+  const run = (work: Promise<unknown>, after?: () => void): void => {
+    work
+      .then(() => {
+        app.cache.invalidate('rooms')
+        app.cache.invalidate('bots')
+        after?.()
+      })
+      .catch((reason: unknown) => props.onError(errorText(reason)))
+  }
+  const close = (): void => {
+    menu.close()
+    setView('main')
+  }
+  const open = (): void => {
+    if (renaming) return
+    if (room !== undefined) app.openRoom(room.id)
+    else if (bot !== undefined) app.openBot(bot.id)
+  }
+  const togglePin = (): void => {
+    close()
+    const targets = item.rooms.length > 0 ? Promise.resolve(item.rooms) : bot === undefined ? Promise.reject(new Error('找不到这个对话')) : api.openDirect(bot.id).then((found) => [found])
+    run(targets.then((found) => Promise.all(found.map((thread) => api.updateRoom(thread.id, { pinned: !item.pinned })))))
+  }
+  const rename = (value: string): void => {
+    setRenaming(false)
+    if (bot !== undefined) run(api.updateBot(bot.id, { name: value }))
+    else if (room !== undefined) run(api.updateRoom(room.id, { title: value }))
+  }
+  const leaveIfOpen = (): void => {
+    if (active) app.navigate({ roomId: null, panel: null })
+  }
+  const remove = (): void => {
+    close()
+    if (bot !== undefined) {
+      if (window.confirm(`删除「${bot.name}」？它的设定、记忆和聊天记录先放进回收站，30 天内可以在“设置 → 回收站”里恢复。`)) run(api.archiveBot(bot.id), leaveIfOpen)
+    } else if (room !== undefined && window.confirm(`删除群聊「${room.title}」？30 天内可以在“设置 → 回收站”里恢复。`)) {
+      run(api.updateRoom(room.id, { archived: true }), leaveIfOpen)
+    }
+  }
+  const clearChat = (): void => {
+    close()
+    if (item.rooms.length > 0 && window.confirm(`删除和「${title}」的全部聊天记录（${item.rooms.length} 段对话）？消息会全部删掉，${title} 本身和它的记忆保留。`)) {
+      run(Promise.all(item.rooms.map((thread) => api.clearRoom(thread.id))))
+    }
+  }
+  const createFolder = (): void => {
+    const name = folderName.trim()
+    if (name === '') return
+    const id = folderId()
+    store.save((prefs) => moveSidebarItem(addSidebarFolder(prefs, id, name), item.key, id))
+    setFolderName('')
+    close()
+  }
+
+  const icon = item.kind === 'bot' ? <Avatar bot={bot} size={props.collapsed ? 28 : 24} /> : <GroupMark members={props.members} size={props.collapsed ? 28 : 24} />
+  return (
+    <div
+      className={`pod-side-item${active ? ' pod-side-item-active' : ''}${menu.open ? ' pod-side-item-menu' : ''}${drag?.mark === undefined ? '' : ` pod-side-drop-${drag.mark}`}`}
+      draggable={drag?.draggable === true}
+      onDragStart={drag?.onDragStart}
+      onDragOver={drag?.onDragOver}
+      onDrop={drag?.onDrop}
+      onDragEnd={drag?.onDragEnd}
+      onContextMenu={(event) => {
+        if (props.collapsed) return
+        event.preventDefault()
+        if (!menu.open) menu.toggle()
+      }}
+    >
+      {renaming && !props.collapsed ? (
+        <div className="pod-side-row">
+          {icon}
+          <RenameInput value={title} max={bot === undefined ? ROOM_TITLE_MAX : BOT_NAME_MAX} label={`给「${title}」改名`} onSave={rename} onCancel={() => setRenaming(false)} />
+        </div>
+      ) : (
+        <button type="button" className="pod-side-row" onClick={open} title={props.collapsed ? title : undefined} aria-current={active ? 'true' : undefined}>
+          {icon}
+          {props.collapsed ? null : (
+            <span className={`pod-side-row-title${bot === undefined ? '' : ' pod-bot-name'}`} style={nameColor(bot)}>
+              {title}
+            </span>
+          )}
+          {waits > 0 && !props.collapsed ? <Badge tone="warn">需要你</Badge> : unread > 0 ? <UnreadBadge count={unread} /> : null}
+          {props.busy ? <span className="pod-side-busy" role="img" aria-label="正在工作" /> : null}
+        </button>
+      )}
+      {props.collapsed || renaming ? null : (
+        <button ref={menu.anchor} type="button" className="pod-side-more" aria-label={`「${title}」的更多操作`} aria-expanded={menu.open} onClick={menu.toggle}>
+          <Icon name="more" size={16} />
+        </button>
+      )}
+      <MenuPanel control={menu} label={`「${title}」的操作`}>
+        {view === 'main' ? (
+          <>
+            {lead ? null : <MenuItem icon={item.pinned ? 'unpin' : 'pin'} label={item.pinned ? '取消置顶' : '置顶'} onClick={togglePin} />}
+            <MenuItem
+              icon="edit"
+              label="改名"
+              onClick={() => {
+                close()
+                setRenaming(true)
+              }}
+            />
+            {lead ? null : <MenuItem icon="move" label="移到分组" hint={placed === undefined ? undefined : store.prefs.folders.find((folder) => folder.id === placed)?.name} onClick={() => setView('move')} />}
+            {lead ? null : (
+              <MenuItem
+                icon="archive"
+                label={archived ? '取消归档' : '归档'}
+                hint={archived ? undefined : '不在侧栏显示，在设置的“归档”里找回'}
+                onClick={() => {
+                  close()
+                  store.save((prefs) => archiveSidebarItem(prefs, item.key, !archived))
+                }}
+              />
+            )}
+            <MenuDivider />
+            {bot !== undefined && room !== undefined ? <MenuItem icon="trash" label="删除聊天记录" danger onClick={clearChat} /> : null}
+            {bot?.role === 'lead' ? null : <MenuItem icon="trash" label={bot === undefined ? '删除群聊' : '删除这个 bot'} danger onClick={remove} />}
+          </>
+        ) : null}
+        {view === 'move' ? (
+          <>
+            <MenuItem icon="back" label="返回" onClick={() => setView('main')} />
+            <MenuDivider />
+            {store.prefs.folders.map((folder) => (
+              <MenuItem
+                key={folder.id}
+                icon="folder"
+                label={folder.name}
+                checked={placed === folder.id}
+                onClick={() => {
+                  close()
+                  store.save((prefs) => moveSidebarItem(prefs, item.key, folder.id))
+                }}
+              />
+            ))}
+            <MenuItem icon="plus" label="新建分组…" onClick={() => setView('new-folder')} />
+            {placed === undefined ? null : (
+              <MenuItem
+                icon="close"
+                label="移出分组"
+                onClick={() => {
+                  close()
+                  store.save((prefs) => moveSidebarItem(prefs, item.key, null))
+                }}
+              />
+            )}
+          </>
+        ) : null}
+        {view === 'new-folder' ? (
+          <div className="pod-menu-form">
+            <input
+              className="pod-input"
+              autoFocus
+              value={folderName}
+              maxLength={12}
+              placeholder="分组名，例如：量化"
+              aria-label="新分组的名字"
+              onChange={(event) => setFolderName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.nativeEvent.isComposing) createFolder()
+              }}
+            />
+            <button type="button" className="pod-button pod-button-primary pod-button-small" disabled={folderName.trim() === ''} onClick={createFolder}>
+              建好并移进去
+            </button>
+          </div>
+        ) : null}
+      </MenuPanel>
+    </div>
+  )
+}

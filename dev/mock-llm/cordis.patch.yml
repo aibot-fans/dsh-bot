@@ -1,0 +1,4 @@
+# 开发用：注册 pod-mock 模型服务（模型 scripted）。只装进开发用的 DSH_HOME。
+- insert:
+    - id: pod-dev-mock-llm
+      name: 'pod-dev-mock-llm'

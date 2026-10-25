@@ -1,0 +1,11 @@
+DeepSeek Pod
+
+本项目的代码按 Apache License 2.0 授权，全文见 LICENSE。
+
+本项目还带有下面这些第三方素材，它们不适用 Apache License 2.0：
+
+- packages/runtime/assets/bot-icons/ 里的鲸鱼娘图标改编自 lmy414/ai-chan-sheets
+  （https://github.com/lmy414/ai-chan-sheets），原作者 ZipZipPipe，
+  按 CC BY-NC-SA 4.0 授权（https://creativecommons.org/licenses/by-nc-sa/4.0/）：
+  只能非商用，使用时要署名，改编后要按同样的协议分享。
+- docs/images/ 里的截图带有上面这些图标，同样按 CC BY-NC-SA 4.0。

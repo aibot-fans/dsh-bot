@@ -1,0 +1,24 @@
+{
+  "name": "pod-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DeepSeek Pod 的宿主插件：数据库、/api/pod 接口和 bot 会话的人设注入",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./agent": "./lib/agent.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "assets"
+  ],
+  "scripts": {
+    "build": "tsdown"
+  },
+  "devDependencies": {
+    "pod-domain": "workspace:*",
+    "pod-store": "workspace:*"
+  }
+}
