@@ -84,7 +84,7 @@ dsh plugin --profile web add link:/仓库的绝对路径/packages/bundle
 - 改完 `pnpm build`，重启 dsh web。宿主和页面的代码都是启动时读进内存的，不重启不生效。
 - 打 npm 包用 `pnpm pack:npm`：先构建，再把 runtime、ui、bundle 合成一个包 `ds-pod`，输出 `dist/ds-pod-<版本>.tgz`。包里浏览器插件那一行就叫 `ds-pod`（dsh 只按精确的包名找 `./client`），宿主插件和 agent 是 `ds-pod/runtime`、`ds-pod/agent`；各行的 id 和源码装的一样。
 - 发布前可以在隔离环境里装这个 tgz 试一遍：`DSH_HOME=<临时目录> dsh plugin --profile web add <tgz 的绝对路径>`，启动时记得用 `--patch` 把 `workspaceRoot` 也指到临时目录，不然 bot 的工作区会用 `~/Pod`。
-- 发布：先 `npm login`，再 `npm publish dist/ds-pod-<版本>.tgz`。
+- 发布：先 `npm login`（npm 要求发包的账号开两步验证，发布时会要验证码），再 `npm publish ./dist/ds-pod-<版本>.tgz`（路径前面的 `./` 不能省，不然 npm 会把它当成 GitHub 仓库的简写）。
 
 ## 给其他插件的接口
 
