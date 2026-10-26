@@ -321,6 +321,12 @@ function decide(options) {
     if (decision !== undefined) return decision
   }
 
+  // 成员给自己建例程：说“每天”时建在自己名下，建好以后把工具的答复说一遍。
+  if (!system.includes('你是主管') && tools.has('create_routine')) {
+    if (last?.role === 'tool' && calls.at(-1) === 'create_routine') return { text: `好的。${lastToolText(messages)}` }
+    if (userText.includes('每天') && !calls.includes('create_routine')) return { tool: 'create_routine', args: { title: '每日选题', prompt: '列 3 个选题', time: '08:00' } }
+  }
+
   if (system.includes('你是主管')) {
     if (last?.role === 'tool') {
       let message = ''

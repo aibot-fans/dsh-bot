@@ -532,6 +532,10 @@ const MIGRATIONS: readonly string[] = [
     updated_at INTEGER NOT NULL
   );
   `,
+  // v10：只跑一次的例程（到点跑一次就删掉），cron 留空。
+  `
+  ALTER TABLE routines ADD COLUMN run_at INTEGER;
+  `,
 ]
 
 function readVersion(db: DatabaseSync): number {

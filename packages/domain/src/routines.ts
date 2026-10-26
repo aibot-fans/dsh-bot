@@ -6,8 +6,10 @@ export interface Routine {
   readonly id: string
   readonly title: string
   readonly kind: RoutineKind
-  /** 定时例程的 cron 表达式（按 timezone 求值）。 */
+  /** 定时例程的 cron 表达式（按 timezone 求值）。只跑一次的例程是空的。 */
   readonly cron: string
+  /** 只跑一次的例程：到这个时刻跑一次，跑完就删掉；null 表示按 cron 重复。 */
+  readonly runAt: number | null
   readonly timezone: string
   /** 每次运行时交给 bot 的指令。 */
   readonly prompt: string

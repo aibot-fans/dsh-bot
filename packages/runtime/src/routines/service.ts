@@ -9,12 +9,14 @@ import {
   describeCron,
   fail,
   fnv1a,
+  formatLocal,
   isDeepSeekPeak,
   newId,
   nextCronRun,
   nextOffPeak,
   ok,
   parseCron,
+  parseLocalTime,
   readBool,
   readId,
   readInt,
@@ -35,6 +37,9 @@ import type { BotService } from '../bots/service.ts'
 import type { RoomService } from '../chat/rooms.ts'
 import type { Auditor } from '../core/audit.ts'
 import type { PodBus } from '../core/bus.ts'
+
+/** 例程把指令交给 bot 以后的状态；只跑一次的例程看到它就算跑完了。 */
+const DELIVERED = '已运行'
 
 export interface PageContent {
   readonly title: string
@@ -85,13 +90,26 @@ export class RoutineService {
     return getRoutine(this.db, id)
   }
 
-  private nextRun(routine: Pick<Routine, 'kind' | 'cron' | 'timezone' | 'intervalMinutes'>, after: number): number | null {
+  private nextRun(routine: Pick<Routine, 'kind' | 'cron' | 'runAt' | 'timezone' | 'intervalMinutes'>, after: number): number | null {
     if (routine.kind === 'watch') return after + routine.intervalMinutes * 60_000
+    if (routine.runAt !== null) return routine.runAt > after ? routine.runAt : null
     const schedule = parseCron(routine.cron)
     return typeof schedule === 'string' ? null : (nextCronRun(schedule, after, routine.timezone) ?? null)
   }
 
-  /** 新建例程：{ title, kind, cron | url+interval, prompt, botId, roomId? }。 */
+  /**
+   * 只跑一次的时刻：runAt（毫秒）或 at（用户时区的「HH:MM」「YYYY-MM-DD HH:MM」）。
+   * 都没写返回 undefined，写错了或者已经过了返回说明。
+   */
+  private readRunAt(input: unknown, timezone: string): number | string | undefined {
+    const now = this.deps.now()
+    const at = readString(input, 'at')
+    const time = at === '' ? readInt(input, 'runAt') : parseLocalTime(at, timezone, now)
+    if (time === undefined || typeof time === 'string') return time
+    return time > now ? time : '这个时间已经过了'
+  }
+
+  /** 新建例程：{ title, kind, cron | runAt | at | url+interval, prompt, botId, roomId? }。 */
   create(input: unknown, actor: string): PodResult<Routine> {
     const kind = readString(input, 'kind') === 'watch' ? 'watch' : 'cron'
     const title = truncate(readString(input, 'title'), 40)
@@ -105,25 +123,28 @@ export class RoutineService {
     if (roomId !== null && this.deps.rooms.get(roomId) === undefined) return fail('not-found', '找不到要发结果的房间')
     const pageId = kind === 'cron' ? (readId(input, 'pageId') ?? null) : null
     if (pageId !== null && this.deps.describePage(pageId)?.deleted !== false) return fail('not-found', '找不到要更新的页面')
-    const cron = readString(input, 'cron')
+    const timezone = readString(input, 'timezone') || this.deps.settings().timezone
+    const runAt = kind === 'cron' ? this.readRunAt(input, timezone) : undefined
+    if (typeof runAt === 'string') return fail('invalid-input', runAt)
+    const cron = runAt === undefined ? readString(input, 'cron') : ''
     const url = readString(input, 'url')
     const interval = readInt(input, 'intervalMinutes') ?? (Number(readString(input, 'intervalMinutes')) || 60)
-    if (kind === 'cron') {
+    if (kind === 'cron' && runAt === undefined) {
       const parsed = parseCron(cron)
       if (typeof parsed === 'string') return fail('invalid-input', parsed)
-    } else {
+    } else if (kind === 'watch') {
       const checked = checkUrl(url, this.deps.settings().allowedHosts)
       if (!checked.ok) return fail('invalid-input', checked.reason)
       if (interval < WATCH_MIN_INTERVAL || interval > WATCH_MAX_INTERVAL) return fail('invalid-input', `检查间隔在 ${WATCH_MIN_INTERVAL} 分钟到 7 天之间`)
     }
-    const timezone = readString(input, 'timezone') || this.deps.settings().timezone
     const now = this.deps.now()
-    const draft = { kind, cron, timezone, intervalMinutes: interval } as const
+    const draft = { kind, cron, runAt: runAt ?? null, timezone, intervalMinutes: interval } as const
     const routine = insertRoutine(this.db, {
       id: newId('routine'),
       title,
       kind,
       cron,
+      runAt: runAt ?? null,
       timezone,
       prompt,
       botId: bot.id,
@@ -133,40 +154,73 @@ export class RoutineService {
       selector: readString(input, 'selector'),
       intervalMinutes: interval,
       catchUp: readBool(input, 'catchUp') ?? true,
-      offPeak: readBool(input, 'offPeak') ?? true,
+      // 只跑一次的多半是“到点看一眼”，默认不错峰。
+      offPeak: readBool(input, 'offPeak') ?? runAt === undefined,
       enabled: true,
       nextRunAt: kind === 'watch' ? now + 60_000 : this.nextRun(draft, now),
       createdBy: actor,
       now,
     })
-    this.deps.audit.record('routine.create', actor, routine.id, { title, kind, cron, url, pageId })
+    this.deps.audit.record('routine.create', actor, routine.id, { title, kind, cron, runAt: routine.runAt, url, pageId })
     this.deps.bus.emit({ type: 'routines' })
     return ok(routine)
   }
 
+  /**
+   * 改时间：cron（改成重复）、runAt 或 at（改成只跑一次）、intervalMinutes（盯网页的间隔）。
+   * 返回要改的字段；写错了返回说明。
+   */
+  private readSchedule(current: Routine, raw: unknown): RoutinePatch | string {
+    const cron = readString(raw, 'cron')
+    const runAt = this.readRunAt(raw, current.timezone)
+    if (typeof runAt === 'string') return runAt
+    const interval = readInt(raw, 'intervalMinutes')
+    if (current.kind === 'watch') {
+      if (cron !== '' || runAt !== undefined) return '盯网页按间隔检查，只能改 intervalMinutes'
+      if (interval === undefined) return {}
+      return interval < WATCH_MIN_INTERVAL || interval > WATCH_MAX_INTERVAL ? `检查间隔在 ${WATCH_MIN_INTERVAL} 分钟到 7 天之间` : { intervalMinutes: interval }
+    }
+    if (cron !== '' && runAt !== undefined) return '重复的时间（cron）和只跑一次的时间只能写一个'
+    if (runAt !== undefined) return { runAt, cron: '' }
+    if (cron === '') return {}
+    const parsed = parseCron(cron)
+    return typeof parsed === 'string' ? parsed : { cron, runAt: null }
+  }
+
+  /** 改例程：{ id, patch }。patch 里只写要改的：名字、指令、时间、页面、谁来做、发到哪（roomId，null 是单聊）、开关。 */
   update(input: unknown, actor = 'owner'): PodResult<Routine> {
     const id = readId(input, 'id')
     const current = id === undefined ? undefined : this.get(id)
     if (current === undefined) return fail('not-found', '找不到这个例程')
     const raw = readObject(input, 'patch')
-    const cron = readString(raw, 'cron')
-    if (cron !== '' && typeof parseCron(cron) === 'string') return fail('invalid-input', String(parseCron(cron)))
+    const schedule = this.readSchedule(current, raw)
+    if (typeof schedule === 'string') return fail('invalid-input', schedule)
     const enabled = readBool(raw, 'enabled')
     const pageValue = readObject(raw, 'pageId')
     const pageId = typeof pageValue === 'string' && pageValue.trim() !== '' ? pageValue.trim() : null
     if (pageId !== null && this.deps.describePage(pageId)?.deleted !== false) return fail('not-found', '找不到要更新的页面')
+    // 换人来做：之后到点由新的 bot 做，结果以它的名义发。
+    const botId = readId(raw, 'botId')
+    if (botId !== undefined && this.deps.bots.activeBot(botId) === undefined) return fail('not-found', '找不到要换成的 bot')
+    // 发到哪：房间 id；null 或空是负责的 bot 的单聊。
+    const roomValue = readObject(raw, 'roomId')
+    const roomId = typeof roomValue === 'string' && roomValue.trim() !== '' ? roomValue.trim() : null
+    if (roomId !== null && this.deps.rooms.get(roomId) === undefined) return fail('not-found', '找不到要发结果的房间')
     const patch: RoutinePatch = {
+      ...schedule,
+      ...(botId === undefined ? {} : { botId }),
+      ...(roomValue === undefined ? {} : { roomId }),
       ...(pageValue === undefined || current.kind !== 'cron' ? {} : { pageId }),
       ...(readString(raw, 'title') === '' ? {} : { title: truncate(readString(raw, 'title'), 40) }),
       ...(readString(raw, 'prompt') === '' ? {} : { prompt: readString(raw, 'prompt') }),
-      ...(cron === '' ? {} : { cron }),
       ...(enabled === undefined ? {} : { enabled }),
       ...(readBool(raw, 'catchUp') === undefined ? {} : { catchUp: readBool(raw, 'catchUp') }),
       ...(readBool(raw, 'offPeak') === undefined ? {} : { offPeak: readBool(raw, 'offPeak') }),
-      ...(readInt(raw, 'intervalMinutes') === undefined ? {} : { intervalMinutes: readInt(raw, 'intervalMinutes') }),
     }
+    const now = this.deps.now()
     const merged = { ...current, ...patch }
-    const updated = updateRoutine(this.db, current.id, { ...patch, nextRunAt: merged.enabled ? this.nextRun(merged, this.deps.now()) : null }, this.deps.now())
+    if (enabled === true && merged.runAt !== null && merged.runAt <= now) return fail('invalid-input', '这个只跑一次的例程已经过了时间：写一个新的时间再打开')
+    const updated = updateRoutine(this.db, current.id, { ...patch, nextRunAt: merged.enabled ? this.nextRun(merged, now) : null }, now)
     if (updated === undefined) return fail('not-found', '找不到这个例程')
     this.deps.audit.record('routine.update', actor, current.id, { patch })
     this.deps.bus.emit({ type: 'routines' })
@@ -219,13 +273,24 @@ export class RoutineService {
     }
     try {
       const status = routine.kind === 'watch' ? await this.runWatch(routine) : await this.deliver(routine, `[例程「${routine.title}」${reason === 'catch-up' ? '（补跑）' : ''}]\n${routine.prompt}${this.pageLine(routine.pageId)}`)
-      updateRoutine(this.db, routine.id, { lastRunAt: now, nextRunAt: this.nextRun(routine, now), lastStatus: status }, this.deps.now())
+      this.finish(routine, now, status)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       updateRoutine(this.db, routine.id, { lastRunAt: now, nextRunAt: this.nextRun(routine, now), lastStatus: `出错：${truncate(message, 80)}` }, this.deps.now())
       this.deps.warn(`例程「${routine.title}」运行失败：${message}`)
     }
     this.deps.bus.emit({ type: 'routines' })
+  }
+
+  /** 跑完记下结果和下次时间；只跑一次的例程把指令交出去以后就删掉（结果在对话里）。 */
+  private finish(routine: Routine, now: number, status: string): void {
+    const next = this.nextRun(routine, now)
+    if (routine.runAt !== null && next === null && status === DELIVERED) {
+      deleteRoutine(this.db, routine.id, this.deps.now())
+      this.deps.audit.record('routine.done', 'pod', routine.id, { title: routine.title })
+      return
+    }
+    updateRoutine(this.db, routine.id, { lastRunAt: now, nextRunAt: next, lastStatus: status }, this.deps.now())
   }
 
   /** 要更新页面的例程：告诉 bot 是哪个页面、怎么更新；页面删掉了就按普通例程做。 */
@@ -274,7 +339,7 @@ export class RoutineService {
     }
     const session = await this.session(routine, bot.id, roomId)
     this.deps.dispatcher.enqueue({ sessionId: session.id, mode: 'followup', priority: PRIORITY.routine, text, source: noticeSource(`例程：${routine.title}`) })
-    return '已运行'
+    return DELIVERED
   }
 
   private async session(routine: Routine, botId: string, roomId: string): Promise<PodSession> {
@@ -289,6 +354,13 @@ export class RoutineService {
     if (routine.kind === 'watch') return `每 ${routine.intervalMinutes} 分钟检查 ${routine.url}`
     const page = routine.pageId === null ? undefined : this.deps.describePage(routine.pageId)
     const target = page === undefined || page.deleted ? '' : `，更新${PAGE_KIND_LABELS[page.kind]}「${page.title}」`
-    return `${describeCron(routine.cron)}${target}`
+    const when = routine.runAt === null ? describeCron(routine.cron) : `${formatLocal(routine.runAt, routine.timezone)} 跑一次`
+    return `${when}${target}`
+  }
+
+  /** 下次什么时候跑：「下次 10月26日 11:30」「已暂停」「没有下次了」。 */
+  describeNext(routine: Routine): string {
+    if (!routine.enabled) return '已暂停'
+    return routine.nextRunAt === null ? '没有下次了' : `下次 ${formatLocal(routine.nextRunAt, routine.timezone)}`
   }
 }

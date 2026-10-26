@@ -75,6 +75,11 @@ const DESCRIBERS: Readonly<Record<string, Describe>> = {
   request_takeover: (args) => `请你接管浏览器：${short(text(args.reason), 24)}`,
   review_task: (args) => (args.pass === false ? '打回子任务' : '验收子任务'),
   deliver_task: () => '交付',
+  create_routine: (args) => `建例程「${short(text(args.title), 20)}」`,
+  update_routine: (args) => (args.enabled === false ? '暂停例程' : args.enabled === true ? '恢复例程' : '改例程'),
+  list_routines: () => '查看例程',
+  delete_routine: () => '删除例程',
+  watch_page: (args) => `盯网页 ${short(host(text(args.url)))}`,
 }
 
 export function describeToolCall(name: string, rawArgs: string): string {

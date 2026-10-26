@@ -106,6 +106,29 @@ export function nextDailyAt(time: number, timeZone: string, at: string): number 
   return zonedTime({ year: tomorrow.year, month: tomorrow.month, day: tomorrow.day, hour, minute }, timeZone)
 }
 
+const LOCAL_TIME = /^(?:(\d{4})-(\d{1,2})-(\d{1,2})[ T])?([01]?\d|2[0-3]):([0-5]\d)$/
+
+/**
+ * 用户写的时间换成时刻，按 timeZone：「HH:MM」是下一次到这个钟点（今天过了就是明天），「YYYY-MM-DD HH:MM」是那一天的那个钟点。
+ * 写法不对或者没有这一天时返回说明。
+ */
+export function parseLocalTime(value: string, timeZone: string, now: number): number | string {
+  const match = LOCAL_TIME.exec(value.trim())
+  if (match === null) return '时间写成 HH:MM 或 YYYY-MM-DD HH:MM'
+  const [, year, month, day, hour = '0', minute = '0'] = match
+  if (year === undefined || month === undefined || day === undefined) return nextDailyAt(now, timeZone, `${hour}:${minute}`)
+  const clock = { year: Number(year), month: Number(month), day: Number(day), hour: Number(hour), minute: Number(minute) }
+  const time = zonedTime(clock, timeZone)
+  const check = wallClock(time, timeZone)
+  return check.year === clock.year && check.month === clock.month && check.day === clock.day ? time : `没有这一天：${value.trim()}`
+}
+
+/** 时刻写成用户时区的「10月26日 11:30」。 */
+export function formatLocal(time: number, timeZone: string): string {
+  const clock = wallClock(time, timeZone)
+  return `${clock.month}月${clock.day}日 ${String(clock.hour).padStart(2, '0')}:${String(clock.minute).padStart(2, '0')}`
+}
+
 /** 某时刻所在的本地日期，写成 YYYY-MM-DD。 */
 export function localDate(time: number, timeZone: string): string {
   const clock = wallClock(time, timeZone)

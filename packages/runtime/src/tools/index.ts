@@ -23,6 +23,7 @@ export interface ExtraTool {
 /**
  * 按会话决定装哪些 Pod 工具：
  * - 主管的聊天会话：组织工具（委派、组队、团队、评审）；
+ * - 所有聊天会话：建例程和盯网页（主管能交给任何 bot，成员只能建在自己名下）；
  * - 群聊里的聊天会话：在群里 @ 成员（mention_member）；
  * - 任务会话：勾验收项、提交、找用户，以及咨询、团队状态、任务板；
  * - 组长的协调会话：任务板、验收、改计划、改派、发说明、交付、要人、找用户；
@@ -33,8 +34,8 @@ export interface ExtraTool {
 export function equipSession(pod: PodRuntime, extras: readonly ExtraTool[], session: PodSession, _agent: LiveAgent): Equipment {
   const bot = pod.bots.get(session.botId)
   const base: ToolDefinition[] = []
-  if (session.kind === 'chat' && bot?.role === 'lead') base.push(...leadTools(pod, session), ...leadTeamTools(pod, session), ...routineTools(pod, session))
-  if (session.kind === 'chat') base.push(...teamTools(pod, session), ...groupTools(pod, session))
+  if (session.kind === 'chat' && bot?.role === 'lead') base.push(...leadTools(pod, session), ...leadTeamTools(pod, session))
+  if (session.kind === 'chat') base.push(...routineTools(pod, session), ...teamTools(pod, session), ...groupTools(pod, session))
   if (session.kind === 'task') base.push(...taskTools(pod, session), ...teamTools(pod, session))
   if (session.kind === 'coord') base.push(...coordTools(pod, session), askOwnerTool(pod, session), ...teamTools(pod, session))
   base.push(...memoryTools(pod, session))

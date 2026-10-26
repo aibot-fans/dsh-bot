@@ -114,10 +114,40 @@ export function weeklyCron(time: string, weekdays: readonly number[]): string {
   return `${minute ?? 0} ${hour ?? 0} * * ${weekdays.map((day) => day % 7).join(',')}`
 }
 
+/** 定时例程最短多久跑一次：每次都要调用模型。 */
+export const EVERY_MIN_MINUTES = 5
+
+/**
+ * 每隔 N 分钟换成 cron，从整点算起：能整除一小时的（5、10、15、20、30 分钟）按分钟走，
+ * 整小时且能整除一天的（1、2、3、4、6、8、12、24 小时）按小时走。别的间隔返回 undefined。
+ */
+export function everyCron(minutes: number): string | undefined {
+  if (!Number.isInteger(minutes) || minutes < EVERY_MIN_MINUTES) return undefined
+  if (minutes < 60) return 60 % minutes === 0 ? `*/${minutes} * * * *` : undefined
+  if (minutes % 60 !== 0) return undefined
+  const hours = minutes / 60
+  if (hours === 1) return '0 * * * *'
+  if (hours === 24) return '0 0 * * *'
+  return 24 % hours === 0 ? `0 */${hours} * * *` : undefined
+}
+
+/** 每隔几分钟、几小时的 cron 的说法；不是这种写法返回 undefined。 */
+function describeEvery(source: string): string | undefined {
+  const minutes = /^\*\/(\d+) \* \* \* \*$/.exec(source)
+  if (minutes !== null) return `每 ${minutes[1]} 分钟`
+  const hours = /^(\d+) \*\/(\d+) \* \* \*$/.exec(source)
+  if (hours !== null) return `每 ${hours[2]} 小时${hours[1] === '0' ? '' : `（第 ${hours[1]} 分）`}`
+  const hourly = /^(\d+) \* \* \* \*$/.exec(source)
+  if (hourly !== null) return hourly[1] === '0' ? '每小时' : `每小时第 ${hourly[1]} 分`
+  return undefined
+}
+
 /** cron 的中文说明，给例程列表显示。 */
 export function describeCron(expression: string): string {
   const schedule = parseCron(expression)
   if (typeof schedule === 'string') return expression
+  const every = describeEvery(schedule.source)
+  if (every !== undefined) return every
   const minutes = [...schedule.minute.values]
   const hours = [...schedule.hour.values]
   const time = minutes.length === 1 && hours.length === 1 ? `${String(hours[0]).padStart(2, '0')}:${String(minutes[0]).padStart(2, '0')}` : undefined

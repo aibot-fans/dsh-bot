@@ -139,6 +139,7 @@ export function leadTools(pod: PodRuntime, session: PodSession): readonly ToolDe
       '把一件事交给一个 bot（L1），或者交给你自己在后台做（bot 填“主管”）。Pod 会建任务、开任务会话，并在对话里放一张实时刷新的任务卡。',
       '默认先等结果：2 分钟内完成就直接返回结果；没完成就转成后台任务，完成时任务卡会变成交付卡，并通知你。',
       '要写清任务说明（目标、范围、约束）、交付物、2–5 条验收项，以及你定下的前提。',
+      '只用于要连续多步的实际工作：不要用它（包括交给你自己）来等待、验证或者轮询；改了设置或例程，工具的返回就是结果；到点看一眼用只跑一次的例程（create_routine 的 in_minutes 或 at）。',
     ].join(''),
     properties: {
       bot: str('交给谁：bot 的名字或 id；交给自己写“主管”'),

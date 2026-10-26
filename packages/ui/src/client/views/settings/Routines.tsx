@@ -6,6 +6,7 @@ import { pageApi } from '../../api/pages.ts'
 import { Avatar, Button, Empty, Field, IconButton, RelativeTime, Segmented, Switch } from '../../components/common.tsx'
 import { BotPicker } from '../../components/GroupMark.tsx'
 import { Icon } from '../../components/Icon.tsx'
+import { MenuItem, MenuPanel, useMenu } from '../../components/Menu.tsx'
 import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 
@@ -18,9 +19,16 @@ function when(time: number | null): string {
   return new Date(time).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-type Schedule = 'daily' | 'weekly' | 'cron'
+type Schedule = 'daily' | 'weekly' | 'once' | 'cron'
 
-/** 新建自动化：定时做一件事（每天、每周几或 cron，可以顺便更新一个页面），或者盯一个网页（网址、选择器、间隔）。 */
+/** datetime-local 输入框要的「YYYY-MM-DDTHH:MM」（浏览器本地时间）。 */
+function localInput(time: number): string {
+  const date = new Date(time)
+  const pad = (value: number): string => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+/** 新建自动化：定时做一件事（每天、每周几、只跑一次或 cron，可以顺便更新一个页面），或者盯一个网页（网址、选择器、间隔）。 */
 export function RoutineForm(props: {
   readonly bots: readonly Bot[]
   readonly rooms: readonly RoomSummary[]
@@ -38,6 +46,7 @@ export function RoutineForm(props: {
   const [time, setTime] = useState('08:00')
   const [weekdays, setWeekdays] = useState<readonly number[]>([1, 2, 3, 4, 5])
   const [cron, setCron] = useState('')
+  const [at, setAt] = useState(() => localInput(Date.now() + 3_600_000))
   const [url, setUrl] = useState('')
   const [selector, setSelector] = useState('')
   const [interval, setIntervalMinutes] = useState(60)
@@ -50,7 +59,8 @@ export function RoutineForm(props: {
     setBusy(true)
     setProblem(undefined)
     const base = { kind, title, prompt, botId, roomId: roomId === '' ? undefined : roomId }
-    const input = kind === 'cron' ? { ...base, cron: expression, ...(pageId === '' ? {} : { pageId }) } : { ...base, url, selector, intervalMinutes: interval }
+    const when = schedule === 'once' ? { at } : { cron: expression }
+    const input = kind === 'cron' ? { ...base, ...when, ...(pageId === '' ? {} : { pageId }) } : { ...base, url, selector, intervalMinutes: interval }
     api
       .createRoutine(input)
       .then(props.onDone)
@@ -82,10 +92,13 @@ export function RoutineForm(props: {
             <select className="pod-input" value={schedule} onChange={(event) => setSchedule(event.target.value as Schedule)}>
               <option value="daily">每天</option>
               <option value="weekly">每周几</option>
+              <option value="once">只跑一次</option>
               <option value="cron">cron 表达式</option>
             </select>
             {schedule === 'cron' ? (
               <input className="pod-input" value={cron} onChange={(event) => setCron(event.target.value)} placeholder="分 时 日 月 周，例如 0 9 * * 1" />
+            ) : schedule === 'once' ? (
+              <input className="pod-input" type="datetime-local" value={at} onChange={(event) => setAt(event.target.value)} aria-label="什么时候跑" />
             ) : (
               <input className="pod-input pod-input-time" type="time" value={time} onChange={(event) => setTime(event.target.value)} />
             )}
@@ -154,31 +167,50 @@ export function RoutineForm(props: {
   )
 }
 
-/** 一条自动化：谁来做、什么时候跑、结果发到哪、上次结果；可以开关、立即运行、删除。 */
-export function RoutineRow(props: { readonly routine: RoutineView; readonly bot: Bot | undefined; readonly target: string; readonly onChanged: () => void }) {
+/** 一条自动化：谁来做（点名字可以换人）、什么时候跑、结果发到哪、上次结果；可以开关、立即运行、删除。 */
+export function RoutineRow(props: { readonly routine: RoutineView; readonly bot: Bot | undefined; readonly bots: readonly Bot[]; readonly target: string; readonly onChanged: () => void }) {
   const { routine } = props
   const [problem, setProblem] = useState<string | undefined>(undefined)
+  const owners = useMenu('start')
   const act = (work: Promise<unknown>): void => {
     setProblem(undefined)
     work.then(props.onChanged).catch((reason: unknown) => setProblem(errorText(reason)))
   }
   const failed = /失败|出错|打不开/.test(routine.lastStatus)
+  // 只跑一次的跑过了（没交出去才会留着）：没有开关，只能立即再跑或者删掉。
+  const finished = routine.runAt !== null && routine.nextRunAt === null
   return (
     <div className="pod-auto-row">
       <Avatar bot={props.bot} size={30} />
       <div className="pod-auto-main">
         <strong>{routine.title}</strong>
         <span className="pod-muted-inline">
-          {props.bot?.name ?? '已删除的 bot'} · {routine.kind === 'watch' ? '盯网页，' : ''}
+          <button ref={owners.anchor} type="button" className="pod-link" title="换一个 bot 来做" aria-expanded={owners.open} onClick={owners.toggle}>
+            {props.bot?.name ?? '已删除的 bot'}
+          </button>{' '}
+          · {routine.kind === 'watch' ? '盯网页，' : ''}
           {routine.description} · 发到{props.target}
         </span>
+        <MenuPanel control={owners} label={`「${routine.title}」交给谁来做`}>
+          {props.bots.map((bot) => (
+            <MenuItem
+              key={bot.id}
+              label={bot.name}
+              checked={bot.id === routine.botId}
+              onClick={() => {
+                owners.close()
+                if (bot.id !== routine.botId) act(api.updateRoutine(routine.id, { botId: bot.id }))
+              }}
+            />
+          ))}
+        </MenuPanel>
         <span className={`pod-auto-status${failed ? ' pod-auto-failed' : ''}`}>
           {failed ? <Icon name="close" size={12} /> : null}
           {!routine.enabled ? '已暂停' : routine.lastStatus === '' ? `下次 ${when(routine.nextRunAt)}` : <>上次 <RelativeTime time={routine.lastRunAt} />：{routine.lastStatus}</>}
         </span>
         {problem === undefined ? null : <span className="pod-form-error">{problem}</span>}
       </div>
-      <Switch checked={routine.enabled} label={`${routine.enabled ? '暂停' : '打开'}「${routine.title}」`} onChange={(enabled) => act(api.updateRoutine(routine.id, { enabled }))} />
+      {finished ? null : <Switch checked={routine.enabled} label={`${routine.enabled ? '暂停' : '打开'}「${routine.title}」`} onChange={(enabled) => act(api.updateRoutine(routine.id, { enabled }))} />}
       <IconButton icon="play" label="立即运行" onClick={() => act(api.runRoutine(routine.id))} />
       <IconButton
         icon="trash"
@@ -201,7 +233,13 @@ export function Automations(props: { readonly match?: (routine: RoutineView) => 
   const [creating, setCreating] = useState(false)
   const active = (bots ?? []).filter((bot) => bot.archivedAt === null)
   const byId = new Map(active.map((bot) => [bot.id, bot]))
-  const roomTitle = new Map((rooms ?? []).map((room) => [room.id, room.title]))
+  const roomById = new Map((rooms ?? []).map((room) => [room.id, room]))
+  // 发到负责的 bot 自己的单聊（主管建的例程会记成那个单聊房间）也写“单聊”，不写成「主管」这种房间名。
+  const targetOf = (routine: RoutineView): string => {
+    const room = routine.roomId === null ? undefined : roomById.get(routine.roomId)
+    if (routine.roomId === null || (room?.kind === 'direct' && room.botId === routine.botId)) return '单聊'
+    return `「${room?.title ?? '已删除的群聊'}」`
+  }
   const list = (routines ?? []).filter((routine) => props.match === undefined || props.match(routine))
   return (
     <div className="pod-stack">
@@ -213,7 +251,8 @@ export function Automations(props: { readonly match?: (routine: RoutineView) => 
               key={routine.id}
               routine={routine}
               bot={byId.get(routine.botId)}
-              target={routine.roomId === null ? '单聊' : `「${roomTitle.get(routine.roomId) ?? '已删除的群聊'}」`}
+              bots={active}
+              target={targetOf(routine)}
               onChanged={reload}
             />
           ))}

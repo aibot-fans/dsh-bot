@@ -7,6 +7,7 @@ interface RoutineRow {
   readonly title: string
   readonly kind: string
   readonly cron: string
+  readonly run_at: number | null
   readonly timezone: string
   readonly prompt: string
   readonly bot_id: string
@@ -34,6 +35,7 @@ function toRoutine(row: RoutineRow): Routine {
     title: row.title,
     kind: (row.kind === 'watch' ? 'watch' : 'cron') as RoutineKind,
     cron: row.cron,
+    runAt: row.run_at,
     timezone: row.timezone,
     prompt: row.prompt,
     botId: row.bot_id,
@@ -77,14 +79,15 @@ export type NewRoutine = Omit<Routine, 'fingerprint' | 'lastText' | 'lastRunAt' 
 
 export function insertRoutine(db: DatabaseSync, input: NewRoutine): Routine {
   db.prepare(
-    `INSERT INTO routines (id, title, kind, cron, timezone, prompt, bot_id, room_id, page_id, url, selector, interval_minutes, catch_up, off_peak,
+    `INSERT INTO routines (id, title, kind, cron, run_at, timezone, prompt, bot_id, room_id, page_id, url, selector, interval_minutes, catch_up, off_peak,
        enabled, next_run_at, created_by, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     input.id,
     input.title,
     input.kind,
     input.cron,
+    input.runAt,
     input.timezone,
     input.prompt,
     input.botId,
@@ -109,6 +112,7 @@ export function insertRoutine(db: DatabaseSync, input: NewRoutine): Routine {
 export interface RoutinePatch {
   readonly title?: string
   readonly cron?: string
+  readonly runAt?: number | null
   readonly timezone?: string
   readonly prompt?: string
   readonly botId?: string
@@ -132,12 +136,13 @@ export function updateRoutine(db: DatabaseSync, id: string, patch: RoutinePatch,
   if (current === undefined) return undefined
   const next = { ...current, ...patch }
   db.prepare(
-    `UPDATE routines SET title = ?, cron = ?, timezone = ?, prompt = ?, bot_id = ?, room_id = ?, page_id = ?, url = ?, selector = ?, interval_minutes = ?,
+    `UPDATE routines SET title = ?, cron = ?, run_at = ?, timezone = ?, prompt = ?, bot_id = ?, room_id = ?, page_id = ?, url = ?, selector = ?, interval_minutes = ?,
        fingerprint = ?, last_text = ?, catch_up = ?, off_peak = ?, enabled = ?, last_run_at = ?, next_run_at = ?, last_status = ?, updated_at = ?
      WHERE id = ?`,
   ).run(
     next.title,
     next.cron,
+    next.runAt,
     next.timezone,
     next.prompt,
     next.botId,
