@@ -13,6 +13,8 @@ dev/mock-llm/            开发用的脚本化模型（只装进开发用的 DSH
 dev/demo-oa.mjs          浏览器截图用的示例 OA（一个会议室预订页）
 scripts/dev-home.mjs     在隔离的 DSH_HOME 里装上并启动 Pod
 scripts/pack-npm.mjs     打 npm 包 @aibot_fans/dsh-bot：把 runtime、ui、bundle 合成一个包，输出到 dist/
+scripts/set-version.mjs  改版本号：POD_VERSION 和各包 package.json 一起改
+scripts/version.mjs      上面两个脚本共用的版本号读法
 docs/                    使用说明、开发说明；images/ 是 README 的截图
 ```
 
@@ -79,12 +81,22 @@ dsh plugin --profile web add link:/仓库的绝对路径/packages/bundle
 
 ## 发版本
 
-- 版本号在 `packages/domain/src/version.ts`（`POD_VERSION`），宿主和页面各打包一份，npm 包的版本号也取它。页面发现宿主报的版本和自己不一样，就在顶部提示刷新：dsh web 重启以后，之前打开的标签页还是旧页面，旧页面调的接口可能已经换了。
+- 版本号的源头是 `packages/domain/src/version.ts` 的 `POD_VERSION`，宿主和页面各打包一份，npm 包的版本号也取它；各包 package.json 的版本号跟着它，用 `pnpm version:set <版本>` 一起改。页面发现宿主报的版本和自己不一样，就在顶部提示刷新：dsh web 重启以后，之前打开的标签页还是旧页面，旧页面调的接口可能已经换了。
 - 改了表结构就在 `packages/store/src/migrations.ts` 里加一版迁移，启动时自动迁移。
 - 改完 `pnpm build`，重启 dsh web。宿主和页面的代码都是启动时读进内存的，不重启不生效。
-- 打 npm 包用 `pnpm pack:npm`：先构建，再把 runtime、ui、bundle 合成一个包 `@aibot_fans/dsh-bot`，输出 `dist/aibot_fans-dsh-bot-<版本>.tgz`。包里浏览器插件那一行就叫 `@aibot_fans/dsh-bot`（dsh 只按精确的包名找 `./client`），宿主插件和 agent 是 `@aibot_fans/dsh-bot/runtime`、`@aibot_fans/dsh-bot/agent`；各行的 id 和源码装的一样。
+- 打 npm 包用 `pnpm pack:npm`：先构建，再把 runtime、ui、bundle 合成一个包 `@aibot_fans/dsh-bot`，输出 `dist/aibot_fans-dsh-bot-<版本>.tgz`。包里浏览器插件那一行就叫 `@aibot_fans/dsh-bot`（dsh 只按精确的包名找 `./client`），宿主插件和 agent 是 `@aibot_fans/dsh-bot/runtime`、`@aibot_fans/dsh-bot/agent`；各行的 id 和源码装的一样。各包的版本号和 `POD_VERSION` 对不上时会停下。
 - 发布前可以在隔离环境里装这个 tgz 试一遍：`DSH_HOME=<临时目录> dsh plugin --profile web add <tgz 的绝对路径>`，启动时记得用 `--patch` 把 `workspaceRoot` 也指到临时目录，不然 bot 的工作区会用 `~/Pod`。
-- 发布：先 `npm login`（npm 要求发包的账号开两步验证，发布时会要验证码），再 `npm publish ./dist/aibot_fans-dsh-bot-<版本>.tgz --access public`（路径前面的 `./` 不能省，不然 npm 会把它当成 GitHub 仓库的简写；带作用域的包默认是私有的，要 `--access public`，包里的 package.json 也写了 `publishConfig`）。
+
+### 发布步骤
+
+一个版本的 git 标签 `v<版本>`、npm 包和 GitHub Release 都指向同一个提交。
+
+1. 在 `CHANGELOG.md` 最上面加这个版本的一节，标题写成 `## <版本> - <日期>`：新功能、修复、升级时要注意的。
+2. `pnpm version:set <版本>`，提交 `chore(release): v<版本>`，再打标签：`git tag -a v<版本> -m "v<版本>"`。
+3. `pnpm release:pack`：构建并打包，输出 `dist/aibot_fans-dsh-bot-<版本>.tgz`。工作区有没提交的改动、当前提交没有 `v<版本>` 标签、版本号对不上，或者 CHANGELOG 里没有这一节，都会停下。
+4. 推送提交和标签：`git push origin main --follow-tags`。
+5. 发到 npm：先 `npm login`（npm 要求发包的账号开两步验证，发布时会要验证码），再 `npm publish ./dist/aibot_fans-dsh-bot-<版本>.tgz --access public`（路径前面的 `./` 不能省，不然 npm 会把它当成 GitHub 仓库的简写；带作用域的包默认是私有的，要 `--access public`，包里的 package.json 也写了 `publishConfig`）。
+6. 在 GitHub 仓库的 Releases 里选 `v<版本>` 标签新建发布，标题写 `v<版本>`，正文贴 CHANGELOG 里这一节。
 
 ## 给其他插件的接口
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * 打 npm 包：把构建好的宿主插件、浏览器插件和组合包拼成一个包 @aibot_fans/dsh-bot，输出 dist/aibot_fans-dsh-bot-<版本>.tgz。
- * 先跑 pnpm build（pnpm pack:npm 会先构建）。
+ * 先跑 pnpm build（pnpm pack:npm 会先构建）。打包前核对各包 package.json 的版本号和 POD_VERSION 一样；
+ * 发版用 --release（pnpm release:pack），还要求工作区干净、当前提交打了 v<版本> 标签、CHANGELOG.md 有这个版本的一节。
  *
  * 开发时是三个包（pod-runtime、pod-ui、pod-bundle），发出去合成一个，不带任何依赖：
  *   @aibot_fans/dsh-bot          浏览器插件那一行：dsh 只按精确的包名找 ./client，宿主半边什么都不做
@@ -10,23 +11,32 @@
  * 各行的 id 不变，profile 里按 id 写的覆盖照样生效。
  */
 import { execFileSync } from 'node:child_process'
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { mismatchedPackages, podVersion, repo } from './version.mjs'
 
 const NAME = '@aibot_fans/dsh-bot'
-const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const dist = join(repo, 'dist')
 const out = join(dist, NAME)
 
 const read = (path) => readFileSync(join(repo, path), 'utf8')
 const readJson = (path) => JSON.parse(read(path))
 
-/** 版本号只有一处：POD_VERSION。 */
-function podVersion() {
-  const match = /export const POD_VERSION = '([^']+)'/.exec(read('packages/domain/src/version.ts'))
-  if (match === null) throw new Error('packages/domain/src/version.ts 里找不到 POD_VERSION')
-  return match[1]
+function stop(message) {
+  console.error(message)
+  process.exit(1)
+}
+
+/** 发版时打出来的包要对得上标签：返回不满足的条件（工作区干净、当前提交有 v<版本> 标签、CHANGELOG 有这一节）。 */
+function releaseProblems(version) {
+  const git = (...args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim()
+  const changelog = existsSync(join(repo, 'CHANGELOG.md')) ? read('CHANGELOG.md') : ''
+  const heading = new RegExp(`^## ${version.replaceAll('.', '\\.')}(?: |$)`, 'm')
+  return [
+    git('status', '--porcelain') === '' ? undefined : '工作区有没提交的改动',
+    git('tag', '--points-at', 'HEAD').split('\n').includes(`v${version}`) ? undefined : `当前提交没有 v${version} 标签`,
+    heading.test(changelog) ? undefined : `CHANGELOG.md 里没有「## ${version}」这一节`,
+  ].filter((problem) => problem !== undefined)
 }
 
 /** 原样替换；次数对不上就停下，说明组合包或构建产物换了写法，这里要跟着改。 */
@@ -86,6 +96,14 @@ function manifest(version) {
 }
 
 const version = podVersion()
+const mismatched = mismatchedPackages(version)
+if (mismatched.length > 0) {
+  stop(`各包的版本号和 POD_VERSION（${version}）对不上：${mismatched.map(([path, own]) => `${path} 是 ${own}`).join('；')}。先跑 pnpm version:set ${version}。`)
+}
+if (process.argv.includes('--release')) {
+  const problems = releaseProblems(version)
+  if (problems.length > 0) stop(`不能发版：${problems.join('；')}。步骤见 docs/DEVELOPMENT.md 的「发版本」。`)
+}
 rmSync(out, { recursive: true, force: true })
 mkdirSync(join(out, 'ui'), { recursive: true })
 cpSync(join(repo, 'packages/runtime/lib'), join(out, 'runtime/lib'), { recursive: true })
