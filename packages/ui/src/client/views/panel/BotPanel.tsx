@@ -1,4 +1,4 @@
-import { useRef, useState, type CSSProperties } from 'react'
+import { useRef, useState } from 'react'
 import { BOT_ICONS, BOT_NAME_MAX, BOT_TITLE_MAX, CAPABILITY_MAX, MEMBER_ICONS, botColorBatch, botColorHex, iconAvatar, isAvatarImage, type Bot } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
@@ -53,7 +53,7 @@ function ColorChoices(props: { readonly bot: Bot; readonly onPick: (color: strin
             aria-label={index === 0 ? `现在的颜色 ${color}` : color}
             title={index === 0 ? '现在的颜色' : color}
             className={`pod-color-swatch${index === 0 ? ' pod-color-swatch-on' : ''}`}
-            style={{ '--pod-bot-color': color } as CSSProperties}
+            style={nameColor({ id: props.bot.id, color })}
             onClick={() => (index === 0 ? undefined : props.onPick(color))}
           />
         ))}

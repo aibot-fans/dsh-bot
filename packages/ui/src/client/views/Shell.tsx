@@ -8,6 +8,7 @@ import { useResource } from '../state/resource.ts'
 import { Conversation } from './chat/Conversation.tsx'
 import { Onboarding } from './Onboarding.tsx'
 import { PageViewer } from './pages/PageViewer.tsx'
+import { useSurfaceTheme } from './pages/theme.ts'
 import { Drawers } from './panel/Drawers.tsx'
 import { RightPanel } from './panel/RightPanel.tsx'
 import { SearchDialog } from './search/SearchDialog.tsx'
@@ -88,9 +89,11 @@ function Layout() {
 export function PodApp(props: { readonly host: HostActions }) {
   const [app] = useState(() => new AppState(props.host))
   useEffect(() => () => app.dispose(), [app])
+  // 跟着 dsh 的深浅色：名字颜色这类要分深浅的样式按它选。
+  const theme = useSurfaceTheme()
   return (
     <AppContext.Provider value={app}>
-      <div className="pod-app">
+      <div className={`pod-app${theme === 'dark' ? ' pod-theme-dark' : ''}`}>
         <StaleBanner />
         <ReadOnlyBanner />
         <Layout />

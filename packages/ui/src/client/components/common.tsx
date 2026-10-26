@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
-import { botColorHex, isAvatarImage } from 'pod-domain'
+import { isAvatarImage, nameColors, type NameColors } from 'pod-domain'
 import { mediaUrl } from '../api/http.ts'
 import { BotFigure, BotIcon, iconOf, type IconBot } from './BotIcon.tsx'
 import { Icon } from './Icon.tsx'
@@ -16,13 +16,19 @@ export function Avatar(props: { readonly bot?: IconBot; readonly size?: number; 
   )
 }
 
+/** 同一种颜色只算一次：名字到处都是。 */
+const NAME_COLORS = new Map<string, NameColors>()
+
 /**
- * bot 名字的颜色：配合 .pod-bot-name 用，把 bot 的颜色和文字颜色调一调，浅色和深色背景上都看得清。
+ * bot 名字的颜色：配合 .pod-bot-name（和色板、群图标）用。给出浅色、深色背景上各自的颜色，样式按 dsh 现在的深浅选一个（--pod-name）。
  * 你自己、Pod 和找不到的 bot 不上色。
  */
 export function nameColor(bot: { readonly id: string; readonly color?: string } | undefined): CSSProperties | undefined {
   if (bot === undefined) return undefined
-  return { '--pod-bot-color': botColorHex(bot) } as CSSProperties
+  const key = `${bot.color ?? ''}|${bot.color === undefined || bot.color === '' ? bot.id : ''}`
+  const colors = NAME_COLORS.get(key) ?? nameColors(bot)
+  if (!NAME_COLORS.has(key)) NAME_COLORS.set(key, colors)
+  return { '--pod-name-light': colors.light, '--pod-name-dark': colors.dark } as CSSProperties
 }
 
 /** 详情页的大头像：上传的图片用圆形；内置图标用带底色的全身图，能看到它手里拿的东西。 */

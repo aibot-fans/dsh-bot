@@ -31,9 +31,11 @@ export const V3_CSS = `
 .pod-menu-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pod-menu-hint { flex: none; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: var(--dsw-alias-label-tertiary); }
 .pod-menu-form { display: flex; flex-direction: column; gap: 8px; padding: 4px; }
-.pod-group-mark { flex: none; display: grid; grid-template-columns: 1fr 1fr; place-items: center; align-content: center; border-radius: 30%; background: color-mix(in srgb, var(--dsw-alias-label-primary) 7%, var(--dsw-alias-bg-layer-1, #fff)); overflow: hidden; }
-.pod-group-mark-3, .pod-group-mark-4 { grid-template-rows: 1fr 1fr; align-content: stretch; }
+.pod-group-mark { flex: none; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; gap: 1px; border-radius: 30%; background: var(--dsw-alias-bg-layer-1, #fff); overflow: hidden; }
+.pod-group-mark-3, .pod-group-mark-4 { grid-template-rows: 1fr 1fr; }
 .pod-group-mark-3 > :first-child { grid-column: 1 / 3; }
+.pod-group-cell { display: grid; place-items: center; min-width: 0; min-height: 0; overflow: hidden; background: color-mix(in srgb, var(--pod-name) 24%, var(--dsw-alias-bg-layer-1, #fff)); }
+.pod-group-more { color: var(--dsw-alias-label-secondary); font-weight: 600; line-height: 1; background: color-mix(in srgb, var(--dsw-alias-label-primary) 10%, var(--dsw-alias-bg-layer-1, #fff)); }
 .pod-botname { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; vertical-align: -3px; }
 .pod-botname-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pod-bot-picker { display: flex; flex-wrap: wrap; gap: 6px; }

@@ -91,6 +91,20 @@ export function hexToOklch(hex: string): Oklch | undefined {
   }
 }
 
+/** WCAG 的相对亮度，0 到 1；不是 #rrggbb 当成黑色。 */
+function luminance(hex: string): number {
+  const digits = HEX.exec(hex.trim())?.[1]
+  if (digits === undefined) return 0
+  const value = Number.parseInt(digits, 16)
+  return 0.2126 * toLinear((value >> 16) / 255) + 0.7152 * toLinear(((value >> 8) & 255) / 255) + 0.0722 * toLinear((value & 255) / 255)
+}
+
+/** 两种颜色的对比度（WCAG），1 到 21：正文要 4.5 以上。 */
+export function contrastRatio(x: string, y: string): number {
+  const [light, dark] = [luminance(x), luminance(y)].sort((left, right) => right - left)
+  return ((light ?? 0) + 0.05) / ((dark ?? 0) + 0.05)
+}
+
 /** 两种颜色看起来差多少（OKLab 里的距离）：0.1 以上一眼能分开。 */
 export function colorDistance(x: Oklch, y: Oklch): number {
   const [ax, bx] = labOf(x)

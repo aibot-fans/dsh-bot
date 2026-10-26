@@ -34,6 +34,8 @@ export function useSurfaceTheme(): PageTheme {
   const [theme, setTheme] = useState<PageTheme>(surfaceTheme)
   useEffect(() => {
     const read = (): void => setTheme(surfaceTheme())
+    // 第一次渲染时 .pod-app 可能还没挂上（外壳自己就在用它），挂上以后再读一次。
+    read()
     const observer = new MutationObserver(read)
     for (const node of [document.documentElement, document.body]) observer.observe(node, { attributes: true, attributeFilter: ['class', 'style', 'data-theme', 'data-color-scheme'] })
     observer.observe(document.head, { childList: true })

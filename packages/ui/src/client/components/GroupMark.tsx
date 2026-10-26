@@ -8,22 +8,34 @@ const PAIR: readonly IconBot[] = [
   { id: 'pair-member', name: '成员', avatar: iconAvatar('member') },
 ]
 
+/** 群图标最多拼几格；成员更多时前几格放成员，最后一格写“+N”。 */
+const MARK_CELLS = 4
+
 /**
- * 群聊的图标：成员的小图标拼在一起（最多 4 个）。主管在每个群里，成员够多时不占位置；
- * 还不知道成员时用领导和万能助手两个。
+ * 群聊的图标：成员的小图标拼在一起，每一格垫着这个成员的颜色，拉人、踢人一眼看得出来。
+ * 不超过 4 个全放上，主管排在最后；超过 4 个放前 3 个，第 4 格写“+N”。还不知道成员时用领导和万能助手两个。
  */
 export function GroupMark(props: { readonly members?: readonly IconBot[]; readonly size?: number }) {
   const size = props.size ?? 26
   const all = props.members ?? []
-  const others = all.filter((bot) => bot.role !== 'lead')
-  const known = (others.length >= 2 ? others : all).slice(0, 4)
-  const shown = known.length < 2 ? PAIR : known
-  const cell = Math.round(size * (shown.length === 2 ? 0.52 : 0.47))
+  const ordered = [...all.filter((bot) => bot.role !== 'lead'), ...all.filter((bot) => bot.role === 'lead')]
+  const known = ordered.length < 2 ? PAIR : ordered
+  const shown = known.length <= MARK_CELLS ? known : known.slice(0, MARK_CELLS - 1)
+  const more = known.length - shown.length
+  const cells = shown.length + (more > 0 ? 1 : 0)
+  const cell = Math.max(8, Math.floor((size - 1) / 2) - 1)
   return (
-    <span className={`pod-group-mark pod-group-mark-${shown.length}`} style={{ width: size, height: size }} aria-hidden>
+    <span className={`pod-group-mark pod-group-mark-${cells}`} style={{ width: size, height: size }} aria-hidden>
       {shown.map((bot) => (
-        <Avatar key={bot.id} bot={bot} size={cell} />
+        <span key={bot.id} className="pod-group-cell" style={nameColor(bot)}>
+          <Avatar bot={bot} size={cell} />
+        </span>
       ))}
+      {more > 0 ? (
+        <span className="pod-group-cell pod-group-more" style={{ fontSize: Math.max(8, Math.round(size * 0.3)) }}>
+          +{more}
+        </span>
+      ) : null}
     </span>
   )
 }
