@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { join } from 'node:path'
-import { OWNER, POD, POD_VERSION, PRIORITY, botFolder, composePersona, roomFolder, fail, sessionBrowses, sessionMakesPages, type Bot, type BotStats, type PodEvent, type PodResult, type PodSession, type Room, type Task, type TeamTemplate } from 'pod-domain'
+import { OWNER, POD, POD_VERSION, PRIORITY, botFolder, composePersona, roomFolder, fail, sessionBrowses, sessionMakesPages, worthSummary, type Bot, type BotStats, type PodEvent, type PodResult, type PodSession, type Room, type Task, type TeamTemplate } from 'pod-domain'
 import { deliveryByMessageId, pinnedMessages, teamsOfBot } from 'pod-store'
 import { SegmentManager } from './agents/segments.ts'
 import { AibotService } from './aibot/service.ts'
@@ -121,6 +121,8 @@ export class PodRuntime {
   private exposureState: Exposure = detectExposure()
   private readonly extras: ExtraTool[] = []
   private readonly activityTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  /** 每条会话这一轮最后说的那段话：跑完以后执行摘要记在它上面。 */
+  private readonly lastReplies = new Map<string, { readonly id: string; readonly at: number }>()
   private readonly options: PodRuntimeOptions
   private readonly protectData: ReturnType<typeof dataGuard>
 
@@ -316,7 +318,10 @@ export class PodRuntime {
         onAssistantText: (session, text) => {
           // 在回页面修改要求的这一轮，说的话归到那个页面下面（页面旁边的修改对话里看得到）。
           const pageId = this.pages.threadOf(session.id)
-          if (session.kind === 'chat' || session.kind === 'routine') this.rooms.postBotText(session, text, pageId === undefined ? undefined : { pageId })
+          if (session.kind === 'chat' || session.kind === 'routine') {
+            const posted = this.rooms.postBotText(session, text, pageId === undefined ? undefined : { pageId })
+            if (posted !== undefined) this.lastReplies.set(session.id, { id: posted.id, at: posted.createdAt })
+          }
           if (session.kind === 'chat' && session.roomId !== null) {
             this.bus.emit({ type: 'stream', roomId: session.roomId, botId: session.botId, sessionId: session.id, text: '', done: true })
           }
@@ -337,6 +342,20 @@ export class PodRuntime {
           this.watchdog.onToolCall(session, name, args)
         },
         onUsage: (session, usage) => this.meter.recordAgent(session, usage),
+        onRunEnd: (session, run) => {
+          const reply = this.lastReplies.get(session.id)
+          this.lastReplies.delete(session.id)
+          if (reply !== undefined && reply.at >= run.startedAt && worthSummary(run)) this.rooms.attachRun(reply.id, run)
+        },
+        onPlanMissing: (session) => {
+          this.dispatcher.enqueue({
+            sessionId: session.id,
+            mode: 'inject',
+            priority: PRIORITY.task,
+            text: '[Pod 提醒] 这件事要走好几步：用 todo_write 列一个简短的计划（一步一行），做完一步就勾掉。用户在页面上看得到你的计划和进度。',
+            source: noticeSource('提醒列计划'),
+          })
+        },
         onStream: (session, text, done) => {
           if (session.roomId === null || session.kind !== 'chat') return
           this.bus.emit({ type: 'stream', roomId: session.roomId, botId: session.botId, sessionId: session.id, text, done })
@@ -573,6 +592,7 @@ export class PodRuntime {
       botId: current.botId,
       running: activity?.running === true,
       label: activity?.current ?? '',
+      ...(current.kind === 'chat' ? { progress: activity?.progress ?? null } : {}),
     }
   }
 

@@ -6,6 +6,7 @@
 
 import { demoDecision } from './demo.js'
 import { newPage, pageDecision, wantedKind } from './pages.js'
+import { progressDecision, routineDecision, turnCalls } from './progress.js'
 
 export const name = 'pod-dev-mock-llm'
 
@@ -238,6 +239,10 @@ function decide(options) {
   const demo = demoDecision({ system, messages, brief, userText, calls, tools, last, result: lastTool === undefined ? undefined : parsedResult(lastTool), page: lastPage(messages) })
   if (demo !== undefined) return demo
 
+  const turn = turnCalls(messages, (message) => message.role === 'user' && MEANINGFUL.has(message.source?.kind))
+  const scripted = progressDecision({ userText, turn, tools }) ?? routineDecision({ userText, turn, tools, result: lastToolText(messages) })
+  if (scripted !== undefined) return scripted
+
   if (system.includes('你正在执行一个任务')) {
     if (last?.role === 'tool' && calls.at(-1) === 'complete_task') return { text: '已经提交了。' }
     if (last?.role === 'tool' && calls.at(-1) === 'ask_owner') return { text: '已经请用户处理，等用户答复后接着做。' }
@@ -460,24 +465,36 @@ async function* stream(options) {
   // 演示剧本每一步先停一会儿，任务卡上看得到进度往前走。
   if (decision.pause > 0) await sleep(decision.pause, options.signal)
   const input = JSON.stringify(options.messages ?? []).length + (options.system?.length ?? 0)
+  // 剧本里写了 think 的先想一会儿：思考流一小段一小段地吐，进度块上看得到“正在想”的最后一句。
+  let index = 0
+  if (typeof decision.think === 'string' && decision.think !== '') {
+    yield { type: 'block-start', index, blockType: 'reasoning' }
+    for (let start = 0; start < decision.think.length; start += 4) {
+      if (options.signal?.aborted) break
+      yield { type: 'reasoning-delta', index, text: decision.think.slice(start, start + 4) }
+      await sleep(150, options.signal)
+    }
+    yield { type: 'block-end', index, block: { type: 'reasoning', text: decision.think } }
+    index += 1
+  }
   if (decision.tool !== undefined) {
     const id = `call_${Math.random().toString(16).slice(2, 10)}`
     const args = JSON.stringify(decision.args)
-    yield { type: 'block-start', index: 0, blockType: 'tool-call' }
-    yield { type: 'tool-call-delta', index: 0, id, name: decision.tool, argumentsDelta: args }
-    yield { type: 'block-end', index: 0, block: { type: 'tool-call', id, name: decision.tool, arguments: args } }
+    yield { type: 'block-start', index, blockType: 'tool-call' }
+    yield { type: 'tool-call-delta', index, id, name: decision.tool, argumentsDelta: args }
+    yield { type: 'block-end', index, block: { type: 'tool-call', id, name: decision.tool, arguments: args } }
     yield { type: 'usage', usage: { inputTokens: Math.ceil(input / 4), outputTokens: Math.ceil(args.length / 4), cacheReadTokens: 0 } }
     yield { type: 'finish', reason: { kind: 'tool-calls' } }
     return
   }
   const text = decision.text
-  yield { type: 'block-start', index: 0, blockType: 'text' }
+  yield { type: 'block-start', index, blockType: 'text' }
   for (let start = 0; start < text.length; start += 6) {
     if (options.signal?.aborted) break
-    yield { type: 'text-delta', index: 0, text: text.slice(start, start + 6) }
+    yield { type: 'text-delta', index, text: text.slice(start, start + 6) }
     await sleep(25, options.signal)
   }
-  yield { type: 'block-end', index: 0, block: { type: 'text', text } }
+  yield { type: 'block-end', index, block: { type: 'text', text } }
   const huge = JSON.stringify(options.messages ?? []).includes('超长')
   yield { type: 'usage', usage: { inputTokens: huge ? 300000 : Math.ceil(input / 4), outputTokens: Math.ceil(text.length / 2), cacheReadTokens: 0 } }
   yield { type: 'finish', reason: { kind: 'stop' } }

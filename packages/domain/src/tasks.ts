@@ -1,6 +1,7 @@
 /** 任务树：根任务是目标，子任务派给成员；验收项既是标准，也是进度的计量单位。 */
 
 import type { ToolProfile } from './bots.ts'
+import type { TurnProgress } from './progress.ts'
 
 export type TaskStatus =
   | 'queued'
@@ -146,6 +147,8 @@ export interface TaskActivity {
   readonly current: string | null
   readonly lastEventAt: number | null
   readonly stalled: boolean
+  /** 这一轮的执行进度（步骤、计划、正在想什么）；还没开始过是 null。 */
+  readonly progress: TurnProgress | null
 }
 
 /** 任务卡和进度快照里用到的全部数字。 */

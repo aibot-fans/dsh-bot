@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useSyncExternalStore } from 'react'
-import { TEMPORARY_TOPIC, isTemporaryRoom, type MemoryScopeKind, type PodEvent, type PodNotification, type PodSettings, type RoomSummary } from 'pod-domain'
+import { TEMPORARY_TOPIC, isTemporaryRoom, type MemoryScopeKind, type PodEvent, type PodNotification, type PodSettings, type RoomSummary, type TurnProgress } from 'pod-domain'
 import { api } from '../api/endpoints.ts'
 import { PodEvents } from '../api/events.ts'
 import { ResourceCache } from './resource.ts'
@@ -65,6 +65,8 @@ export interface LiveStatus {
   readonly sessionId: string
   /** 正在做的事；空串表示在想。 */
   readonly label: string
+  /** 这一轮的执行进度：每一步、计划、正在想什么。 */
+  readonly progress: TurnProgress | null
 }
 
 export interface HostActions {
@@ -383,7 +385,7 @@ export class AppState {
       case 'activity':
         cache.invalidate(`activity:${event.sessionId}`)
         if (typeof event.roomId === 'string' && event.botId !== undefined) {
-          this.setStatus(event.roomId, { botId: event.botId, sessionId: event.sessionId, label: event.label ?? '' }, event.running === true)
+          this.setStatus(event.roomId, { botId: event.botId, sessionId: event.sessionId, label: event.label ?? '', progress: event.progress ?? null }, event.running === true)
         }
         if (event.taskId !== null) {
           const root = this.rootOf(event.taskId)

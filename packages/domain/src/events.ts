@@ -1,3 +1,4 @@
+import type { TurnProgress } from './progress.ts'
 import type { PodNotification } from './routines.ts'
 
 /**
@@ -35,6 +36,8 @@ export type PodEvent =
       readonly running?: boolean
       /** 正在做的事，例如“正在读 posts.tsx”；空串表示在想。 */
       readonly label?: string
+      /** 聊天会话这一轮的执行进度，回答下面那一块直接用它画。 */
+      readonly progress?: TurnProgress | null
     }
   | { readonly type: 'waits' }
   | { readonly type: 'notifications' }

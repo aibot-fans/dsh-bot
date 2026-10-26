@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { OWNER, POD, type Bot, type RoomMessage } from 'pod-domain'
+import { OWNER, POD, readRunSummary, type Bot, type RoomMessage } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { BrowserCard } from '../../components/BrowserCard.tsx'
@@ -9,6 +9,7 @@ import { Icon } from '../../components/Icon.tsx'
 import { Markdown } from '../../components/Markdown.tsx'
 import type { Mentions } from '../../components/mentions.tsx'
 import { MenuItem, MenuPanel, useMenu } from '../../components/Menu.tsx'
+import { RunSummaryLine } from '../../components/Progress.tsx'
 import { TaskCard } from '../../components/TaskCard.tsx'
 import { WaitCard } from '../../components/WaitCard.tsx'
 import { PageCard, PageChip } from '../pages/PageCard.tsx'
@@ -178,6 +179,8 @@ export function MessageItem(props: MessageProps) {
   const quoted = props.quoted
   const pageId = typeof message.data.pageId === 'string' ? message.data.pageId : undefined
   const xEvent = readXEvent(message.data.xEvent)
+  // 这一轮跑完记下的执行过程：用时、几步，点开看每一步。
+  const run = readRunSummary(message.data.run)
   const quote =
     quoted === undefined ? null : (
       <div className="pod-quote">
@@ -219,6 +222,7 @@ export function MessageItem(props: MessageProps) {
         {quote}
         {xEvent === undefined ? <Markdown text={message.body} mentions={calledMentions(message, props.mentions, false)} /> : <XEventCard view={xEvent} />}
         {attachment === undefined ? null : <Attachment attachment={attachment} />}
+        {run === undefined ? null : <RunSummaryLine run={run} />}
         {message.kind === 'kickoff' && typeof message.data.taskId === 'string' ? <KickoffActions taskId={message.data.taskId} /> : null}
         <MessageActions {...props} owner={false} />
       </div>

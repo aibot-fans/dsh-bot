@@ -17,6 +17,7 @@ import { Badge, Button, useNow } from './common.tsx'
 import { FilePreview } from './FilePreview.tsx'
 import { BotName } from './GroupMark.tsx'
 import { Markdown } from './Markdown.tsx'
+import { ProgressBlock } from './Progress.tsx'
 
 function elapsed(task: Task, now: number): string {
   const end = task.finishedAt ?? now
@@ -201,7 +202,11 @@ export function TaskCard(props: { readonly taskId: string; readonly compact?: bo
               ))}
             </ul>
           )}
-          {task.status === 'running' ? <ActivityLine activity={snapshot.activity} now={now} prefix="正在做" /> : null}
+          {task.status !== 'running' ? null : snapshot.activity?.running === true && snapshot.activity.progress !== null ? (
+            <ProgressBlock progress={snapshot.activity.progress} label={snapshot.activity.current ?? ''} streaming={false} stalled={snapshot.activity.stalled} />
+          ) : (
+            <ActivityLine activity={snapshot.activity} now={now} prefix="正在做" />
+          )}
           {snapshot.children
             .filter((child) => child.status === 'running' && snapshot.childActivity[child.id] !== undefined)
             .slice(0, 3)

@@ -6,7 +6,9 @@ import { Avatar, nameColor } from '../../components/common.tsx'
 import { Icon } from '../../components/Icon.tsx'
 import { Markdown } from '../../components/Markdown.tsx'
 import { buildMentions, type Mentions } from '../../components/mentions.tsx'
+import { ProgressBlock } from '../../components/Progress.tsx'
 import { useApp, useLive, useNav, usePodEvent, type LiveStatus, type LiveStream } from '../../state/app.ts'
+import { arrange } from './arrange.ts'
 import { MessageItem } from './MessageItem.tsx'
 
 const PAGE = 50
@@ -100,7 +102,18 @@ function Intro(props: { readonly room: Room; readonly bots: ReadonlyMap<string, 
 }
 
 /** bot 正在回答：有文字就显示正在输入的文字，还没有文字就显示它在做什么。 */
-function LiveReply(props: { readonly bot: Bot | undefined; readonly stream: LiveStream | undefined; readonly status: LiveStatus | undefined; readonly onOpenBot: () => void; readonly mentions: Mentions }) {
+/** 「让它汇报」发出去的话：说完接着做，不是让它停下。 */
+const REPORT_ASK = '汇报一下进展：现在做到哪了、遇到了什么问题、接下来打算怎么做。说完接着做。'
+
+function LiveReply(props: {
+  readonly bot: Bot | undefined
+  readonly stream: LiveStream | undefined
+  readonly status: LiveStatus | undefined
+  readonly onOpenBot: () => void
+  readonly mentions: Mentions
+  readonly onReport: () => void
+  readonly onStop: () => void
+}) {
   const label = props.status === undefined ? '' : props.status.label
   return (
     <div className="pod-msg pod-msg-live" aria-live="polite">
@@ -114,10 +127,7 @@ function LiveReply(props: { readonly bot: Bot | undefined; readonly stream: Live
           </button>
         </div>
         {props.stream === undefined ? null : <Markdown text={props.stream.text} mentions={props.mentions} />}
-        <div className="pod-live-line">
-          <span className="pod-spinner" aria-hidden />
-          {props.stream !== undefined && label === '' ? '正在输入' : label === '' ? '正在想' : `正在${label}`}
-        </div>
+        <ProgressBlock progress={props.status?.progress ?? null} label={label} streaming={props.stream !== undefined} onReport={props.onReport} onStop={props.onStop} />
       </div>
     </div>
   )
@@ -137,6 +147,7 @@ export interface TimelineProps {
  * 时间线：一次加载 50 条，往上滚加载更早的，往下滚到头时补上更新的；新消息按 id 合并进来（卡片原地更新也是同一条）。
  * 在底部附近时新消息自动滚到底；往上翻远了右下角出现“回到最新”，带着这期间来的新消息条数。
  * bot 在回答时显示它正在做什么和正在输入的文字。以前在同一个对话里“开新对话”留下的分隔线照常显示。
+ * 同一段回复里先显示文字，页面、任务卡这些卡片和状态行放在下面（见 arrange）；bot 还在回答时，正在输入的文字也排在这段的卡片上面。
  */
 export function Timeline(props: TimelineProps) {
   const { room } = props
@@ -289,11 +300,38 @@ export function Timeline(props: TimelineProps) {
   const showSummary = !summaryDismissed && unread.length > UNREAD_SUMMARY_THRESHOLD
   const firstUnread = unread[0]
   // 每个正在回答的会话一段：有打字流的按打字流，只有状态的显示“正在……”。
-  const replies = [...new Set([...live.statuses.map((status) => status.sessionId), ...live.streams.map((stream) => stream.sessionId)])].map((sessionId) => ({
-    sessionId,
-    stream: live.streams.find((stream) => stream.sessionId === sessionId),
-    status: live.statuses.find((status) => status.sessionId === sessionId),
-  }))
+  const replies = [...new Set([...live.statuses.map((status) => status.sessionId), ...live.streams.map((stream) => stream.sessionId)])].map((sessionId) => {
+    const stream = live.streams.find((item) => item.sessionId === sessionId)
+    const status = live.statuses.find((item) => item.sessionId === sessionId)
+    return { sessionId, stream, status, botId: stream?.botId ?? status?.botId ?? '' }
+  })
+  const blocks = arrange(messages)
+  const ordered = blocks.flatMap((block) => [...block.texts, ...block.cards])
+  // 最后一段回复的 bot 还在说：正在输入的文字排在这段的卡片上面，说完不跳位置。
+  const tail = blocks.at(-1)
+  const inline = tail?.author === undefined || tail.cards.length === 0 ? undefined : replies.find((reply) => reply.botId === tail.author)
+  const inlineBefore = inline === undefined ? undefined : tail?.cards[0]?.id
+  // 让它汇报：在群里要 @ 到它，不然会按分工交给别的成员。
+  const report = (botId: string): void => {
+    const name = props.bots.get(botId)?.name
+    const text = room.kind === 'direct' || name === undefined ? REPORT_ASK : `@${name} ${REPORT_ASK}`
+    api.send(room.id, text).catch((reason: unknown) => setError(errorText(reason)))
+  }
+  const stopReply = (): void => {
+    api.stopReply(room.id).catch((reason: unknown) => setError(errorText(reason)))
+  }
+  const liveReply = (reply: (typeof replies)[number]) => (
+    <LiveReply
+      key={reply.sessionId}
+      bot={props.bots.get(reply.botId)}
+      stream={reply.stream}
+      status={reply.status}
+      onOpenBot={() => app.showMember(reply.botId)}
+      mentions={mentions}
+      onReport={() => report(reply.botId)}
+      onStop={stopReply}
+    />
+  )
 
   const arrived = awayFrom === null ? 0 : messages.filter((message) => message.seq > awayFrom && message.author !== 'owner').length + (behind ? room.lastSeq - (last?.seq ?? 0) : 0)
   return (
@@ -307,11 +345,12 @@ export function Timeline(props: TimelineProps) {
               加载更早的消息
             </button>
           ) : null}
-          {messages.map((message, index) => {
-            const previous = messages[index - 1]
+          {ordered.map((message, index) => {
+            const previous = ordered[index - 1]
             const newDay = previous === undefined || startOfDay(previous.createdAt) !== startOfDay(message.createdAt)
             return (
               <Fragment key={message.id}>
+                {inline !== undefined && message.id === inlineBefore ? liveReply(inline) : null}
                 {newDay ? (
                   <div className="pod-day" role="separator">
                     <span>{dayLabel(message.createdAt, now)}</span>
@@ -337,10 +376,7 @@ export function Timeline(props: TimelineProps) {
               </Fragment>
             )
           })}
-          {replies.map((reply) => {
-            const botId = reply.stream?.botId ?? reply.status?.botId ?? ''
-            return <LiveReply key={reply.sessionId} bot={props.bots.get(botId)} stream={reply.stream} status={reply.status} onOpenBot={() => app.showMember(botId)} mentions={mentions} />
-          })}
+          {replies.filter((reply) => reply !== inline).map(liveReply)}
         </div>
       </div>
       {awayFrom === null && !(behind && !nearBottom.current) ? null : (

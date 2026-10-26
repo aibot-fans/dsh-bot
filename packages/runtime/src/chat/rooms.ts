@@ -34,6 +34,7 @@ import {
   type Room,
   type RoomMessage,
   type RoomSummary,
+  type RunSummary,
 } from 'pod-domain'
 import {
   addRoomMember,
@@ -751,9 +752,16 @@ export class RoomService {
   }
 
   /** bot 在聊天会话里说的话，写进对应房间。 */
-  postBotText(session: PodSession, text: string, data?: Readonly<Record<string, unknown>>): void {
-    if (session.roomId === null) return
-    this.post(session.roomId, { author: session.botId, kind: 'text', body: maskSecrets(text).text, sessionId: session.id, ...(data === undefined ? {} : { data }) })
+  postBotText(session: PodSession, text: string, data?: Readonly<Record<string, unknown>>): RoomMessage | undefined {
+    if (session.roomId === null) return undefined
+    return this.post(session.roomId, { author: session.botId, kind: 'text', body: maskSecrets(text).text, sessionId: session.id, ...(data === undefined ? {} : { data }) })
+  }
+
+  /** 一轮回答跑完：执行过程的摘要记在这一轮最后一段回复上，页面在回复下面显示用时和每一步。 */
+  attachRun(messageId: string, run: RunSummary): void {
+    const message = getMessage(this.db, messageId)
+    if (message === undefined || message.deletedAt !== null) return
+    this.patchMessage(messageId, { data: { ...message.data, run } })
   }
 
   /** 你在 dsh 的会话视图里直接打的字，也补进房间，记录不缺一块。 */

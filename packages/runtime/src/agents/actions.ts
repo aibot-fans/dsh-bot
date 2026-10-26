@@ -1,8 +1,8 @@
 import { oneLine, truncate } from 'pod-domain'
 
 /**
- * 把一次工具调用压成一句人话，给任务卡的“最近动作”和进度快照用。
- * 例：bash → “运行命令：npm test”，web_fetch → “打开 b.com/pricing”。不调用模型。
+ * 把一次工具调用压成一句人话，给任务卡的“最近动作”、回答时的“正在……”和进度快照用。
+ * 例：bash 用模型自己写的说明（“导出 10 月订单”），没写说明才是“运行命令：npm test”；web_fetch → “打开 b.com/pricing”。不调用模型。
  */
 
 function parseArgs(raw: string): Readonly<Record<string, unknown>> {
@@ -33,9 +33,12 @@ function short(value: string, max = 48): string {
 
 type Describe = (args: Readonly<Record<string, unknown>>) => string
 
+/** 跑命令：dsh 要求模型每次附一句这条命令在做什么，有就用它，原始命令留给 commandOf。 */
+const runCommand: Describe = (args) => (text(args.description).trim() === '' ? `运行命令：${short(text(args.command))}` : short(text(args.description)))
+
 const DESCRIBERS: Readonly<Record<string, Describe>> = {
-  bash: (args) => `运行命令：${short(text(args.command))}`,
-  pwsh: (args) => `运行命令：${short(text(args.command))}`,
+  bash: runCommand,
+  pwsh: runCommand,
   read: (args) => `读取 ${short(text(args.path ?? args.file_path))}`,
   write: (args) => `写入 ${short(text(args.path ?? args.file_path))}`,
   edit: (args) => `修改 ${short(text(args.path ?? args.file_path))}`,
@@ -80,6 +83,13 @@ const DESCRIBERS: Readonly<Record<string, Describe>> = {
   list_routines: () => '查看例程',
   delete_routine: () => '删除例程',
   watch_page: (args) => `盯网页 ${short(host(text(args.url)))}`,
+}
+
+/** 跑命令的工具调用里的原始命令（一行、截短），给进度里“当前这一步”下面那行小字；别的工具没有。 */
+export function commandOf(name: string, rawArgs: string): string | undefined {
+  if (name !== 'bash' && name !== 'pwsh') return undefined
+  const command = text(parseArgs(rawArgs).command)
+  return command.trim() === '' ? undefined : short(command, 120)
 }
 
 export function describeToolCall(name: string, rawArgs: string): string {
