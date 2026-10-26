@@ -92,7 +92,9 @@ function Intro(props: { readonly room: Room; readonly bots: ReadonlyMap<string, 
         ))}
       </div>
       <strong>{room.title}</strong>
-      <span className="pod-muted-inline">在下面说点什么；输入 @ 可以直接点名成员，没点名时主管来接。</span>
+      <span className="pod-muted-inline">
+        在下面说点什么；输入 @ 可以直接点名成员，{room.taskId === null && room.teamId === null ? '没点名时按分工交给对口的成员来接。' : '没点名时组长来接。'}
+      </span>
     </div>
   )
 }

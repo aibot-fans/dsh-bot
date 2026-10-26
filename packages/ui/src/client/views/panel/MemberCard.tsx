@@ -87,7 +87,7 @@ export function MemberCard(props: { readonly botId: string; readonly roomId: str
               ))}
             </section>
           )}
-          {bot.role === 'lead' ? <p className="pod-muted pod-center">主管在每个群里：没 @ 谁的话由它来接，也负责分工和验收。</p> : null}
+          {bot.role === 'lead' ? <p className="pod-muted pod-center">主管在每个群里，负责分派、组织和验收；群里具体的活交给对口的成员。</p> : null}
           <section className="pod-box">
             <button type="button" className="pod-box-entry" onClick={() => app.showProfile(bot.id, 'details', props.roomId)}>
               <span>完整资料</span>

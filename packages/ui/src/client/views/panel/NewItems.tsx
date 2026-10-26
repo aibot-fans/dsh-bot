@@ -181,7 +181,7 @@ export function NewGroup(props: { readonly bots: readonly Bot[]; readonly onClos
   return (
     <Modal title="新建群聊" onClose={props.onClose}>
       <div className="pod-stack">
-        <p className="pod-muted">点选要拉进群的 bot，主管会自动在群里，负责接没 @ 谁的话。</p>
+        <p className="pod-muted">点选要拉进群的 bot。主管会自动在群里，负责分派和组织；没点名的话按分工交给对口的成员来接。</p>
         {candidates.length === 0 ? (
           <p className="pod-muted">
             还没有别的 bot。

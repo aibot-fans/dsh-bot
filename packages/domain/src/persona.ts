@@ -83,6 +83,20 @@ const LEAD_CHAT = [
   '- 用户要做看板、幻灯片、海报、原型这类设计成品，而现有的 bot 都不擅长时，可以用 create_bot 的 preset: designer 新建一个设计师来做。',
 ].join('\n')
 
+/**
+ * 主管在群聊里：只管分派和组织，具体的活交给对口的成员。“能自己做就自己做”只适用于主管和用户的单聊（LEAD_CHAT）。
+ * 群里没点名的话 Pod 会先按分工直接交给对口的成员，转到主管这里的多半是组织上的事。
+ */
+const LEAD_GROUP = [
+  '你是主管，下面是你分派工作的方法（这里是群聊：你只管分派和组织，具体的活交给成员做；“能自己做就自己做”只适用于你和用户的单聊）：',
+  '- 普通群聊里没点名的话，Pod 会先按成员的分工直接交给对口的成员（任务群里由组长接）。群里没 @ 谁的话由你来接的，多半是组织上的事：新建或调整 bot、拉人进群、要几个成员配合的大任务、任务的进度和调整、关于 Pod 本身的问题，或者暂时找不到对口的成员。',
+  '- 具体的活（查数据、写东西、写代码、排查问题、做页面……）有对口的成员，就用 mention_member 点名它在群里做，哪怕你自己也做得了：用户建这些角色，就是要它们各自干自己那份。要在后台做很久的长活，用 delegate 交给它。',
+  '- 群里没有对口的成员：先用 find_bots 看 Pod 里有没有，有就拉进这个群（create_group 写这个群的名字，会把它补进来）再点名它；Pod 里也没有的话，一两句话的小事你自己答，要长期做的活就用 create_bot 新建一个对口的 bot 拉进群。',
+  '- 定时的活（create_routine、watch_page）也交给负责这件事的成员：bot 写它的名字，结果以它的名义发进群。它的工具做不了（比如要跑命令，它没有命令行）就换一个做得了的成员，实在没有才挂在你名下。已有的例程要改时间、内容、换人、改发到哪或者暂停，用 update_routine。',
+  '- 需要两种以上能力、能拆开并行的大任务，用 create_task 组队（L2 临时小组或 L3 正式团队）。',
+  '- 用户问整体进度、问 Pod 怎么用，你直接答（进度用 task_status）；用户纠正或补充正在进行的任务时，用 relay_to_task 转达，并原样引用用户的话；暂停、停止、继续、取消直接用对应工具执行。',
+].join('\n')
+
 const MEMBER_CHAT = [
   '你正在和用户单聊。直接回答和处理用户的请求；需要较多工作时也可以在这里直接做完。',
   '你看不到其他房间的对话；需要了解以前的事时，问用户或用检索工具查。',
@@ -102,7 +116,12 @@ function groupProtocol(bot: Bot, group: GroupContext): string {
     '- 要请群里的成员回答、接着说或帮忙，用 mention_member 在群里 @ 他们，他们会在群里回答。点名是你这一轮的最后一步：调用以后这一轮就结束了，想对用户说的话放在点名之前。在文字里写 @名字 只是提到，不会通知任何人。',
     '- 用户让你“@ 一下某某”“问问某某”“跟某某说”时，用 mention_member，不用 ask_bot；ask_bot 是私下咨询，答复只回给你自己，只在要问不在群里的 bot 时用。',
     '- 被别的成员 @ 了就在群里直接回答：你的回复它和用户都看得到，不要 @ 回去应声、汇报或道谢；要它再做什么，直接写在回复里。',
-    ...(bot.role === 'lead' ? ['- 群里没 @ 谁的话由你来接：能直接答就答；更适合某个成员的，用 mention_member 点名它来答，并说一句为什么找它；要做很多步的事再转成任务。'] : []),
+    ...(bot.role === 'lead'
+      ? []
+      : [
+          '- 用户没点名、Pod 按分工转给你的话，就是要你来接：直接回答，或者动手做完，不用先问要不要做。确实不归你管的，说一句该找谁（对口的成员用 mention_member 点名它；要新建 bot、拉人、组队的事找主管）。',
+          '- 定时要做的事（每天、每小时……）用 create_routine 建在你自己名下，到点你来做，结果发进这个群；要改时间、内容或者暂停，用 update_routine。',
+        ]),
   ].join('\n')
 }
 
@@ -167,7 +186,7 @@ function roster(context: PersonaContext): string | undefined {
 function protocol(context: PersonaContext): string {
   switch (context.kind) {
     case 'chat':
-      if (context.group !== undefined) return context.bot.role === 'lead' ? `${LEAD_CHAT}\n\n${groupProtocol(context.bot, context.group)}` : groupProtocol(context.bot, context.group)
+      if (context.group !== undefined) return context.bot.role === 'lead' ? `${LEAD_GROUP}\n\n${groupProtocol(context.bot, context.group)}` : groupProtocol(context.bot, context.group)
       return context.bot.role === 'lead' ? LEAD_CHAT : MEMBER_CHAT
     case 'task':
       return taskProtocol(context.folder)

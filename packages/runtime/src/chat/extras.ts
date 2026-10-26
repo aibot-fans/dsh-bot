@@ -87,7 +87,9 @@ export class ChatExtras {
     const asked = row === undefined ? undefined : getMessage(this.deps.db, row.id)
     if (asked === undefined) return fail('not-found', '找不到这条回复对应的问题')
     this.deps.onRegenerate(message)
-    const delivered = await this.deps.rooms.deliverText(room, `[用户要求重新回答] 用户对你上一条回复不满意，请换个思路重新回答下面这条消息（不用道歉，直接给新的回答）：\n${expandQuickCommand(asked.body) ?? asked.body}`)
+    // 群里交给说这条回复的成员重新回答，不是交给主管。
+    const author = room.kind === 'direct' ? undefined : this.deps.rooms.memberBots(room).find((bot) => bot.id === message.author)
+    const delivered = await this.deps.rooms.deliverText(room, `[用户要求重新回答] 用户对你上一条回复不满意，请换个思路重新回答下面这条消息（不用道歉，直接给新的回答）：\n${expandQuickCommand(asked.body) ?? asked.body}`, author)
     if (!delivered.ok) return delivered
     this.deps.rooms.post(room.id, { author: POD, kind: 'receipt', body: `已请${delivered.value.name}重新回答`, data: { messageId: message.id } })
     return ok(null)
@@ -120,7 +122,7 @@ export class ChatExtras {
       data: { attachment: { name: basename(path), path, size: data.byteLength, ...textData(converted) } },
     })
     if (message === undefined) return fail('not-found', '找不到这个房间')
-    await this.deps.rooms.deliverText(room, uploadNote(path, data.byteLength, converted, note))
+    await this.deps.rooms.deliverUpload(room, uploadNote(path, data.byteLength, converted, note), note === '' ? `上传了文件「${basename(path)}」` : note, message.id)
     return ok(message)
   }
 }

@@ -64,6 +64,7 @@ import type { BotService } from '../bots/service.ts'
 import type { Auditor } from '../core/audit.ts'
 import type { PodBus } from '../core/bus.ts'
 import { groupFrame, recentLines, resolveMembers, stripMentions } from './group.ts'
+import { pickResponder, routeRecent, type Route } from './router.ts'
 
 const PAGE = 50
 
@@ -108,14 +109,18 @@ export interface RoomServiceDeps {
   readonly stopSession: (sessionId: string) => void
   /** 临时对话删掉时，把 dsh 里对应的会话也归档，dsh 的会话列表里就不再出现。 */
   readonly hideSession?: (sessionId: string) => void
+  /** 普通群聊里没点名的话按分工挑人（轻量模型）；没有时按默认的人来接。 */
+  readonly route?: Route
 }
 
 /**
- * 房间和消息：单聊里你的话直接交给这个 bot 的聊天会话；任务记录里你的话交给主管。
- * bot 在会话里说的话由观察者交回来写进房间。房间记录是唯一的事实来源。
+ * 房间和消息：单聊里你的话直接交给这个 bot 的聊天会话；普通群聊里没点名的话按分工交给对口的成员，
+ * 任务群和团队群交给组长。bot 在会话里说的话由观察者交回来写进房间。房间记录是唯一的事实来源。
  */
 export class RoomService {
   private readonly opening = new Map<string, Promise<PodSession>>()
+  /** 每个房间正在投递的那一串：按分工挑人要等一会儿，后说的话不能抢到前面去。 */
+  private readonly order = new Map<string, Promise<void>>()
   /** 每条群聊会话最近一次是谁叫起来的：用户（OWNER）或 @ 了它的 bot。用来拦住“被 @ 了又 @ 回去”。 */
   private readonly triggers = new Map<string, string>()
   /** 已经告诉过“以前还有哪些对话”的会话：每条会话只在第一条消息前说一次。 */
@@ -302,7 +307,7 @@ export class RoomService {
     const found = this.groupAndBot(input)
     if (!found.ok) return found
     const { room, bot } = found.value
-    if (bot.role === 'lead') return fail('lead-protected', '主管要留在群里，负责回答没有 @ 谁的话')
+    if (bot.role === 'lead') return fail('lead-protected', '主管要留在群里，负责分派和组织')
     removeRoomMember(this.db, room.id, bot.id)
     const session = this.deps.registry.activeForRoom(room.id, bot.id)
     if (session !== undefined) {
@@ -454,7 +459,7 @@ export class RoomService {
     this.post(roomId, { author: POD, kind: 'milestone', body, data })
   }
 
-  /** 你在房间里说话：先打码再存，然后交给负责回答的 bot。 */
+  /** 你在房间里说话：先打码再存，然后交给负责回答的 bot；普通群聊里没点名的话按分工挑人，不等挑完就回页面。 */
   async send(input: unknown): Promise<PodResult<RoomMessage>> {
     const roomId = readId(input, 'roomId')
     if (roomId === undefined) return fail('invalid-input', '缺少房间 id')
@@ -482,14 +487,57 @@ export class RoomService {
     this.deps.onOwnerText?.(message)
     // 快捷指令（/任务、/总结……）：房间里留你的原话，交给 bot 的是展开后的说明。
     const text = expandQuickCommand(masked.text) ?? masked.text
-    for (const bot of mentioned.length > 0 ? mentioned : [responder]) {
-      try {
-        await this.deliver(room, bot, text, quoted, { mentioned: mentioned.length > 0, messageId: message.id })
-      } catch (error) {
-        this.milestone(roomId, `没能把消息交给${bot.name}：${error instanceof Error ? error.message : String(error)}`)
-      }
+    if (mentioned.length === 0 && this.routes(room)) {
+      void this.inOrder(room.id, () => this.deliverRouted(room, text, masked.text, quoted, message.id).then(() => undefined))
+      return ok(message)
     }
+    await this.inOrder(room.id, async () => {
+      for (const bot of mentioned.length > 0 ? mentioned : [responder]) {
+        try {
+          await this.deliver(room, bot, text, quoted, { mentioned: mentioned.length > 0, messageId: message.id })
+        } catch (error) {
+          this.milestone(roomId, `没能把消息交给${bot.name}：${error instanceof Error ? error.message : String(error)}`)
+        }
+      }
+    })
     return ok(message)
+  }
+
+  /** 普通群聊（不挂任务、不是正式团队）里没点名的话按分工挑人；任务群和团队群由组长接。 */
+  private routes(room: Room): boolean {
+    return room.kind !== 'direct' && room.taskId === null && room.teamId === null
+  }
+
+  /** 同一个房间里交给 bot 的话按先后投递。 */
+  private inOrder(roomId: string, work: () => Promise<void>): Promise<void> {
+    const next = (this.order.get(roomId) ?? Promise.resolve()).then(work).catch((error: unknown) => {
+      this.milestone(roomId, `没能把消息交给 bot：${error instanceof Error ? error.message : String(error)}`)
+    })
+    this.order.set(roomId, next)
+    void next.finally(() => {
+      if (this.order.get(roomId) === next) this.order.delete(roomId)
+    })
+    return next
+  }
+
+  /** 按分工挑人，把这句话交给它（routing 是给分派器看的那句话）；挑中成员时告诉它这件事归它来接。 */
+  private async deliverRouted(room: Room, text: string, routing: string, quoted: RoomMessage | undefined, messageId: string | undefined): Promise<Bot> {
+    const lead = this.deps.bots.lead()
+    const bot = await pickResponder({
+      roomTitle: room.title,
+      lead,
+      members: this.memberBots(room).filter((member) => member.id !== lead.id),
+      recent: routeRecent(listMessages(this.db, room.id, { limit: 20 }), (author) => this.speakerName(author), messageId),
+      text: routing,
+      quoted,
+      route: this.deps.route,
+    })
+    try {
+      await this.deliver(room, bot, text, quoted, { messageId, routed: bot.id !== lead.id })
+    } catch (error) {
+      this.milestone(room.id, `没能把消息交给${bot.name}：${error instanceof Error ? error.message : String(error)}`)
+    }
+    return bot
   }
 
   /** 群里现在的成员（在用的 bot）。 */
@@ -568,15 +616,24 @@ export class RoomService {
     return this.deps.bots.get(author)?.name ?? 'bot'
   }
 
-  /** 不经过发言、直接交给房间里回答的 bot 一段说明（重新生成、上传文件用）。 */
-  async deliverText(room: Room, text: string): Promise<PodResult<Bot>> {
-    const responder = this.responder(room)
-    if (responder === undefined) return fail('not-found', '这个房间里没有能回答的 bot')
-    await this.deliver(room, responder, text, undefined)
-    return ok(responder)
+  /** 不经过发言、直接交给 bot 一段说明（重新回答用）：给了 bot 就交给它（群里算点名它），不然交给房间里默认回答的 bot。 */
+  async deliverText(room: Room, text: string, bot?: Bot): Promise<PodResult<Bot>> {
+    const target = bot ?? this.responder(room)
+    if (target === undefined) return fail('not-found', '这个房间里没有能回答的 bot')
+    await this.deliver(room, target, text, undefined, { mentioned: bot !== undefined })
+    return ok(target)
   }
 
-  /** 谁来回答：单聊是对面的 bot；群聊里没 @ 谁时是组长（正式团队）或主管。 */
+  /** 上传的文件交给该接的 bot：普通群聊按分工挑人（按你写的话或文件名挑，不等挑完），其他房间交给默认回答的 bot。 */
+  async deliverUpload(room: Room, text: string, routing: string, messageId: string): Promise<void> {
+    if (this.routes(room)) {
+      void this.inOrder(room.id, () => this.deliverRouted(room, text, routing, undefined, messageId).then(() => undefined))
+      return
+    }
+    await this.deliverText(room, text)
+  }
+
+  /** 默认谁来回答：单聊是对面的 bot；任务群和团队群里没点名时是组长（正式团队）或主管。普通群聊里没点名的话按分工挑人，见 deliverRouted。 */
   responder(room: Room): Bot | undefined {
     if (room.kind === 'direct') return room.botId === null ? undefined : this.deps.bots.activeBot(room.botId)
     return this.deps.leaderFor(room) ?? this.deps.bots.lead()
@@ -591,7 +648,13 @@ export class RoomService {
     bot: Bot,
     text: string,
     quoted: RoomMessage | undefined,
-    options: { readonly mentioned?: boolean; readonly messageId?: string | undefined; readonly from?: { readonly bot: Bot; readonly sessionId: string } } = {},
+    options: {
+      readonly mentioned?: boolean
+      /** 用户没点名，按分工挑了它来接。 */
+      readonly routed?: boolean
+      readonly messageId?: string | undefined
+      readonly from?: { readonly bot: Bot; readonly sessionId: string }
+    } = {},
   ): Promise<string> {
     const current = await this.chatSession(room, bot)
     const rotated = this.deps.dispatcher.isRunning(current.id) ? undefined : await this.deps.rotate(room, bot, current)
@@ -605,6 +668,7 @@ export class RoomService {
             speaker: options.from?.bot.name ?? '用户',
             mentioned: options.mentioned === true,
             fromBot: options.from !== undefined,
+            routed: options.routed === true,
             body: `${quote}${text}`,
             recent: recentLines(listMessages(this.db, room.id, { limit: 30 }), bot, (author) => this.speakerName(author), options.messageId),
             members: this.memberBots(room).map((member) => member.name),

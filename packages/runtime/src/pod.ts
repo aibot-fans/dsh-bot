@@ -23,6 +23,7 @@ import { Watchdog } from './agents/watchdog.ts'
 import { BotService } from './bots/service.ts'
 import { ChatExtras } from './chat/extras.ts'
 import { RoomService } from './chat/rooms.ts'
+import { liteRoute } from './chat/router.ts'
 import { TextConverter } from './convert/index.ts'
 import { Auditor } from './core/audit.ts'
 import { PodBus } from './core/bus.ts'
@@ -218,6 +219,7 @@ export class PodRuntime {
           .then(() => ctx.workspaceRegistry.archiveSession?.(sessionId, { stopActivity: true }))
           .catch(() => undefined)
       },
+      route: liteRoute(this.lite, warn),
     })
     this.pages = new PageService({
       db,

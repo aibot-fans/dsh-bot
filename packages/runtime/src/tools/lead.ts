@@ -276,7 +276,7 @@ export function leadTools(pod: PodRuntime, session: PodSession): readonly ToolDe
   const createGroup = podTool({
     name: 'create_group',
     description: [
-      '拉群：把几个 bot 拉进一个新群聊，用户可以在群里 @ 它们分别说话，没 @ 谁时由你回答。',
+      '拉群：把几个 bot 拉进一个新群聊，用户可以在群里 @ 它们分别说话；没点名的话，Pod 按分工交给对口的成员来接。',
       `群名用不超过 ${GROUP_NAME_MAX} 个字的主题词，例如“博客小组”；已经有同名的群就直接用那个群，不重复建。`,
       '用户说“拉个群”“把写手和程序员叫到一起”时用它；要正式分工、按计划干活用 create_task，那会自己建群。',
     ].join(''),

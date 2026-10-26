@@ -198,6 +198,29 @@ function rosterNames(system) {
   return names
 }
 
+/**
+ * 群聊分派：按“用户的新消息”和每个成员那一行（职责、能力）里相同的两字词打分，挑分最高的成员；
+ * 要新建 bot、拉人，或者谁都对不上时交给最后一行的主管。只是测试用的粗略打分。
+ */
+function routeTarget(prompt) {
+  const lines = prompt.split('\n')
+  const start = lines.findIndex((line) => line.endsWith('的成员：'))
+  const people = []
+  for (const line of lines.slice(start + 1)) {
+    if (!line.startsWith('- ')) break
+    const [name, ...rest] = line.slice(2).split('：')
+    people.push({ name: name.trim(), about: rest.join('：') })
+  }
+  const lead = people.at(-1)?.name ?? '主管'
+  const message = lines[lines.indexOf('用户的新消息：') + 1] ?? ''
+  if (/新建|拉进|拉个群|组队/.test(message)) return lead
+  const grams = (text) => new Set(Array.from({ length: Math.max(0, text.length - 1) }, (_, index) => text.slice(index, index + 2)).filter((gram) => !/[\s，。、：；（）]/.test(gram)))
+  const wanted = grams(message)
+  const scored = people.slice(0, -1).map((person) => ({ name: person.name, score: [...grams(person.about)].filter((gram) => wanted.has(gram)).length }))
+  const best = scored.sort((left, right) => right.score - left.score)[0]
+  return best !== undefined && best.score > 0 ? best.name : lead
+}
+
 /** 决定这一步做什么：说一段话，或者调用一个工具。 */
 function decide(options) {
   const messages = Array.isArray(options.messages) ? options.messages : []
@@ -208,6 +231,8 @@ function decide(options) {
   const tools = new Set((options.tools ?? []).map((tool) => tool.name))
   const brief = textOf(messages.find((message) => message.role === 'user' && MEANINGFUL.has(message.source?.kind))?.content)
   if (process.env.POD_MOCK_DEBUG === '1') console.error('[mock]', JSON.stringify(userText.slice(0, 40)), [...tools].join(','))
+
+  if (system.includes('你是群聊里的分派器')) return { text: JSON.stringify({ to: routeTarget(textOf(messages.find((message) => message.role === 'user')?.content)) }) }
 
   const lastTool = messages.filter((message) => message.role === 'tool').at(-1)
   const demo = demoDecision({ system, messages, brief, userText, calls, tools, last, result: lastTool === undefined ? undefined : parsedResult(lastTool), page: lastPage(messages) })

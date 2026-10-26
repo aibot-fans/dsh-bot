@@ -188,8 +188,8 @@ export function pageDecision({ messages, userText, tools, isUser }) {
   if (calls.at(-1) === 'save_page') return { text: result?.ok === true ? `做好了：${result.message.split('，页面卡片')[0]}。点卡片打开，右边可以直接提修改。` : `保存失败：${result?.message ?? ''}` }
   if (calls.at(-1) === 'create_bot') return { text: result?.ok === true ? `${result.message}。以后要做页面可以交给它。` : `没建成：${result?.message ?? ''}` }
   if (/设计师/.test(userText) && /建|新建|招/.test(userText) && tools.has('create_bot') && !calls.includes('create_bot')) return { tool: 'create_bot', args: { preset: 'designer', reason: '用户要一个专门做页面的设计师' } }
-  // “交给某某做看板”是委派，交给主管的委派剧本。
-  if (/交给|委派/.test(userText)) return undefined
+  // “交给某某做看板”是委派，交给主管的委派剧本；Pod 按分工派给成员时附的那句提示不算。
+  if (/交给|委派/.test(userText.replace(/（用户没有点名[^）]*）/, ''))) return undefined
   // [任务交付] 这类系统通知里会提到页面，不是新的要求。
   if (userText.startsWith('[')) return undefined
   const kind = wantedKind(userText)

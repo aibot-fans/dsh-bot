@@ -17,19 +17,26 @@ export function recentLines(messages: readonly RoomMessage[], bot: Bot, nameOf: 
 
 /**
  * 转给群成员的一条消息：谁在群里说的、有没有 @ 它，再附上它没看到的最近几条和现在的成员。
- * 是别的 bot @ 了它时，提醒它直接回复，不用 @ 回去。
+ * 是别的 bot @ 了它时，提醒它直接回复，不用 @ 回去；没点名、按分工转给它的，告诉它这件事归它来接。
  */
 export function groupFrame(input: {
   readonly roomTitle: string
   readonly speaker: string
   readonly mentioned: boolean
   readonly fromBot?: boolean
+  /** 用户没点名，Pod 按分工挑了它来接。 */
+  readonly routed?: boolean
   readonly body: string
   readonly recent: readonly string[]
   readonly members: readonly string[]
   readonly snapshot: string | undefined
 }): string {
-  const hint = input.fromBot === true ? `\n（直接回复就行：你的回复会发在群里，${input.speaker}和用户都看得到，不用再 @ ${input.speaker}。）` : ''
+  const hint =
+    input.fromBot === true
+      ? `\n（直接回复就行：你的回复会发在群里，${input.speaker}和用户都看得到，不用再 @ ${input.speaker}。）`
+      : input.routed === true
+        ? '\n（用户没有点名，Pod 按分工把这句话交给你来接：直接回答，或者动手做完。）'
+        : ''
   return [
     `[${input.speaker}在群聊「${input.roomTitle}」里${input.mentioned ? '@了你' : '说'}]\n${input.body}${hint}`,
     input.recent.length === 0 ? '' : `[最近的群聊，你还没看到的]\n${input.recent.join('\n')}`,
