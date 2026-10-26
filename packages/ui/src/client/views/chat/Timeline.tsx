@@ -1,8 +1,8 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { isTemporaryRoom, type Bot, type Room, type RoomMessage } from 'pod-domain'
+import { OWNER, isTemporaryRoom, type Bot, type Room, type RoomMessage } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
-import { Avatar, nameColor } from '../../components/common.tsx'
+import { Avatar, clock, nameColor } from '../../components/common.tsx'
 import { Icon } from '../../components/Icon.tsx'
 import { Markdown } from '../../components/Markdown.tsx'
 import { buildMentions, type Mentions } from '../../components/mentions.tsx'
@@ -50,6 +50,11 @@ function UnreadSummary(props: { readonly messages: readonly RoomMessage[]; reado
       </div>
     </div>
   )
+}
+
+/** 你连着发的几条在同一分钟里：时间只写在最后一条下面。 */
+function sameMinuteAsNext(message: RoomMessage, next: RoomMessage | undefined): boolean {
+  return next !== undefined && next.author === OWNER && message.author === OWNER && startOfDay(next.createdAt) === startOfDay(message.createdAt) && clock(next.createdAt) === clock(message.createdAt)
 }
 
 function startOfDay(time: number): number {
@@ -378,6 +383,7 @@ export function Timeline(props: TimelineProps) {
                     onReply={props.onReply}
                     onPinned={(updated) => setMessages((current) => merge(current, [updated]))}
                     mentions={mentions}
+                    hideTime={sameMinuteAsNext(message, ordered[index + 1])}
                   />
                 </div>
               </Fragment>

@@ -29,6 +29,8 @@ export interface MessageProps {
   readonly onPinned: (message: RoomMessage) => void
   /** 消息里能认出来的 @bot：带图标、可以点。 */
   readonly mentions: Mentions
+  /** 你的消息：同一分钟里后面还有你的消息时，时间留给最后一条。 */
+  readonly hideTime?: boolean
 }
 
 function authorName(author: string, bots: ReadonlyMap<string, Bot>): string {
@@ -197,6 +199,7 @@ export function MessageItem(props: MessageProps) {
           {attachment === undefined ? null : <Attachment attachment={attachment} />}
           {message.data.via === 'dsh' ? <div className="pod-muted-inline">来自 dsh 会话视图</div> : null}
         </div>
+        {props.hideTime === true ? null : <time className="pod-msg-time">{clock(message.createdAt)}</time>}
         <MessageActions {...props} owner />
       </div>
     )

@@ -19,6 +19,7 @@ export const CHAT_CSS = `
 .pod-msg-head time { font-size: 11px; color: var(--dsw-alias-label-tertiary); }
 .pod-msg-owner { flex-direction: column; align-items: flex-end; gap: 0; }
 .pod-bubble { max-width: min(78%, 620px); padding: 8px 14px; border-radius: 18px; background: var(--pod-bubble); }
+.pod-msg-owner > .pod-msg-time { margin: 3px 8px 0 0; font-size: 11px; line-height: 1.2; color: var(--dsw-alias-label-tertiary); }
 .pod-bubble .pod-quote { border-left-color: color-mix(in srgb, var(--dsw-alias-label-primary) 20%, transparent); }
 .pod-msg-actions { position: absolute; top: -12px; right: 4px; z-index: 3; display: flex; align-items: center; gap: 0; padding: 2px; border: 1px solid var(--pod-line); border-radius: 10px; background: var(--dsw-alias-bg-layer-1, #fff); box-shadow: 0 2px 10px color-mix(in srgb, #000 10%, transparent); opacity: 0; pointer-events: none; transition: opacity .12s; }
 .pod-msg-actions .pod-icon-button { width: 28px; height: 28px; border-radius: 8px; color: var(--dsw-alias-label-tertiary); }
