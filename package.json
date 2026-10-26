@@ -5,11 +5,11 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/web3tool-ai/dsh-bot.git"
+    "url": "git+https://github.com/aibot-fans/dsh-bot.git"
   },
-  "homepage": "https://github.com/web3tool-ai/dsh-bot#readme",
+  "homepage": "https://github.com/aibot-fans/dsh-bot#readme",
   "bugs": {
-    "url": "https://github.com/web3tool-ai/dsh-bot/issues"
+    "url": "https://github.com/aibot-fans/dsh-bot/issues"
   },
   "type": "module",
   "engines": {
