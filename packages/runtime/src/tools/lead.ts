@@ -196,6 +196,12 @@ export function leadTools(pod: PodRuntime, session: PodSession): readonly ToolDe
         })
       }
       if (finished.status !== 'done') return failure(`任务「${finished.title}」${finished.status === 'cancelled' ? '被取消了' : '没有完成'}：${finished.note}`)
+      const room = requester.roomId === null ? undefined : pod.rooms.get(requester.roomId)
+      if (room !== undefined && room.kind !== 'direct' && target.role !== 'lead') {
+        // 群里成员自己说了做完了什么，主管不再转述一遍。
+        exec.concludeTurn()
+        return success(`任务完成，${target.name}已经在群里说了结果，你不用再转述；这一轮到这里结束。`, { taskId: finished.id, status: 'done' })
+      }
       return success('任务完成。任务卡已经变成交付卡；你只需用一两句话告诉用户要点，不必重复交付卡上的内容。', {
         taskId: finished.id,
         status: 'done',

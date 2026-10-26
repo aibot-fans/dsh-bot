@@ -34,7 +34,7 @@ import type { AgentRegistry } from '../dsh.ts'
 import { composeBrief } from '../tasks/brief.ts'
 import type { TaskService } from '../tasks/service.ts'
 import type { TeamService } from '../teams/service.ts'
-import { allDoneEvent, boardSummary, composeKickoff, coordContext, stalledEvent, submitEvent } from './texts.ts'
+import { allDoneEvent, boardSummary, composeKickoff, coordContext, doneNote, stalledEvent, submitEvent } from './texts.ts'
 
 export interface OrchestratorDeps {
   readonly db: DatabaseSync
@@ -349,14 +349,30 @@ export class Orchestrator {
     this.deps.dispatcher.enqueue({ sessionId: coord.id, mode: 'followup', priority: task.urgent ? PRIORITY.urgent : PRIORITY.task, text, source: noticeSource(text.split('\n')[0] ?? '任务事件') })
   }
 
-  /** 成员提交子任务：进入待验收，唤醒组长。 */
+  /** 成员提交子任务：进入待验收，成员在任务群里说一声交了什么，唤醒组长。 */
   onSubmitted(task: Task, result: TaskResult): Task {
     const now = this.deps.now()
     const acceptance = task.acceptance.map((item) => (item.done ? item : { ...item, done: true, at: now }))
     const review = updateTask(this.db, task.id, { status: 'review', result, acceptance }, now) ?? task
     this.deps.tasks.touched(review)
+    this.announce(review, result)
     this.tellCoordinator(review, submitEvent(review, this.keyOf(review), this.nameOf(review.ownerBotId), result, this.board(review.rootId)))
     return review
+  }
+
+  /** 成员做的活在群里看得到：交上来的这份以它的名义发进任务群（“在 dsh 里查看过程”能打开它的任务会话）。 */
+  private announce(task: Task, result: TaskResult): void {
+    const root = this.deps.tasks.get(task.rootId)
+    const owner = task.ownerBotId === null ? undefined : this.deps.bots.get(task.ownerBotId)
+    if (root === undefined || owner === undefined || task.roomId === null) return
+    const leader = this.leaderOf(root)
+    this.deps.rooms.post(task.roomId, {
+      author: owner.id,
+      kind: 'text',
+      body: doneNote(task, result, leader.id === owner.id ? undefined : leader.name),
+      sessionId: this.deps.registry.activeForTask(task.id, 'task')?.id ?? null,
+      data: { taskId: task.id },
+    })
   }
 
   /** 子任务停滞或失败：交给组长处理（换做法、换人、拆小或降级）。 */

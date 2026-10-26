@@ -49,6 +49,16 @@ function resultBlock(result: TaskResult): string {
     .join('\n')
 }
 
+/**
+ * 成员做完自己那份时，以它的名义在群里说的话：做完了什么、文件在哪。
+ * 要别人验收（团队子任务）时写上交给谁；单个 bot 的任务做完就是交付。
+ */
+export function doneNote(task: Task, result: TaskResult, reviewer: string | undefined): string {
+  const head = reviewer === undefined ? `「${task.title}」做完了。` : `「${task.title}」做完了，交给${reviewer}验收。`
+  const files = result.files.length === 0 ? '' : `\n\n文件：${result.files.map((file) => `\`${file}\``).join('、')}`
+  return `${head}\n\n${result.summary}${files}`
+}
+
 /** 子任务提交：唤醒组长验收。 */
 export function submitEvent(task: Task, key: string, ownerName: string, result: TaskResult, board: string): string {
   return [

@@ -65,8 +65,8 @@ export class Coordinator extends Orchestrator {
       const done = updateTask(this.db, task.id, { status: 'done', finishedAt: now, note: '' }, now) ?? task
       this.deps.tasks.touched(done)
       this.deps.tasks.event(done, 'reviewed', session.botId, { pass: true })
-      const line = (done.result?.summary ?? '').split('\n')[0]?.replace(/^[-*]\s*/, '') ?? ''
-      this.deps.rooms.milestone(done.roomId, `${this.nameOf(done.ownerBotId)} 完成「${done.title}」${line === '' ? '' : `：${truncate(line, 60)}`}`, { taskId: done.id })
+      // 做了什么，成员提交时已经以自己的名义在群里说过；这里只记验收结果，和打回对称。
+      this.deps.rooms.milestone(done.roomId, `${leaderName} 验收通过「${done.title}」`, { taskId: done.id })
       await this.schedule(root.id)
       this.afterSettled(root.id)
       return ok({ task: done, hint: '已通过，下游子任务会自动开工。' })

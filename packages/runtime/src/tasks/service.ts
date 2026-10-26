@@ -38,6 +38,7 @@ import type { Auditor } from '../core/audit.ts'
 import type { PodBus } from '../core/bus.ts'
 import type { AgentRegistry } from '../dsh.ts'
 import type { UsageMeter } from '../usage/meter.ts'
+import { doneNote } from '../orchestrator/texts.ts'
 import { composeBrief, nudgeText, resumeText } from './brief.ts'
 import { snapshotText } from './snapshot.ts'
 
@@ -310,7 +311,13 @@ export class TaskService {
     const delivered = this.write(task, { status: 'done', stage: 'done', result: merged, acceptance, finishedAt: now })
     this.event(delivered, 'completed', session.botId, { summary: result.summary, files: result.files })
     const bot = this.deps.bots.get(session.botId)
-    this.deps.rooms.milestone(delivered.roomId, `${bot?.name ?? 'bot'} 交付了「${delivered.title}」`, { taskId: delivered.id })
+    const room = delivered.roomId === null ? undefined : this.deps.rooms.get(delivered.roomId)
+    // 群里交给成员的活：成员自己在群里说做完了什么；单聊里照旧由派活的主管转述。
+    if (room !== undefined && room.kind !== 'direct' && bot !== undefined && bot.role !== 'lead') {
+      this.deps.rooms.post(room.id, { author: bot.id, kind: 'text', body: doneNote(delivered, merged, undefined), sessionId: session.id, data: { taskId: delivered.id } })
+    } else {
+      this.deps.rooms.milestone(delivered.roomId, `${bot?.name ?? 'bot'} 交付了「${delivered.title}」`, { taskId: delivered.id })
+    }
     this.nudges.delete(delivered.id)
     const awaited = this.hasWaiter(delivered.id)
     this.finish(delivered)

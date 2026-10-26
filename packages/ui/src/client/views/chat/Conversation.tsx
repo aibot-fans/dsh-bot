@@ -15,6 +15,9 @@ export function Conversation() {
   const { data: rooms, loading: roomsLoading } = useResource(app.cache, 'rooms', () => api.rooms())
   const { data: botList } = useResource(app.cache, 'bots', () => api.bots())
   const bots = useMemo(() => new Map((botList ?? []).map((bot) => [bot.id, bot])), [botList])
+  // 时间线上的名字和头像：交付后收起的临时 bot、进了回收站的 bot，说过的话也要认得出是谁。
+  const { data: recycled } = useResource(app.cache, 'recycle', () => api.recycle())
+  const authors = useMemo(() => new Map([...(recycled?.bots ?? []), ...(botList ?? [])].map((bot) => [bot.id, bot])), [botList, recycled])
   const lead = (botList ?? []).find((bot) => bot.role === 'lead')
   const leadRoom = (rooms ?? []).find((room) => room.kind === 'direct' && room.botId === lead?.id && room.topic === '')
   const room = (rooms ?? []).find((item) => item.id === nav.roomId) ?? leadRoom ?? rooms?.[0]
@@ -55,7 +58,7 @@ export function Conversation() {
   return (
     <main className="pod-convo">
       <ChatHeader room={room} bots={bots} memberIds={memberIds} />
-      <Timeline room={room} bots={bots} members={memberBots} onReply={setReplyTo} readSeqAtOpen={readAtOpen?.roomId === room.id ? readAtOpen.seq : room.readSeq} />
+      <Timeline room={room} bots={authors} members={memberBots} onReply={setReplyTo} readSeqAtOpen={readAtOpen?.roomId === room.id ? readAtOpen.seq : room.readSeq} />
       <Composer
         room={room}
         responder={responder}
