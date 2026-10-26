@@ -5,6 +5,7 @@ import { errorText } from '../../api/http.ts'
 import { IconChoices, iconOf } from '../../components/BotIcon.tsx'
 import { Button, Empty, HeroAvatar, IconButton, nameColor } from '../../components/common.tsx'
 import { Icon } from '../../components/Icon.tsx'
+import { PanelClose } from '../../components/PanelClose.tsx'
 import { useApp, type BotTab } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 import { ScopedPages } from '../pages/ScopedPages.tsx'
@@ -244,9 +245,7 @@ export function BotPanel(props: { readonly botId: string; readonly tab: BotTab; 
             <span className="pod-ellipsis">返回</span>
           </button>
         )}
-        <button type="button" className="pod-round" aria-label="关闭详情" title="关闭" onClick={() => app.closePanel()}>
-          <Icon name="close" size={18} />
-        </button>
+        <PanelClose label="关闭详情" onClose={() => app.closePanel()} stacked={back !== undefined} />
       </div>
       {bot === undefined ? (
         <Empty title={bots === undefined ? '正在读取…' : '这个 bot 已经删除了'} />

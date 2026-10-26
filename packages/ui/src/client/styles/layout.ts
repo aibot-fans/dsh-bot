@@ -1,4 +1,4 @@
-/** 外壳：左侧栏、中间对话、右侧面板三栏，顶部的对象、用量和“…”菜单。颜色取 dsh 的主题变量。 */
+/** 外壳：左侧栏、中间对话、右侧面板三栏，顶部的对象和用量。颜色取 dsh 的主题变量。手机上的单栏布局在 mobile.ts。 */
 export const LAYOUT_CSS = `
 .pod-app { --pod-side-bg: color-mix(in srgb, var(--dsw-alias-label-primary) 3%, var(--dsw-alias-bg-layer-1, #fff)); --pod-bubble: color-mix(in srgb, var(--dsw-alias-label-primary) 6%, var(--dsw-alias-bg-layer-1, #fff)); --pod-series: var(--pod-info); --pod-grid: color-mix(in srgb, var(--dsw-alias-label-primary) 6%, transparent); --pod-axis: color-mix(in srgb, var(--dsw-alias-label-primary) 22%, transparent); --pod-panel-width: minmax(360px, 440px); }
 .pod-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: 248px minmax(0, 1fr); }
@@ -71,13 +71,5 @@ export const LAYOUT_CSS = `
   .pod-layout-collapsed.pod-layout-panel { grid-template-columns: 64px minmax(0, 1fr); }
   .pod-panel { position: fixed; top: 0; right: 0; bottom: 0; z-index: 40; width: min(460px, 100%); box-shadow: -8px 0 24px color-mix(in srgb, #000 12%, transparent); padding-top: var(--dsh-frame-top-clearance, 0px); }
   .pod-panel-wide { width: min(720px, 100%); }
-}
-@media (max-width: 760px) {
-  .pod-layout, .pod-layout-panel, .pod-layout-collapsed.pod-layout-panel { grid-template-columns: 64px minmax(0, 1fr); }
-  .pod-side { padding: 10px 6px 8px; }
-  .pod-side-brand, .pod-side-row-title, .pod-side-section span, .pod-side-section .pod-icon-button, .pod-side-empty, .pod-side .pod-badge { display: none; }
-  .pod-side-top { flex-direction: column; padding: 0 0 8px; }
-  .pod-side-row { justify-content: center; padding: 6px; }
-  .pod-usage-chip { display: none; }
 }
 `

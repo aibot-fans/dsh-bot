@@ -3,6 +3,7 @@ import { isAvatarImage, nameColors, type NameColors } from 'pod-domain'
 import { mediaUrl } from '../api/http.ts'
 import { BotFigure, BotIcon, iconOf, type IconBot } from './BotIcon.tsx'
 import { Icon } from './Icon.tsx'
+import { useNarrow } from './media.ts'
 
 /** 头像：你上传的图片；没有图片时用内置的鲸鱼娘图标（没选时按角色配）。 */
 export function Avatar(props: { readonly bot?: IconBot; readonly size?: number; readonly status?: 'busy' | 'waiting' | 'idle' }) {
@@ -36,7 +37,19 @@ export function HeroAvatar(props: { readonly bot: IconBot }) {
   return isAvatarImage(props.bot.avatar) ? <Avatar bot={props.bot} size={88} /> : <BotFigure kind={iconOf(props.bot)} size={112} tinted />
 }
 
-/** 弹窗：居中显示，点背景或按 Esc 关闭。 */
+/** 弹窗和抽屉的标题栏：宽屏是标题加右边的关闭；手机上整页显示，换成左边的返回加标题。 */
+function SheetHead(props: { readonly className: string; readonly title: string; readonly onClose: () => void }) {
+  const narrow = useNarrow()
+  return (
+    <header className={props.className}>
+      {narrow ? <IconButton icon="back" label="返回" onClick={props.onClose} /> : null}
+      <h2>{props.title}</h2>
+      {narrow ? null : <IconButton icon="close" label="关闭" onClick={props.onClose} />}
+    </header>
+  )
+}
+
+/** 弹窗：居中显示，点背景或按 Esc 关闭。手机上占满整屏。 */
 export function Modal(props: { readonly title: string; readonly onClose: () => void; readonly children: ReactNode; readonly wide?: boolean }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
@@ -48,10 +61,7 @@ export function Modal(props: { readonly title: string; readonly onClose: () => v
   return (
     <div className="pod-modal-backdrop" onClick={props.onClose}>
       <section className={`pod-modal${props.wide === true ? ' pod-modal-wide' : ''}`} role="dialog" aria-label={props.title} onClick={(event) => event.stopPropagation()}>
-        <header className="pod-modal-head">
-          <h2>{props.title}</h2>
-          <IconButton icon="close" label="关闭" onClick={props.onClose} />
-        </header>
+        <SheetHead className="pod-modal-head" title={props.title} onClose={props.onClose} />
         <div className="pod-modal-body">{props.children}</div>
       </section>
     </div>
@@ -154,6 +164,20 @@ export function RelativeTime(props: { readonly time: number | null | undefined }
   return <time dateTime={new Date(props.time).toISOString()} title={new Date(props.time).toLocaleString()}>{relative(props.time, now)}</time>
 }
 
+const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'] as const
+
+/** 列表上的时间：今天写几点几分，昨天写“昨天”，一周内写星期几，再早写日期（不是今年的带上年份）。 */
+export function listTime(time: number, now: number): string {
+  const date = new Date(time)
+  const today = new Date(now)
+  const days = Math.round((new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime() - new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()) / 86_400_000)
+  if (days <= 0) return clock(time)
+  if (days === 1) return '昨天'
+  if (days < 7) return WEEKDAYS[date.getDay()] ?? ''
+  const day = `${date.getMonth() + 1}/${date.getDate()}`
+  return date.getFullYear() === today.getFullYear() ? day : `${date.getFullYear()}/${day}`
+}
+
 export function clock(time: number): string {
   const date = new Date(time)
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
@@ -181,7 +205,7 @@ export function Badge(props: { readonly children: ReactNode; readonly tone?: 'wa
   return <span className={`pod-badge pod-badge-${props.tone ?? 'muted'}`}>{props.children}</span>
 }
 
-/** 抽屉：从右侧滑出，放详情和编辑表单。 */
+/** 抽屉：从右侧滑出，放详情和编辑表单。手机上占满整屏。 */
 export function Drawer(props: { readonly title: string; readonly onClose: () => void; readonly children: ReactNode; readonly wide?: boolean }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
@@ -193,10 +217,7 @@ export function Drawer(props: { readonly title: string; readonly onClose: () => 
   return (
     <div className="pod-drawer-backdrop" onClick={props.onClose}>
       <aside className={`pod-drawer${props.wide === true ? ' pod-drawer-wide' : ''}`} onClick={(event) => event.stopPropagation()} aria-label={props.title}>
-        <header className="pod-drawer-head">
-          <h2>{props.title}</h2>
-          <IconButton icon="close" label="关闭" onClick={props.onClose} />
-        </header>
+        <SheetHead className="pod-drawer-head" title={props.title} onClose={props.onClose} />
         <div className="pod-drawer-body">{props.children}</div>
       </aside>
     </div>

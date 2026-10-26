@@ -9,11 +9,8 @@ export const V3_CSS = `
 .pod-side-item-active, .pod-side-item-active:hover { background: color-mix(in srgb, var(--dsw-alias-label-primary) 8%, transparent); }
 .pod-side-item .pod-side-row { flex: 1; min-width: 0; background: none; }
 .pod-side-item .pod-side-row:hover { background: none; }
-.pod-side-item:hover .pod-side-row, .pod-side-item:focus-within .pod-side-row, .pod-side-item-menu .pod-side-row { padding-right: 34px; }
-.pod-side-more { appearance: none; position: absolute; top: 50%; right: 4px; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--dsw-alias-label-tertiary); cursor: pointer; opacity: 0; transform: translateY(-50%); }
-.pod-side-more:hover { background: color-mix(in srgb, var(--dsw-alias-label-primary) 8%, transparent); color: var(--dsw-alias-label-primary); }
-.pod-side-more:focus-visible { opacity: 1; outline: 2px solid var(--pod-info); outline-offset: -2px; }
-.pod-side-item:hover .pod-side-more, .pod-side-item:focus-within .pod-side-more, .pod-side-item-menu .pod-side-more { opacity: 1; }
+.pod-side-item-menu { background: var(--pod-soft); }
+@media (hover: none) { .pod-side-item { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; } }
 .pod-side-group { display: flex; flex-direction: column; gap: 1px; }
 .pod-side-folder { gap: 2px; padding-right: 2px; }
 .pod-side-folder-toggle { appearance: none; flex: 1; display: flex; align-items: center; gap: 5px; min-width: 0; padding: 2px 0; border: 0; background: none; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; cursor: pointer; }

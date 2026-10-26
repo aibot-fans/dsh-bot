@@ -25,7 +25,6 @@ export const CHAT_CSS = `
 .pod-msg-actions .pod-icon-button { width: 28px; height: 28px; border-radius: 8px; color: var(--dsw-alias-label-tertiary); }
 .pod-msg-actions .pod-icon-button:hover { color: var(--dsw-alias-label-primary); }
 .pod-msg:hover .pod-msg-actions, .pod-msg:focus-within .pod-msg-actions, .pod-msg-actions-open { opacity: 1; pointer-events: auto; }
-@media (hover: none) { .pod-msg-actions { position: static; margin: 2px 0 0 -6px; padding: 0; border: 0; background: none; box-shadow: none; opacity: 1; pointer-events: auto; } }
 .pod-msg-kickoff .pod-msg-main { padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--pod-info) 30%, transparent); border-radius: 12px; background: color-mix(in srgb, var(--pod-info) 4%, transparent); }
 .pod-msg-live .pod-md { opacity: .92; }
 .pod-live-line { display: inline-flex; align-items: center; gap: 8px; margin-top: 2px; font-size: 12.5px; color: var(--dsw-alias-label-tertiary); }
@@ -93,5 +92,4 @@ export const CHAT_CSS = `
 .pod-md-table th { background: var(--pod-soft); font-weight: 600; }
 .pod-md-rule { margin: 10px 0; border: 0; border-top: 1px solid var(--pod-line); }
 .pod-md a { color: var(--pod-info); }
-@media (max-width: 760px) { .pod-timeline-inner { padding: 8px 14px 18px; } .pod-composer { padding: 0 12px 12px; } .pod-bubble { max-width: 88%; } }
 `

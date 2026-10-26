@@ -140,5 +140,4 @@ export const PANEL_CSS = `
 .pod-usage-amount { font-size: 12.5px; color: var(--dsw-alias-label-secondary); white-space: nowrap; }
 .pod-usage-tip { left: 170px; bottom: calc(100% - 4px); transform: none; }
 .pod-usage-line:hover .pod-usage-tip, .pod-usage-line:focus .pod-usage-tip { display: flex; }
-@media (max-width: 760px) { .pod-settings { flex-direction: column; height: 92vh; } .pod-settings-nav { flex-direction: row; flex-wrap: wrap; width: auto; border-right: 0; border-bottom: 1px solid var(--pod-line); } .pod-settings-title { display: none; } .pod-usage-line { grid-template-columns: 100px minmax(0, 1fr); } }
 `

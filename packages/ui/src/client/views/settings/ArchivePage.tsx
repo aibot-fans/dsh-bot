@@ -19,7 +19,7 @@ export function ArchivePage() {
     if (item.room !== undefined) app.openRoom(item.room.id)
     else if (item.bot !== undefined) app.openBot(item.bot.id)
   }
-  if (archived.length === 0) return <p className="pod-muted">没有归档的 bot 或群聊。在侧栏条目的“…”里选“归档”，它就收到这里，不占侧栏。</p>
+  if (archived.length === 0) return <p className="pod-muted">没有归档的 bot 或群聊。在侧栏右键（手机上长按）一个 bot 或群聊，选“归档”，它就收到这里，不占侧栏。</p>
   return (
     <div className="pod-stack-tight">
       <p className="pod-hint">归档的 bot 和群聊不在侧栏显示，记录都在，照常能打开和聊天；取消归档就回到侧栏。</p>

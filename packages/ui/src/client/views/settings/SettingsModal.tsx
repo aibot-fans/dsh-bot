@@ -4,6 +4,7 @@ import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { IconButton, Segmented, Switch } from '../../components/common.tsx'
 import { Icon } from '../../components/Icon.tsx'
+import { useNarrow } from '../../components/media.ts'
 import { useApp, useNav, type SettingsTab } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 import { ArchivePage } from './ArchivePage.tsx'
@@ -72,6 +73,7 @@ function AutomationsPage(props: { readonly settings: PodSettings; readonly updat
 export function SettingsModal() {
   const app = useApp()
   const nav = useNav()
+  const narrow = useNarrow()
   const { data: settings, error } = useResource(app.cache, 'settings', () => api.settings())
   const [problem, setProblem] = useState<string | undefined>(undefined)
   const tab = nav.settings
@@ -117,8 +119,9 @@ export function SettingsModal() {
         </nav>
         <div className="pod-settings-content">
           <header className="pod-settings-head">
+            {narrow ? <IconButton icon="back" label="返回" onClick={close} /> : null}
             <h2>{title}</h2>
-            <IconButton icon="close" label="关闭设置" onClick={close} />
+            {narrow ? null : <IconButton icon="close" label="关闭设置" onClick={close} />}
           </header>
           {problem === undefined ? null : <p className="pod-form-error">{problem}</p>}
           {settings === undefined ? (

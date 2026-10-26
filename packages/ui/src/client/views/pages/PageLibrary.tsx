@@ -5,6 +5,7 @@ import { pageApi } from '../../api/pages.ts'
 import { Avatar, Empty, ErrorBanner } from '../../components/common.tsx'
 import { GroupMark } from '../../components/GroupMark.tsx'
 import { Icon } from '../../components/Icon.tsx'
+import { PanelClose } from '../../components/PanelClose.tsx'
 import { useApp, useNav } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 import { currentGroupKey, groupPages, matches, type PageGroup } from './grouping.ts'
@@ -45,9 +46,7 @@ export function PageLibraryPanel() {
         <strong>页面</strong>
         <span className="pod-muted-inline">{all.length === 0 ? '' : `${all.length} 个`}</span>
         <span className="pod-grow" />
-        <button type="button" className="pod-round" aria-label="关闭页面库" title="关闭" onClick={() => app.closePanel()}>
-          <Icon name="close" size={18} />
-        </button>
+        <PanelClose label="关闭页面库" onClose={() => app.closePanel()} />
       </div>
       <div className="pod-panel-scroll pod-page-library">
         {error === undefined ? null : <ErrorBanner message={error} />}

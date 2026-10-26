@@ -45,7 +45,13 @@ function ExportButton(props: { readonly page: Page; readonly version: number | u
 }
 
 /** 查看器顶栏：返回对话、种类和标题（点一下改名）、第几版、置顶、导出、页面库。 */
-export function ViewerHead(props: { readonly page: Page; readonly viewing: number; readonly theme: PageTheme; readonly onError: (message: string) => void }) {
+export interface ViewerSide {
+  readonly open: boolean
+  readonly toggle: () => void
+}
+
+/** 查看器顶部。side 只在手机上给：修改和版本收起来时，用这里的按钮打开；手机上只留左边的返回，没有右边的关闭。 */
+export function ViewerHead(props: { readonly page: Page; readonly viewing: number; readonly theme: PageTheme; readonly onError: (message: string) => void; readonly side?: ViewerSide }) {
   const app = useApp()
   const { page } = props
   const [renaming, setRenaming] = useState(false)
@@ -56,7 +62,7 @@ export function ViewerHead(props: { readonly page: Page; readonly viewing: numbe
   return (
     <header className="pod-viewer-head">
       <IconButton icon="back" label="回到对话" onClick={() => app.closePage()} />
-      <KindIcon kind={page.kind} size={30} />
+      {props.side === undefined ? <KindIcon kind={page.kind} size={30} /> : null}
       {renaming ? (
         <RenameInput
           value={page.title}
@@ -81,8 +87,16 @@ export function ViewerHead(props: { readonly page: Page; readonly viewing: numbe
         <IconButton icon={page.pinned ? 'unpin' : 'pin'} label={page.pinned ? '取消置顶' : '置顶到页面库最前'} onClick={() => run(pageApi.pin(page.id, !page.pinned))} />
       ) : null}
       <ExportButton page={page} version={previewing ? props.viewing : undefined} theme={props.theme} onError={props.onError} />
-      <IconButton icon="page" label="页面库" onClick={() => app.showPages()} />
-      <IconButton icon="close" label="关闭页面" onClick={() => app.closePage()} />
+      {props.side === undefined ? (
+        <>
+          <IconButton icon="page" label="页面库" onClick={() => app.showPages()} />
+          <IconButton icon="close" label="关闭页面" onClick={() => app.closePage()} />
+        </>
+      ) : (
+        <button type="button" className={`pod-head-button${props.side.open ? ' pod-head-button-on' : ''}`} aria-expanded={props.side.open} aria-label="修改和版本" title="修改和版本" onClick={props.side.toggle}>
+          <Icon name="edit" size={18} />
+        </button>
+      )}
     </header>
   )
 }

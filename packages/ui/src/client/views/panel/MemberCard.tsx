@@ -3,6 +3,7 @@ import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { Button, Empty, HeroAvatar } from '../../components/common.tsx'
 import { Icon } from '../../components/Icon.tsx'
+import { PanelClose } from '../../components/PanelClose.tsx'
 import { useApp, useNav } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 
@@ -27,9 +28,7 @@ export function MemberCard(props: { readonly botId: string; readonly roomId: str
           <Icon name="back" size={16} />
           <span className="pod-ellipsis">{room?.title ?? '群聊详情'}</span>
         </button>
-        <button type="button" className="pod-round" aria-label="关闭详情" title="关闭" onClick={() => app.closePanel()}>
-          <Icon name="close" size={18} />
-        </button>
+        <PanelClose label="关闭详情" onClose={() => app.closePanel()} stacked />
       </div>
       {bot === undefined ? (
         <Empty title={bots === undefined ? '正在读取…' : '这个 bot 已经删除了'} />

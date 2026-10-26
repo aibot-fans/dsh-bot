@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Bot, RoomMessage } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { Empty } from '../../components/common.tsx'
@@ -35,13 +35,6 @@ export function Conversation() {
     if (room !== undefined && room.id !== nav.roomId) app.navigate({ roomId: room.id })
     if (room === undefined && lead !== undefined) app.openBot(lead.id)
   }, [app, rooms, roomsLoading, room?.id, nav.roomId, lead?.id])
-  // 打开页面时清掉上次没正常离开的临时对话。
-  const swept = useRef(false)
-  useEffect(() => {
-    if (rooms === undefined || swept.current) return
-    swept.current = true
-    app.sweepTemporary(rooms)
-  }, [app, rooms])
   useEffect(() => {
     setReplyTo(undefined)
     if (room !== undefined && readAtOpen?.roomId !== room.id) setReadAtOpen({ roomId: room.id, seq: room.readSeq })

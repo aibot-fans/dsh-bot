@@ -3,6 +3,8 @@ import { api, type BrowserOverlay, type TabView } from '../../api/endpoints.ts'
 import { errorText, mediaUrl } from '../../api/http.ts'
 import { Avatar, Badge, Button, Empty, ErrorBanner, IconButton, clock } from '../../components/common.tsx'
 import { Icon } from '../../components/Icon.tsx'
+import { PanelClose } from '../../components/PanelClose.tsx'
+import { copyText } from '../../components/clipboard.ts'
 import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 import { LiveView, type Pointer } from '../browser/LiveView.tsx'
@@ -34,7 +36,7 @@ function AddressBar(props: { readonly tab: TabView; readonly onError: (message: 
           if (event.key === 'Enter' && !event.nativeEvent.isComposing && controlled) run(api.navigateTab(tab.id, address))
         }}
       />
-      <IconButton icon="copy" label="复制页面里选中的文字" onClick={() => run(api.tabSelection(tab.id).then((text) => navigator.clipboard?.writeText(text)))} />
+      <IconButton icon="copy" label="复制页面里选中的文字" onClick={() => run(api.tabSelection(tab.id).then((text) => copyText(text)))} />
       <IconButton icon="image" label="截图" onClick={() => window.open(mediaUrl('/browser/screenshot', { tabId: tab.id }), '_blank', 'noopener')} />
     </div>
   )
@@ -144,9 +146,7 @@ export function BrowserPanel(props: { readonly tabId: string | null; readonly bo
         <strong className="pod-ellipsis">{title}</strong>
         <span className="pod-grow" />
         {selected === undefined ? null : <IconButton icon="plus" label="打开新网页" onClick={() => setAdding((value) => !value)} />}
-        <button type="button" className="pod-round" aria-label="关闭浏览器" title="关闭" onClick={() => app.closePanel()}>
-          <Icon name="close" size={18} />
-        </button>
+        <PanelClose label="关闭浏览器" onClose={() => app.closePanel()} />
       </div>
       <div className="pod-panel-scroll">
         {error === undefined ? null : <ErrorBanner message={error} />}

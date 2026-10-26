@@ -5,6 +5,7 @@ import { errorText } from '../../api/http.ts'
 import { Avatar, Button, Empty, Modal, Segmented } from '../../components/common.tsx'
 import { GroupMark } from '../../components/GroupMark.tsx'
 import { Icon } from '../../components/Icon.tsx'
+import { PanelClose } from '../../components/PanelClose.tsx'
 import { RenameInput } from '../../components/RenameInput.tsx'
 import { useApp, type GroupTab } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
@@ -231,9 +232,7 @@ export function GroupPanel(props: { readonly roomId: string; readonly tab: Group
   return (
     <aside className="pod-panel" aria-label="群聊详情">
       <div className="pod-panel-top">
-        <button type="button" className="pod-round" aria-label="关闭详情" title="关闭" onClick={() => app.closePanel()}>
-          <Icon name="close" size={18} />
-        </button>
+        <PanelClose label="关闭详情" onClose={() => app.closePanel()} />
       </div>
       {room === undefined ? (
         <Empty title={rooms === undefined ? '正在读取…' : '这个群聊已经删除了'} />

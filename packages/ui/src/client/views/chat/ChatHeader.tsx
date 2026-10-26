@@ -5,6 +5,7 @@ import { errorText } from '../../api/http.ts'
 import { Avatar, RelativeTime, money, nameColor, tokens } from '../../components/common.tsx'
 import { BotName, GroupMark } from '../../components/GroupMark.tsx'
 import { Icon } from '../../components/Icon.tsx'
+import { useNarrow } from '../../components/media.ts'
 import { MenuPanel, useMenu } from '../../components/Menu.tsx'
 import { RenameInput } from '../../components/RenameInput.tsx'
 import { useApp } from '../../state/app.ts'
@@ -176,13 +177,26 @@ function HistoryButton(props: { readonly room: RoomSummary; readonly bot: Bot })
   )
 }
 
-/** 群聊的标题：左边是成员拼成的群图标（点开群聊详情），点群名直接改名；成员悬停在群图标上看。 */
+/**
+ * 群聊的标题：左边是成员拼成的群图标（点开群聊详情），点群名直接改名；成员悬停在群图标上看。
+ * 手机上群名也是点开详情（容易误触改名），改名在详情里。
+ */
 function GroupTitle(props: { readonly room: RoomSummary; readonly members: readonly Bot[] }) {
   const app = useApp()
+  const narrow = useNarrow()
   const { room, members } = props
   const [renaming, setRenaming] = useState(false)
   const [problem, setProblem] = useState<string | undefined>(undefined)
   const names = members.map((member) => member.name).join('、')
+  if (narrow) {
+    return (
+      <button type="button" className="pod-convo-title" onClick={() => app.showGroup(room.id)} aria-label={`群聊详情：${names}`}>
+        <GroupMark members={members} size={30} />
+        <strong>{room.title}</strong>
+        <Icon name="forward" size={14} />
+      </button>
+    )
+  }
   return (
     <div className="pod-convo-group">
       <button type="button" className="pod-convo-icon" onClick={() => app.showGroup(room.id)} title="群聊详情" aria-label={`群聊详情：${names}`}>
@@ -213,15 +227,24 @@ function GroupTitle(props: { readonly room: RoomSummary; readonly members: reado
   )
 }
 
-/** 对话顶部：左边是 bot 或群（点开详情）；单聊右边是对话记录和新对话，最右是这个 bot 或群聊今天的用量。页面在 bot 和群聊的详情里。 */
+/**
+ * 对话顶部：左边是 bot 或群（点开详情）；单聊右边是对话记录和新对话，最右是这个 bot 或群聊今天的用量。页面在 bot 和群聊的详情里。
+ * 手机上最左边是回到列表，名字后面带个箭头表示点开是详情，用量不显示。
+ */
 export function ChatHeader(props: { readonly room: RoomSummary; readonly bots: ReadonlyMap<string, Bot>; readonly memberIds: readonly string[] }) {
   const app = useApp()
+  const narrow = useNarrow()
   const { room } = props
   const bot = room.botId === null ? undefined : props.bots.get(room.botId)
   const members = (props.memberIds.length > 0 ? props.memberIds : room.memberIds).map((id) => props.bots.get(id)).filter((item): item is Bot => item !== undefined)
   const temporary = isTemporaryRoom(room)
   return (
     <header className="pod-convo-head">
+      {narrow ? (
+        <button type="button" className="pod-head-button pod-convo-back" onClick={() => app.showList()} aria-label="回到列表" title="回到列表">
+          <Icon name="back" size={20} />
+        </button>
+      ) : null}
       {room.kind === 'direct' ? (
         <>
           <button type="button" className="pod-convo-title" onClick={() => bot !== undefined && app.showBot(bot.id)} title="查看 bot 详情">
@@ -229,18 +252,19 @@ export function ChatHeader(props: { readonly room: RoomSummary; readonly bots: R
             <strong className="pod-bot-name" style={nameColor(bot)}>
               {bot?.name ?? room.title}
             </strong>
+            {narrow ? <Icon name="forward" size={14} /> : null}
           </button>
-          {temporary || (room.subject === '' && room.topic === '') ? null : <span className="pod-convo-subject pod-ellipsis">{room.subject !== '' ? room.subject : room.topic}</span>}
+          {narrow || temporary || (room.subject === '' && room.topic === '') ? null : <span className="pod-convo-subject pod-ellipsis">{room.subject !== '' ? room.subject : room.topic}</span>}
         </>
       ) : (
         <GroupTitle room={room} members={members} />
       )}
       {temporary ? (
         <span className="pod-badge pod-badge-info" title="临时对话不进侧栏、不提取记忆；离开这个对话就删掉">
-          临时对话 · 离开就删
+          {narrow ? '临时' : '临时对话 · 离开就删'}
         </span>
       ) : room.incognito ? (
-        <span className="pod-badge pod-badge-muted">无痕：不提取记忆</span>
+        <span className="pod-badge pod-badge-muted">{narrow ? '无痕' : '无痕：不提取记忆'}</span>
       ) : null}
       <span className="pod-convo-head-gap" />
       {room.kind !== 'direct' || temporary || bot === undefined ? null : (
@@ -249,7 +273,7 @@ export function ChatHeader(props: { readonly room: RoomSummary; readonly bots: R
           <NewChatButton room={room} />
         </>
       )}
-      <UsageChip scope={room.kind === 'direct' && !temporary && bot !== undefined ? { kind: 'bot', bot } : { kind: 'room', room }} bots={props.bots} />
+      {narrow ? null : <UsageChip scope={room.kind === 'direct' && !temporary && bot !== undefined ? { kind: 'bot', bot } : { kind: 'room', room }} bots={props.bots} />}
     </header>
   )
 }

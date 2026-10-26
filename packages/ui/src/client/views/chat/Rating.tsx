@@ -5,19 +5,32 @@ import { Button, IconButton } from '../../components/common.tsx'
 import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 
+export interface Rating {
+  /** 1 是赞，-1 是踩，0 是没评。 */
+  readonly current: number
+  readonly rate: (value: number, why?: string) => void
+}
+
+/** 一条 bot 发言的评价：现在是赞、踩还是没评，以及改评价。 */
+export function useRating(roomId: string, messageId: string): Rating {
+  const app = useApp()
+  const { data: ratings } = useResource(app.cache, `ratings:${roomId}`, () => api.ratings(roomId))
+  return {
+    current: ratings?.[messageId] ?? 0,
+    rate: (value, why = '') => {
+      api
+        .rateMessage(messageId, value, why)
+        .then(() => app.cache.invalidate(`ratings:${roomId}`))
+        .catch((error: unknown) => window.alert(errorText(error)))
+    },
+  }
+}
+
 /** bot 发言下面的赞和踩：踩的时候可以附一句原因，自我优化按这些反馈调整经验和人设。 */
 export function RateButtons(props: { readonly roomId: string; readonly messageId: string }) {
-  const app = useApp()
-  const { data: ratings } = useResource(app.cache, `ratings:${props.roomId}`, () => api.ratings(props.roomId))
+  const { current, rate } = useRating(props.roomId, props.messageId)
   const [asking, setAsking] = useState(false)
   const [reason, setReason] = useState('')
-  const current = ratings?.[props.messageId] ?? 0
-  const rate = (value: number, why = ''): void => {
-    api
-      .rateMessage(props.messageId, value, why)
-      .then(() => app.cache.invalidate(`ratings:${props.roomId}`))
-      .catch((error: unknown) => window.alert(errorText(error)))
-  }
   return (
     <>
       <span className={current === 1 ? 'pod-rated' : ''}>

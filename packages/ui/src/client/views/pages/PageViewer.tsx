@@ -3,6 +3,7 @@ import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { pageApi } from '../../api/pages.ts'
 import { Button, Empty, ErrorBanner } from '../../components/common.tsx'
+import { useNarrow } from '../../components/media.ts'
 import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 import { PageFrame } from './PageFrame.tsx'
@@ -16,11 +17,14 @@ type SideTab = 'edit' | 'versions'
 /**
  * 页面查看器：中间的对话换成它。左边是沙箱里的页面，右边是修改对话和版本列表；
  * bot 存了新版，页面自动刷新到最新版（正在预览旧版时不打断）。
+ * 手机上页面占满，修改和版本收起来，点顶上的按钮才在下半屏打开（看旧版时默认打开）。
  */
 export function PageViewer(props: { readonly pageId: string; readonly version: number | undefined }) {
   const app = useApp()
   const theme = useSurfaceTheme()
+  const narrow = useNarrow()
   const [tab, setTab] = useState<SideTab>(props.version === undefined ? 'edit' : 'versions')
+  const [sideOpen, setSideOpen] = useState(props.version !== undefined)
   const [problem, setProblem] = useState<string | undefined>(undefined)
   const [busy, setBusy] = useState(false)
   const { data: detail, error } = useResource(app.cache, `page:${props.pageId}`, () => pageApi.detail(props.pageId))
@@ -62,7 +66,7 @@ export function PageViewer(props: { readonly pageId: string; readonly version: n
 
   return (
     <main className="pod-convo pod-viewer">
-      <ViewerHead page={page} viewing={viewing} theme={theme} onError={setProblem} />
+      <ViewerHead page={page} viewing={viewing} theme={theme} onError={setProblem} side={narrow ? { open: sideOpen, toggle: () => setSideOpen((value) => !value) } : undefined} />
       {problem === undefined ? null : (
         <div className="pod-viewer-banner">
           <ErrorBanner message={problem} onClose={() => setProblem(undefined)} />
@@ -76,7 +80,7 @@ export function PageViewer(props: { readonly pageId: string; readonly version: n
           </Button>
         </div>
       ) : null}
-      <div className="pod-viewer-body">
+      <div className={`pod-viewer-body${narrow && !sideOpen ? ' pod-viewer-body-full' : ''}`}>
         <div className="pod-viewer-frame">
           <PageFrame id={page.id} version={viewing === page.version ? undefined : viewing} latest={page.version} theme={theme} title={page.title} />
         </div>
@@ -90,7 +94,7 @@ export function PageViewer(props: { readonly pageId: string; readonly version: n
             </button>
           </div>
           {tab === 'edit' ? (
-            <PageThread page={page} bots={bots} disabled={deleted} />
+            <PageThread key={page.id} page={page} bots={bots} disabled={deleted} />
           ) : (
             <div className="pod-viewer-side-scroll">
               <PageVersions page={page} versions={versions} viewing={viewing} bots={bots} busy={busy || deleted} onPreview={(version) => app.openPage(page.id, version)} onRestore={restore} />

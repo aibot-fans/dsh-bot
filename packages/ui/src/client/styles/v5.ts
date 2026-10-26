@@ -33,8 +33,4 @@ export const V5_CSS = `
 .pod-attachment-row { align-self: flex-start; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
 .pod-attachment-row .pod-attachment { margin-top: 0; }
 .pod-attachment-note { margin-top: 4px; }
-@media (max-width: 760px) {
-  .pod-side-top .pod-side-fold { order: -1; margin: 0 0 4px; }
-  .pod-side .pod-side-badge { position: absolute; top: 1px; right: 3px; }
-}
 `

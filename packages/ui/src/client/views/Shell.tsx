@@ -1,9 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { POD_VERSION } from 'pod-domain'
 import { api } from '../api/endpoints.ts'
 import { Button } from '../components/common.tsx'
+import { useNarrow } from '../components/media.ts'
 import { TooltipLayer } from '../components/Tooltip.tsx'
 import { AppContext, AppState, useApp, useNav, type HostActions } from '../state/app.ts'
+import { useKeyboardInset } from '../state/keyboard.ts'
+import { useMobileBack } from '../state/mobileBack.ts'
 import { useResource } from '../state/resource.ts'
 import { Conversation } from './chat/Conversation.tsx'
 import { Onboarding } from './Onboarding.tsx'
@@ -73,13 +76,42 @@ function useEscapeClosesPanel(): void {
   }, [app, nav.panel === null])
 }
 
+/** 打开页面时清掉上次没正常离开的临时对话。手机上先看到列表，不能等打开对话再做。 */
+function useRoomHousekeeping(): void {
+  const app = useApp()
+  const { data: rooms } = useResource(app.cache, 'rooms', () => api.rooms())
+  const swept = useRef(false)
+  useEffect(() => {
+    if (rooms === undefined || swept.current) return
+    swept.current = true
+    app.sweepTemporary(rooms)
+  }, [app, rooms])
+}
+
+/**
+ * 宽屏是三栏：侧栏、中间的对话（或页面查看器）、右侧详情。
+ * 手机上一次一页：不在对话里时是列表，进了对话是对话，页面查看器和详情盖在上面整页显示，系统的返回一层层退回来。
+ */
 function Layout() {
+  const app = useApp()
   const nav = useNav()
+  const narrow = useNarrow()
   useEscapeClosesPanel()
+  useRoomHousekeeping()
+  useMobileBack(app, narrow)
+  const center = nav.page === null ? <Conversation /> : <PageViewer key={nav.page.id} pageId={nav.page.id} version={nav.page.version} />
+  if (narrow) {
+    return (
+      <div className="pod-layout pod-layout-narrow">
+        {nav.page === null && nav.roomId === null ? <Sidebar /> : center}
+        <RightPanel />
+      </div>
+    )
+  }
   return (
     <div className={`pod-layout${nav.panel === null ? '' : ' pod-layout-panel'}${nav.sidebarCollapsed ? ' pod-layout-collapsed' : ''}`}>
       <Sidebar />
-      {nav.page === null ? <Conversation /> : <PageViewer key={nav.page.id} pageId={nav.page.id} version={nav.page.version} />}
+      {center}
       <RightPanel />
     </div>
   )
@@ -91,9 +123,12 @@ export function PodApp(props: { readonly host: HostActions }) {
   useEffect(() => () => app.dispose(), [app])
   // 跟着 dsh 的深浅色：名字颜色这类要分深浅的样式按它选。
   const theme = useSurfaceTheme()
+  const root = useRef<HTMLDivElement>(null)
+  const narrow = useNarrow()
+  useKeyboardInset(root, narrow)
   return (
     <AppContext.Provider value={app}>
-      <div className={`pod-app${theme === 'dark' ? ' pod-theme-dark' : ''}`}>
+      <div ref={root} className={`pod-app${theme === 'dark' ? ' pod-theme-dark' : ''}`}>
         <StaleBanner />
         <ReadOnlyBanner />
         <Layout />

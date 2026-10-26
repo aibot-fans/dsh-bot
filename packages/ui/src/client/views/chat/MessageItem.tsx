@@ -1,12 +1,15 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { OWNER, POD, readRunSummary, type Bot, type RoomMessage } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { BrowserCard } from '../../components/BrowserCard.tsx'
-import { Avatar, Button, IconButton, clock, nameColor } from '../../components/common.tsx'
+import { copyText } from '../../components/clipboard.ts'
+import { Avatar, Button, IconButton, Modal, clock, nameColor } from '../../components/common.tsx'
 import { BotName } from '../../components/GroupMark.tsx'
 import { Icon } from '../../components/Icon.tsx'
+import { useLongPress } from '../../components/longPress.ts'
 import { Markdown } from '../../components/Markdown.tsx'
+import { useTouch } from '../../components/media.ts'
 import type { Mentions } from '../../components/mentions.tsx'
 import { MenuItem, MenuPanel, useMenu } from '../../components/Menu.tsx'
 import { RunSummaryLine } from '../../components/Progress.tsx'
@@ -17,6 +20,7 @@ import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 import { Attachment } from './Attachment.tsx'
 import { calledMentions } from './Calls.tsx'
+import { MessageSheet, answerable, type SheetView } from './MessageSheet.tsx'
 import { RateButtons } from './Rating.tsx'
 import { WeeklyCard } from './WeeklyCard.tsx'
 import { readXEvent, XEventCard } from './XEventCard.tsx'
@@ -191,7 +195,7 @@ export function MessageItem(props: MessageProps) {
     )
   if (owner) {
     return (
-      <div className="pod-msg pod-msg-owner">
+      <MessageFrame {...props} owner className="pod-msg pod-msg-owner">
         <div className="pod-bubble">
           {pageId === undefined ? null : <PageChip pageId={pageId} />}
           {quote}
@@ -200,15 +204,14 @@ export function MessageItem(props: MessageProps) {
           {message.data.via === 'dsh' ? <div className="pod-muted-inline">来自 dsh 会话视图</div> : null}
         </div>
         {props.hideTime === true ? null : <time className="pod-msg-time">{clock(message.createdAt)}</time>}
-        <MessageActions {...props} owner />
-      </div>
+      </MessageFrame>
     )
   }
   const openBot = (): void => {
     if (bot !== undefined) app.showMember(bot.id)
   }
   return (
-    <div className={`pod-msg${message.kind === 'kickoff' ? ' pod-msg-kickoff' : ''}`}>
+    <MessageFrame {...props} owner={false} className={`pod-msg${message.kind === 'kickoff' ? ' pod-msg-kickoff' : ''}`}>
       <button type="button" className="pod-msg-avatar" onClick={openBot} aria-label={`${authorName(message.author, bots)} 的详情`}>
         <Avatar bot={bot} size={28} />
       </button>
@@ -227,8 +230,37 @@ export function MessageItem(props: MessageProps) {
         {attachment === undefined ? null : <Attachment attachment={attachment} />}
         {run === undefined ? null : <RunSummaryLine run={run} />}
         {message.kind === 'kickoff' && typeof message.data.taskId === 'string' ? <KickoffActions taskId={message.data.taskId} /> : null}
-        <MessageActions {...props} owner={false} />
       </div>
+    </MessageFrame>
+  )
+}
+
+/**
+ * 你的或 bot 的一条消息的外框。有鼠标时操作是悬停浮出的一小排按钮；
+ * 触屏上没有悬停，长按弹出操作面板（手机上从底下升起），按着的那条垫一层底色。
+ */
+function MessageFrame(props: MessageProps & { readonly owner: boolean; readonly className: string; readonly children: ReactNode }) {
+  const touch = useTouch()
+  const [view, setView] = useState<SheetView>('main')
+  const [selecting, setSelecting] = useState(false)
+  const menu = useMenu('start', view)
+  const press = useLongPress((x, y) => {
+    setView('main')
+    menu.openAt(x, y)
+  }, touch)
+  return (
+    <div className={`${props.className}${touch && menu.open ? ' pod-msg-pressed' : ''}`} {...press}>
+      {props.children}
+      {touch ? (
+        <MessageSheet control={menu} view={view} onView={setView} message={props.message} owner={props.owner} onReply={props.onReply} onPinned={props.onPinned} onSelect={() => setSelecting(true)} />
+      ) : (
+        <MessageActions {...props} />
+      )}
+      {selecting ? (
+        <Modal title="选择文字" onClose={() => setSelecting(false)}>
+          <div className="pod-select-text">{props.message.body}</div>
+        </Modal>
+      ) : null}
     </div>
   )
 }
@@ -236,18 +268,17 @@ export function MessageItem(props: MessageProps) {
 /**
  * 消息的操作：平时不显示，鼠标移到消息上时在右上角浮出一小排按钮，不占地方。
  * bot 的回复有复制、引用、重新回答、赞、踩，置顶和查看过程收在“…”里；你自己的消息有复制、引用和“…”。
- * 没有鼠标的设备上直接显示在消息下面。
+ * 触屏上不用它，长按弹出 MessageSheet。
  */
 function MessageActions(props: MessageProps & { readonly owner: boolean }) {
   const app = useApp()
   const { message } = props
   const menu = useMenu('start')
   const sessionId = message.sessionId
-  // X 监控推来的动态不是模型的回答，不能重新回答、也不用打分。
-  const reply = message.author !== POD && message.kind === 'text' && !props.owner && message.data.xEvent === undefined
+  const reply = answerable(message, props.owner)
   return (
     <div className={`pod-msg-actions${props.owner ? ' pod-msg-actions-owner' : ''}${menu.open ? ' pod-msg-actions-open' : ''}`} role="toolbar" aria-label="消息操作">
-      <IconButton icon="copy" label="复制" onClick={() => void navigator.clipboard?.writeText(message.body)} />
+      <IconButton icon="copy" label="复制" onClick={() => void copyText(message.body)} />
       <IconButton icon="reply" label="引用回复" onClick={() => props.onReply(message)} />
       {reply ? (
         <>

@@ -31,6 +31,7 @@ const PATHS: Readonly<Record<string, string>> = {
   forward: 'M9 6l6 6-6 6',
   refresh: 'M19 12a7 7 0 1 1-2-5M19 5v4h-4',
   copy: 'M8 8h11v12H8zM5 16V4h11',
+  select: 'M9 4h6M9 20h6M12 4v16',
   image: 'M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15 9h.01',
   shield: 'M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z',
   up: 'M7 11v9H4v-9zM7 11l4-7c1.5 0 2.5 1 2.2 2.6L12.5 10H18a2 2 0 0 1 2 2.3l-1 6A2 2 0 0 1 17 20H7',

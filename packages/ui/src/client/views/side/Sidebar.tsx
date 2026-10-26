@@ -16,6 +16,7 @@ import type { StreamState } from '../../api/events.ts'
 import { errorText } from '../../api/http.ts'
 import { Icon } from '../../components/Icon.tsx'
 import { MenuItem, MenuPanel, useMenu } from '../../components/Menu.tsx'
+import { useNarrow, useTouch } from '../../components/media.ts'
 import { RenameInput } from '../../components/RenameInput.tsx'
 import { useApp, useLiveRooms, useNav } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
@@ -112,10 +113,13 @@ function limit(items: readonly SidebarItem[], expanded: boolean, roomId: string 
 /**
  * 左侧栏：顶部是搜索、新对话、临时对话，最右边是收起按钮；下面是置顶（主管总在第一个）、你建的分组、Bot、群聊，
  * Bot 和群聊默认各显示 5 条，拖动可以排顺序；归档的不在侧栏里，在设置的“归档”里看；最底下是设置。
+ * 手机上它就是列表页：占满整屏、不能收起、全部显示；触屏上不能拖，排顺序用菜单里的置顶和移到分组。
  */
 export function Sidebar() {
   const app = useApp()
   const nav = useNav()
+  const narrow = useNarrow()
+  const touch = useTouch()
   const live = useLiveRooms()
   const stream = useStreamState()
   const store = useSidebarPrefs()
@@ -123,7 +127,7 @@ export function Sidebar() {
   const { data: rooms } = useResource(app.cache, 'rooms', () => api.rooms())
   const [problem, setProblem] = useState<string | undefined>(undefined)
   const [more, setMore] = useState<{ readonly bots: boolean; readonly groups: boolean }>({ bots: false, groups: false })
-  const collapsed = nav.sidebarCollapsed
+  const collapsed = nav.sidebarCollapsed && !narrow
   const sections = sidebarSections(bots ?? [], rooms ?? [], store.prefs)
   const drag = useSideDrag(sections, store, setProblem)
   const byId = new Map((bots ?? []).map((bot) => [bot.id, bot]))
@@ -147,7 +151,7 @@ export function Sidebar() {
     (item: SidebarItem): ReactNode => {
       const members = item.kind === 'group' ? (item.room?.memberIds ?? []).map((id) => byId.get(id)).filter((bot): bot is Bot => bot !== undefined) : []
       const busy = item.rooms.some((thread) => live.has(thread.id) || thread.busy)
-      return <SideItem key={item.key} item={item} members={members} busy={busy} collapsed={collapsed} store={store} onError={setProblem} drag={drag.row(section, item)} />
+      return <SideItem key={item.key} item={item} members={members} busy={busy} collapsed={collapsed} store={store} onError={setProblem} drag={touch ? undefined : drag.row(section, item)} />
     }
   const moreButton = (hidden: number, expanded: boolean, toggle: () => void): ReactNode =>
     collapsed || (hidden === 0 && !expanded) ? null : (
@@ -155,8 +159,8 @@ export function Sidebar() {
         {expanded ? '收起' : `更多（${hidden}）`}
       </button>
     )
-  const botList = limit(sections.bots, more.bots, nav.roomId)
-  const groupList = limit(sections.groups, more.groups, nav.roomId)
+  const botList = limit(sections.bots, more.bots || narrow, nav.roomId)
+  const groupList = limit(sections.groups, more.groups || narrow, nav.roomId)
 
   return (
     <nav className={`pod-side${collapsed ? ' pod-side-collapsed' : ''}`} aria-label="Bot 和群聊">
@@ -176,9 +180,11 @@ export function Sidebar() {
         <button type="button" className="pod-round" aria-label="临时对话：不进列表、不写记忆" title="临时对话：不进列表、不写记忆，离开就删" onClick={() => lead !== undefined && app.startTemporary(lead.id)}>
           <Icon name="incognito" size={18} />
         </button>
-        <button type="button" className="pod-icon-button pod-side-fold" aria-label={collapsed ? '展开侧栏' : '收起侧栏'} title={collapsed ? '展开侧栏' : '收起侧栏'} onClick={() => app.navigate({ sidebarCollapsed: !collapsed })}>
-          <Icon name="sidebar" size={18} />
-        </button>
+        {narrow ? null : (
+          <button type="button" className="pod-icon-button pod-side-fold" aria-label={collapsed ? '展开侧栏' : '收起侧栏'} title={collapsed ? '展开侧栏' : '收起侧栏'} onClick={() => app.navigate({ sidebarCollapsed: !collapsed })}>
+            <Icon name="sidebar" size={18} />
+          </button>
+        )}
       </div>
       {problem === undefined ? null : (
         <p className="pod-form-error pod-side-error" role="alert" onClick={() => setProblem(undefined)}>
@@ -198,7 +204,7 @@ export function Sidebar() {
             <div key={folder.id} className="pod-side-group">
               {collapsed ? <span className="pod-side-divider" /> : <FolderHead folder={folder} count={items.length} folded={folded} store={store} drop={drag.head(folder.id)} />}
               {folded && !collapsed ? null : items.map(row(folder.id))}
-              {!folded && !collapsed && items.length === 0 ? <p className="pod-side-empty">空的。把 bot 或群聊拖到分组名上，或者在它的“…”里选“移到分组”。</p> : null}
+              {!folded && !collapsed && items.length === 0 ? <p className="pod-side-empty">{touch ? '空的。长按 bot 或群聊，选“移到分组”。' : '空的。把 bot 或群聊拖到分组名上，或者右键它选“移到分组”。'}</p> : null}
             </div>
           )
         })}

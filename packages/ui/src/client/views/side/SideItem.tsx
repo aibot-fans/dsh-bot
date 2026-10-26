@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { BOT_NAME_MAX, ROOM_TITLE_MAX, addSidebarFolder, archiveSidebarItem, moveSidebarItem, type Bot, type SidebarItem } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
-import { Avatar, Badge, nameColor } from '../../components/common.tsx'
+import { Avatar, Badge, listTime, nameColor } from '../../components/common.tsx'
 import { GroupMark } from '../../components/GroupMark.tsx'
-import { Icon } from '../../components/Icon.tsx'
+import { useLongPress } from '../../components/longPress.ts'
+import { useNarrow } from '../../components/media.ts'
 import { MenuDivider, MenuItem, MenuPanel, useMenu } from '../../components/Menu.tsx'
 import { RenameInput } from '../../components/RenameInput.tsx'
 import { useApp, useNav } from '../../state/app.ts'
@@ -33,13 +34,24 @@ function UnreadBadge(props: { readonly count: number }) {
 
 type MenuView = 'main' | 'move' | 'new-folder'
 
+/** 手机列表上名字下面那一行：最近一条消息；单聊里去掉开头 bot 自己的名字，还没聊过就写一句。 */
+function previewOf(item: SidebarItem, members: readonly Bot[]): string {
+  const text = item.room?.preview ?? ''
+  if (item.bot !== undefined) {
+    const own = `${item.bot.name}：`
+    return text === '' ? '还没有聊过' : text.startsWith(own) ? text.slice(own.length) : text
+  }
+  return text === '' ? members.map((bot) => bot.name).join('、') : text
+}
+
 /**
- * 侧栏的一行：点开对话，拖动排顺序；悬停时右边出现“…”，可以置顶、改名、移到分组、归档、删除（右键也行）。
- * 主管固定置顶，菜单里没有置顶、移到分组和归档。
+ * 侧栏的一行：点开对话，拖动排顺序；右键（触屏上长按）在那个位置弹出菜单：置顶、改名、移到分组、归档、删除。
+ * 主管固定置顶，菜单里没有置顶、移到分组和归档。手机上是两行：名字和时间，下面是最近一条消息和未读。
  */
 export function SideItem(props: SideItemProps) {
   const app = useApp()
   const nav = useNav()
+  const narrow = useNarrow()
   const { item, store } = props
   const [view, setView] = useState<MenuView>('main')
   const [folderName, setFolderName] = useState('')
@@ -111,7 +123,13 @@ export function SideItem(props: SideItemProps) {
     close()
   }
 
-  const icon = item.kind === 'bot' ? <Avatar bot={bot} size={props.collapsed ? 28 : 24} /> : <GroupMark members={props.members} size={props.collapsed ? 28 : 24} />
+  const menuable = !props.collapsed && !renaming
+  const press = useLongPress((x, y) => menu.openAt(x, y), menuable)
+  const iconSize = narrow ? 44 : props.collapsed ? 28 : 24
+  const icon = item.kind === 'bot' ? <Avatar bot={bot} size={iconSize} /> : <GroupMark members={props.members} size={iconSize} />
+  const flag = waits > 0 && !props.collapsed ? <Badge tone="warn">需要你</Badge> : unread > 0 ? <UnreadBadge count={unread} /> : null
+  const busy = props.busy ? <span className="pod-side-busy" role="img" aria-label="正在工作" /> : null
+  const lastAt = item.room?.lastMessageAt ?? null
   return (
     <div
       className={`pod-side-item${active ? ' pod-side-item-active' : ''}${menu.open ? ' pod-side-item-menu' : ''}${drag?.mark === undefined ? '' : ` pod-side-drop-${drag.mark}`}`}
@@ -120,10 +138,14 @@ export function SideItem(props: SideItemProps) {
       onDragOver={drag?.onDragOver}
       onDrop={drag?.onDrop}
       onDragEnd={drag?.onDragEnd}
+      {...press}
       onContextMenu={(event) => {
-        if (props.collapsed) return
+        if (!menuable) return
         event.preventDefault()
-        if (!menu.open) menu.toggle()
+        // 键盘（菜单键、Shift+F10）打开时没有鼠标位置：贴着这一行的左下角。
+        const box = event.currentTarget.getBoundingClientRect()
+        const keyboard = event.clientX === 0 && event.clientY === 0
+        menu.openAt(keyboard ? box.left + 12 : event.clientX, keyboard ? box.bottom : event.clientY)
       }}
     >
       {renaming && !props.collapsed ? (
@@ -131,6 +153,23 @@ export function SideItem(props: SideItemProps) {
           {icon}
           <RenameInput value={title} max={bot === undefined ? ROOM_TITLE_MAX : BOT_NAME_MAX} label={`给「${title}」改名`} onSave={rename} onCancel={() => setRenaming(false)} />
         </div>
+      ) : narrow ? (
+        <button type="button" className="pod-side-row pod-side-row-tall" onClick={open} aria-current={active ? 'true' : undefined}>
+          {icon}
+          <span className="pod-side-row-body">
+            <span className="pod-side-row-line">
+              <span className={`pod-side-row-title${bot === undefined ? '' : ' pod-bot-name'}`} style={nameColor(bot)}>
+                {title}
+              </span>
+              {busy}
+              {lastAt === null ? null : <time className="pod-side-row-time">{listTime(lastAt, Date.now())}</time>}
+            </span>
+            <span className="pod-side-row-line">
+              <span className="pod-side-row-preview">{previewOf(item, props.members)}</span>
+              {flag}
+            </span>
+          </span>
+        </button>
       ) : (
         <button type="button" className="pod-side-row" onClick={open} title={props.collapsed ? title : undefined} aria-current={active ? 'true' : undefined}>
           {icon}
@@ -139,13 +178,8 @@ export function SideItem(props: SideItemProps) {
               {title}
             </span>
           )}
-          {waits > 0 && !props.collapsed ? <Badge tone="warn">需要你</Badge> : unread > 0 ? <UnreadBadge count={unread} /> : null}
-          {props.busy ? <span className="pod-side-busy" role="img" aria-label="正在工作" /> : null}
-        </button>
-      )}
-      {props.collapsed || renaming ? null : (
-        <button ref={menu.anchor} type="button" className="pod-side-more" aria-label={`「${title}」的更多操作`} aria-expanded={menu.open} onClick={menu.toggle}>
-          <Icon name="more" size={16} />
+          {flag}
+          {busy}
         </button>
       )}
       <MenuPanel control={menu} label={`「${title}」的操作`}>

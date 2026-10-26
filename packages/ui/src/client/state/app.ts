@@ -155,6 +155,11 @@ export class AppState {
     this.navigate({ roomId, focus: null, search: null, settings: null, panel, page: null })
   }
 
+  /** 手机上回到列表：不在任何对话里（临时对话就此删掉），列表上的未读照常算。宽屏上中间会回到主管的单聊。 */
+  showList(): void {
+    this.navigate({ roomId: null, panel: null, page: null, focus: null })
+  }
+
   /** 打开和某个 bot 的单聊（没有就建一个）。 */
   openBot(botId: string): void {
     void api.openDirect(botId).then((room) => {
