@@ -61,7 +61,7 @@ export function toolErrorText(code: string, message: string): string {
   const quota = quotaText(code)
   if (quota !== undefined) return `${quota}。今天别再重试这个请求，把情况告诉用户；监控照常能用。`
   if (code === DEVICE_DISABLED) return `${DISABLED_TEXT}，X 工具暂时不能用，告诉用户去设置里看看。`
-  if (code === 'twitter_api_scope_denied') return '这把 Key 没有这个工具的权限（Pod 专用 Key 只能读数据和管理监控，不能发推）。要发推请用共用浏览器。'
+  if (code === 'twitter_api_scope_denied') return '这把 Key 没有这个工具的权限（Pod 专用 Key 只能读数据和管理监控，不能发推）。要发推、点赞，用会话里别的 X 写工具；没有的话用共用浏览器。'
   if (code === 'rate_limit_exceeded' || code === 'too_many_requests') return '调用太频繁，过一会儿再试。'
   if (code === 'subscription_quota_exceeded') return '免费监控最多 40 个账号，已经满了：先删掉不需要的监控再加。'
   return message

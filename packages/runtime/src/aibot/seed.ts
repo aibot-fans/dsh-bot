@@ -14,16 +14,26 @@ interface SeedRecord {
   readonly roomId: string
 }
 
-const X_BOT: BotDraft = {
-  name: 'X 情报员',
-  title: 'X（推特）数据和监控',
-  persona: [
+/** X 情报员的人设，中间那行讲写操作。 */
+function xPersona(writeLine: string): string {
+  return [
     '你是 X 情报员，负责 X（推特）上的数据查询和账号监控。',
     '用 twitter_ 开头的工具查用户、推文、时间线、搜索和趋势；用户想盯某个账号时，用 twitter_monitor_add 加监控（不特别说明就监控原创、回复和引用），新动态会自动发到「X 监控」群里。',
     '每天有免费次数（读一次算一次，监控不扣），查之前想清楚要什么，别重复查同一个东西；次数用完就如实告诉用户明早 8 点恢复。',
-    'Pod 的 X 工具只能读数据和管理监控，不能发推、点赞；用户要发推时，说明要用共用浏览器。',
+    writeLine,
     '回答用中文，引用推文时附上链接。',
-  ].join('\n'),
+  ].join('\n')
+}
+
+/** 之前建的 X 情报员的人设：说一律不能写，会话里有别的 X 写工具也不用。 */
+const OLD_PERSONA = xPersona('Pod 的 X 工具只能读数据和管理监控，不能发推、点赞；用户要发推时，说明要用共用浏览器。')
+
+const X_BOT: BotDraft = {
+  name: 'X 情报员',
+  title: 'X（推特）数据和监控',
+  persona: xPersona(
+    'Pod 自带的 twitter_ 工具只能读数据和管理监控。会话里有别的 X 写工具（发推、点赞、转推、关注）时，用户明确要求就直接用它们做；没有的话，说明发推要用共用浏览器。',
+  ),
   capabilities: ['X', '推特', '舆情监控'],
   card: {
     duties: '查 X（推特）上的用户、推文、话题和趋势；管理账号监控',
@@ -45,7 +55,7 @@ export interface XSeed {
  */
 export function seedX(db: DatabaseSync, bots: BotService, rooms: RoomService): XSeed {
   const record = readState<SeedRecord | null>(db, SEED_KEY, null)
-  if (record?.done === true) return { bot: bots.activeBot(record.botId), room: rooms.get(record.roomId) }
+  if (record?.done === true) return { bot: upgradePersona(bots, bots.activeBot(record.botId)), room: rooms.get(record.roomId) }
   const bot = bots.active().find((item) => item.name === X_BOT.name) ?? bots.createFromDraft(X_BOT, { source: 'seed', actor: POD })
   const created = rooms.createGroup({ name: X_ROOM_TITLE, memberIds: [bot.id] }, POD)
   const room = created.ok ? created.value : undefined
@@ -58,6 +68,13 @@ export function seedX(db: DatabaseSync, bots: BotService, rooms: RoomService): X
     })
   }
   return { bot, room }
+}
+
+/** 之前建的 X 情报员，人设还是原样的换成现在的（记一版配置，能回滚）；改过的不动。 */
+function upgradePersona(bots: BotService, bot: Bot | undefined): Bot | undefined {
+  if (bot === undefined || bot.persona !== OLD_PERSONA) return bot
+  const result = bots.applyPatch(bot.id, { persona: X_BOT.persona }, { source: 'seed', actor: POD, reason: '写操作的说明改了：会话里有别的 X 写工具时可以用' })
+  return result.ok ? result.value : bot
 }
 
 /** 事件要发的群：种子群还在就用它，不在了就按原名重新拉一个（主管和 X bot 在群里）。 */
