@@ -15,6 +15,8 @@ export interface ComposerProps {
   readonly members: readonly Bot[]
   readonly replyTo: RoomMessage | undefined
   readonly onClearReply: () => void
+  /** 按下发送、开始发的那一刻（时间线据此回到最新）。 */
+  readonly onSubmit: () => void
   readonly onSent: () => void
   readonly bots: ReadonlyMap<string, Bot>
   /** 有 bot 正在回答：输入框是空的时候按钮变成停止。 */
@@ -154,6 +156,7 @@ export function Composer(props: ComposerProps) {
     }
     setBusy(true)
     setError(undefined)
+    props.onSubmit()
     const work = pending.length > 0 ? sendFiles(value) : api.send(props.room.id, value, props.replyTo?.id)
     work
       .then(() => {

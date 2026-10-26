@@ -25,6 +25,8 @@ export function Conversation() {
   const live = useLive(room?.id ?? null)
   const [replyTo, setReplyTo] = useState<RoomMessage | undefined>(undefined)
   const [readAtOpen, setReadAtOpen] = useState<{ readonly roomId: string; readonly seq: number } | undefined>(undefined)
+  /** 你按下发送的时间：时间线据此回到最新。 */
+  const [sentAt, setSentAt] = useState(0)
 
   // 记住的对话不在了（删了、清过数据）：回到主管的单聊；连主管单聊都没有就开一个。
   // 列表正在重新拉时先等它拉完：刚建的单聊或群聊还不在旧列表里，不能当成“不在了”。
@@ -58,13 +60,14 @@ export function Conversation() {
   return (
     <main className="pod-convo">
       <ChatHeader room={room} bots={bots} memberIds={memberIds} />
-      <Timeline room={room} bots={authors} members={memberBots} onReply={setReplyTo} readSeqAtOpen={readAtOpen?.roomId === room.id ? readAtOpen.seq : room.readSeq} />
+      <Timeline room={room} bots={authors} members={memberBots} onReply={setReplyTo} readSeqAtOpen={readAtOpen?.roomId === room.id ? readAtOpen.seq : room.readSeq} followAt={sentAt} />
       <Composer
         room={room}
         responder={responder}
         members={memberBots}
         replyTo={replyTo}
         onClearReply={() => setReplyTo(undefined)}
+        onSubmit={() => setSentAt(Date.now())}
         onSent={() => app.cache.invalidate('rooms')}
         bots={bots}
         replying={live.statuses.length > 0}

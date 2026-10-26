@@ -2,11 +2,11 @@
 export const CHAT_CSS = `
 .pod-timeline { flex: 1; min-height: 0; overflow-y: auto; }
 .pod-timeline-wrap { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.pod-jump-latest { position: absolute; left: 50%; bottom: 14px; z-index: 4; transform: translateX(-50%); appearance: none; font: inherit; font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px 0 10px; border-radius: 999px; border: 1px solid var(--pod-line); background: var(--dsw-alias-bg-layer-1, #fff); color: var(--dsw-alias-label-secondary); box-shadow: 0 4px 16px color-mix(in srgb, #000 12%, transparent); cursor: pointer; animation: pod-rise .16s ease-out; }
-.pod-jump-latest:hover { color: var(--dsw-alias-label-primary); background: color-mix(in srgb, var(--pod-soft) 60%, var(--dsw-alias-bg-layer-1, #fff)); }
-.pod-jump-latest-new { color: var(--pod-info); border-color: color-mix(in srgb, var(--pod-info) 35%, transparent); }
+.pod-jump-latest { position: absolute; right: 18px; bottom: 14px; z-index: 4; appearance: none; display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; corner-shape: round; background: var(--pod-info); color: var(--dsw-alias-bg-layer-1, #fff); box-shadow: 0 4px 14px color-mix(in srgb, #000 18%, transparent); cursor: pointer; animation: pod-rise .16s ease-out; }
+.pod-jump-latest:hover { background: color-mix(in srgb, var(--pod-info) 84%, var(--dsw-alias-bg-layer-1, #fff)); }
 .pod-jump-latest:focus-visible { outline: 2px solid var(--pod-info); outline-offset: 2px; }
-@keyframes pod-rise { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.pod-jump-count { position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 9px; corner-shape: round; background: var(--pod-danger); color: #fff; font-size: 11px; line-height: 18px; text-align: center; box-shadow: 0 0 0 2px var(--dsw-alias-bg-layer-1, #fff); }
+@keyframes pod-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .pod-timeline-inner { display: flex; flex-direction: column; gap: 4px; max-width: 780px; margin: 0 auto; padding: 8px 24px 24px; }
 .pod-load-older { align-self: center; margin-bottom: 8px; }
 .pod-msg { position: relative; display: flex; gap: 10px; padding: 6px 0; }

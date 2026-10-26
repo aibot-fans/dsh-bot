@@ -141,11 +141,13 @@ export interface TimelineProps {
   readonly onReply: (message: RoomMessage) => void
   /** 进对话那一刻的已读位置，用来决定显示不显示未读摘要。 */
   readonly readSeqAtOpen: number
+  /** 你刚发出一条消息的时间：一变就回到最新，之后跟着新消息往下走。 */
+  readonly followAt: number
 }
 
 /**
  * 时间线：一次加载 50 条，往上滚加载更早的，往下滚到头时补上更新的；新消息按 id 合并进来（卡片原地更新也是同一条）。
- * 在底部附近时新消息自动滚到底；往上翻远了右下角出现“回到最新”，带着这期间来的新消息条数。
+ * 在底部附近时新消息自动滚到底；你发出消息时不管翻到哪都回到最新。往上翻远了右下角出现圆形的“回到最新”，角上是这期间来的新消息条数。
  * bot 在回答时显示它正在做什么和正在输入的文字。以前在同一个对话里“开新对话”留下的分隔线照常显示。
  * 同一段回复里先显示文字，页面、任务卡这些卡片和状态行放在下面（见 arrange）；bot 还在回答时，正在输入的文字也排在这段的卡片上面。
  */
@@ -282,13 +284,18 @@ export function Timeline(props: TimelineProps) {
   }
 
   /** 回到最新：先把最新的一页合并进来（从搜索跳过来时可能还没加载），再滚到底。 */
-  const jumpToLatest = (): void => {
+  const jumpToLatest = (behavior: ScrollBehavior = 'smooth'): void => {
     nearBottom.current = true
     setAwayFrom(null)
     if (behind) refreshLatest()
     const element = scroller.current
-    if (element !== null) element.scrollTo({ top: element.scrollHeight, behavior: 'smooth' })
+    if (element !== null) element.scrollTo({ top: element.scrollHeight, behavior })
   }
+
+  // 你发了消息：直接跳到最新，你的消息和 bot 的回答出现时都贴着底部。
+  useEffect(() => {
+    if (props.followAt > 0) jumpToLatest('auto')
+  }, [props.followAt])
 
   const mentions = useMemo(
     () => buildMentions([...props.bots.values()].filter((bot) => bot.archivedAt === null).map((bot) => ({ name: bot.name, bot, onOpen: () => app.showMember(bot.id) }))),
@@ -380,9 +387,9 @@ export function Timeline(props: TimelineProps) {
         </div>
       </div>
       {awayFrom === null && !(behind && !nearBottom.current) ? null : (
-        <button type="button" className={`pod-jump-latest${arrived > 0 ? ' pod-jump-latest-new' : ''}`} onClick={jumpToLatest} aria-label={arrived > 0 ? `回到最新，有 ${arrived} 条新消息` : '回到最新'}>
-          <Icon name="arrow-down" size={16} />
-          {arrived > 0 ? <span>{arrived > 99 ? '99+' : arrived} 条新消息</span> : <span>回到最新</span>}
+        <button type="button" className="pod-jump-latest" onClick={() => jumpToLatest()} aria-label={arrived > 0 ? `回到最新，有 ${arrived} 条新消息` : '回到最新'} title="回到最新">
+          <Icon name="arrow-down" size={18} />
+          {arrived > 0 ? <span className="pod-jump-count">{arrived > 99 ? '99+' : arrived}</span> : null}
         </button>
       )}
     </div>
