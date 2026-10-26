@@ -1,0 +1,27 @@
+# 推送以后给还没有 Release 的版本标签建 GitHub Release，正文取 CHANGELOG.md 里那个版本的一节（见 scripts/github-release.mjs）。
+name: release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# 推 main 和推标签会各触发一次，排队跑，后跑的那次发现已经建好就什么都不做
+concurrency:
+  group: release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: node scripts/github-release.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
