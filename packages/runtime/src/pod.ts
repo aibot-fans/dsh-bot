@@ -43,6 +43,8 @@ import { WaitService } from './waits/service.ts'
 import { createBrowserKit, type BrowserKit } from './browser/index.ts'
 import { createEvolutionKit, type EvolutionKit } from './evolution/index.ts'
 import { ModelResolver } from './core/models.ts'
+import { resolveConfig } from './config.ts'
+import { dataGuard } from './core/data-guard.ts'
 import { SHELL_TOOLS, detectExposure, type Exposure } from './core/exposure.ts'
 import { startRuntime } from './lifecycle.ts'
 import { PageLibrary } from './pages/library.ts'
@@ -56,6 +58,8 @@ export interface PodRuntimeOptions {
   readonly db: DatabaseSync
   readonly dataRoot: string
   readonly workspaceRoot: string
+  /** dsh 自己的目录：bot 不能直接读写这里和 dataRoot 里的文件。不给就按 $DSH_HOME（默认 ~/.dsh）。 */
+  readonly dshHome?: string
   readonly compat: CompatReport
   readonly now?: () => number
 }
@@ -118,9 +122,11 @@ export class PodRuntime {
   private readonly extras: ExtraTool[] = []
   private readonly activityTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private readonly options: PodRuntimeOptions
+  private readonly protectData: ReturnType<typeof dataGuard>
 
   constructor(options: PodRuntimeOptions) {
     this.options = options
+    this.protectData = dataGuard({ dshHome: options.dshHome ?? resolveConfig(undefined).dshHome, dataRoot: options.dataRoot })
     const { ctx, db } = options
     const now = options.now ?? Date.now
     this.now = now
@@ -682,9 +688,16 @@ export class PodRuntime {
     this.exposureState = next
   }
 
-  /** 会话的工具拒绝规则：dsh web 对外开放时禁用 shell（浏览器写操作在审批那一步拦）。 */
-  guardFor(_session: PodSession): ((call: { readonly name: string }) => string | undefined) | undefined {
-    return (call) => (this.exposureState.exposed && SHELL_TOOLS.has(call.name) ? `dsh web 现在对外开放（${this.exposureState.reasons.join('；')}），为了安全 Pod 禁用了 shell。需要时请用户在本机使用。` : undefined)
+  /**
+   * 会话的工具拒绝规则：dsh web 对外开放时禁用 shell（浏览器写操作在审批那一步拦）；
+   * bot 不能直接读写 Pod 和 dsh 的数据（改例程用 update_routine）。
+   */
+  guardFor(session: PodSession): (call: { readonly name: string; readonly arguments?: unknown }) => string | undefined {
+    const cwd = join(this.options.workspaceRoot, session.folder)
+    return (call) => {
+      if (this.exposureState.exposed && SHELL_TOOLS.has(call.name)) return `dsh web 现在对外开放（${this.exposureState.reasons.join('；')}），为了安全 Pod 禁用了 shell。需要时请用户在本机使用。`
+      return this.protectData(call, cwd)
+    }
   }
 
   /** 任务复盘：做法和教训写进执行者的个人记忆，任务的结果写进任务记录。 */

@@ -6,6 +6,8 @@ export interface PodConfig {
   readonly dataRoot: string
   /** bot 会话的工作目录根，默认 ~/Pod。 */
   readonly workspaceRoot: string
+  /** dsh 自己的目录（$DSH_HOME，默认 ~/.dsh）：bot 不能直接碰这里的文件，技能目录除外。 */
+  readonly dshHome: string
 }
 
 function nonEmpty(value: unknown): string | undefined {
@@ -30,5 +32,6 @@ export function resolveConfig(raw: unknown, env: NodeJS.ProcessEnv = process.env
   return {
     dataRoot: expandHome(nonEmpty(record.dataRoot) ?? join(dshHome, 'pod'), home),
     workspaceRoot: expandHome(nonEmpty(record.workspaceRoot) ?? join(home, 'Pod'), home),
+    dshHome,
   }
 }

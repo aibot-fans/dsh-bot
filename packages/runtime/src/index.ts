@@ -36,7 +36,7 @@ export function apply(ctx: HostContext, rawConfig: unknown): void {
   const compat = checkCompat(ctx)
   if (compat.readOnly) ctx.logger.warn(`DeepSeek Pod 进入只读模式，缺少接口：${compat.problems.join('、')}`)
 
-  const pod = new PodRuntime({ ctx, db, dataRoot: config.dataRoot, workspaceRoot: config.workspaceRoot, compat })
+  const pod = new PodRuntime({ ctx, db, dataRoot: config.dataRoot, workspaceRoot: config.workspaceRoot, dshHome: config.dshHome, compat })
   ctx.effect(() => ctx.provide('pod', pod), 'pod: service')
   if (!compat.readOnly) ctx.effect(() => pod.start(), 'pod: runtime')
 
