@@ -4,7 +4,7 @@
 
 # dsh-bot
 
-dsh-bot（原名 DeepSeek Pod，界面里简称 Pod）是一个基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（简称 dsh）的 bot 插件，插件将 dsh 改造为 bot 形式。每个任务都是一个团队。
+dsh-bot 是一个基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（简称 dsh）的 bot 插件，插件将 dsh 改造为 bot 形式。每个任务都是一个团队。
 
 每天免费 1000 次 X 数据 API
 
@@ -58,10 +58,10 @@ dsh-bot（原名 DeepSeek Pod，界面里简称 Pod）是一个基于 [DeepSeek 
 
 ### 共用浏览器
 
-bot 能像人一样用网页：打开、看、点、填表、上传、截图、提取正文。所有 bot 共用一个无头 Chrome 和一份登录状态，一个网站登录过一次，谁都能接着用；Chrome 用的是 Pod 自己的 profile，不碰你日常用的那份。
+bot 能像人一样用网页：打开、看、点、填表、上传、截图、提取正文。所有 bot 共用一个无头 Chrome 和一份登录状态，一个网站登录过一次，谁都能接着用；Chrome 用的是 dsh-bot 自己的 profile，不碰你日常用的那份。
 
 - bot 打开网页时，对话里出现浏览器卡片。点「查看」从右侧看实时画面和动作记录；点「接管」自己操作，用完交还给 bot。要登录的网站，接管后你自己登录。
-- 提交、发送、删除、购买、确认这类写操作要你批准。审批卡带页面截图、网址、表单里填了什么，还有执行前复核：判断这一步是不是你要的，防止 bot 被网页内容带偏。批准后 Pod 先确认页面没变，再按原样执行。
+- 提交、发送、删除、购买、确认这类写操作要你批准。审批卡带页面截图、网址、表单里填了什么，还有执行前复核：判断这一步是不是你要的，防止 bot 被网页内容带偏。批准后 dsh-bot 先确认页面没变，再按原样执行。
 - bot 永远不填密码、验证码和银行卡号。你接管时填的这些，bot 读页面和审批卡里也只看到「已填」。
 - 默认不能访问本机和局域网地址，确实要访问的在设置「浏览器」页加白名单；同一个网站限制并发和频率，少触发风控。
 - 盯网页的例程、页面导出 PDF 和长图也用它。
@@ -70,7 +70,7 @@ bot 能像人一样用网页：打开、看、点、填表、上传、截图、�
 
 ### 页面（Grok Pages）
 
-bot 能把报告、看板、跟踪表、幻灯片、海报、原型和架构图做成页面。它只填组件数据（指标、图表、表格、流程图、架构图、时间线、热力图、看板、进度……），排版、配色和深色模式由 Pod 负责。
+bot 能把报告、看板、跟踪表、幻灯片、海报、原型和架构图做成页面。它只填组件数据（指标、图表、表格、流程图、架构图、时间线、热力图、看板、进度……），排版、配色和深色模式由 dsh-bot 负责。
 
 - 页面在沙箱里显示，不能联网。
 - 右边直接写想怎么改，只交给做这个页面的 bot；每次保存都是新的一版，旧版随时能恢复。
@@ -120,7 +120,7 @@ dsh plugin --profile web add @aibot_fans/dsh-bot
 dsh web
 ```
 
-侧栏里会出现「dsh-bot」。第一次打开有引导，跟着走一遍就行；之后直接跟主管说要做的事。模型用 dsh 里配好的：Pod 设置的「模型」页能换默认模型，每个 bot 也能在自己的详情里单独选。
+侧栏里会出现「dsh-bot」。第一次打开有引导，跟着走一遍就行；之后直接跟主管说要做的事。模型用 dsh 里配好的：dsh-bot 设置的「模型」页能换默认模型，每个 bot 也能在自己的详情里单独选。
 
 想从源码装或者改代码，见[开发说明](docs/DEVELOPMENT.md)。
 
@@ -133,8 +133,8 @@ dsh plugin --profile web add @aibot_fans/dsh-bot@latest
 装好后重启 dsh web。
 
 - 从改名前的 `ds-pod` 换过来：先 `dsh plugin --profile web remove ds-pod`，再按上面的安装步骤装 `@aibot_fans/dsh-bot`。数据还在 `~/.dsh/pod`，不用迁移。
-- 数据库表结构启动时自动迁移。Pod 每天备份一次数据库，保留最近 7 份。
-- 重启后，之前打开的 Pod 标签页要刷新一下：旧页面调的接口可能已经换了。页面发现自己和 Pod 的版本不一样时，顶部会提示刷新。
+- 数据库表结构启动时自动迁移。dsh-bot 每天备份一次数据库，保留最近 7 份。
+- 重启后，之前打开的 dsh-bot 标签页要刷新一下：旧页面调的接口可能已经换了。页面发现自己和后台的版本不一样时，顶部会提示刷新。
 
 ## 卸载
 
@@ -158,7 +158,7 @@ dsh plugin --profile web remove @aibot_fans/dsh-bot
 
 ## 隐私
 
-- 都在本机：Pod 跑在 dsh web 的进程里，数据只在上面这些目录；模型请求走 dsh 里配置的模型服务。
+- 都在本机：dsh-bot 跑在 dsh web 的进程里，数据只在上面这些目录；模型请求走 dsh 里配置的模型服务。
 
 ## 开发
 
@@ -166,7 +166,7 @@ dsh plugin --profile web remove @aibot_fans/dsh-bot
 
 ## 致谢
 
-- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)：Pod 是 dsh 的插件，bot 跑在 dsh 的会话上，用 dsh 的模型和工具。
+- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)：dsh-bot 是 dsh 的插件，bot 跑在 dsh 的会话上，用 dsh 的模型和工具。
 - 内置图标是鲸鱼娘图，形象出自 [lmy414/ai-chan-sheets](https://github.com/lmy414/ai-chan-sheets)，原作者 ZipZipPipe。
 - X 数据和监控由 [aibot](https://aibot.fans/) 提供。
 
@@ -174,11 +174,11 @@ dsh plugin --profile web remove @aibot_fans/dsh-bot
 
 - 代码按 [Apache License 2.0](LICENSE) 开源，按“原样”提供，不附带任何担保。
 - 鲸鱼娘图标（`packages/runtime/assets/bot-icons/`）改编自 [lmy414/ai-chan-sheets](https://github.com/lmy414/ai-chan-sheets)，按 [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh-hans) 授权，不适用 Apache License 2.0：只能非商用，用的时候要署名，改编后要按同样的协议分享。`docs/images/` 里的截图带有这些图标，也按这个协议。
-- 要把 Pod 用于商业用途，请先换掉这些图标。第三方素材的说明见 [NOTICE](NOTICE)。
+- 要把 dsh-bot 用于商业用途，请先换掉这些图标。第三方素材的说明见 [NOTICE](NOTICE)。
 
 ## 声明
 
-- dsh-bot 由社区独立开发，**不是 DeepSeek 官方产品**，也没有得到 DeepSeek 的认可或赞助。DeepSeek、DeepSeek Harness、X、Twitter、Grok、Chrome 等是各自所有者的名称或商标，文中提到它们只为说明 Pod 能和什么一起用。
+- dsh-bot 由社区独立开发，**不是 DeepSeek 官方产品**，也没有得到 DeepSeek 的认可或赞助。DeepSeek、DeepSeek Harness、X、Twitter、Grok、Chrome 等是各自所有者的名称或商标，文中提到它们只为说明 dsh-bot 能和什么一起用。
 - 使用 X 数据和监控时，请遵守 [aibot](https://aibot.fans/) 的[规则](https://aibot.fans/x-api/rest)、X 的规则和当地法律，不要用来骚扰或跟踪他人。
 - 共用浏览器在你的电脑上替你操作网页，bot 在网站上做的事由你负责。请遵守各网站的使用条款，批准写操作前看清审批卡。
 - bot 用你在 dsh 里配置的模型，花你自己的额度；会按你的要求读写工作区里的文件、运行命令。它的回答和交付由模型生成，可能出错，重要的事请自己核实。
