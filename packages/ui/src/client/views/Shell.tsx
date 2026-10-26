@@ -5,6 +5,7 @@ import { Button } from '../components/common.tsx'
 import { useNarrow } from '../components/media.ts'
 import { TooltipLayer } from '../components/Tooltip.tsx'
 import { AppContext, AppState, useApp, useNav, type HostActions } from '../state/app.ts'
+import { pruneDrafts } from '../state/drafts.ts'
 import { useKeyboardInset } from '../state/keyboard.ts'
 import { useMobileBack } from '../state/mobileBack.ts'
 import { useResource } from '../state/resource.ts'
@@ -76,16 +77,20 @@ function useEscapeClosesPanel(): void {
   }, [app, nav.panel === null])
 }
 
-/** 打开页面时清掉上次没正常离开的临时对话。手机上先看到列表，不能等打开对话再做。 */
+/** 打开页面时清掉上次没正常离开的临时对话；不在了的对话的草稿也清掉。手机上先看到列表，不能等打开对话再做。 */
 function useRoomHousekeeping(): void {
   const app = useApp()
-  const { data: rooms } = useResource(app.cache, 'rooms', () => api.rooms())
+  const { data: rooms, loading } = useResource(app.cache, 'rooms', () => api.rooms())
   const swept = useRef(false)
   useEffect(() => {
     if (rooms === undefined || swept.current) return
     swept.current = true
     app.sweepTemporary(rooms)
   }, [app, rooms])
+  // 等列表拉完再清：刚建的对话还不在旧列表里。
+  useEffect(() => {
+    if (rooms !== undefined && !loading) pruneDrafts(new Set(rooms.map((item) => item.id)))
+  }, [rooms, loading])
 }
 
 /**

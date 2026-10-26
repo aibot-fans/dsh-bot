@@ -3,6 +3,7 @@ import type { Bot, RoomMessage } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { Empty } from '../../components/common.tsx'
 import { useApp, useLive, useNav } from '../../state/app.ts'
+import { readDraft, saveDraftReply } from '../../state/drafts.ts'
 import { useResource } from '../../state/resource.ts'
 import { ChatHeader } from './ChatHeader.tsx'
 import { Composer } from './Composer.tsx'
@@ -23,7 +24,14 @@ export function Conversation() {
   const room = (rooms ?? []).find((item) => item.id === nav.roomId) ?? leadRoom ?? rooms?.[0]
   const { data: members } = useResource(app.cache, room === undefined ? null : `members:${room.id}`, () => api.roomInfo(room?.id ?? ''))
   const live = useLive(room?.id ?? null)
-  const [replyTo, setReplyTo] = useState<RoomMessage | undefined>(undefined)
+  // 引用的消息跟着这个对话的草稿走：换对话、刷新页面回来还在，发出去才清掉。
+  const [reply, setReply] = useState<{ readonly roomId: string; readonly message: RoomMessage | undefined } | undefined>(undefined)
+  const replyTo = room === undefined ? undefined : reply?.roomId === room.id ? reply.message : readDraft(room.id).reply
+  const chooseReply = (message: RoomMessage | undefined): void => {
+    if (room === undefined) return
+    setReply({ roomId: room.id, message })
+    saveDraftReply(room.id, message)
+  }
   const [readAtOpen, setReadAtOpen] = useState<{ readonly roomId: string; readonly seq: number } | undefined>(undefined)
   /** 你按下发送的时间：时间线据此回到最新。 */
   const [sentAt, setSentAt] = useState(0)
@@ -36,7 +44,6 @@ export function Conversation() {
     if (room === undefined && lead !== undefined) app.openBot(lead.id)
   }, [app, rooms, roomsLoading, room?.id, nav.roomId, lead?.id])
   useEffect(() => {
-    setReplyTo(undefined)
     if (room !== undefined && readAtOpen?.roomId !== room.id) setReadAtOpen({ roomId: room.id, seq: room.readSeq })
   }, [room?.id])
 
@@ -53,13 +60,14 @@ export function Conversation() {
   return (
     <main className="pod-convo">
       <ChatHeader room={room} bots={bots} memberIds={memberIds} />
-      <Timeline room={room} bots={authors} members={memberBots} onReply={setReplyTo} readSeqAtOpen={readAtOpen?.roomId === room.id ? readAtOpen.seq : room.readSeq} followAt={sentAt} />
+      <Timeline room={room} bots={authors} members={memberBots} onReply={chooseReply} readSeqAtOpen={readAtOpen?.roomId === room.id ? readAtOpen.seq : room.readSeq} followAt={sentAt} />
       <Composer
+        key={room.id}
         room={room}
         responder={responder}
         members={memberBots}
         replyTo={replyTo}
-        onClearReply={() => setReplyTo(undefined)}
+        onClearReply={() => chooseReply(undefined)}
         onSubmit={() => setSentAt(Date.now())}
         onSent={() => app.cache.invalidate('rooms')}
         bots={bots}

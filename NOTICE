@@ -9,3 +9,33 @@ DeepSeek Pod
   按 CC BY-NC-SA 4.0 授权（https://creativecommons.org/licenses/by-nc-sa/4.0/）：
   只能非商用，使用时要署名，改编后要按同样的协议分享。
 - docs/images/ 里的截图带有上面这些图标，同样按 CC BY-NC-SA 4.0。
+- 浏览器插件（packages/ui 打出的 client.js）里打包了 ProseMirror 的几个包，
+  按 MIT License 授权，许可全文附在下面：
+  - prosemirror-model、prosemirror-state、prosemirror-view、prosemirror-transform、
+    prosemirror-commands、prosemirror-keymap、prosemirror-inputrules、prosemirror-history、
+    prosemirror-schema-list（https://github.com/ProseMirror）：
+    Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+  - orderedmap、w3c-keyname：
+    Copyright (C) 2016 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+  - rope-sequence：
+    Copyright (C) 2016 by Marijn Haverbeke <marijn@haverbeke.berlin>
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.

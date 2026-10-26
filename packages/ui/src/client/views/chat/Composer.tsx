@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { OWNER, QUICK_COMMANDS, parseQuickCommand, type Bot, type Room, type RoomMessage } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { Avatar, IconButton } from '../../components/common.tsx'
 import { BotName } from '../../components/GroupMark.tsx'
 import { Icon } from '../../components/Icon.tsx'
+import { useNarrow } from '../../components/media.ts'
 import { buildMentions } from '../../components/mentions.tsx'
+import { RichInput, type MentionQuery, type RichInputHandle } from '../../editor/RichInput.tsx'
 import { useApp } from '../../state/app.ts'
+import { readDraft, readDraftFiles, saveDraftFiles, saveDraftText } from '../../state/drafts.ts'
 
 export interface ComposerProps {
   readonly room: Room
@@ -29,6 +32,10 @@ interface Pending {
   readonly preview: string | undefined
 }
 
+function toPending(file: File): Pending {
+  return { id: `${Date.now()}-${Math.random()}`, file, preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined }
+}
+
 function readBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -48,80 +55,75 @@ function nameOf(file: File): string {
   return `截图-${stamp}.${file.type.split('/')[1] ?? 'png'}`
 }
 
-/** 光标前面正在输入的 @ 词：返回词的起点和已经打的字。 */
-function mentionAt(text: string, caret: number): { readonly start: number; readonly query: string } | undefined {
-  const before = text.slice(0, caret)
-  const match = /(^|\s)@([^\s@]{0,24})$/.exec(before)
-  if (match === null) return undefined
-  return { start: before.length - (match[2]?.length ?? 0) - 1, query: match[2] ?? '' }
-}
-
-/** 输入框底下那层：和输入框一样排版，把 @成员 标成彩色；输入框本身的字是透明的，看到的是这一层。 */
-function highlight(text: string, pattern: RegExp | null): ReactNode {
-  if (pattern === null || !text.includes('@')) return text
-  const parts: ReactNode[] = []
-  let last = 0
-  for (const match of text.matchAll(pattern)) {
-    const start = match.index ?? 0
-    if (start > last) parts.push(text.slice(last, start))
-    parts.push(
-      <mark key={start} className="pod-composer-mention">
-        {match[0]}
-      </mark>,
-    )
-    last = start + match[0].length
-  }
-  if (last < text.length) parts.push(text.slice(last))
-  return parts
+/**
+ * 输入框里的提示；手机上窄，换短的说法。
+ * bot 正在回答时也能说话：单聊里它下一步就看到；群里没点名会按分工交给别人，所以提示 @ 它。
+ */
+function placeholderOf(name: string, group: boolean, replying: boolean, narrow: boolean): string {
+  if (replying && group) return narrow ? '要补充或纠正，@ 它直接说' : '成员正在回答：要补充或纠正，@ 它直接说'
+  if (replying) return narrow ? `${name} 正在回答，可以直接补充` : `${name} 正在回答：可以直接补充或纠正，它下一步就会看到`
+  if (group) return narrow ? '说点什么，@ 点名成员' : '在群里说点什么，输入 @ 点名成员'
+  return `给 ${name} 发消息`
 }
 
 /**
- * 输入框：Enter 发送、Shift+Enter 换行，中文输入法组字时不会误发；群聊里 @ 到的成员标成彩色。
- * 可以直接粘贴或拖入图片和文件；群聊里输入 @ 选成员；以 / 开头是快捷指令；bot 回答时可以停止。
+ * 输入框：可以写列表、引用、代码块和粗体这些格式（见 editor/），发出去是 Markdown。
+ * Enter 发送（列表、代码块里是换行），Shift+Enter 换行，中文输入法组字时不会误发；群聊里输入 @ 选成员，@ 到的成员标成彩色。
+ * 可以直接粘贴或拖入图片和文件；以 / 开头是快捷指令；bot 回答时可以停止。
+ * 没发出去的字和附件按对话存成草稿（换对话时外面用 key 换一个新的输入框），回来接着写。
  */
 export function Composer(props: ComposerProps) {
   const app = useApp()
-  const [text, setText] = useState('')
+  const narrow = useNarrow()
+  const roomId = props.room.id
+  const [text, setText] = useState(() => readDraft(roomId).text)
+  const initial = useRef(text).current
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
   const [pending, setPending] = useState<readonly Pending[]>([])
-  const [mention, setMention] = useState<{ readonly start: number; readonly query: string; readonly index: number } | undefined>(undefined)
-  const composing = useRef(false)
-  const [ime, setIme] = useState(false)
-  const area = useRef<HTMLTextAreaElement>(null)
-  const mirror = useRef<HTMLDivElement>(null)
+  const pendingNow = useRef(pending)
+  /** 草稿里的附件读回来以前不存，免得把存着的覆盖掉。 */
+  const filesRestored = useRef(false)
+  const [mention, setMention] = useState<(MentionQuery & { readonly index: number }) | undefined>(undefined)
+  const editor = useRef<RichInputHandle>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const mentionPattern = useMemo(() => buildMentions(props.members.map((bot) => ({ name: bot.name, bot, onOpen: () => undefined }))).pattern, [props.members])
   const name = props.responder?.name ?? 'bot'
   const group = props.room.kind !== 'direct'
-  const placeholder = group ? '在群里说点什么，输入 @ 点名成员' : `给 ${name} 发消息`
+  const archived = props.room.archivedAt !== null
+  const placeholder = archived ? '这个对话已经删除' : placeholderOf(name, group, props.replying, narrow)
   const showCommands = text.startsWith('/') && !text.includes(' ') && !text.includes('\n')
   const commands = showCommands ? QUICK_COMMANDS.filter((command) => `/${command.name}`.startsWith(text.trim()) || text.trim() === '/') : []
   const candidates = mention === undefined ? [] : props.members.filter((bot) => bot.name.toLowerCase().includes(mention.query.toLowerCase())).slice(0, 8)
 
-  useEffect(() => () => pending.forEach((item) => item.preview !== undefined && URL.revokeObjectURL(item.preview)), [])
   useEffect(() => {
-    setText('')
-    setPending([])
-    setError(undefined)
-  }, [props.room.id])
+    let alive = true
+    void readDraftFiles(roomId).then((files) => {
+      if (!alive) return
+      filesRestored.current = true
+      const restored = files.map(toPending)
+      setPending((current) => [...restored, ...current].slice(0, 8))
+    })
+    return () => {
+      alive = false
+      pendingNow.current.forEach((item) => item.preview !== undefined && URL.revokeObjectURL(item.preview))
+    }
+  }, [roomId])
+  useEffect(() => saveDraftText(roomId, text), [roomId, text])
+  useEffect(() => {
+    pendingNow.current = pending
+    if (filesRestored.current) saveDraftFiles(roomId, pending.map((item) => item.file))
+  }, [roomId, pending])
   useEffect(
     () =>
-      app.onInsert((roomId, inserted) => {
-        if (roomId !== props.room.id) return
-        setText((current) => (current === '' || /\s$/.test(current) ? `${current}${inserted}` : `${current} ${inserted}`))
-        requestAnimationFrame(() => {
-          const element = area.current
-          if (element === null) return
-          element.focus()
-          element.setSelectionRange(element.value.length, element.value.length)
-        })
+      app.onInsert((target, inserted) => {
+        if (target === props.room.id) editor.current?.append(inserted)
       }),
     [app, props.room.id],
   )
 
   const addFiles = (files: readonly File[]): void => {
-    const added = files.slice(0, 8).map((file) => ({ id: `${Date.now()}-${Math.random()}`, file, preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined }))
+    const added = files.slice(0, 8).map(toPending)
     if (added.length > 0) setPending((current) => [...current, ...added].slice(0, 8))
   }
 
@@ -146,12 +148,12 @@ export function Composer(props: ComposerProps) {
   }
 
   const send = (): void => {
-    const value = text.trim()
+    const value = (editor.current?.value() ?? text).trim()
     if (busy || (value === '' && pending.length === 0)) return
     // /停止 直接停掉这个对话里的任务和回答，不用经过 bot。
     if (pending.length === 0 && parseQuickCommand(value)?.name === '停止') {
       const work = props.room.taskId === null ? api.stopReply(props.room.id) : api.controlTask(props.room.taskId, 'stop')
-      work.then(() => setText('')).catch((reason: unknown) => setError(errorText(reason)))
+      work.then(() => editor.current?.reset('')).catch((reason: unknown) => setError(errorText(reason)))
       return
     }
     setBusy(true)
@@ -160,10 +162,10 @@ export function Composer(props: ComposerProps) {
     const work = pending.length > 0 ? sendFiles(value) : api.send(props.room.id, value, props.replyTo?.id)
     work
       .then(() => {
-        setText('')
+        editor.current?.reset('')
         props.onClearReply()
         props.onSent()
-        area.current?.focus()
+        editor.current?.focus()
       })
       .catch((reason: unknown) => setError(errorText(reason)))
       .finally(() => setBusy(false))
@@ -175,65 +177,44 @@ export function Composer(props: ComposerProps) {
 
   const pick = (bot: Bot): void => {
     if (mention === undefined) return
-    const caret = area.current?.selectionStart ?? text.length
-    const next = `${text.slice(0, mention.start)}@${bot.name} ${text.slice(caret)}`
-    setText(next)
     setMention(undefined)
-    requestAnimationFrame(() => {
-      const position = mention.start + bot.name.length + 2
-      area.current?.focus()
-      area.current?.setSelectionRange(position, position)
-    })
+    editor.current?.replace(mention.from, mention.to, `@${bot.name} `)
   }
 
-  const onChange = (value: string, caret: number): void => {
-    setText(value)
-    const found = group ? mentionAt(value, caret) : undefined
-    setMention(found === undefined ? undefined : { ...found, index: 0 })
+  const onMention = (found: MentionQuery | undefined): void => {
+    setMention((current) => (found === undefined ? undefined : { ...found, index: current?.query === found.query ? current.index : 0 }))
   }
 
-  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
-    if (mention !== undefined && candidates.length > 0) {
-      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-        event.preventDefault()
-        const step = event.key === 'ArrowDown' ? 1 : -1
-        setMention({ ...mention, index: (mention.index + step + candidates.length) % candidates.length })
-        return
-      }
-      if ((event.key === 'Enter' || event.key === 'Tab') && !event.nativeEvent.isComposing) {
-        event.preventDefault()
-        const chosen = candidates[mention.index] ?? candidates[0]
-        if (chosen !== undefined) pick(chosen)
-        return
-      }
-      if (event.key === 'Escape') {
-        setMention(undefined)
-        return
-      }
+  /** 候选列表开着时：上下键选、Enter 或 Tab 填进去、Esc 关上。 */
+  const onKeyDown = (event: KeyboardEvent): boolean => {
+    if (mention === undefined || candidates.length === 0 || event.isComposing) return false
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      const step = event.key === 'ArrowDown' ? 1 : -1
+      setMention({ ...mention, index: (mention.index + step + candidates.length) % candidates.length })
+      return true
     }
-    if (event.key === 'Enter' && !event.shiftKey && !composing.current && !event.nativeEvent.isComposing) {
-      event.preventDefault()
-      send()
+    if (event.key === 'Enter' || event.key === 'Tab') {
+      const chosen = candidates[mention.index] ?? candidates[0]
+      if (chosen !== undefined) pick(chosen)
+      return true
     }
+    if (event.key === 'Escape') {
+      setMention(undefined)
+      return true
+    }
+    return false
   }
 
-  const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>): void => {
-    const files = [...event.clipboardData.files]
-    if (files.length === 0) return
-    event.preventDefault()
-    addFiles(files)
-  }
-
+  // 拖到输入框外面、附件那一圈上也收；拖到输入框里的编辑器自己收了（defaultPrevented）。
   const onDrop = (event: DragEvent<HTMLDivElement>): void => {
     const files = [...event.dataTransfer.files]
-    if (files.length === 0) return
+    if (event.defaultPrevented || files.length === 0) return
     event.preventDefault()
     addFiles(files)
   }
 
   const quoted = props.replyTo
   const empty = text.trim() === '' && pending.length === 0
-  const archived = props.room.archivedAt !== null
   return (
     <div className="pod-composer" onDragOver={(event) => event.preventDefault()} onDrop={onDrop}>
       {quoted === undefined ? null : (
@@ -252,8 +233,8 @@ export function Composer(props: ComposerProps) {
               <button
                 type="button"
                 onClick={() => {
-                  setText(command.name === '停止' || command.name === '总结' ? `/${command.name}` : `/${command.name} `)
-                  area.current?.focus()
+                  editor.current?.reset(command.name === '停止' || command.name === '总结' ? `/${command.name}` : `/${command.name} `)
+                  editor.current?.focus()
                 }}
               >
                 <code>{command.usage}</code>
@@ -293,34 +274,21 @@ export function Composer(props: ComposerProps) {
         <div className="pod-composer-row">
           <input ref={fileInput} type="file" multiple hidden onChange={(event) => addFiles([...(event.target.files ?? [])])} />
           <IconButton icon="plus" label="添加图片或文件" disabled={busy || archived} onClick={() => fileInput.current?.click()} />
-          <div className={`pod-composer-field${ime ? ' pod-composer-field-ime' : ''}`}>
-            <div ref={mirror} className="pod-composer-mirror" aria-hidden>
-              {highlight(text, mentionPattern)}
-              {'​'}
-            </div>
-            <textarea
-              ref={area}
-              className="pod-composer-input"
-              value={text}
-              placeholder={archived ? '这个对话已经删除' : placeholder}
-              rows={1}
-              onChange={(event) => onChange(event.target.value, event.target.selectionStart)}
-              onKeyDown={onKeyDown}
-              onPaste={onPaste}
-              onScroll={(event) => {
-                if (mirror.current !== null) mirror.current.scrollTop = event.currentTarget.scrollTop
-              }}
-              onBlur={() => setTimeout(() => setMention(undefined), 120)}
-              onCompositionStart={() => {
-                composing.current = true
-                setIme(true)
-              }}
-              onCompositionEnd={() => {
-                composing.current = false
-                setIme(false)
-              }}
+          <div className="pod-composer-field">
+            <RichInput
+              ref={editor}
+              initial={initial}
+              placeholder={placeholder}
+              label={placeholder}
               disabled={archived}
-              aria-label={placeholder}
+              mentions={mentionPattern}
+              mentionable={group}
+              onChange={setText}
+              onMention={onMention}
+              onKeyDown={onKeyDown}
+              onSend={send}
+              onFiles={addFiles}
+              onBlur={() => setTimeout(() => setMention(undefined), 120)}
             />
           </div>
           {props.replying && empty ? (

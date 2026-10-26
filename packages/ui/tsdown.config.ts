@@ -37,9 +37,24 @@ export default defineConfig([
     dts: false,
     // dsh 按 exports 里的 ./client 找 lib/client.js，后缀必须是 .js。
     outExtensions: () => ({ js: '.js' }),
+    // 发出去的 npm 包不带依赖：输入框用的 ProseMirror 整个打进来（MIT，见 NOTICE），别的依赖不许混进来。
     deps: {
       neverBundle: ['react', 'react/jsx-runtime', 'react-dom'],
       alwaysBundle: ['pod-domain'],
+      onlyBundle: [
+        'prosemirror-commands',
+        'prosemirror-history',
+        'prosemirror-inputrules',
+        'prosemirror-keymap',
+        'prosemirror-model',
+        'prosemirror-schema-list',
+        'prosemirror-state',
+        'prosemirror-transform',
+        'prosemirror-view',
+        'orderedmap',
+        'rope-sequence',
+        'w3c-keyname',
+      ],
     },
     outputOptions: {
       banner: LOADER_BANNER,

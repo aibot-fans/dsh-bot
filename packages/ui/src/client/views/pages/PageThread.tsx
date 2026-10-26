@@ -5,6 +5,7 @@ import { pageApi } from '../../api/pages.ts'
 import { Avatar, Button, clock } from '../../components/common.tsx'
 import { Markdown } from '../../components/Markdown.tsx'
 import { useApp, useLive } from '../../state/app.ts'
+import { PAGE_DRAFT_PREFIX, readDraft, saveDraftText } from '../../state/drafts.ts'
 import { useResource } from '../../state/resource.ts'
 
 function ThreadItem(props: { readonly message: RoomMessage; readonly bots: ReadonlyMap<string, Bot> }) {
@@ -39,13 +40,15 @@ function ThreadItem(props: { readonly message: RoomMessage; readonly bots: Reado
 /**
  * 页面旁边的修改对话：只显示带这个页面 id 的消息，是对话里关于这个页面的一条线。
  * 你的要求以你的名义发进页面所在的对话，只交给做页面的 bot；它存了新版，左边的页面自动刷新。
+ * 没发出去的要求存成草稿（换页面时外面用 key 换一个新的），切到版本页、关掉查看器再回来还在。
  */
 export function PageThread(props: { readonly page: Page; readonly bots: ReadonlyMap<string, Bot>; readonly disabled: boolean }) {
   const app = useApp()
   const { page } = props
   const key = `page-thread:${page.id}`
+  const draftKey = `${PAGE_DRAFT_PREFIX}${page.id}`
   const { data: messages, error } = useResource(app.cache, key, () => pageApi.thread(page.id))
-  const [text, setText] = useState('')
+  const [text, setText] = useState(() => readDraft(draftKey).text)
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | undefined>(undefined)
   const end = useRef<HTMLDivElement>(null)
@@ -60,6 +63,7 @@ export function PageThread(props: { readonly page: Page; readonly bots: Readonly
   useEffect(() => {
     end.current?.scrollIntoView({ block: 'end' })
   }, [list.length, stream?.text.length, working])
+  useEffect(() => saveDraftText(draftKey, text), [draftKey, text])
 
   const send = (): void => {
     const clean = text.trim()

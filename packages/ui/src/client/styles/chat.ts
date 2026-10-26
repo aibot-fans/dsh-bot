@@ -56,15 +56,6 @@ export const CHAT_CSS = `
 .pod-composer-row .pod-icon-button { width: 34px; height: 34px; border-radius: 50%; }
 .pod-composer-field { position: relative; flex: 1; min-width: 0; display: grid; }
 .pod-composer-field > * { grid-area: 1 / 1; min-width: 0; }
-.pod-composer-mirror, .pod-composer-input { box-sizing: border-box; max-height: 220px; margin: 0; padding: 6px 4px; border: 0; font: inherit; font-size: 14.5px; line-height: 1.55; letter-spacing: normal; white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; tab-size: 4; }
-.pod-composer-mirror { overflow: hidden; color: var(--dsw-alias-label-primary); pointer-events: none; }
-.pod-composer-input { overflow-y: auto; outline: none; resize: none; background: transparent; color: transparent; caret-color: var(--dsw-alias-label-primary); scrollbar-width: none; }
-.pod-composer-input::-webkit-scrollbar { display: none; }
-.pod-composer-input::placeholder { color: var(--dsw-alias-label-tertiary); }
-.pod-composer-input::selection { color: transparent; background: color-mix(in srgb, var(--pod-info) 28%, transparent); }
-.pod-composer-input:disabled { cursor: not-allowed; }
-.pod-composer-field-ime .pod-composer-input { color: var(--dsw-alias-label-primary); }
-.pod-composer-field-ime .pod-composer-mirror { color: transparent; }
 .pod-composer-mention { padding: 0; border-radius: 4px; background: color-mix(in srgb, var(--pod-mention) 14%, transparent); color: var(--pod-mention); }
 .pod-send { appearance: none; flex: none; display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 50%; background: var(--dsw-alias-label-primary); color: var(--dsw-alias-bg-layer-1, #fff); cursor: pointer; }
 .pod-send:disabled { opacity: .3; cursor: default; }
@@ -83,7 +74,11 @@ export const CHAT_CSS = `
 .pod-md-p { margin: 4px 0; }
 .pod-md-heading { margin: 10px 0 4px; font-size: 14.5px; font-weight: 600; }
 .pod-md-list { margin: 4px 0; padding-left: 22px; }
+.pod-md-list .pod-md-list { margin: 2px 0; }
+.pod-md-list > li > .pod-md-p, .pod-md-list > li > .pod-md-pre, .pod-md-list > li > .pod-md-quote { margin: 4px 0; }
 .pod-md-quote { margin: 6px 0; padding: 2px 10px; border-left: 3px solid var(--pod-line); color: var(--dsw-alias-label-secondary); }
+.pod-md-quote > :first-child { margin-top: 0; }
+.pod-md-quote > :last-child { margin-bottom: 0; }
 .pod-md-code { padding: 1px 5px; border-radius: 4px; background: var(--dsw-alias-markdown-code-block, var(--pod-soft)); font-family: var(--ds-font-family-code, ui-monospace, monospace); font-size: 12.5px; }
 .pod-md-pre { margin: 6px 0; padding: 10px 12px; overflow-x: auto; border-radius: 8px; background: var(--dsw-alias-markdown-code-block, var(--pod-soft)); font-family: var(--ds-font-family-code, ui-monospace, monospace); font-size: 12.5px; line-height: 1.5; }
 .pod-md-table-wrap { margin: 6px 0; overflow-x: auto; }
@@ -92,4 +87,5 @@ export const CHAT_CSS = `
 .pod-md-table th { background: var(--pod-soft); font-weight: 600; }
 .pod-md-rule { margin: 10px 0; border: 0; border-top: 1px solid var(--pod-line); }
 .pod-md a { color: var(--pod-info); }
+.pod-md s { color: var(--dsw-alias-label-secondary); }
 `
