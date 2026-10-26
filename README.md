@@ -8,7 +8,7 @@ dsh-bot（原名 DeepSeek Pod，界面里简称 Pod）是一个基于 [DeepSeek 
 
 每天免费 1000 次 X 数据 API
 
-![version](https://img.shields.io/badge/version-0.1.0-2f6fe4) ![dsh](https://img.shields.io/badge/dsh-0.2.1--rc.2_~_0.3-5150d8) ![node](https://img.shields.io/badge/node-24-1c9a4f) ![data](https://img.shields.io/badge/data-local_only-6b7280) [![license](https://img.shields.io/badge/license-Apache_2.0-0f766e)](LICENSE)
+[![npm](https://img.shields.io/npm/v/@aibot_fans/dsh-bot?color=2f6fe4)](https://www.npmjs.com/package/@aibot_fans/dsh-bot) ![dsh](https://img.shields.io/badge/dsh-0.2.1--rc.2_~_0.3-5150d8) ![node](https://img.shields.io/badge/node-24-1c9a4f) ![data](https://img.shields.io/badge/data-local_only-6b7280) [![license](https://img.shields.io/badge/license-Apache_2.0-0f766e)](LICENSE)
 
 [安装](#安装) · [功能](#功能) · [使用说明](docs/USAGE.md) · [开发说明](docs/DEVELOPMENT.md) · [许可](#许可)
 
