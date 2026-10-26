@@ -14,7 +14,7 @@ dev/demo-oa.mjs             浏览器截图用的示例 OA（一个会议室预�
 scripts/dev-home.mjs        在隔离的 DSH_HOME 里装上并启动 dsh-bot
 scripts/pack-npm.mjs        打 npm 包 @aibot_fans/dsh-bot：把 runtime、ui、bundle 合成一个包，输出到 dist/
 scripts/set-version.mjs     改版本号：POD_VERSION 和各包 package.json 一起改
-scripts/github-release.mjs  按 CHANGELOG 给新标签建 GitHub Release（推送后由 .github/workflows/release.yml 运行）
+scripts/github-release.mjs  按 CHANGELOG 建和更新 GitHub Release（推送后由 .github/workflows/release.yml 运行）
 scripts/version.mjs         上面几个脚本共用的仓库路径和版本号读法
 docs/                       使用说明、开发说明；images/ 是 README 的截图
 ```
@@ -95,7 +95,7 @@ dsh plugin --profile web add link:/仓库的绝对路径/packages/bundle
 1. 在 `CHANGELOG.md` 最上面加这个版本的一节，标题写成 `## <版本> - <日期>`：新功能、修复、升级时要注意的。
 2. `pnpm version:set <版本>`，提交 `chore(release): v<版本>`，再打标签：`git tag -a v<版本> -m "v<版本>"`。
 3. `pnpm release:pack`：构建并打包，输出 `dist/aibot_fans-dsh-bot-<版本>.tgz`。工作区有没提交的改动、当前提交没有 `v<版本>` 标签、版本号对不上，或者 CHANGELOG 里没有这一节，都会停下。
-4. 推送提交和标签：`git push origin main --follow-tags`。推上去以后 GitHub Actions（`.github/workflows/release.yml`）自动给新标签建 Release：标题是 `v<版本>`，正文取 main 上 CHANGELOG 里这一节，版本号最大的标成 Latest；已经有 Release 的标签不动。想先看会建什么，本机跑 `node scripts/github-release.mjs --dry`。Release 建好以后不会再跟着 CHANGELOG 改，之后改了旧版本的说明，要到 Release 页面上手动改。
+4. 推送提交和标签：`git push origin main --follow-tags`。推上去以后 GitHub Actions（`.github/workflows/release.yml`）自动给新标签建 Release：标题是 `v<版本>`，正文取 main 上 CHANGELOG 里这一节，版本号最大的标成 Latest。之后改了 CHANGELOG 里哪个版本的说明，推送后那个 Release 的正文也跟着改（在 Release 页面上手改的会被覆盖），标题和 Latest 不动。推送前想先看会建、会改什么，本机跑 `node scripts/github-release.mjs --dry`（按工作区里的 CHANGELOG）。
 5. 发到 npm：先 `npm login`，再 `npm publish ./dist/aibot_fans-dsh-bot-<版本>.tgz --access public`（路径前面的 `./` 不能省，不然 npm 会把它当成 GitHub 仓库的简写；带作用域的包默认是私有的，要 `--access public`，包里的 package.json 也写了 `publishConfig`）。npm 要求发包的账号开两步验证：登录、发布和 `npm deprecate` 时命令行会给一个网址，在浏览器里确认，几分钟内不确认就失效，要重跑。
 
 ## 给其他插件的接口
