@@ -1,6 +1,6 @@
 {
   "name": "pod-store",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "dsh-bot 的存储层：node:sqlite 表结构、迁移和读写",
   "type": "module",

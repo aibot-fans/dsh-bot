@@ -1,6 +1,6 @@
 {
   "name": "pod-domain",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "dsh-bot 的领域类型和规则：纯 TypeScript，不依赖 dsh",
   "type": "module",

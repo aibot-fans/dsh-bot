@@ -2,6 +2,23 @@
 
 每个版本改了什么。版本号、git 标签（`v<版本>`）、npm 包和 GitHub Release 一一对应。
 
+## 0.1.2 - 2026-10-26
+
+界面、bot 收到的提示和文档里统一叫 dsh-bot，不再用旧的简称。
+
+### 升级
+
+- `dsh plugin --profile web add @aibot_fans/dsh-bot@latest`，然后重启 dsh web；之前打开的 dsh-bot 标签页顶部会提示刷新，刷新一下就好。
+- 主管和 X 情报员的人设还是默认原样的，启动时自动换成新版（记一版配置，能回滚）；改过的不动。
+- 新建的会话标题以「dsh-bot · 」开头，以前的会话标题不变。
+- 工作区和数据的位置都没变，不用迁移。
+- npm 上的 0.1.1 标成了弃用，请装 0.1.2。
+
+### 其他
+
+- README 的截图换成了新版界面。
+- 推送后由 GitHub Actions 按 CHANGELOG 自动建 GitHub Release。
+
 ## 0.1.1 - 2026-10-26
 
 项目改名 dsh-bot：npm 包从 `ds-pod` 换成 `@aibot_fans/dsh-bot`，GitHub 仓库改成 `aibot-fans/dsh-bot`。
