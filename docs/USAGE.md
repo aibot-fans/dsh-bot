@@ -1,6 +1,6 @@
 # 使用说明
 
-Pod 装好以后（见 [README](../README.md#安装)），在 dsh web 侧栏里点「DeepSeek Pod」打开。这一页按界面从左到右讲怎么用。
+Pod 装好以后（见 [README](../README.md#安装)），在 dsh web 侧栏里点「dsh-bot」打开。这一页按界面从左到右讲怎么用。
 
 ## 界面布局
 

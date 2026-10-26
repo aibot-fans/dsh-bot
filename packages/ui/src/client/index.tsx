@@ -17,7 +17,7 @@ function isLayout(value: unknown): value is Layout {
 }
 
 /**
- * 注册侧栏的 DeepSeek Pod 入口和主区的 Pod 页面。
+ * 注册侧栏的 dsh-bot 入口和主区的 Pod 页面。
  * 两处都走 slots.inject：等外壳声明了座位才注册，和外壳插件的加载顺序无关。
  */
 export function apply(ctx: ClientContext): void {
@@ -34,7 +34,7 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(
     () =>
       ctx.slots.inject('sidebar.panellist', () =>
-        ctx.slots.register({ name: 'sidebar.panellist', id: PANEL_ID, order: PANEL_ORDER, label: 'DeepSeek Pod' }, PodIcon),
+        ctx.slots.register({ name: 'sidebar.panellist', id: PANEL_ID, order: PANEL_ORDER, label: 'dsh-bot' }, PodIcon),
       ),
     'pod-ui: sidebar entry',
   )

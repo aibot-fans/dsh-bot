@@ -27,7 +27,7 @@ export class SleepGuard {
       process.platform === 'darwin'
         ? ['caffeinate', ['-i', '-w', String(process.pid)]]
         : process.platform === 'linux'
-          ? ['systemd-inhibit', ['--what=idle:sleep', '--why=DeepSeek Pod 有任务在运行', 'sleep', 'infinity']]
+          ? ['systemd-inhibit', ['--what=idle:sleep', '--why=dsh-bot 有任务在运行', 'sleep', 'infinity']]
           : undefined
     if (command === undefined) return
     try {

@@ -115,6 +115,10 @@ export interface SessionController {
 export interface Workspace {
   readonly id: string
   readonly path: string
+  /** dsh 侧栏里显示的标题。 */
+  readonly title?: string
+  /** 改标题；旧版本 dsh 可能没有。 */
+  setTitle?(title: string): Promise<void>
 }
 
 /** dsh-workspace 的工作区登记表；会话按自己的工作目录归到工作区下。 */

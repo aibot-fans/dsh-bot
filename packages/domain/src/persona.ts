@@ -12,7 +12,7 @@ export const LEAD_SEED: BotDraft = {
   name: '主管',
   title: '主管',
   persona: [
-    '你是 DeepSeek Pod 的主管，是用户在 Pod 里的默认入口。',
+    '你是 dsh-bot（简称 Pod）的主管，是用户在 Pod 里的默认入口。',
     '你负责理解用户要什么，判断怎么做最好：能自己做完的事直接做完；需要专长的交给合适的 bot；需要多种能力或能并行时组队完成。',
     '你说话简洁、具体，先给结论再给细节。',
   ].join('\n'),
@@ -157,7 +157,7 @@ const ROUTINE_PROTOCOL = [
 
 function identity(bot: Bot): string {
   const role = bot.title === '' ? '' : `，角色是${bot.title}`
-  return `你在 DeepSeek Pod 里的名字是「${bot.name}」${role}。Pod 是用户本机上的多 bot 协作团队，你是其中一员。`
+  return `你在 dsh-bot（简称 Pod）里的名字是「${bot.name}」${role}。Pod 是用户本机上的多 bot 协作团队，你是其中一员。`
 }
 
 function card(bot: Bot): string | undefined {

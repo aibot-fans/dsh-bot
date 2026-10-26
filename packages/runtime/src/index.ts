@@ -18,7 +18,7 @@ import type { HostContext } from './dsh.ts'
 import { PodRuntime } from './pod.ts'
 
 /**
- * DeepSeek Pod 的宿主插件。
+ * dsh-bot 的宿主插件（代码里叫 Pod）。
  * 打开 Pod 的数据库，建好各个服务，作为 `pod` 服务提供出去（agent 预设靠它取人设），
  * 并在 /api/pod 下注册页面用的接口和实时事件流。
  */
@@ -34,7 +34,7 @@ export function apply(ctx: HostContext, rawConfig: unknown): void {
   ctx.effect(() => () => db.close(), 'pod: database')
 
   const compat = checkCompat(ctx)
-  if (compat.readOnly) ctx.logger.warn(`DeepSeek Pod 进入只读模式，缺少接口：${compat.problems.join('、')}`)
+  if (compat.readOnly) ctx.logger.warn(`dsh-bot 进入只读模式，缺少接口：${compat.problems.join('、')}`)
 
   const pod = new PodRuntime({ ctx, db, dataRoot: config.dataRoot, workspaceRoot: config.workspaceRoot, dshHome: config.dshHome, compat })
   ctx.effect(() => ctx.provide('pod', pod), 'pod: service')
@@ -59,5 +59,5 @@ export function apply(ctx: HostContext, rawConfig: unknown): void {
     return () => clearTimeout(timer)
   }, 'pod: first maintenance')
 
-  ctx.logger.info(`DeepSeek Pod 已启动：数据在 ${config.dataRoot}，工作区在 ${config.workspaceRoot}`)
+  ctx.logger.info(`dsh-bot 已启动：数据在 ${config.dataRoot}，工作区在 ${config.workspaceRoot}`)
 }

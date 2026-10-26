@@ -148,7 +148,7 @@ function groupDecision(system, messages, last, calls) {
   if (last?.role === 'tool' && calls.at(-1) === 'ask_bot') return { text: `ask_bot 的结果：${lastToolText(messages)}` }
   const frame = groupMessage(withoutPreface(textOf(lastOf(messages, 'user')?.content)))
   if (frame === undefined) return undefined
-  const self = /你在 DeepSeek Pod 里的名字是「([^」]+)」/.exec(system)?.[1] ?? ''
+  const self = /你在 dsh-bot（简称 Pod）里的名字是「([^」]+)」/.exec(system)?.[1] ?? ''
   const asked = /@ ?一下\s*([^\s，。,、：:]+)/.exec(frame.body)?.[1]
   // 故意在 message 里也写上 @名字，看 Pod 会不会去掉重复的 @。
   if (asked !== undefined && frame.speaker === '用户') return { tool: 'mention_member', args: { members: [asked], message: `@${asked} 用户找你，在群里应一声：${frame.body.slice(0, 60)}` } }

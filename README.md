@@ -2,9 +2,9 @@
 
 <img src="packages/runtime/assets/bot-icons/designer.full.webp" width="160" alt="设计师">
 
-# DeepSeek Pod
+# dsh-bot
 
-DeepSeek Pod（鲸群，简称 DS Pod）是一个基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（简称 dsh）的 bot 插件，插件将 dsh 改造为 bot 形式。每个任务都是一个团队。
+dsh-bot（原名 DeepSeek Pod，界面里简称 Pod）是一个基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（简称 dsh）的 bot 插件，插件将 dsh 改造为 bot 形式。每个任务都是一个团队。
 
 每天免费 1000 次 X 数据 API
 
@@ -111,7 +111,7 @@ bot 能把报告、看板、跟踪表、幻灯片、海报、原型和架构图�
 装进平时用的 dsh web（`web` profile）：
 
 ```bash
-dsh plugin --profile web add ds-pod
+dsh plugin --profile web add @aibot_fans/dsh-bot
 ```
 
 然后重启 dsh web（已经开着的先停掉），用它打印的地址打开页面：
@@ -120,25 +120,26 @@ dsh plugin --profile web add ds-pod
 dsh web
 ```
 
-侧栏里会出现「DeepSeek Pod」。第一次打开有引导，跟着走一遍就行；之后直接跟主管说要做的事。模型用 dsh 里配好的：Pod 设置的「模型」页能换默认模型，每个 bot 也能在自己的详情里单独选。
+侧栏里会出现「dsh-bot」。第一次打开有引导，跟着走一遍就行；之后直接跟主管说要做的事。模型用 dsh 里配好的：Pod 设置的「模型」页能换默认模型，每个 bot 也能在自己的详情里单独选。
 
 想从源码装或者改代码，见[开发说明](docs/DEVELOPMENT.md)。
 
 ## 升级
 
 ```bash
-dsh plugin --profile web add ds-pod@latest
+dsh plugin --profile web add @aibot_fans/dsh-bot@latest
 ```
 
 装好后重启 dsh web。
 
+- 从改名前的 `ds-pod` 换过来：先 `dsh plugin --profile web remove ds-pod`，再按上面的安装步骤装 `@aibot_fans/dsh-bot`。数据还在 `~/.dsh/pod`，不用迁移。
 - 数据库表结构启动时自动迁移。Pod 每天备份一次数据库，保留最近 7 份。
 - 重启后，之前打开的 Pod 标签页要刷新一下：旧页面调的接口可能已经换了。页面发现自己和 Pod 的版本不一样时，顶部会提示刷新。
 
 ## 卸载
 
 ```bash
-dsh plugin --profile web remove ds-pod
+dsh plugin --profile web remove @aibot_fans/dsh-bot
 ```
 
 卸载不删数据，下面这些目录要自己删。
@@ -177,7 +178,7 @@ dsh plugin --profile web remove ds-pod
 
 ## 声明
 
-- DeepSeek Pod 由社区独立开发，**不是 DeepSeek 官方产品**，也没有得到 DeepSeek 的认可或赞助。DeepSeek、DeepSeek Harness、X、Twitter、Grok、Chrome 等是各自所有者的名称或商标，文中提到它们只为说明 Pod 能和什么一起用。
+- dsh-bot 由社区独立开发，**不是 DeepSeek 官方产品**，也没有得到 DeepSeek 的认可或赞助。DeepSeek、DeepSeek Harness、X、Twitter、Grok、Chrome 等是各自所有者的名称或商标，文中提到它们只为说明 Pod 能和什么一起用。
 - 使用 X 数据和监控时，请遵守 [aibot](https://aibot.fans/) 的[规则](https://aibot.fans/x-api/rest)、X 的规则和当地法律，不要用来骚扰或跟踪他人。
 - 共用浏览器在你的电脑上替你操作网页，bot 在网站上做的事由你负责。请遵守各网站的使用条款，批准写操作前看清审批卡。
 - bot 用你在 dsh 里配置的模型，花你自己的额度；会按你的要求读写工作区里的文件、运行命令。它的回答和交付由模型生成，可能出错，重要的事请自己核实。

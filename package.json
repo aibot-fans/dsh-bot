@@ -1,15 +1,15 @@
 {
-  "name": "deepseek-pod",
+  "name": "dsh-bot",
   "private": true,
-  "description": "DeepSeek Pod：装进 dsh web 的本地多 bot 协作插件",
+  "description": "dsh-bot：装进 dsh web 的本地多 bot 协作插件",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/web3tool-ai/deepseek-pod.git"
+    "url": "git+https://github.com/web3tool-ai/dsh-bot.git"
   },
-  "homepage": "https://github.com/web3tool-ai/deepseek-pod#readme",
+  "homepage": "https://github.com/web3tool-ai/dsh-bot#readme",
   "bugs": {
-    "url": "https://github.com/web3tool-ai/deepseek-pod/issues"
+    "url": "https://github.com/web3tool-ai/dsh-bot/issues"
   },
   "type": "module",
   "engines": {

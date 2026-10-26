@@ -2,7 +2,7 @@
   "name": "pod-domain",
   "version": "0.1.0",
   "private": true,
-  "description": "DeepSeek Pod 的领域类型和规则：纯 TypeScript，不依赖 dsh",
+  "description": "dsh-bot 的领域类型和规则：纯 TypeScript，不依赖 dsh",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

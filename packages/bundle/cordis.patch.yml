@@ -1,8 +1,8 @@
-# DeepSeek Pod 组合包。
+# dsh-bot 组合包（代码里叫 Pod）。
 #
 # 插入的行：
 # - pod-runtime：宿主插件，数据库放在 $DSH_HOME/pod，bot 的工作目录默认在 ~/Pod；
-# - pod-ui：浏览器插件，侧栏的 DeepSeek Pod 入口和 Pod 页面；
+# - pod-ui：浏览器插件，侧栏的 dsh-bot 入口和 Pod 页面；
 # - 三个 agent 预设，对应三种工具档案：执行（pod）、研究（pod-research）、对话（pod-talk）。
 #   每个预设的第一行 pod-agent 按会话注入 bot 的人设；Pod 自己的工具（组织、任务、记忆、浏览器）
 #   由 pod-runtime 在 agent 创建时按会话装进 agent 作用域，不写在这里。
@@ -22,7 +22,7 @@
       name: '@deepseek-ai/dsh-agent-preset'
       config:
         id: pod
-        name: DeepSeek Pod · 执行
+        name: dsh-bot · 执行
         description: Pod 的 bot 会话：文件、沙箱 shell、web 搜索
         order: 40
         plugins:
@@ -79,7 +79,7 @@
       name: '@deepseek-ai/dsh-agent-preset'
       config:
         id: pod-research
-        name: DeepSeek Pod · 研究
+        name: dsh-bot · 研究
         description: Pod 的 bot 会话：文件和 web 搜索，没有 shell
         order: 41
         plugins:
@@ -130,7 +130,7 @@
       name: '@deepseek-ai/dsh-agent-preset'
       config:
         id: pod-talk
-        name: DeepSeek Pod · 对话
+        name: dsh-bot · 对话
         description: Pod 的 bot 会话：只聊天、读记忆、搜聊天记录
         order: 42
         plugins:

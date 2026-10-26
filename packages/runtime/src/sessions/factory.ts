@@ -3,7 +3,10 @@ import { newSessionId } from 'pod-domain'
 import type { ModelSelection, SessionController, SessionCreateRequest, WorkspaceRegistry } from '../dsh.ts'
 
 /** Pod 在 dsh 里登记的工作区标题；Pod 的所有会话都在这个工作区下。 */
-export const POD_WORKSPACE_TITLE = 'DeepSeek Pod'
+export const POD_WORKSPACE_TITLE = 'dsh-bot'
+
+/** 改名前的工作区标题：dsh 对登记过的目录不改标题，还是这个（用户没自己改过）就换成新名字。 */
+const OLD_WORKSPACE_TITLE = 'DeepSeek Pod'
 
 export interface SessionFactoryDeps {
   readonly workspaceRoot: string
@@ -53,6 +56,8 @@ export class SessionFactory {
     if (this.podWorkspaceId !== undefined) return this.podWorkspaceId
     mkdirSync(this.deps.workspaceRoot, { recursive: true })
     const workspace = await this.deps.workspaces.create(this.deps.workspaceRoot, POD_WORKSPACE_TITLE)
+    // 只是显示的名字，改不成不影响建会话。
+    if (workspace.title === OLD_WORKSPACE_TITLE && workspace.setTitle !== undefined) await workspace.setTitle(POD_WORKSPACE_TITLE).catch(() => undefined)
     this.podWorkspaceId = workspace.id
     return workspace.id
   }

@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * 打 npm 包：把构建好的宿主插件、浏览器插件和组合包拼成一个包 ds-pod，输出 dist/ds-pod-<版本>.tgz。
+ * 打 npm 包：把构建好的宿主插件、浏览器插件和组合包拼成一个包 @aibot_fans/dsh-bot，输出 dist/aibot_fans-dsh-bot-<版本>.tgz。
  * 先跑 pnpm build（pnpm pack:npm 会先构建）。
  *
  * 开发时是三个包（pod-runtime、pod-ui、pod-bundle），发出去合成一个，不带任何依赖：
- *   ds-pod          浏览器插件那一行：dsh 只按精确的包名找 ./client，宿主半边什么都不做
- *   ds-pod/runtime  宿主插件
- *   ds-pod/agent    agent 预设里的 pod-agent
+ *   @aibot_fans/dsh-bot          浏览器插件那一行：dsh 只按精确的包名找 ./client，宿主半边什么都不做
+ *   @aibot_fans/dsh-bot/runtime  宿主插件
+ *   @aibot_fans/dsh-bot/agent    agent 预设里的 pod-agent
  * 各行的 id 不变，profile 里按 id 写的覆盖照样生效。
  */
 import { execFileSync } from 'node:child_process'
@@ -14,7 +14,7 @@ import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const NAME = 'ds-pod'
+const NAME = '@aibot_fans/dsh-bot'
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const dist = join(repo, 'dist')
 const out = join(dist, NAME)
@@ -63,7 +63,7 @@ function manifest(version) {
     name: NAME,
     version,
     description: root.description,
-    keywords: ['dsh', 'dsh-plugin', 'deepseek', 'deepseek-harness', 'multi-agent', 'agents'],
+    keywords: ['dsh', 'dsh-bot', 'dsh-plugin', 'deepseek', 'deepseek-harness', 'multi-agent', 'agents'],
     license: 'Apache-2.0',
     ...(root.repository === undefined ? {} : { repository: root.repository, homepage: root.homepage, bugs: root.bugs }),
     type: 'module',
@@ -78,6 +78,8 @@ function manifest(version) {
       './package.json': './package.json',
     },
     files: ['ui', 'runtime', 'cordis.patch.yml', 'icon.svg', 'NOTICE'],
+    // 带作用域的包默认私有，发成公开的。
+    publishConfig: { access: 'public' },
     engines: bundle.engines,
     dsh: { ...bundle.dsh, client: ui.dsh.client },
   }
