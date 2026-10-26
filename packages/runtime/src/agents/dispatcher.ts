@@ -45,10 +45,16 @@ export class Dispatcher {
   private readonly running = new Set<string>()
   private pumping: Promise<void> | undefined
   private again = false
+  private stopped = false
   private readonly deps: DispatcherDeps
 
   constructor(deps: DispatcherDeps) {
     this.deps = deps
+  }
+
+  /** Pod 停止时先叫停：库马上要关，之后不再投递；没投出去的留在库里，下次启动接着投。 */
+  stop(): void {
+    this.stopped = true
   }
 
   enqueue(request: EnqueueRequest): Delivery {
@@ -101,6 +107,7 @@ export class Dispatcher {
 
   /** 串行地把能投的都投出去；投递过程中又来了新消息，就再来一遍。 */
   pump(): Promise<void> {
+    if (this.stopped) return Promise.resolve()
     if (this.pumping !== undefined) {
       this.again = true
       return this.pumping
@@ -110,7 +117,10 @@ export class Dispatcher {
         do {
           this.again = false
           await this.pumpOnce()
-        } while (this.again)
+        } while (this.again && !this.stopped)
+      } catch (error) {
+        // 停止时正在投的这一遍可能碰上刚关掉的库，不算错：报出去 dsh 会当成致命错误直接退出，后面的清理都会跳过。
+        if (!this.stopped) throw error
       } finally {
         this.pumping = undefined
       }
@@ -120,6 +130,7 @@ export class Dispatcher {
 
   private async pumpOnce(): Promise<void> {
     for (const delivery of pendingDeliveries(this.deps.db)) {
+      if (this.stopped) return
       const session = this.deps.registry.get(delivery.sessionId)
       if (session === undefined || session.status === 'retired') {
         markDelivery(this.deps.db, delivery.id, 'cancelled', this.deps.now(), '会话已不在')
@@ -129,6 +140,8 @@ export class Dispatcher {
       const idle = !this.isRunning(delivery.sessionId)
       if (wakes && idle && !this.capacity(delivery.lane)) continue
       const agent = await this.resolve(delivery)
+      // 等会话恢复的时候 Pod 停了：这条先不投，免得投出去了却记不上，下次启动又投一遍。
+      if (this.stopped) return
       if (agent === undefined) continue
       try {
         const message = toUserMessage(delivery.message)

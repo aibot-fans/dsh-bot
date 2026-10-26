@@ -88,6 +88,7 @@ export function startRuntime(pod: PodRuntime): () => void {
     .then((count) => (count === 0 ? pod.search.rebuild() : 0))
     .catch(warn('重建搜索索引失败'))
   return () => {
+    pod.dispatcher.stop()
     for (const timer of timeouts) clearTimeout(timer)
     for (const timer of intervals) clearInterval(timer)
     pod.sleep.stop()
