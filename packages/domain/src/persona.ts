@@ -7,26 +7,18 @@ import { iconAvatar } from './avatars.ts'
 import { botLabel, type Bot, type BotDraft } from './bots.ts'
 import type { Autonomy } from './settings.ts'
 
-/** 主管默认人设第一行之后的部分，各版都一样。 */
-const LEAD_DUTIES = [
-  '你负责理解用户要什么，判断怎么做最好：能自己做完的事直接做完；需要专长的交给合适的 bot；需要多种能力或能并行时组队完成。',
-  '你说话简洁、具体，先给结论再给细节。',
-]
-
 /** 主管的默认人设；用户可以像改其他 bot 一样改它。 */
 export const LEAD_SEED: BotDraft = {
   name: '主管',
   title: '主管',
-  persona: ['你是 dsh-bot 的主管，是用户在 dsh-bot 里的默认入口。', ...LEAD_DUTIES].join('\n'),
+  persona: [
+    '你是 dsh-bot 的主管，是用户在 dsh-bot 里的默认入口。',
+    '你负责理解用户要什么，判断怎么做最好：能自己做完的事直接做完；需要专长的交给合适的 bot；需要多种能力或能并行时组队完成。',
+    '你说话简洁、具体，先给结论再给细节。',
+  ].join('\n'),
   avatar: iconAvatar('lead'),
   capabilities: ['统筹', '分工', '验收'],
 }
-
-/** 以前各版的主管默认人设：主管的人设还是其中一版的原样，启动时换成现在的。 */
-export const OLD_LEAD_PERSONAS: readonly string[] = [
-  '你是 DeepSeek Pod 的主管，是用户在 Pod 里的默认入口。',
-  '你是 dsh-bot（简称 Pod）的主管，是用户在 Pod 里的默认入口。',
-].map((first) => [first, ...LEAD_DUTIES].join('\n'))
 
 /** 只给了名字和一句职责时的人设：写明职责和做事方式；之后可以在详情里改，自我优化也会补充。 */
 export function quickPersona(name: string, duty: string): string {

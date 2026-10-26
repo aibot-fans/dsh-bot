@@ -5,7 +5,6 @@ import {
   EMPTY_CARD,
   LEAD_BOT_ID,
   LEAD_SEED,
-  OLD_LEAD_PERSONAS,
   POD,
   asRecord,
   assignBotIcons,
@@ -187,11 +186,14 @@ export class BotService {
     this.upgradeLeadPersona()
   }
 
-  /** 主管的人设还是以前哪一版默认人设的原样，就换成现在的（记一版配置，能回滚）；改过的不动。 */
+  /**
+   * 主管的人设还是默认人设（来源是 seed：你和自我优化都没改过）、但不是现在这版，就换成现在的（记一版配置，能回滚）。
+   * 来源一旦变成 user 或 auto 就不会再变回 seed，所以改过的不会被换掉。
+   */
   private upgradeLeadPersona(): void {
     const lead = this.activeBot(LEAD_BOT_ID)
-    if (lead === undefined || !OLD_LEAD_PERSONAS.includes(lead.persona)) return
-    this.applyPatch(lead.id, { persona: LEAD_SEED.persona }, { source: 'seed', actor: POD, reason: '默认人设里的名字改成 dsh-bot' })
+    if (lead === undefined || lead.personaSource !== 'seed' || lead.persona === LEAD_SEED.persona) return
+    this.applyPatch(lead.id, { persona: LEAD_SEED.persona }, { source: 'seed', actor: POD, reason: '换成新版的默认人设' })
   }
 
   private get db(): DatabaseSync {
