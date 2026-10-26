@@ -40,7 +40,7 @@ export function coordTools(pod: PodRuntime, session: PodSession): readonly ToolD
   const revise = podTool({
     name: 'revise_plan',
     description: [
-      '出新版计划：新增、取消、修改或重做子任务。用户纠正前提时，用 assumption_changes 改那条前提，Pod 只重做依赖它的子任务及下游；已完成且不受影响的保留。',
+      '出新版计划：新增、取消、修改或重做子任务。用户纠正前提时，用 assumption_changes 改那条前提，dsh-bot 只重做依赖它的子任务及下游；已完成且不受影响的保留。',
       'add 里每个新子任务写 id、title、brief、kind、deliverable、acceptance、dependsOn、owner，和 create_task 的子任务格式一样。',
     ].join(''),
     properties: {

@@ -88,7 +88,7 @@ export class AgentBinder {
       }
     } catch (error) {
       for (const dispose of disposers.reverse()) dispose()
-      this.deps.warn(`给会话 ${session.id} 装 Pod 工具失败：${error instanceof Error ? error.message : String(error)}`)
+      this.deps.warn(`给会话 ${session.id} 装 dsh-bot 工具失败：${error instanceof Error ? error.message : String(error)}`)
       return
     }
     this.installed.set(agent, () => {

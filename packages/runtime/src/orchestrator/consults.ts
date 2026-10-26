@@ -57,7 +57,7 @@ export class ConsultService {
       roomId: null,
       taskId: rootId,
       folder: botFolder(target),
-      title: `Pod · 咨询 · ${target.name}`,
+      title: `dsh-bot · 咨询 · ${target.name}`,
     })
   }
 

@@ -23,7 +23,7 @@ async function parse<T>(response: Response): Promise<T> {
     result = (await response.json()) as PodResult<T>
   } catch {
     // 宿主不认识的地址回的是纯文字 404：多半是 Pod 刚更新过，这个标签页还是旧页面。
-    if (response.status === 404) throw new PodApiError('not_found', '这个功能的接口找不到了：多半是 Pod 刚更新过，刷新页面再试')
+    if (response.status === 404) throw new PodApiError('not_found', '这个功能的接口找不到了：多半是 dsh-bot 刚更新过，刷新页面再试')
     throw new PodApiError('internal', `接口返回了无法识别的内容（${response.status}）`)
   }
   if (!result.ok) throw new PodApiError(result.error.code, result.error.message)

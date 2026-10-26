@@ -16,7 +16,7 @@ const NET_ERRORS: Readonly<Record<string, string>> = {
   'net::ERR_PROXY_CONNECTION_FAILED': '连不上代理，检查一下代理设置',
   'net::ERR_TUNNEL_CONNECTION_FAILED': '代理连不上这个网站',
   'net::ERR_TOO_MANY_REDIRECTS': '网站来回跳转太多次',
-  'net::ERR_BLOCKED_BY_CLIENT': '这个网址指向本机或局域网，被 Pod 拦下了；确实要访问的话加进设置里的白名单',
+  'net::ERR_BLOCKED_BY_CLIENT': '这个网址指向本机或局域网，被 dsh-bot 拦下了；确实要访问的话加进设置里的白名单',
   'net::ERR_BLOCKED_BY_RESPONSE': '网站不允许在这里打开',
   'net::ERR_SSL_PROTOCOL_ERROR': '网站的安全连接出错',
   'net::ERR_HTTP2_PROTOCOL_ERROR': '网站返回的内容有问题，刷新试试',

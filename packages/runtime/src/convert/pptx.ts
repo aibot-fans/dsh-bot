@@ -185,7 +185,7 @@ export function extractPptx(zip: ZipArchive): Extracted {
   })
   return {
     body: slides.join('\n\n'),
-    note: '由 Pod 从 PPT 自动转出；按放映顺序写出每页的标题、文字、表格和备注，图片、图表和动画没有保留。',
+    note: '由 dsh-bot 从 PPT 自动转出；按放映顺序写出每页的标题、文字、表格和备注，图片、图表和动画没有保留。',
     summary: `共 ${slides.length} 页`,
   }
 }

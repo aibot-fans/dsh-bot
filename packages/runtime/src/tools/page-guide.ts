@@ -6,7 +6,7 @@ import { PAGE_KIND_LABELS, type PageKind } from 'pod-domain'
  */
 
 const BASICS = [
-  '页面存的是组件数据，不是 HTML：Pod 负责排版、配色（跟着 Pod 的深浅色自动切换）和交互（悬停看数值、表格排序、幻灯片翻页、原型跳转）。你只填数据和文字。',
+  '页面存的是组件数据，不是 HTML：dsh-bot 负责排版、配色（跟着 dsh-bot 的深浅色自动切换）和交互（悬停看数值、表格排序、幻灯片翻页、原型跳转）。你只填数据和文字。',
   'save_page 的参数：title、kind、note（这一版改了什么）、subtitle（副标题，可选）、accent（主色：blue / teal / green / orange / red / purple / gray，默认 blue），再加按种类要写的 blocks、slides、screens、poster。',
   '更新已有页面：先 get_page 读出当前内容，改好后 save_page 带上 id 整份保存（不是只传改动的部分）。每次保存都是新的一版，用户能看旧版本、能回滚。',
   '保存失败会告诉你哪个组件哪个字段有问题（比如 blocks[3]（chart）：没有 series），照着改了再存。',

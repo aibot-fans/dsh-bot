@@ -221,7 +221,7 @@ export function extractXlsx(zip: ZipArchive): Extracted {
   })
   return {
     body: sections.join('\n\n'),
-    note: '由 Pod 从 Excel 表格自动转出；每个工作表一张表，第一行当表头，空行省掉了；公式只留算好的值，格式、图表和图片没有保留。',
+    note: '由 dsh-bot 从 Excel 表格自动转出；每个工作表一张表，第一行当表头，空行省掉了；公式只留算好的值，格式、图表和图片没有保留。',
     summary: `共 ${workbook.sheets.length} 个工作表`,
   }
 }

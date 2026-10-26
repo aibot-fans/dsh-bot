@@ -172,7 +172,7 @@ function BindRow() {
       label="绑定 aibot 账号"
       hint={
         <>
-          <span>绑定后这台 Pod 的监控和次数都算在你的 aibot 账号上，Key 不变</span>
+          <span>绑定后这台电脑上 dsh-bot 的监控和次数都算在你的 aibot 账号上，Key 不变</span>
           {outcome === undefined ? null : <span className={`pod-aibot-detail${outcome.tone === 'warn' ? ' pod-aibot-alert' : ' pod-aibot-ok'}`}>{outcome.text}</span>}
         </>
       }

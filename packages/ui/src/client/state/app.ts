@@ -466,7 +466,7 @@ export const AppContext = createContext<AppState | null>(null)
 
 export function useApp(): AppState {
   const app = useContext(AppContext)
-  if (app === null) throw new Error('Pod 页面缺少 AppContext')
+  if (app === null) throw new Error('dsh-bot 页面缺少 AppContext')
   return app
 }
 

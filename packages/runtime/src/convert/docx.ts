@@ -197,7 +197,7 @@ export function extractDocx(zip: ZipArchive): Extracted {
   const parts = [tables > 0 ? `${tables} 个表格` : '', pictures > 0 ? `${pictures} 张图片` : ''].filter((item) => item !== '')
   return {
     body: joinBlocks(blocks),
-    note: '由 Pod 从 Word 文档自动转出；图片、批注、页眉页脚和排版没有保留。',
+    note: '由 dsh-bot 从 Word 文档自动转出；图片、批注、页眉页脚和排版没有保留。',
     summary: parts.length === 0 ? '' : `含 ${parts.join('、')}`,
   }
 }

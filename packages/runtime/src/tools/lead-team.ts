@@ -55,7 +55,7 @@ export function leadTeamTools(pod: PodRuntime, session: PodSession): readonly To
   const createTask = podTool({
     name: 'create_task',
     description: [
-      '提交团队计划（L2 临时小组由你兼任组长；L3 交给正式团队）。Pod 校验通过就建一个群聊、发开工说明、按依赖派活；不通过会把问题退回给你修改。一个任务只有一个群。',
+      '提交团队计划（L2 临时小组由你兼任组长；L3 交给正式团队）。dsh-bot 校验通过就建一个群聊、发开工说明、按依赖派活；不通过会把问题退回给你修改。一个任务只有一个群。',
       '每个子任务只有一个负责人、一个交付物、2–5 条验收项；能并行的不串行。写清任务约定（表格的列、文件命名、货币和日期格式、出处写法），汇总时才能直接拼起来。',
       '前提写进 assumptions 并挂上依赖它的子任务（affects），用户纠正前提时只重做那些。需要新 bot 时写进 drafts，owner 填 draftId。',
     ].join(''),

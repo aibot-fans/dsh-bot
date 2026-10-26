@@ -74,7 +74,7 @@ export async function extractPdf(path: string): Promise<Extracted> {
     const scanned = pages.length > 0 && chars < pages.length * 20
     return {
       body: pages.map((page, index) => `## 第 ${index + 1} 页\n\n${page === '' ? '（这页没有文字）' : page}`).join('\n\n'),
-      note: '由 Pod 用 macOS 自带的 PDFKit 从 PDF 抽出文字；图片和排版没有保留，表格会变成一行行的文字。',
+      note: '由 dsh-bot 用 macOS 自带的 PDFKit 从 PDF 抽出文字；图片和排版没有保留，表格会变成一行行的文字。',
       summary: `共 ${pages.length} 页`,
       ...(scanned ? { warning: '这份 PDF 几乎没有文字层，可能是扫描件或图片，文字版里基本没有正文。' } : {}),
     }
@@ -91,7 +91,7 @@ export async function extractWithTextutil(path: string): Promise<Extracted> {
     })
     return {
       body: cleanText(await readFile(output, 'utf8')),
-      note: '由 Pod 用 macOS 自带的 textutil 转出；图片和排版没有保留。',
+      note: '由 dsh-bot 用 macOS 自带的 textutil 转出；图片和排版没有保留。',
       summary: '',
     }
   })

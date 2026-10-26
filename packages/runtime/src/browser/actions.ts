@@ -150,7 +150,7 @@ export class BrowserActions {
     const tab = await this.pick(session, tabId)
     if (tab === undefined) return '还没有打开网页：先用 browser_open'
     if (!this.own(session, tab)) return `标签页 ${tab.id} 不归你操作，只能用 browser_snapshot 只读查看；需要操作请让归属者用 browser_handover 交给你`
-    if (tab.controller === 'owner') return '用户正在操作这个标签页：先做别的，等用户交还后 Pod 会告诉你'
+    if (tab.controller === 'owner') return '用户正在操作这个标签页：先做别的，等用户交还后 dsh-bot 会告诉你'
     tab.touch()
     this.current = new Map([...this.current, [session.id, tab.id]])
     return tab

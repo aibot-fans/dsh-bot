@@ -95,7 +95,7 @@ export class Watchdog {
       sessionId: session.id,
       mode: 'followup',
       priority: PRIORITY.task,
-      text: '[Pod] 上一步长时间没有响应，已经重试。请从上一步接着做。',
+      text: '[dsh-bot] 上一步长时间没有响应，已经重试。请从上一步接着做。',
       source: noticeSource('上一步长时间没有响应，已重试'),
     })
   }
@@ -118,7 +118,7 @@ export class Watchdog {
       sessionId: session.id,
       mode: 'inject',
       priority: PRIORITY.task,
-      text: `[Pod 提醒] 你已经做了 ${steps - previous.steps} 步，但没有勾新的验收项，也没有写新的进度说明，可能在绕圈。换个做法；确实卡住就用 ask_owner 说明，能绕过的先绕过。`,
+      text: `[dsh-bot 提醒] 你已经做了 ${steps - previous.steps} 步，但没有勾新的验收项，也没有写新的进度说明，可能在绕圈。换个做法；确实卡住就用 ask_owner 说明，能绕过的先绕过。`,
       source: noticeSource('可能在绕圈，提醒换做法'),
     })
     this.deps.onStall(session, task, `已经 ${steps - previous.steps} 步没有新进展，可能在绕圈`)
@@ -135,7 +135,7 @@ export class Watchdog {
       sessionId: session.id,
       mode: 'inject',
       priority: PRIORITY.task,
-      text: `[Pod 提醒] 你已经连续 ${REPEAT_LIMIT} 次用同样的参数调用 ${name}，结果不会变。换个做法。`,
+      text: `[dsh-bot 提醒] 你已经连续 ${REPEAT_LIMIT} 次用同样的参数调用 ${name}，结果不会变。换个做法。`,
       source: noticeSource(`重复调用 ${name}，提醒换做法`),
     })
   }

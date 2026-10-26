@@ -164,7 +164,7 @@ export class SegmentManager {
       roomId: room.id,
       taskId: room.taskId,
       folder: old.folder,
-      title: `Pod · ${room.title} · 第 ${old.segment + 1} 段`,
+      title: `dsh-bot · ${room.title} · 第 ${old.segment + 1} 段`,
       segment: old.segment + 1,
       tainted: old.tainted,
     })
@@ -205,7 +205,7 @@ export class SegmentManager {
       roomId: null,
       taskId: task.id,
       folder: old.folder,
-      title: `Pod · ${task.title} · 第 ${old.segment + 1} 段`,
+      title: `dsh-bot · ${task.title} · 第 ${old.segment + 1} 段`,
       segment: old.segment + 1,
       tainted: old.tainted,
       ceiling: task.maxProfile,

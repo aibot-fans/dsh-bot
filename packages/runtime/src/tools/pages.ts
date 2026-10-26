@@ -34,7 +34,7 @@ export function pageTools(pod: PodRuntime, session: PodSession): readonly ToolDe
   const save = podTool({
     name: 'save_page',
     description:
-      '把报告、看板、跟踪表、幻灯片、海报、原型或架构图做成页面：你只填组件数据，Pod 负责排版、配色和交互，保存后对话里会出现页面卡片。不写 id 是新建；写 id 是整份更新（先 get_page 读出来再改），每次保存都是新的一版。第一次做某种页面先看 page_guide。',
+      '把报告、看板、跟踪表、幻灯片、海报、原型或架构图做成页面：你只填组件数据，dsh-bot 负责排版、配色和交互，保存后对话里会出现页面卡片。不写 id 是新建；写 id 是整份更新（先 get_page 读出来再改），每次保存都是新的一版。第一次做某种页面先看 page_guide。',
     properties: {
       id: str('要更新的页面 id；新建时不写'),
       title: str('标题；更新时不写就沿用'),

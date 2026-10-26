@@ -55,7 +55,7 @@ function overlap(left: readonly string[], right: readonly string[]): number {
 export function leadTools(pod: PodRuntime, session: PodSession): readonly ToolDefinition[] {
   const findBots = podTool({
     name: 'find_bots',
-    description: '按能力查找 Pod 里已有的 bot，返回名片（角色、能力、职责、当前手上的任务数）。派活前先用它看看有没有合适的人。',
+    description: '按能力查找 dsh-bot 里已有的 bot，返回名片（角色、能力、职责、当前手上的任务数）。派活前先用它看看有没有合适的人。',
     properties: { query: str('想找的能力或关键词，例如“调研”“写作”；留空列出全部') },
     parse: (args) => ({ query: text(args, 'query') }),
     concurrent: true,
@@ -70,7 +70,7 @@ export function leadTools(pod: PodRuntime, session: PodSession): readonly ToolDe
         .filter((item) => item.score > 0)
         .sort((left, right) => right.score - left.score)
       if (scored.length === 0) {
-        return success(bots.length === 0 ? 'Pod 里还没有其他 bot，可以用 create_bot 新建。' : '没有匹配的 bot；可以新建临时 bot，或者自己做。', { bots: [] })
+        return success(bots.length === 0 ? 'dsh-bot 里还没有其他 bot，可以用 create_bot 新建。' : '没有匹配的 bot；可以新建临时 bot，或者自己做。', { bots: [] })
       }
       return success(`找到 ${scored.length} 个`, { bots: scored.map((item) => ({ ...card(pod, item.bot), match: Number(item.score.toFixed(2)) })) })
     },
@@ -136,7 +136,7 @@ export function leadTools(pod: PodRuntime, session: PodSession): readonly ToolDe
   const delegate = podTool({
     name: 'delegate',
     description: [
-      '把一件事交给一个 bot（L1），或者交给你自己在后台做（bot 填“主管”）。Pod 会建任务、开任务会话，并在对话里放一张实时刷新的任务卡。',
+      '把一件事交给一个 bot（L1），或者交给你自己在后台做（bot 填“主管”）。dsh-bot 会建任务、开任务会话，并在对话里放一张实时刷新的任务卡。',
       '默认先等结果：2 分钟内完成就直接返回结果；没完成就转成后台任务，完成时任务卡会变成交付卡，并通知你。',
       '要写清任务说明（目标、范围、约束）、交付物、2–5 条验收项，以及你定下的前提。',
       '只用于要连续多步的实际工作：不要用它（包括交给你自己）来等待、验证或者轮询；改了设置或例程，工具的返回就是结果；到点看一眼用只跑一次的例程（create_routine 的 in_minutes 或 at）。',
@@ -282,7 +282,7 @@ export function leadTools(pod: PodRuntime, session: PodSession): readonly ToolDe
   const createGroup = podTool({
     name: 'create_group',
     description: [
-      '拉群：把几个 bot 拉进一个新群聊，用户可以在群里 @ 它们分别说话；没点名的话，Pod 按分工交给对口的成员来接。',
+      '拉群：把几个 bot 拉进一个新群聊，用户可以在群里 @ 它们分别说话；没点名的话，dsh-bot 按分工交给对口的成员来接。',
       `群名用不超过 ${GROUP_NAME_MAX} 个字的主题词，例如“博客小组”；已经有同名的群就直接用那个群，不重复建。`,
       '用户说“拉个群”“把写手和程序员叫到一起”时用它；要正式分工、按计划干活用 create_task，那会自己建群。',
     ].join(''),

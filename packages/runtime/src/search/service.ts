@@ -54,7 +54,7 @@ export class SearchService {
 
   messageDoc(message: RoomMessage, room: Room): SearchDoc | undefined {
     if (!INDEXED_KINDS.has(message.kind) || message.deletedAt !== null || message.body.trim() === '') return undefined
-    const author = message.author === OWNER ? '你' : message.author === POD ? 'Pod' : (this.deps.bot(message.author)?.name ?? '')
+    const author = message.author === OWNER ? '你' : message.author === POD ? 'dsh-bot' : (this.deps.bot(message.author)?.name ?? '')
     return {
       ref: `message:${message.id}`,
       kind: 'message',

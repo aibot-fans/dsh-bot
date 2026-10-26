@@ -202,7 +202,7 @@ export function BotForm(props: { readonly bot?: Bot; readonly prefill?: BotPrefi
         </Field>
         <Field label="模型" hint="从下一段会话开始生效">
           <select className="pod-input" value={state.model} onChange={(event) => set('model', event.target.value)}>
-            <option value="">跟随 Pod 默认（默认跟随 dsh）</option>
+            <option value="">跟随 dsh-bot 默认（默认跟随 dsh）</option>
             {(catalog?.groups ?? []).map((group) => (
               <optgroup key={group.id} label={group.name}>
                 {group.models.map((model) => (

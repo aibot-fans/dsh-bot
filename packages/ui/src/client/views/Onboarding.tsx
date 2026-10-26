@@ -7,7 +7,7 @@ import { useApp } from '../state/app.ts'
 import { useResource } from '../state/resource.ts'
 import { AibotIntro } from './aibot/AibotIntro.tsx'
 
-const STEPS = ['认识 Pod', '建一个团队', '先登录常用网站', '通知'] as const
+const STEPS = ['认识 dsh-bot', '建一个团队', '先登录常用网站', '通知'] as const
 
 /** 首次引导：讲清主管和团队怎么用、X 数据和监控开通了没有，可选按模板建团队、先登录网站、打开通知。点“开始使用”后不再出现。 */
 export function Onboarding(props: { readonly settings: PodSettings }) {
@@ -38,7 +38,7 @@ export function Onboarding(props: { readonly settings: PodSettings }) {
         {step === 0 ? (
           <div className="pod-stack">
             <h2>欢迎使用 dsh-bot</h2>
-            <p>Pod 是你的一群 bot。你只需要跟“主管”说要做的事：简单的它自己做，复杂的它交给合适的 bot，或者临时组个小组、交给正式团队。</p>
+            <p>dsh-bot 是你的一群 bot。你只需要跟“主管”说要做的事：简单的它自己做，复杂的它交给合适的 bot，或者临时组个小组、交给正式团队。</p>
             <p>默认自治：bot 自己判断、直接推进，只在四种情况找你——需要登录或验证码、要做不可撤回的对外操作、被安全规则拦下、遇到没有默认值的歧义。</p>
             <p>做的过程都在“任务”里，可以随时暂停、停止，或直接对任务说话。自我优化的改动都记在“进化日志”里，可以一键回滚。</p>
             <AibotIntro />

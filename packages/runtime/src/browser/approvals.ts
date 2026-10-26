@@ -144,7 +144,7 @@ export class WriteApprovals {
     return {
       ok: true,
       waitId: wait.id,
-      message: `这一步是写操作（${request.reason}），已提交给用户审批。批准后 Pod 会先确认页面没变，再按原样执行，并把结果发给你；页面变了就作废，你重新准备。现在先做不依赖它的事，或者结束这一轮等结果。`,
+      message: `这一步是写操作（${request.reason}），已提交给用户审批。批准后 dsh-bot 会先确认页面没变，再按原样执行，并把结果发给你；页面变了就作废，你重新准备。现在先做不依赖它的事，或者结束这一轮等结果。`,
     }
   }
 
@@ -272,7 +272,7 @@ export class WriteApprovals {
         session,
         kind: 'unknown-state',
         title: `状态未知：${entry.description}`,
-        detail: `执行到一半浏览器断了，不确定有没有提交成功。请到 ${entry.url} 上确认；Pod 不会自动重做。`,
+        detail: `执行到一半浏览器断了，不确定有没有提交成功。请到 ${entry.url} 上确认；dsh-bot 不会自动重做。`,
         bypassed: false,
         data: { url: entry.url },
       })

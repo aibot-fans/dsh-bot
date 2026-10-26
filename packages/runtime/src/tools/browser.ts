@@ -74,7 +74,7 @@ export function browserTools(pod: PodRuntime, session: PodSession): readonly Too
 
   const click = podTool({
     name: 'browser_click',
-    description: '点击快照里的元素（用引用，如 e12）。提交、发送、发布、删除、购买、确认、退出登录这类写操作会自动交给用户审批，批准后 Pod 执行并告诉你结果。',
+    description: '点击快照里的元素（用引用，如 e12）。提交、发送、发布、删除、购买、确认、退出登录这类写操作会自动交给用户审批，批准后 dsh-bot 执行并告诉你结果。',
     properties: { ref: str('元素引用，如 e12'), ...tab },
     required: ['ref'],
     timeoutMs: 120_000,
@@ -221,7 +221,7 @@ export function browserTools(pod: PodRuntime, session: PodSession): readonly Too
       const target = tabId !== '' ? pod.browser.browser.get(tabId) : (tabs.at(-1) ?? undefined)
       if (target === undefined || target.owner.kind !== 'bot' || target.owner.sessionId !== me.id) return failure('先用 browser_open 打开要用户处理的页面')
       const waitId = pod.browser.owner.requestTakeover(me, target, reason)
-      return success('已请用户接管这个标签页。先做不依赖它的事；都做不了就结束这一轮，用户交还后 Pod 会告诉你。', { waitId, tab: target.id })
+      return success('已请用户接管这个标签页。先做不依赖它的事；都做不了就结束这一轮，用户交还后 dsh-bot 会告诉你。', { waitId, tab: target.id })
     },
   })
 

@@ -76,7 +76,7 @@ function lastPage(messages) {
 function browserTask(brief, userText, messages, calls) {
   const url = /(https?:\/\/[^\s，。"]+)/.exec(brief)?.[1] ?? 'https://example.com/'
   const done = (summary) => ({ tool: 'complete_task', args: { summary, files: [], assumptions: ['测试环境'], unverified: [], skipped: [] } })
-  if (userText.includes('[用户批准了')) return done('- 提交成功（用户批准后由 Pod 执行）')
+  if (userText.includes('[用户批准了')) return done('- 提交成功（用户批准后由 dsh-bot 执行）')
   if (userText.includes('[用户没有批准') || userText.includes('[审批作废')) return done('- 用户没有批准提交，没有提交')
   if (userText.includes('[用户交还了') || userText.includes('[用户对「接管浏览器')) {
     if (!calls.slice(-3).includes('browser_snapshot')) return { tool: 'browser_snapshot', args: {} }
@@ -148,7 +148,7 @@ function groupDecision(system, messages, last, calls) {
   if (last?.role === 'tool' && calls.at(-1) === 'ask_bot') return { text: `ask_bot 的结果：${lastToolText(messages)}` }
   const frame = groupMessage(withoutPreface(textOf(lastOf(messages, 'user')?.content)))
   if (frame === undefined) return undefined
-  const self = /你在 dsh-bot（简称 Pod）里的名字是「([^」]+)」/.exec(system)?.[1] ?? ''
+  const self = /你在 dsh-bot 里的名字是「([^」]+)」/.exec(system)?.[1] ?? ''
   const asked = /@ ?一下\s*([^\s，。,、：:]+)/.exec(frame.body)?.[1]
   // 故意在 message 里也写上 @名字，看 Pod 会不会去掉重复的 @。
   if (asked !== undefined && frame.speaker === '用户') return { tool: 'mention_member', args: { members: [asked], message: `@${asked} 用户找你，在群里应一声：${frame.body.slice(0, 60)}` } }
@@ -177,7 +177,7 @@ function systemOf(options, messages) {
 /** 名册里第一个 bot 的名字：系统提示里“Pod 里的其他 bot”下面紧跟的“- 名字（角色）”那几行。 */
 function firstRosterName(system) {
   const lines = system.split('\n')
-  const start = lines.findIndex((line) => line.startsWith('Pod 里的其他 bot'))
+  const start = lines.findIndex((line) => line.startsWith('dsh-bot 里的其他 bot'))
   if (start < 0) return undefined
   for (const line of lines.slice(start + 1)) {
     if (!line.startsWith('- ')) break
@@ -189,7 +189,7 @@ function firstRosterName(system) {
 
 function rosterNames(system) {
   const lines = system.split('\n')
-  const start = lines.findIndex((line) => line.startsWith('Pod 里的其他 bot'))
+  const start = lines.findIndex((line) => line.startsWith('dsh-bot 里的其他 bot'))
   if (start < 0) return []
   const names = []
   for (const line of lines.slice(start + 1)) {
@@ -268,7 +268,7 @@ function decide(options) {
     if (userText.includes('[组长打回]')) {
       return { tool: 'complete_task', args: { summary: '- 按组长意见补上了主要限制', files: ['B.md'], assumptions: [], unverified: [], skipped: [] } }
     }
-    if (userText.includes('[用户对') || userText.includes('[Pod 提醒]')) {
+    if (userText.includes('[用户对') || userText.includes('[dsh-bot 提醒]')) {
       return { tool: 'complete_task', args: { summary: '- 测试任务完成\n- 用户的答复已经采纳', files: ['shared/测试结果.md'], assumptions: ['只做了测试范围内的事'], unverified: [], skipped: [] } }
     }
     if (!calls.includes('update_task') && tools.has('update_task')) return { tool: 'update_task', args: { check: [1], note: '正在处理测试任务' } }
@@ -501,7 +501,7 @@ async function* stream(options) {
 }
 
 const adapter = {
-  providerInfo: (provider) => ({ id: provider, name: 'Pod 测试模型' }),
+  providerInfo: (provider) => ({ id: provider, name: 'dsh-bot 测试模型' }),
   providerRetryPolicy: () => undefined,
   imageRequestPricing: () => undefined,
   imageRequestTarget: (_provider, _model, image) => ({ width: image.width, height: image.height, maxBytes: image.bytes }),

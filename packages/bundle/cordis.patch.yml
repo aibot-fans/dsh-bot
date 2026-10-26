@@ -23,7 +23,7 @@
       config:
         id: pod
         name: dsh-bot · 执行
-        description: Pod 的 bot 会话：文件、沙箱 shell、web 搜索
+        description: dsh-bot 的 bot 会话：文件、沙箱 shell、web 搜索
         order: 40
         plugins:
           - id: pod-agent
@@ -80,7 +80,7 @@
       config:
         id: pod-research
         name: dsh-bot · 研究
-        description: Pod 的 bot 会话：文件和 web 搜索，没有 shell
+        description: dsh-bot 的 bot 会话：文件和 web 搜索，没有 shell
         order: 41
         plugins:
           - id: pod-agent
@@ -131,7 +131,7 @@
       config:
         id: pod-talk
         name: dsh-bot · 对话
-        description: Pod 的 bot 会话：只聊天、读记忆、搜聊天记录
+        description: dsh-bot 的 bot 会话：只聊天、读记忆、搜聊天记录
         order: 42
         plugins:
           - id: pod-agent

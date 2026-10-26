@@ -66,7 +66,7 @@ const EVENT_LABELS: Readonly<Record<string, string>> = {
 /** 决策链一行里做事的人：你、Pod，或者带图标的 bot。 */
 function Actor(props: { readonly actor: string; readonly bots: ReadonlyMap<string, Bot> }) {
   if (props.actor === 'owner') return <>你</>
-  if (props.actor === 'pod') return <>Pod</>
+  if (props.actor === 'pod') return <>dsh-bot</>
   return <BotName bot={props.bots.get(props.actor)} fallback={props.actor} size={14} />
 }
 

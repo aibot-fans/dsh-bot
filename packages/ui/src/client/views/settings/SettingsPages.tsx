@@ -180,7 +180,7 @@ export function AdvancedPage(props: { readonly settings: PodSettings; readonly u
         <>
           <Row label="版本">
             <span>
-              Pod {status.version} · dsh {status.dshVersion}
+              dsh-bot {status.version} · dsh {status.dshVersion}
             </span>
             {status.readOnly ? <Badge tone="danger">只读模式</Badge> : null}
           </Row>

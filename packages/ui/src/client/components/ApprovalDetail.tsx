@@ -40,7 +40,7 @@ export function ApprovalDetail(props: { readonly wait: Wait }) {
           </tbody>
         </table>
       )}
-      <div className="pod-hint">批准后 Pod 先确认页面没变，再按原样执行；页面变了这个动作就作废。</div>
+      <div className="pod-hint">批准后 dsh-bot 先确认页面没变，再按原样执行；页面变了这个动作就作废。</div>
     </div>
   )
 }

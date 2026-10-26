@@ -215,7 +215,7 @@ export function siteKey(url: string): string {
 /** 标签页归属者的显示名。 */
 export function tabOwnerLabel(owner: TabOwner, botName: (botId: string) => string | undefined): string {
   if (owner.kind === 'owner') return '你'
-  if (owner.kind === 'pod') return 'Pod'
+  if (owner.kind === 'pod') return 'dsh-bot'
   return botName(owner.botId) ?? '已归档的 bot'
 }
 

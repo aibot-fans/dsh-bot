@@ -32,7 +32,7 @@ async function settle(logger: Logger, path: string, work: () => ReturnType<Handl
   try {
     return respond(await work())
   } catch (error) {
-    logger.warn(`Pod 接口 ${path} 出错`, error)
+    logger.warn(`dsh-bot 接口 ${path} 出错`, error)
     const reason = (error instanceof Error ? error.message : String(error)).replace(/\s+/g, ' ').trim()
     return respond(fail('internal', reason === '' ? '出错了，详情见 dsh 日志' : `出错了：${reason.slice(0, 160)}`))
   }

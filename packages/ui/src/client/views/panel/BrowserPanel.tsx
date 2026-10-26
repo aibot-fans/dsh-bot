@@ -152,7 +152,7 @@ export function BrowserPanel(props: { readonly tabId: string | null; readonly bo
         {error === undefined ? null : <ErrorBanner message={error} />}
         {problem === undefined ? null : <ErrorBanner message={problem} onClose={() => setProblem(undefined)} />}
         {data !== undefined && !data.status.available ? (
-          <Empty title="没找到本机的 Chrome">共用浏览器用本机的 Chrome（Pod 自己的配置文件，不碰你日常的数据）。请安装 Chrome，或者在设置的浏览器页填 Chrome 的位置。</Empty>
+          <Empty title="没找到本机的 Chrome">共用浏览器用本机的 Chrome（dsh-bot 自己的配置文件，不碰你日常的数据）。请安装 Chrome，或者在设置的浏览器页填 Chrome 的位置。</Empty>
         ) : null}
         {data?.status.error ? <p className="pod-form-error">浏览器上次出错：{data.status.error}</p> : null}
         {adding && selected !== undefined ? <OpenUrl roomId={props.roomId} onOpened={opened} /> : null}

@@ -211,7 +211,7 @@ export class TaskService {
         roomId: null,
         taskId: id,
         folder: updated.folder,
-        title: `Pod · 任务 · ${input.title}`,
+        title: `dsh-bot · 任务 · ${input.title}`,
         tainted: requester.tainted,
       })
     } catch (error) {

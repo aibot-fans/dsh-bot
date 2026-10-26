@@ -88,7 +88,7 @@ export function BrowserSettings(props: { readonly settings: PodSettings; readonl
       <div className="pod-settings-row">
         <div>
           <div>状态</div>
-          <div className="pod-hint">无头运行，用 Pod 自己的 profile，不碰你日常 Chrome 的数据；第一次用到时才启动</div>
+          <div className="pod-hint">无头运行，用 dsh-bot 自己的 profile，不碰你日常 Chrome 的数据；第一次用到时才启动</div>
         </div>
         <div className="pod-settings-control">
           {status === undefined ? null : !status.available ? <Badge tone="danger">没找到 Chrome</Badge> : status.running ? <Badge tone="ok">运行中 · {status.tabs} 个标签页</Badge> : <Badge tone="muted">未启动</Badge>}

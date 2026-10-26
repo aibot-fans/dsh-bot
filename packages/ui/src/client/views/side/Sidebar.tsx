@@ -167,7 +167,7 @@ export function Sidebar() {
       <div className="pod-side-top">
         {collapsed ? null : (
           <span className="pod-side-brand">
-            Pod
+            dsh-bot
             <span className={`pod-conn pod-conn-${stream}`} title={stream === 'open' ? '实时连接正常' : '正在重连…'} />
           </span>
         )}

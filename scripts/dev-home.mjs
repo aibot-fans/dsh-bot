@@ -31,7 +31,7 @@ function dsh(args) {
 function writeDevPatch() {
   const file = join(devRoot, 'pod-dev.patch.yml')
   const lines = [
-    '# 由 scripts/dev-home.mjs 生成：开发时 Pod 的数据和工作区都在这个目录里。',
+    '# 由 scripts/dev-home.mjs 生成：开发时 dsh-bot 的数据和工作区都在这个目录里。',
     '- id: pod-runtime',
     '  config:',
     `    dataRoot: ${JSON.stringify(join(dshHome, 'pod'))}`,

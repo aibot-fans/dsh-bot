@@ -97,7 +97,7 @@ export function coordContext(plan: TeamPlan, board: string): string {
     plan.conventions.length === 0 ? undefined : `任务约定：${plan.conventions.join('；')}`,
     plan.assumptions.length === 0 ? undefined : `前提：${plan.assumptions.map((item) => `${item.id}：${item.text}`).join('；')}`,
     `汇总方式：${plan.integration.method || '按任务约定合并'}；抽查：${plan.review.sampling || '研究类结论抽查 20% 的出处'}`,
-    '你现在不需要做任何事。子任务提交、成员提问、停滞、失败或计划变更时，Pod 会发消息给你。',
+    '你现在不需要做任何事。子任务提交、成员提问、停滞、失败或计划变更时，dsh-bot 会发消息给你。',
     `[任务板]\n${board}`,
   ]
     .filter((line): line is string => line !== undefined)

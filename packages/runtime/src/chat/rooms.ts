@@ -613,7 +613,7 @@ export class RoomService {
   /** 转给 bot 看的说话人：你叫“用户”，其余用名字。 */
   private speakerName(author: string): string {
     if (author === OWNER) return '用户'
-    if (author === POD) return 'Pod'
+    if (author === POD) return 'dsh-bot'
     return this.deps.bots.get(author)?.name ?? 'bot'
   }
 
@@ -744,7 +744,7 @@ export class RoomService {
         taskId: room.taskId,
         folder: room.kind === 'direct' ? botFolder(bot) : roomFolder(room),
         // 群里每个成员各有一条会话，标题带上名字；单聊带上这段对话的第一句话，在 dsh 的会话列表里分得清。
-        title: room.kind === 'direct' ? `Pod · ${bot.name} · ${room.topic !== '' ? room.topic : chatSubject(firstOwnerLine(this.db, room.id), 16) || '新对话'}` : `Pod · ${room.title} · ${bot.name}`,
+        title: room.kind === 'direct' ? `dsh-bot · ${bot.name} · ${room.topic !== '' ? room.topic : chatSubject(firstOwnerLine(this.db, room.id), 16) || '新对话'}` : `dsh-bot · ${room.title} · ${bot.name}`,
       })
       .finally(() => this.opening.delete(key))
     this.opening.set(key, opening)
@@ -812,7 +812,7 @@ export class RoomService {
 
 function authorName(message: RoomMessage, bots: BotService): string {
   if (message.author === OWNER) return '你'
-  if (message.author === POD) return 'Pod'
+  if (message.author === POD) return 'dsh-bot'
   return bots.get(message.author)?.name ?? 'bot'
 }
 

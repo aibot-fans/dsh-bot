@@ -24,12 +24,12 @@ function ReadOnlyBanner() {
   const { data: status } = useResource(app.cache, 'status', () => api.status())
   if (status === undefined) return null
   if (status.exposure?.exposed === true) {
-    return <div className="pod-banner">dsh web 现在对外开放（{status.exposure.reasons.join('；')}）。为了安全，Pod 禁用了 bot 的终端和浏览器写操作；建议只在本机或 Tailscale 内使用。</div>
+    return <div className="pod-banner">dsh web 现在对外开放（{status.exposure.reasons.join('；')}）。为了安全，dsh-bot 禁用了 bot 的终端和浏览器写操作；建议只在本机或 Tailscale 内使用。</div>
   }
   if (!status.readOnly) return null
   return (
     <div className="pod-banner">
-      Pod 处于只读模式：当前 dsh（{status.dshVersion}）缺少 Pod 需要的接口（{status.problems.join('、')}）。可以查看数据，但不会创建会话或派活。
+      dsh-bot 处于只读模式：当前 dsh（{status.dshVersion}）缺少 dsh-bot 需要的接口（{status.problems.join('、')}）。可以查看数据，但不会创建会话或派活。
     </div>
   )
 }
@@ -41,7 +41,7 @@ function StaleBanner() {
   if (status === undefined || status.version === POD_VERSION) return null
   return (
     <div className="pod-banner pod-banner-action">
-      <span>Pod 已经更新到 {status.version}，这个标签页还是更新前打开的（{POD_VERSION}），有的按钮会报错。刷新一下就好。</span>
+      <span>dsh-bot 已经更新到 {status.version}，这个标签页还是更新前打开的（{POD_VERSION}），有的按钮会报错。刷新一下就好。</span>
       <Button small kind="primary" onClick={() => window.location.reload()}>
         刷新
       </Button>

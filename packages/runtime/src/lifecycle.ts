@@ -18,10 +18,10 @@ export function recoverAfterRestart(pod: PodRuntime): void {
     const task = pod.tasks.get(session.taskId)
     if (task === undefined) continue
     if (session.kind === 'task' && task.status === 'running') {
-      remind(session, '[Pod] dsh web 重启过，这个任务的上一轮被中断了。看一下任务文件夹里已有的产出，从停下的地方接着做；做完调用 complete_task。', 'dsh 重启后接着做')
+      remind(session, '[dsh-bot] dsh web 重启过，这个任务的上一轮被中断了。看一下任务文件夹里已有的产出，从停下的地方接着做；做完调用 complete_task。', 'dsh 重启后接着做')
     }
     if (session.kind === 'coord' && task.status === 'running' && pod.tasks.tree(task.id).some((child) => child.status === 'review')) {
-      remind(session, `[Pod] dsh web 重启过。有子任务在等你验收，看一下任务板再处理：\n${pod.coordinator.board(task.id)}`, 'dsh 重启后提醒验收')
+      remind(session, `[dsh-bot] dsh web 重启过。有子任务在等你验收，看一下任务板再处理：\n${pod.coordinator.board(task.id)}`, 'dsh 重启后提醒验收')
     }
   }
 }

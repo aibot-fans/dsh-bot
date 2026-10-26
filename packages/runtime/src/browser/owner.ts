@@ -239,7 +239,7 @@ export class OwnerBrowser {
       session,
       kind: 'login',
       title: `接管浏览器：${reason}`,
-      detail: `${tab.title}\n${tab.url}\n在 Pod 的浏览器视图里打开这个标签页，点“接管”操作，完成后点“交还”。`,
+      detail: `${tab.title}\n${tab.url}\n在 dsh-bot 的浏览器视图里打开这个标签页，点“接管”操作，完成后点“交还”。`,
       bypassed: false,
       data: { tabId: tab.id, url: tab.url },
     })

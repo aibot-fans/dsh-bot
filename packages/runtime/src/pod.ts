@@ -352,7 +352,7 @@ export class PodRuntime {
             sessionId: session.id,
             mode: 'inject',
             priority: PRIORITY.task,
-            text: '[Pod 提醒] 这件事要走好几步：用 todo_write 列一个简短的计划（一步一行），做完一步就勾掉。用户在页面上看得到你的计划和进度。',
+            text: '[dsh-bot 提醒] 这件事要走好几步：用 todo_write 列一个简短的计划（一步一行），做完一步就勾掉。用户在页面上看得到你的计划和进度。',
             source: noticeSource('提醒列计划'),
           })
         },
@@ -397,7 +397,7 @@ export class PodRuntime {
       memory: this.memory,
       lite: this.lite,
       enabled: () => this.settings.get().memoryExtraction,
-      name: (author) => (author === OWNER ? '用户' : author === POD ? 'Pod' : (this.bots.get(author)?.name ?? 'bot')),
+      name: (author) => (author === OWNER ? '用户' : author === POD ? 'dsh-bot' : (this.bots.get(author)?.name ?? 'bot')),
       now,
       warn,
     })
@@ -406,7 +406,7 @@ export class PodRuntime {
       registry: this.registry,
       lite: this.lite,
       softLimit: () => this.settings.get().softContextTokens,
-      name: (author) => (author === OWNER ? '用户' : author === POD ? 'Pod' : (this.bots.get(author)?.name ?? 'bot')),
+      name: (author) => (author === OWNER ? '用户' : author === POD ? 'dsh-bot' : (this.bots.get(author)?.name ?? 'bot')),
       pinned: (roomId) => pinnedMessages(db, roomId).map((message) => message.body),
       now,
       warn,
@@ -609,7 +609,7 @@ export class PodRuntime {
 
   get readOnlyReason(): string | undefined {
     const { compat } = this.options
-    return compat.readOnly ? `当前 dsh（${compat.dshVersion}）缺少 Pod 需要的接口：${compat.problems.join('、')}。Pod 进入只读模式。` : undefined
+    return compat.readOnly ? `当前 dsh（${compat.dshVersion}）缺少 dsh-bot 需要的接口：${compat.problems.join('、')}。dsh-bot 进入只读模式。` : undefined
   }
 
   status(): PodStatus {
@@ -715,7 +715,7 @@ export class PodRuntime {
   guardFor(session: PodSession): (call: { readonly name: string; readonly arguments?: unknown }) => string | undefined {
     const cwd = join(this.options.workspaceRoot, session.folder)
     return (call) => {
-      if (this.exposureState.exposed && SHELL_TOOLS.has(call.name)) return `dsh web 现在对外开放（${this.exposureState.reasons.join('；')}），为了安全 Pod 禁用了 shell。需要时请用户在本机使用。`
+      if (this.exposureState.exposed && SHELL_TOOLS.has(call.name)) return `dsh web 现在对外开放（${this.exposureState.reasons.join('；')}），为了安全 dsh-bot 禁用了 shell。需要时请用户在本机使用。`
       return this.protectData(call, cwd)
     }
   }
@@ -793,7 +793,7 @@ export class PodRuntime {
     if (bot === undefined) return
     try {
       const rotation = await this.segments.rotateTask(task, bot, session)
-      const brief = composeBrief(task, { fromName: 'Pod', assumptions: [], conventions: [], upstream: [], workspaceRoot: this.options.workspaceRoot })
+      const brief = composeBrief(task, { fromName: 'dsh-bot', assumptions: [], conventions: [], upstream: [], workspaceRoot: this.options.workspaceRoot })
       this.dispatcher.enqueue({
         sessionId: rotation.session.id,
         mode: 'followup',

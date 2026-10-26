@@ -260,7 +260,7 @@ export class Orchestrator {
         roomId: started.roomId,
         taskId: rootId,
         folder: started.folder,
-        title: `Pod · 协调 · ${started.title}`,
+        title: `dsh-bot · 协调 · ${started.title}`,
         tainted: started.tainted,
         ceiling: started.maxProfile,
       })
@@ -316,7 +316,7 @@ export class Orchestrator {
         roomId: null,
         taskId: task.id,
         folder: task.folder,
-        title: `Pod · ${root.title} · ${task.title}`,
+        title: `dsh-bot · ${root.title} · ${task.title}`,
         tainted: root.tainted,
         ceiling: task.maxProfile,
       })

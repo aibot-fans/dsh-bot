@@ -5,6 +5,8 @@ import {
   EMPTY_CARD,
   LEAD_BOT_ID,
   LEAD_SEED,
+  OLD_LEAD_PERSONAS,
+  POD,
   asRecord,
   assignBotIcons,
   botConfig,
@@ -146,9 +148,10 @@ function fillColors(db: DatabaseSync, bots: readonly Bot[]): readonly Bot[] {
   })
 }
 
+/** 改了人设以后记成谁写的：回滚和换成新版默认人设都不改来源。 */
 function personaSourceFor(origin: ChangeOrigin, current: PersonaSource): PersonaSource {
   if (origin.source === 'user') return 'user'
-  if (origin.source === 'rollback') return current
+  if (origin.source === 'rollback' || origin.source === 'seed') return current
   return 'auto'
 }
 
@@ -181,6 +184,14 @@ export class BotService {
       }
     }
     this.bots = new Map(fillColors(db, fillIcons(db, bots)).map((bot) => [bot.id, bot]))
+    this.upgradeLeadPersona()
+  }
+
+  /** 主管的人设还是以前哪一版默认人设的原样，就换成现在的（记一版配置，能回滚）；改过的不动。 */
+  private upgradeLeadPersona(): void {
+    const lead = this.activeBot(LEAD_BOT_ID)
+    if (lead === undefined || !OLD_LEAD_PERSONAS.includes(lead.persona)) return
+    this.applyPatch(lead.id, { persona: LEAD_SEED.persona }, { source: 'seed', actor: POD, reason: '默认人设里的名字改成 dsh-bot' })
   }
 
   private get db(): DatabaseSync {

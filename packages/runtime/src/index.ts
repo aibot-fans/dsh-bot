@@ -50,7 +50,7 @@ export function apply(ctx: HostContext, rawConfig: unknown): void {
     ctx.effect(() => ctx.connection.fetch.register(route), `pod: route ${route.path}`)
   }
 
-  const warn = (error: unknown): void => ctx.logger.warn('Pod 每日维护出错', error)
+  const warn = (error: unknown): void => ctx.logger.warn('dsh-bot 每日维护出错', error)
   every(ctx, 'pod: daily maintenance', HOUR, () => pod.maintenance.tick(pod.now()).then(() => undefined), warn)
   // 启动后稍等再做第一次检查，避开 dsh 启动时的忙碌期。
   ctx.effect(() => {

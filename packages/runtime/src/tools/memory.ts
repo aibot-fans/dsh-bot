@@ -8,7 +8,7 @@ import { bool, failure, flag, int, oneOf, podTool, str, success, text } from './
 /** 记忆和检索工具：写记忆、查记忆、搜聊天记录、读原文、搜工作区文件和网页存档。所有 bot 都有。 */
 export function memoryTools(pod: PodRuntime, session: PodSession): readonly ToolDefinition[] {
   const current = (): PodSession => pod.registry.get(session.id) ?? session
-  const name = (author: string): string => (author === OWNER ? '用户' : author === POD ? 'Pod' : (pod.bots.get(author)?.name ?? 'bot'))
+  const name = (author: string): string => (author === OWNER ? '用户' : author === POD ? 'dsh-bot' : (pod.bots.get(author)?.name ?? 'bot'))
 
   const remember = podTool({
     name: 'remember',

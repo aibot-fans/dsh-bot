@@ -35,7 +35,7 @@ export function groupFrame(input: {
     input.fromBot === true
       ? `\n（直接回复就行：你的回复会发在群里，${input.speaker}和用户都看得到，不用再 @ ${input.speaker}。）`
       : input.routed === true
-        ? '\n（用户没有点名，Pod 按分工把这句话交给你来接：直接回答，或者动手做完。）'
+        ? '\n（用户没有点名，dsh-bot 按分工把这句话交给你来接：直接回答，或者动手做完。）'
         : ''
   return [
     `[${input.speaker}在群聊「${input.roomTitle}」里${input.mentioned ? '@了你' : '说'}]\n${input.body}${hint}`,

@@ -38,7 +38,7 @@ export function routePrompt(input: RouteInput): string {
   return [
     `群聊「${input.roomTitle}」的成员：`,
     ...input.members.map(memberLine),
-    `- ${lead}：主管，在群里只管分派和组织：新建或调整 bot、拉人进群、要几个成员配合的大任务、关于 Pod 本身怎么用的问题。具体的活不归主管。`,
+    `- ${lead}：主管，在群里只管分派和组织：新建或调整 bot、拉人进群、要几个成员配合的大任务、关于 dsh-bot 本身怎么用的问题。具体的活不归主管。`,
     ...(input.recent.length === 0 ? [] : ['', '最近的群聊（旧的在前）：', ...input.recent]),
     '',
     '用户的新消息：',
@@ -46,7 +46,7 @@ export function routePrompt(input: RouteInput): string {
     '',
     '怎么挑：',
     '- 选职责最对口的成员。接着刚才的话题说的（比如“好的”“继续”“那就这么办”），交给刚才在回答的成员。',
-    `- 要新建 bot、拉人、几个成员一起配合的大任务、问 Pod 本身，或者没有一个成员对口时，选${lead}。`,
+    `- 要新建 bot、拉人、几个成员一起配合的大任务、问 dsh-bot 本身，或者没有一个成员对口时，选${lead}。`,
     '只输出：{"to": "名字"}',
   ].join('\n')
 }

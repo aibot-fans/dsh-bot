@@ -25,14 +25,20 @@ function xPersona(writeLine: string): string {
   ].join('\n')
 }
 
-/** 之前建的 X 情报员的人设：说一律不能写，会话里有别的 X 写工具也不用。 */
-const OLD_PERSONA = xPersona('Pod 的 X 工具只能读数据和管理监控，不能发推、点赞；用户要发推时，说明要用共用浏览器。')
+/** 以前各版 X 情报员的人设，和换成现在这版时记的原因。 */
+const OLD_PERSONAS: ReadonlyMap<string, string> = new Map([
+  [xPersona('Pod 的 X 工具只能读数据和管理监控，不能发推、点赞；用户要发推时，说明要用共用浏览器。'), '写操作的说明改了：会话里有别的 X 写工具时可以用'],
+  [
+    xPersona('Pod 自带的 twitter_ 工具只能读数据和管理监控。会话里有别的 X 写工具（发推、点赞、转推、关注）时，用户明确要求就直接用它们做；没有的话，说明发推要用共用浏览器。'),
+    '人设里的名字改成 dsh-bot',
+  ],
+])
 
 const X_BOT: BotDraft = {
   name: 'X 情报员',
   title: 'X（推特）数据和监控',
   persona: xPersona(
-    'Pod 自带的 twitter_ 工具只能读数据和管理监控。会话里有别的 X 写工具（发推、点赞、转推、关注）时，用户明确要求就直接用它们做；没有的话，说明发推要用共用浏览器。',
+    'dsh-bot 自带的 twitter_ 工具只能读数据和管理监控。会话里有别的 X 写工具（发推、点赞、转推、关注）时，用户明确要求就直接用它们做；没有的话，说明发推要用共用浏览器。',
   ),
   capabilities: ['X', '推特', '舆情监控'],
   card: {
@@ -70,10 +76,11 @@ export function seedX(db: DatabaseSync, bots: BotService, rooms: RoomService): X
   return { bot, room }
 }
 
-/** 之前建的 X 情报员，人设还是原样的换成现在的（记一版配置，能回滚）；改过的不动。 */
+/** 之前建的 X 情报员，人设还是以前哪一版原样的换成现在的（记一版配置，能回滚）；改过的不动。 */
 function upgradePersona(bots: BotService, bot: Bot | undefined): Bot | undefined {
-  if (bot === undefined || bot.persona !== OLD_PERSONA) return bot
-  const result = bots.applyPatch(bot.id, { persona: X_BOT.persona }, { source: 'seed', actor: POD, reason: '写操作的说明改了：会话里有别的 X 写工具时可以用' })
+  const reason = bot === undefined ? undefined : OLD_PERSONAS.get(bot.persona)
+  if (bot === undefined || reason === undefined) return bot
+  const result = bots.applyPatch(bot.id, { persona: X_BOT.persona }, { source: 'seed', actor: POD, reason })
   return result.ok ? result.value : bot
 }
 

@@ -168,7 +168,7 @@ export class SessionObserver {
         try {
           item()
         } catch (error) {
-          this.ctx.logger.warn('Pod 处理会话事件出错', error)
+          this.ctx.logger.warn('dsh-bot 处理会话事件出错', error)
         }
       }
     })

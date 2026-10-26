@@ -39,7 +39,7 @@ export interface MessageProps {
 
 function authorName(author: string, bots: ReadonlyMap<string, Bot>): string {
   if (author === OWNER) return '你'
-  if (author === POD) return 'Pod'
+  if (author === POD) return 'dsh-bot'
   return bots.get(author)?.name ?? '已删除的 bot'
 }
 

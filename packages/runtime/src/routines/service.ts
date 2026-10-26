@@ -347,7 +347,7 @@ export class RoutineService {
     if (existing !== undefined) return existing
     const bot = this.deps.bots.activeBot(botId)
     if (bot === undefined) throw new Error('负责的 bot 已归档')
-    return this.deps.registry.open({ bot, kind: 'routine', roomId, taskId: null, folder: botFolder(bot), title: `Pod · 例程 · ${routine.title}` })
+    return this.deps.registry.open({ bot, kind: 'routine', roomId, taskId: null, folder: botFolder(bot), title: `dsh-bot · 例程 · ${routine.title}` })
   }
 
   describe(routine: Routine): string {

@@ -38,7 +38,7 @@ export function composeBrief(task: Task, context: BriefContext): string {
 export function nudgeText(task: Task, count: number): string {
   const lead = count >= 2 ? '这已经是第 ' + String(count) + ' 次提醒。' : ''
   return [
-    `[Pod 提醒] 任务「${task.title}」还没有提交。${lead}`,
+    `[dsh-bot 提醒] 任务「${task.title}」还没有提交。${lead}`,
     '- 已经做完：调用 complete_task 提交。',
     '- 卡在必须用户出面的事上：用 ask_owner 说明（能绕过的先绕过，继续做其余部分）。',
     '- 还没做完：继续做下一步，并用 update_task 写一句进度说明。',
@@ -49,5 +49,5 @@ export function nudgeText(task: Task, count: number): string {
 export function resumeText(task: Task, after: 'paused' | 'stopped'): string {
   const why = after === 'paused' ? '任务暂停后继续了' : '任务被停止后，用户让它继续'
   const note = task.note === '' ? '' : `你最近的进度说明是：「${task.note}」。`
-  return `[Pod] ${why}。${note}从停下的地方接着做；已完成的部分不用重做。`
+  return `[dsh-bot] ${why}。${note}从停下的地方接着做；已完成的部分不用重做。`
 }
