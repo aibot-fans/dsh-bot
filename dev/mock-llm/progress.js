@@ -1,6 +1,7 @@
 /**
  * 执行进度和例程的剧本（开发时看进度块、改例程和数据拦截用；命令都是 sleep、seq、echo 这类无害的）：
  * - “慢慢查”：先想一会儿、用 todo_write 列计划，跑两条带说明的命令，边做边勾计划，最后回答；跑完回复下面留一行摘要。
+ * - “查一半”：列了计划、跑一条命令就回答，计划没做完；再说一句别的，新一轮的进度块里不该还挂着这个计划。
  * - “绕圈”：连着三次跑同一条命令，进度块出“连着 3 次做同一步”。
  * - “连着出错”：三条命令都失败，出“连着 3 步出错”，再换个办法试一次。
  * - 中途收到“汇报一下进展”（进度块上的「让它汇报」）就说一段进展，结束这一轮。
@@ -40,6 +41,11 @@ function slowQuery(turn) {
   return steps[Math.min(turn.length, steps.length - 1)]
 }
 
+function halfQuery(turn) {
+  const steps = [plan(0), { tool: 'bash', args: { command: 'sleep 3 && echo orders/', description: '查找订单数据放在哪' } }, { text: '先查到这里：订单数据在 orders 目录，导出等你说一声再做。' }]
+  return steps[Math.min(turn.length, steps.length - 1)]
+}
+
 function looping(turn) {
   if (turn.length < 3) return { tool: 'bash', args: { command: 'sleep 8 && echo 服务还没起来', description: '看服务起来没有' } }
   return { text: '服务一直没起来，先停在这，等你看一下。' }
@@ -56,6 +62,7 @@ export function progressDecision({ userText, turn, tools }) {
   if (!tools.has('bash')) return undefined
   if (userText.includes('汇报一下进展')) return { text: '进展：服务连着三次都没起来，可能是端口被占了。接下来先看端口，再重启服务。' }
   if (userText.includes('慢慢查') && tools.has('todo_write')) return slowQuery(turn)
+  if (userText.includes('查一半') && tools.has('todo_write')) return halfQuery(turn)
   if (userText.includes('绕圈')) return looping(turn)
   if (userText.includes('连着出错')) return failing(turn)
   return undefined

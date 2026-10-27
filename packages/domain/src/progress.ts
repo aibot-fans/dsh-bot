@@ -36,7 +36,7 @@ export interface TurnProgress {
   /** 这一轮一共调用了几次工具（改计划不算）；steps 只留最近的 PROGRESS_STEPS 步。 */
   readonly calls: number
   readonly steps: readonly ProgressStep[]
-  /** 计划；没写是空的。上一轮没做完的计划带到这一轮。 */
+  /** 这一轮用 todo_write 写的计划；这一轮没写是空的。 */
   readonly plan: readonly PlanItem[]
   /** 计划最近一次更新时调用到了第几次工具：看计划多久没动了。 */
   readonly planCalls: number
@@ -92,10 +92,12 @@ const SUMMARY_MIN_MS = 60_000
 
 const PLAN_STATUSES: ReadonlySet<string> = new Set(['pending', 'in_progress', 'completed'])
 
-/** 新的一轮：计划还没做完就带过来，做完了的不带。 */
-export function startProgress(at: number, previous: TurnProgress | null | undefined): TurnProgress {
-  const plan = previous !== null && previous !== undefined && previous.plan.some((item) => item.status !== 'completed') ? previous.plan : []
-  return { startedAt: at, calls: 0, steps: [], plan, planCalls: 0, thinking: null, thinkingSince: null, thoughtMs: 0 }
+/**
+ * 新的一轮从空白开始，上一轮没做完的计划不带过来：一轮通常是在回一句新的话，
+ * 带着旧计划会在新问题下面转着上一件事的圈，看着像又去做那件事了。真要接着做，bot 会再写一遍计划。
+ */
+export function startProgress(at: number): TurnProgress {
+  return { startedAt: at, calls: 0, steps: [], plan: [], planCalls: 0, thinking: null, thinkingSince: null, thoughtMs: 0 }
 }
 
 /** 想完了：这一段想的时间记进总数。 */

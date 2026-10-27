@@ -105,6 +105,8 @@ export class SessionObserver {
   private readonly thoughts = new Map<string, string>()
   private readonly thoughtTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private readonly queue: (() => void)[] = []
+  /** 这一轮已经跑完的会话：再动起来时先换一份空白的进度。 */
+  private readonly finished = new Set<string>()
   private scheduled = false
   private readonly ctx: HostContext
   private readonly registry: SessionRegistry
@@ -136,7 +138,12 @@ export class SessionObserver {
     const offStatus = this.ctx.on('agent/status', ({ agent, status }) => {
       const session = this.registry.get(agent.session.id)
       if (session === undefined) return
-      this.later(() => this.update(session, { running: status === 'running' }))
+      this.later(() => {
+        const running = status === 'running'
+        // 上一轮跑完后又动起来了（通常比 turn/start 先到）：先换一份空白的进度，上一轮的计划不在新一轮开头闪一下。
+        const fresh = running && this.finished.delete(session.id)
+        this.update(session, fresh ? { running, progress: startProgress(this.now()) } : { running })
+      })
     })
     return () => {
       offEvent()
@@ -192,7 +199,7 @@ export class SessionObserver {
 
   /** 这一轮的进度；Pod 是半路接上的（没看到这一轮开始）就从现在算起。 */
   private progressOf(session: PodSession, at: number): TurnProgress {
-    return this.current(session).progress ?? startProgress(at, null)
+    return this.current(session).progress ?? startProgress(at)
   }
 
   private update(session: PodSession, patch: Partial<TaskActivity>): void {
@@ -208,8 +215,9 @@ export class SessionObserver {
     const at = event.time > 0 ? event.time : this.now()
     switch (event.type) {
       case 'turn/start':
+        this.finished.delete(session.id)
         this.thoughts.delete(session.id)
-        this.update(session, { running: true, turn: num(data.turn), progress: startProgress(at, this.current(session).progress) })
+        this.update(session, { running: true, turn: num(data.turn), progress: startProgress(at) })
         return
       case 'step/start':
         this.registry.addStep(session.id)
@@ -254,6 +262,7 @@ export class SessionObserver {
         const reason = typeof record(data.reason).kind === 'string' ? String(record(data.reason).kind) : 'completed'
         const progress = this.current(session).progress
         this.thoughts.delete(session.id)
+        this.finished.add(session.id)
         this.update(session, { running: false, current: null, ...(progress === null ? {} : { progress: stopThinking(progress, at) }) })
         this.hooks.onStream(session, '', true)
         if (progress !== null) this.hooks.onRunEnd?.(session, summarizeRun(progress, at))
