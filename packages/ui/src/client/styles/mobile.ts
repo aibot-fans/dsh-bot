@@ -58,7 +58,7 @@ export const MOBILE_CSS = `
   .pod-msg-card, .pod-line, .pod-folded { padding-left: 0; }
   .pod-msg-card > * { max-width: 100%; }
   .pod-bubble { max-width: 88%; }
-  .pod-jump-latest { right: 14px; bottom: 12px; width: 44px; height: 44px; }
+  .pod-jump-latest { bottom: 12px; width: 44px; height: 44px; }
   .pod-composer { padding: 0 8px calc(8px + env(safe-area-inset-bottom, 0px)); }
   .pod-keyboard-open .pod-composer { padding-bottom: 6px; }
   .pod-composer-row .pod-icon-button, .pod-send { width: 40px; height: 40px; }
