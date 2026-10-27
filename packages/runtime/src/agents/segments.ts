@@ -10,6 +10,10 @@ const IDLE_ROTATE_MS = 6 * 3_600_000
 /** 新一段第一条消息里带多少条最近的原文。 */
 const RECENT_MESSAGES = 12
 
+/** 交接笔记的篇幅（字）和输出上限（token）：上限留足余量，写到一半被截断整份就作废了。 */
+const NOTE_MAX_CHARS = 1200
+const NOTE_MAX_TOKENS = 4000
+
 const ROOM_FIELDS: readonly (readonly [string, string])[] = [
   ['requirements', '你的要求和约定（保留原话）'],
   ['decisions', '已经做出的决定'],
@@ -36,6 +40,8 @@ function noteSystem(fields: readonly (readonly [string, string])[]): string {
     '你负责写交接笔记：上一段工作上下文太长要换段，新的一段只能看到这份笔记和最近几条原文。',
     `只输出一个 JSON 对象，字段固定：${fields.map(([key, label]) => `${key}（${label}）`).join('、')}。每个字段是字符串数组，没有就给空数组。`,
     '用户的要求和约定要保留原话；待办和承诺一条都不能丢。',
+    // 不限篇幅时模型会把长消息整段抄进来，写到上限被截断，JSON 不完整，整份笔记作废。
+    `写短：每条一句话，原话太长只留关键的那句，表格和长数字列表只写结论；整份笔记不超过 ${NOTE_MAX_CHARS} 字。`,
   ].join('\n')
 }
 
@@ -127,7 +133,7 @@ export class SegmentManager {
           ]
             .filter(Boolean)
             .join('\n\n'),
-          maxTokens: 2000,
+          maxTokens: NOTE_MAX_TOKENS,
         },
         parseNote(ROOM_FIELDS),
       )
@@ -144,9 +150,9 @@ export class SegmentManager {
 
   /** 聊天会话换段：返回新会话和要放在新一段第一条消息前面的交接内容。 */
   async rotateChat(room: Room, bot: Bot, old: PodSession, reason: string): Promise<Rotation> {
-    if (!room.incognito) await this.deps.beforeRotate(room).catch(() => undefined)
     const previous = listHandovers(this.deps.db, { roomId: room.id })[0]
-    const note = await this.roomNote(room, previous)
+    // 最后一次提取记忆和写交接笔记互不依赖，一起跑：你的话要等新的一段开出来才交得过去。
+    const [, note] = await Promise.all([room.incognito ? undefined : this.deps.beforeRotate(room).catch(() => undefined), this.roomNote(room, previous)])
     const handover = insertHandover(this.deps.db, {
       id: newId('msg'),
       fromSession: old.id,
