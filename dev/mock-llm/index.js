@@ -472,9 +472,13 @@ function sleep(ms, signal) {
   })
 }
 
+/** 群聊分派和交接笔记照真模型的样子慢一点（毫秒，默认不慢）：开发时看得到“正在找合适的成员来接”“正在整理之前的对话”。 */
+const LITE_DELAY_MS = Number(process.env.POD_MOCK_LITE_DELAY ?? 0)
+
 async function* stream(options) {
   const decision = decide(options)
   const system = systemOf(options, Array.isArray(options.messages) ? options.messages : [])
+  if (LITE_DELAY_MS > 0 && (system.includes('你是群聊里的分派器') || system.includes('你负责写交接笔记'))) await sleep(LITE_DELAY_MS, options.signal)
   if (system.includes('你正在执行一个任务') && JSON.stringify(options.messages ?? []).includes('慢慢')) await sleep(5000, options.signal)
   // 演示剧本每一步先停一会儿，任务卡上看得到进度往前走。
   if (decision.pause > 0) await sleep(decision.pause, options.signal)

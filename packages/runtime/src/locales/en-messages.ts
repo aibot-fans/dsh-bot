@@ -10,6 +10,10 @@ export const RUNTIME_EN_MESSAGES: Readonly<Record<string, string>> = {
   '打开 {short}': 'Open {short}',
   '加载技能 {short}': 'Load skill {short}',
   '更新待办': 'Update to-dos',
+  // 你的话还没交到 bot 手上时页面上的“正在……”
+  '接收消息': 'Receiving your message',
+  '整理之前的对话': 'Catching up on the earlier chat',
+  '找合适的成员来接': 'Finding the right member',
   '勾选验收项': 'Check off acceptance items',
   '写进度说明': 'Write a progress note',
   '提交结果': 'Submit results',

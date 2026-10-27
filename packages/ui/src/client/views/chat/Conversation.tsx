@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { t, type Bot, type RoomMessage } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { Empty } from '../../components/common.tsx'
-import { useApp, useLive, useNav } from '../../state/app.ts'
+import { isPreparing, useApp, useLive, useNav } from '../../state/app.ts'
 import { readDraft, saveDraftReply } from '../../state/drafts.ts'
 import { useResource } from '../../state/resource.ts'
 import { ChatHeader } from './ChatHeader.tsx'
@@ -71,7 +71,7 @@ export function Conversation() {
         onSubmit={() => setSentAt(Date.now())}
         onSent={() => app.cache.invalidate('rooms')}
         bots={bots}
-        replying={live.statuses.length > 0}
+        replying={live.statuses.some((status) => !isPreparing(status.sessionId))}
       />
     </main>
   )

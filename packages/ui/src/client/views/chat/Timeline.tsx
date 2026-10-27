@@ -7,7 +7,7 @@ import { Icon } from '../../components/Icon.tsx'
 import { Markdown } from '../../components/Markdown.tsx'
 import { buildMentions, type Mentions } from '../../components/mentions.tsx'
 import { ProgressBlock } from '../../components/Progress.tsx'
-import { useApp, useLive, useNav, usePodEvent, type LiveStatus, type LiveStream } from '../../state/app.ts'
+import { isPreparing, useApp, useLive, useNav, usePodEvent, type LiveStatus, type LiveStream } from '../../state/app.ts'
 import { arrange } from './arrange.ts'
 import { MessageItem } from './MessageItem.tsx'
 
@@ -134,6 +134,16 @@ function LiveReply(props: {
         {props.stream === undefined ? null : <Markdown text={props.stream.text} mentions={props.mentions} />}
         <ProgressBlock progress={props.status?.progress ?? null} label={label} streaming={props.stream !== undefined} onReport={props.onReport} onStop={props.onStop} />
       </div>
+    </div>
+  )
+}
+
+/** 普通群聊没点名、还在挑谁来接：没有头像和名字，只有一行“正在找合适的成员来接”。 */
+function RoutingReply(props: { readonly label: string }) {
+  return (
+    <div className="pod-msg pod-msg-live pod-msg-routing" aria-live="polite">
+      <span className="pod-spinner" aria-hidden />
+      <span>{t('正在{label}', { label: props.label })}</span>
     </div>
   )
 }
@@ -312,11 +322,13 @@ export function Timeline(props: TimelineProps) {
   const showSummary = !summaryDismissed && unread.length > UNREAD_SUMMARY_THRESHOLD
   const firstUnread = unread[0]
   // 每个正在回答的会话一段：有打字流的按打字流，只有状态的显示“正在……”。
-  const replies = [...new Set([...live.statuses.map((status) => status.sessionId), ...live.streams.map((stream) => stream.sessionId)])].map((sessionId) => {
+  // 你的话还没交到 bot 手上时也先有一段“正在接收消息”；同一个 bot 真的那段出来了就只留真的。
+  const sessions = [...new Set([...live.statuses.map((status) => status.sessionId), ...live.streams.map((stream) => stream.sessionId)])].map((sessionId) => {
     const stream = live.streams.find((item) => item.sessionId === sessionId)
     const status = live.statuses.find((item) => item.sessionId === sessionId)
     return { sessionId, stream, status, botId: stream?.botId ?? status?.botId ?? '' }
   })
+  const replies = sessions.filter((reply) => !isPreparing(reply.sessionId) || !sessions.some((other) => !isPreparing(other.sessionId) && other.botId === reply.botId))
   const blocks = arrange(messages)
   const ordered = blocks.flatMap((block) => [...block.texts, ...block.cards])
   // 最后一段回复的 bot 还在说：正在输入的文字排在这段的卡片上面，说完不跳位置。
@@ -332,18 +344,21 @@ export function Timeline(props: TimelineProps) {
   const stopReply = (): void => {
     api.stopReply(room.id).catch((reason: unknown) => setError(errorText(reason)))
   }
-  const liveReply = (reply: (typeof replies)[number]) => (
-    <LiveReply
-      key={reply.sessionId}
-      bot={props.bots.get(reply.botId)}
-      stream={reply.stream}
-      status={reply.status}
-      onOpenBot={() => app.showMember(reply.botId)}
-      mentions={mentions}
-      onReport={() => report(reply.botId)}
-      onStop={stopReply}
-    />
-  )
+  const liveReply = (reply: (typeof replies)[number]) =>
+    reply.botId === '' ? (
+      <RoutingReply key={reply.sessionId} label={reply.status?.label ?? ''} />
+    ) : (
+      <LiveReply
+        key={reply.sessionId}
+        bot={props.bots.get(reply.botId)}
+        stream={reply.stream}
+        status={reply.status}
+        onOpenBot={() => app.showMember(reply.botId)}
+        mentions={mentions}
+        onReport={() => report(reply.botId)}
+        onStop={stopReply}
+      />
+    )
 
   const arrived = awayFrom === null ? 0 : messages.filter((message) => message.seq > awayFrom && message.author !== 'owner').length + (behind ? room.lastSeq - (last?.seq ?? 0) : 0)
   return (

@@ -22,7 +22,7 @@ import { SessionRegistry } from './agents/registry.ts'
 import { Watchdog } from './agents/watchdog.ts'
 import { BotService } from './bots/service.ts'
 import { ChatExtras } from './chat/extras.ts'
-import { RoomService } from './chat/rooms.ts'
+import { RoomService, type PreparingState } from './chat/rooms.ts'
 import { liteRoute } from './chat/router.ts'
 import { TextConverter } from './convert/index.ts'
 import { Auditor } from './core/audit.ts'
@@ -55,6 +55,14 @@ import { UpdateService, pluginManagerOf } from './update/service.ts'
 
 /** 同一条会话的实时动态最快多久推一次。 */
 const ACTIVITY_THROTTLE_MS = 1000
+
+/** “正在接收消息”这类最多挂多久：交过去以后 bot 一直没开始（比如派发器出了岔子），到时也收掉。 */
+const PREPARING_MAX_MS = 2 * 60_000
+
+/** “正在……”按实时动态发给页面：还在挑人时 botId 是空串。 */
+function preparingEvent(key: string, state: PreparingState, running: boolean): PodEvent {
+  return { type: 'activity', sessionId: key, taskId: null, roomId: state.roomId, botId: state.botId, running, label: state.label, progress: null }
+}
 
 export interface PodRuntimeOptions {
   readonly ctx: HostContext
@@ -128,6 +136,8 @@ export class PodRuntime {
   private exposureState: Exposure = detectExposure()
   private readonly extras: ExtraTool[] = []
   private readonly activityTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  /** 你的话还没交到 bot 手上时页面上的“正在……”（挑人、开会话、换段），键见 RoomService；定时器到点自己收掉。 */
+  private readonly preparing = new Map<string, { readonly state: PreparingState; readonly timer: ReturnType<typeof setTimeout> }>()
   /** 每条会话这一轮最后说的那段话：跑完以后执行摘要记在它上面。 */
   private readonly lastReplies = new Map<string, { readonly id: string; readonly at: number }>()
   private readonly options: PodRuntimeOptions
@@ -222,7 +232,11 @@ export class PodRuntime {
         const hints = await this.memory.hintsFor(session, text).catch(() => undefined)
         return hints === undefined ? text : `${text}\n\n${hints}`
       },
-      rotate: async (room, bot, session) => (this.segments.needsRotation(session) ? this.segments.rotateChat(room, bot, session, t('上下文接近软上限或空闲太久')) : undefined),
+      rotate: async (room, bot, session, starting) => {
+        if (!this.segments.needsRotation(session)) return undefined
+        starting()
+        return this.segments.rotateChat(room, bot, session, t('上下文接近软上限或空闲太久'))
+      },
       indexed: (message) => this.search.indexMessage(message),
       leaderFor: (room) => this.leaderForRoom(room),
       onOwnerText: (message) => this.evolutionKit.feedback.observeOwner(message),
@@ -236,6 +250,7 @@ export class PodRuntime {
           .catch(() => undefined)
       },
       route: liteRoute(this.lite, warn),
+      preparing: (key, state) => this.setPreparing(key, state),
     })
     this.pages = new PageService({
       db,
@@ -371,6 +386,8 @@ export class PodRuntime {
         onActivity: (session, activity) => {
           this.dispatcher.setRunning(session.id, activity.running)
           this.watchdog.onStep(session, activity.steps)
+          // 这一轮开始了：先收掉它在这个房间的“正在接收消息”，再发这一轮的进度，页面上不会空一下。
+          if (activity.running && session.kind === 'chat' && session.roomId !== null) this.clearPreparing(session.roomId, session.botId)
           this.emitActivity(session)
         },
         isPodDelivery: (messageId) => deliveryByMessageId(db, messageId) !== undefined,
@@ -584,10 +601,34 @@ export class PodRuntime {
     return startRuntime(this)
   }
 
-  /** 停止时清掉实时动态的节流定时器。 */
+  /** 停止时清掉实时动态的节流定时器和“正在接收消息”的定时器。 */
   clearActivityTimers(): void {
     for (const timer of this.activityTimers.values()) clearTimeout(timer)
     this.activityTimers.clear()
+    for (const entry of this.preparing.values()) clearTimeout(entry.timer)
+    this.preparing.clear()
+  }
+
+  /** 设置或收掉一行“正在……”：页面上按一条会话的实时动态来画，会话 id 用这个键。 */
+  private setPreparing(key: string, state: PreparingState | null): void {
+    const previous = this.preparing.get(key)
+    if (previous !== undefined) clearTimeout(previous.timer)
+    if (state === null) {
+      if (previous === undefined) return
+      this.preparing.delete(key)
+      this.bus.emit(preparingEvent(key, previous.state, false))
+      return
+    }
+    const timer = setTimeout(() => this.setPreparing(key, null), PREPARING_MAX_MS)
+    timer.unref()
+    this.preparing.set(key, { state, timer })
+    this.bus.emit(preparingEvent(key, state, true))
+  }
+
+  /** bot 在这个房间开始回答了：收掉它的“正在接收消息”。 */
+  private clearPreparing(roomId: string, botId: string): void {
+    const keys = [...this.preparing].filter(([, entry]) => entry.state.roomId === roomId && entry.state.botId === botId).map(([key]) => key)
+    for (const key of keys) this.setPreparing(key, null)
   }
 
   get db(): DatabaseSync {

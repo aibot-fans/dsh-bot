@@ -84,6 +84,21 @@ function dateLabel(time: number): string {
   return `${date.getMonth() + 1}月${date.getDate()}日`
 }
 
+/** 你的话还没交到 bot 手上时，页面上那一行“正在……”在哪个房间、是谁（还在挑人时为空串）、在做什么。 */
+export interface PreparingState {
+  readonly roomId: string
+  readonly botId: string
+  readonly label: string
+}
+
+interface DeliverOptions {
+  readonly mentioned?: boolean
+  /** 用户没点名，按分工挑了它来接。 */
+  readonly routed?: boolean
+  readonly messageId?: string | undefined
+  readonly from?: { readonly bot: Bot; readonly sessionId: string }
+}
+
 export interface RoomServiceDeps {
   readonly db: DatabaseSync
   readonly bus: PodBus
@@ -100,8 +115,8 @@ export interface RoomServiceDeps {
   readonly snapshotFor: (room: Room) => string | undefined
   /** 投递给 bot 前补充的上下文（相关记忆等）。 */
   readonly enrich: (session: PodSession, text: string) => Promise<string>
-  /** 上下文太长或空闲太久时换段；不需要换段返回 undefined。 */
-  readonly rotate: (room: Room, bot: Bot, session: PodSession) => Promise<{ readonly session: PodSession; readonly preface: string } | undefined>
+  /** 上下文太长或空闲太久时换段；不需要换段返回 undefined。真要换段时先调 starting。 */
+  readonly rotate: (room: Room, bot: Bot, session: PodSession, starting: () => void) => Promise<{ readonly session: PodSession; readonly preface: string } | undefined>
   /** 消息写入或更新后进搜索索引。 */
   readonly indexed: (message: RoomMessage) => void
   /** 正式团队的任务记录交给组长回答。 */
@@ -114,6 +129,11 @@ export interface RoomServiceDeps {
   readonly hideSession?: (sessionId: string) => void
   /** 普通群聊里没点名的话按分工挑人（轻量模型）；没有时按默认的人来接。 */
   readonly route?: Route
+  /**
+   * 你的话还没交到 bot 手上时（按分工挑人、开会话、换段）页面先显示一行“正在……”，不用干等；state 为 null 时收掉。
+   * 交过去以后等 bot 这一轮真开始了才收（Pod 看到它在跑时收），中间不会空一下。
+   */
+  readonly preparing?: (key: string, state: PreparingState | null) => void
 }
 
 /**
@@ -509,10 +529,12 @@ export class RoomService {
     // 快捷指令（/任务、/总结……）：房间里留你的原话，交给 bot 的是展开后的说明。
     const text = expandQuickCommand(masked.text) ?? masked.text
     if (mentioned.length === 0 && this.routes(room)) {
+      this.routing(room.id, message.id)
       void this.inOrder(room.id, () => this.deliverRouted(room, text, masked.text, quoted, message.id).then(() => undefined))
       return ok(message)
     }
-    await this.inOrder(room.id, async () => {
+    // 不等交到 bot 手上就返回：开会话、换段可能要十几秒，输入框不该一直卡着；交不出去时房间里会留一行说明。
+    void this.inOrder(room.id, async () => {
       for (const bot of mentioned.length > 0 ? mentioned : [responder]) {
         try {
           await this.deliver(room, bot, text, quoted, { mentioned: mentioned.length > 0, messageId: message.id })
@@ -527,6 +549,11 @@ export class RoomService {
   /** 普通群聊（不挂任务、不是正式团队）里没点名的话按分工挑人；任务群和团队群由组长接。 */
   private routes(room: Room): boolean {
     return room.kind !== 'direct' && room.taskId === null && room.teamId === null
+  }
+
+  /** 按分工挑人要等轻量模型回话（几秒）：先在页面上显示“正在找合适的成员来接”，挑完收掉。 */
+  private routing(roomId: string, messageId: string, on = true): void {
+    this.deps.preparing?.(`route:${messageId}`, on ? { roomId, botId: '', label: t('找合适的成员来接') } : null)
   }
 
   /** 同一个房间里交给 bot 的话按先后投递。 */
@@ -552,6 +579,8 @@ export class RoomService {
       text: routing,
       quoted,
       route: this.deps.route,
+    }).finally(() => {
+      if (messageId !== undefined) this.routing(room.id, messageId, false)
     })
     try {
       await this.deliver(room, bot, text, quoted, { messageId, routed: bot.id !== lead.id })
@@ -648,6 +677,7 @@ export class RoomService {
   /** 上传的文件交给该接的 bot：普通群聊按分工挑人（按你写的话或文件名挑，不等挑完），其他房间交给默认回答的 bot。 */
   async deliverUpload(room: Room, text: string, routing: string, messageId: string): Promise<void> {
     if (this.routes(room)) {
+      this.routing(room.id, messageId)
       void this.inOrder(room.id, () => this.deliverRouted(room, text, routing, undefined, messageId).then(() => undefined))
       return
     }
@@ -669,16 +699,32 @@ export class RoomService {
     bot: Bot,
     text: string,
     quoted: RoomMessage | undefined,
-    options: {
-      readonly mentioned?: boolean
-      /** 用户没点名，按分工挑了它来接。 */
-      readonly routed?: boolean
-      readonly messageId?: string | undefined
-      readonly from?: { readonly bot: Bot; readonly sessionId: string }
-    } = {},
+    options: DeliverOptions = {},
+  ): Promise<string> {
+    const key = `pending:${room.id}:${bot.id}`
+    const show = (label: string): void => this.deps.preparing?.(key, { roomId: room.id, botId: bot.id, label })
+    const known = this.deps.registry.activeForRoom(room.id, bot.id)
+    // 它正在回答时这句话插进当前这一轮，页面上本来就有它的“正在……”。
+    if (known === undefined || !this.deps.dispatcher.isRunning(known.id)) show(t('接收消息'))
+    try {
+      return await this.handOver(room, bot, text, quoted, options, () => show(t('整理之前的对话')))
+    } catch (error) {
+      this.deps.preparing?.(key, null)
+      throw error
+    }
+  }
+
+  /** deliver 的正文：找到（或开、或换段）会话，写好给它的话，交给派发器。rotating 在真要换段时调用。 */
+  private async handOver(
+    room: Room,
+    bot: Bot,
+    text: string,
+    quoted: RoomMessage | undefined,
+    options: DeliverOptions,
+    rotating: () => void,
   ): Promise<string> {
     const current = await this.chatSession(room, bot)
-    const rotated = this.deps.dispatcher.isRunning(current.id) ? undefined : await this.deps.rotate(room, bot, current)
+    const rotated = this.deps.dispatcher.isRunning(current.id) ? undefined : await this.deps.rotate(room, bot, current, rotating)
     const session = rotated?.session ?? current
     const quote = quoted === undefined ? '' : `> 引用${authorName(quoted, this.deps.bots)}：${truncate(oneLine(quoted.body), 200)}\n\n`
     const framed =

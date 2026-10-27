@@ -71,6 +71,14 @@ export interface LiveStatus {
   readonly progress: TurnProgress | null
 }
 
+/**
+ * 你的话还没交到 bot 手上时的“正在……”（挑人、开会话、换段）：服务端用这两个前缀当会话 id，bot 这一轮开始后由真的那段替下。
+ * 这时还没有能停的回答，输入框照常是发送。
+ */
+export function isPreparing(sessionId: string): boolean {
+  return sessionId.startsWith('pending:') || sessionId.startsWith('route:')
+}
+
 export interface HostActions {
   /** 在 dsh 自己的会话视图里打开某条会话（“查看过程”）。 */
   readonly openSession: (sessionId: string) => void
