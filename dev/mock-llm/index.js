@@ -346,6 +346,20 @@ function decide(options) {
     if (last?.role !== 'tool') return { tool: 'twitter_get_quota', args: {} }
   }
 
+  // dsh 的插件管理：说“列出插件”时调 plugin_manager 列组合包，再把名字说一遍；“卸掉插件 X”时卸掉 X。用来确认执行档的会话装上了它。
+  // 新的一段对话会把之前的消息一起带进来，所以先认“卸掉”，再认“列出”。
+  const removeTarget = /卸掉插件 ([\w@./-]+)/.exec(userText)?.[1]
+  if (removeTarget !== undefined || userText.includes('列出插件')) {
+    if (!tools.has('plugin_manager')) return { text: '这个会话没有 plugin_manager。' }
+    if (last?.role === 'tool' && calls.at(-1) === 'plugin_manager') {
+      const result = lastToolText(messages)
+      if (removeTarget !== undefined) return { text: `卸载结果：${result.slice(0, 160)}` }
+      const names = [...new Set([...result.matchAll(/"name":\s*"([^"]+)"/g)].map((match) => match[1]))]
+      return { text: names.length === 0 ? `没列出来：${result.slice(0, 120)}` : `插件管理能用，装着：${names.join('、')}` }
+    }
+    if (last?.role !== 'tool') return { tool: 'plugin_manager', args: removeTarget === undefined ? { action: 'list_bundles' } : { action: 'remove_bundle', target: removeTarget } }
+  }
+
   if (tools.has('mention_member')) {
     const decision = groupDecision(system, messages, last, calls)
     if (decision !== undefined) return decision

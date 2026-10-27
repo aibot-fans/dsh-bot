@@ -7,6 +7,7 @@
 #   每个预设的第一行 pod-agent 按会话注入 bot 的人设；Pod 自己的工具（组织、任务、记忆、浏览器）
 #   由 pod-runtime 在 agent 创建时按会话装进 agent 作用域，不写在这里。
 #   预设里不放 ask_user、子代理和 goal：bot 找你一律走 Pod 的等你卡，协作只走 Pod。
+#   执行档带 dsh 的 plugin_manager：bot 不能直接改 dsh 目录里的文件（pod-runtime 拦着），装卸插件用它。
 #
 # 安装：dsh plugin --profile web add link:<仓库>/packages/bundle
 - insert:
@@ -23,7 +24,7 @@
       config:
         id: pod
         name: dsh-bot · 执行
-        description: dsh-bot 的 bot 会话：文件、沙箱 shell、web 搜索
+        description: dsh-bot 的 bot 会话：文件、沙箱 shell、web 搜索、插件管理
         order: 40
         plugins:
           - id: pod-agent
@@ -74,6 +75,10 @@
               searchTimeoutMs: 60000
           - id: present
             name: '@deepseek-ai/dsh-tool-present'
+          # 装、卸、开关插件走 dsh 自己的插件管理（和 dsh web 的插件页同一套）。没有完全访问权限时每次都要用户批准。
+          - id: tool-plugin-manager
+            name: '@deepseek-ai/dsh-plugin-manager/tools'
+            disabled: !!js "!ctx.get('profileContext')"
 
     - id: preset-pod-research
       name: '@deepseek-ai/dsh-agent-preset'

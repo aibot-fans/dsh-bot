@@ -28,8 +28,9 @@ const DATABASE = /(?:^|[^\w.-])(?:pod|search)\.db(?:-wal|-shm|-journal)?(?![\w.-
 const ALLOWED_INSIDE = /^\/skills(?:\/|$|[^\w.-])/
 
 const DENIED =
-  'dsh-bot 和 dsh 的数据（pod.db、search.db 和 dsh 目录里的文件）不能直接读写：直接改库会绕过校验，界面也不会刷新，还可能把数据弄坏。' +
-  '改例程用 update_routine（改时间、改内容、换人、改发到哪、暂停和恢复），看例程用 list_routines；别的 dsh-bot 设置请用户在界面里改，或者问用户。工具返回的结果就是改好后的状态，不用另外验证。'
+  '只有 dsh-bot 和 dsh 的数据（pod.db、search.db 和 dsh 目录里的文件）不能直接读写，别的地方照常：直接改库会绕过校验，界面也不会刷新，还可能把数据弄坏；dsh 目录里还放着密钥。' +
+  '装、卸、开关 dsh 的插件用 plugin_manager（先 list_bundles 拿准确的名字；没有这个工具就交给主管）；' +
+  '改例程用 update_routine（改时间、改内容、换人、改发到哪、暂停和恢复），看例程用 list_routines；别的 dsh 和 dsh-bot 设置请用户在界面里改，或者问用户。工具返回的结果就是改好后的状态，不用另外验证。'
 
 function escape(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
