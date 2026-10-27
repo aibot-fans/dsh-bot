@@ -88,12 +88,14 @@ function UsageChip(props: { readonly scope: UsageScope; readonly bots: ReadonlyM
 }
 
 /**
- * 新对话（只有单聊有）：开一段空白的新对话，之前的那段原样留在对话记录里，随时能回去接着聊。
+ * 新对话。单聊开一段空白的新对话，之前的那段原样留在对话记录里，随时能回去接着聊；
+ * 群聊还是这个群，时间线上加一条分隔线，之前的聊天留在上面。
  * 新的这段 bot 不带之前的上下文；你提到以前的事，它会自己去翻以前的对话。
  */
 function NewChatButton(props: { readonly room: RoomSummary }) {
   const app = useApp()
   const [problem, setProblem] = useState<string | undefined>(undefined)
+  const tip = props.room.kind === 'direct' ? t('新对话：之前的留在对话记录里，随时能回去接着聊') : t('新对话：群里的 bot 从这里重新开始，之前的聊天还在上面')
   const start = (): void => {
     setProblem(undefined)
     api
@@ -107,7 +109,7 @@ function NewChatButton(props: { readonly room: RoomSummary }) {
   return (
     <>
       {problem === undefined ? null : <span className="pod-form-error">{problem}</span>}
-      <button type="button" className="pod-head-button" onClick={start} aria-label={t('新对话')} title={t('新对话：之前的留在对话记录里，随时能回去接着聊')}>
+      <button type="button" className="pod-head-button" onClick={start} aria-label={t('新对话')} title={tip}>
         <Icon name="compose" size={17} />
       </button>
     </>
@@ -228,7 +230,7 @@ function GroupTitle(props: { readonly room: RoomSummary; readonly members: reado
 }
 
 /**
- * 对话顶部：左边是 bot 或群（点开详情）；单聊右边是对话记录和新对话，最右是这个 bot 或群聊今天的用量。页面在 bot 和群聊的详情里。
+ * 对话顶部：左边是 bot 或群（点开详情）；单聊右边是对话记录和新对话，不挂任务的群聊右边是新对话，最右是这个 bot 或群聊今天的用量。页面在 bot 和群聊的详情里。
  * 手机上最左边是回到列表，名字后面带个箭头表示点开是详情，用量不显示。
  */
 export function ChatHeader(props: { readonly room: RoomSummary; readonly bots: ReadonlyMap<string, Bot>; readonly memberIds: readonly string[] }) {
@@ -273,6 +275,7 @@ export function ChatHeader(props: { readonly room: RoomSummary; readonly bots: R
           <NewChatButton room={room} />
         </>
       )}
+      {room.kind !== 'direct' && room.taskId === null ? <NewChatButton room={room} /> : null}
       {narrow ? null : <UsageChip scope={room.kind === 'direct' && !temporary && bot !== undefined ? { kind: 'bot', bot } : { kind: 'room', room }} bots={props.bots} />}
     </header>
   )

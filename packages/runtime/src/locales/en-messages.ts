@@ -196,7 +196,7 @@ export const RUNTIME_EN_MESSAGES: Readonly<Record<string, string>> = {
   '这个房间里没有能回答的 bot': 'No bot in this chat can answer',
   '文件是空的': 'The file is empty',
   '单个文件最大 15 MB': 'Files can be at most 15 MB each',
-  '群聊不分段，直接接着说就行': "Group chats aren't split into parts; just keep talking",
+  '任务群不开新对话，直接接着说就行': "Task groups can't start a new chat; just keep talking",
   '群聊在侧栏的“…”里删除': 'Delete group chats from the “…” menu in the sidebar',
   '{name} · 新话题': '{name} · New topic',
   '群要有名字': 'The group needs a name',

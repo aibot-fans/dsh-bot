@@ -100,6 +100,7 @@ export const UI_EN_CHAT: Readonly<Record<string, string>> = {
   '查看所有 bot 和群聊的用量': 'See usage for all bots and groups',
   '新对话': 'New chat',
   '新对话：之前的留在对话记录里，随时能回去接着聊': 'New chat: the previous one stays in chat history, and you can go back to it anytime',
+  '新对话：群里的 bot 从这里重新开始，之前的聊天还在上面': 'New chat: the bots in this group start fresh from here; earlier messages stay above',
   '这段对话': 'this chat',
   '对话「{subject}」': 'chat “{subject}”',
   '删除{label}？30 天内可以在“设置 → 回收站”里恢复。': 'Delete {label}? You can restore it from Settings → Trash within 30 days.',

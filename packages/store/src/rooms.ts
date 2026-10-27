@@ -351,6 +351,14 @@ export function firstOwnerLine(db: DatabaseSync, roomId: string): string {
   return row?.body ?? ''
 }
 
+/** 群聊里最近一次开新对话留下的分隔线的序号；没开过是 0。 */
+export function lastChatBreak(db: DatabaseSync, roomId: string): number {
+  const row = db
+    .prepare("SELECT MAX(seq) AS seq FROM messages WHERE room_id = ? AND kind = 'notice' AND json_extract(data, '$.segment') = 1 AND deleted_at IS NULL")
+    .get(roomId) as { readonly seq: number | null } | undefined
+  return row?.seq ?? 0
+}
+
 export function lastMessages(db: DatabaseSync): ReadonlyMap<string, RoomMessage> {
   const rows = db
     .prepare(

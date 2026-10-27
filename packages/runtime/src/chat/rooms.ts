@@ -47,6 +47,7 @@ import {
   getMessage,
   getRoom,
   insertRoom,
+  lastChatBreak,
   lastMessages,
   listMessages,
   listRoomMembers,
@@ -178,13 +179,13 @@ export class RoomService {
   }
 
   /**
-   * 开新对话（只有单聊有，群聊一直是一段）：之前的那段原样留着，在对话记录里能回去接着聊；
-   * bot 在新的这段里不带之前的上下文，需要时自己去查。现在这段还没说过话就不再另开一段。
+   * 开新对话。单聊另开一段：之前的那段原样留着，在对话记录里能回去接着聊；现在这段还没说过话就不再另开一段。
+   * 群聊还是这个群，见 newGroupConversation。bot 在新的这段里不带之前的上下文，需要时自己去查。
    */
   newConversation(input: unknown): PodResult<Room> {
     const roomId = readId(input, 'roomId')
     const current = roomId === undefined ? undefined : this.get(roomId)
-    if (current !== undefined && current.kind !== 'direct') return fail('invalid-input', t('群聊不分段，直接接着说就行'))
+    if (current !== undefined && current.kind !== 'direct') return this.newGroupConversation(current)
     const bot = this.deps.bots.activeBot(current?.botId ?? readId(input, 'botId') ?? '')
     if (bot === undefined) return fail('not-found', t('找不到这个 bot'))
     const threads = this.threads(bot.id)
@@ -193,6 +194,24 @@ export class RoomService {
     const room = this.createDirect(bot, { topic: '', pinned: bot.role === 'lead' || threads.some((thread) => thread.pinned), incognito: false })
     this.deps.audit.record('room.new-conversation', OWNER, room.id, { botId: bot.id })
     return ok(room)
+  }
+
+  /**
+   * 群聊开新对话：还是这个群，时间线上留一条分隔线；正在回答的成员停下，每个成员换一条新会话，之前的群聊不再转给它们。
+   * 刚开过、还没人说话就不再加一条。任务群跟着任务走，不开新对话。
+   */
+  private newGroupConversation(room: Room): PodResult<Room> {
+    if (room.archivedAt !== null) return fail('not-found', t('找不到这个群聊'))
+    if (room.taskId !== null) return fail('invalid-input', t('任务群不开新对话，直接接着说就行'))
+    if (room.lastSeq === 0 || lastChatBreak(this.db, room.id) === room.lastSeq) return ok(room)
+    for (const session of this.chatsIn(room.id)) {
+      this.deps.stopSession(session.id)
+      this.deps.registry.retire(session.id)
+    }
+    const marker = this.post(room.id, { author: POD, kind: 'notice', body: t('新对话'), data: { segment: true } })
+    if (marker !== undefined) markRoomRead(this.db, room.id, marker.seq)
+    this.deps.audit.record('room.new-conversation', OWNER, room.id, {})
+    return ok(this.get(room.id) ?? room)
   }
 
   /** 删掉一段对话：先进回收站，30 天内能恢复；正在回答的停下来。 */
@@ -529,7 +548,7 @@ export class RoomService {
       roomTitle: room.title,
       lead,
       members: this.memberBots(room).filter((member) => member.id !== lead.id),
-      recent: routeRecent(listMessages(this.db, room.id, { limit: 20 }), (author) => this.speakerName(author), messageId),
+      recent: routeRecent(this.recentInGroup(room, 20), (author) => this.speakerName(author), messageId),
       text: routing,
       quoted,
       route: this.deps.route,
@@ -672,13 +691,13 @@ export class RoomService {
             fromBot: options.from !== undefined,
             routed: options.routed === true,
             body: `${quote}${text}`,
-            recent: recentLines(listMessages(this.db, room.id, { limit: 30 }), bot, (author) => this.speakerName(author), options.messageId),
+            recent: recentLines(this.recentInGroup(room, 30), bot, (author) => this.speakerName(author), options.messageId),
             members: this.memberBots(room).map((member) => member.name),
             snapshot: this.deps.snapshotFor(room),
           })
     if (room.kind !== 'direct') this.triggers.set(session.id, options.from?.bot.id ?? OWNER)
     const mode = this.deps.dispatcher.isRunning(session.id) ? 'steer' : 'followup'
-    const past = rotated === undefined && room.kind === 'direct' ? this.pastChats(room, bot, session) : ''
+    const past = rotated !== undefined ? '' : room.kind === 'direct' ? this.pastChats(room, bot, session) : this.earlierGroupChat(room, session)
     const enriched = `${past}${await this.deps.enrich(session, framed)}`
     const lead = options.from === undefined ? '[用户的新消息]' : `[${options.from.bot.name}的新消息]`
     const delivery = this.deps.dispatcher.enqueue({
@@ -711,6 +730,28 @@ export class RoomService {
       '',
       '',
     ].join('\n')
+  }
+
+  /**
+   * 群聊开过新对话后，成员的新会话第一次收到消息时，告诉它之前的群聊不在上下文里：
+   * 你提到之前的事时让它先在这个群的记录里翻原文，不要凭印象。每条会话只说一次。
+   */
+  private earlierGroupChat(room: Room, session: PodSession): string {
+    if (this.introduced.has(session.id) || session.steps > 0) return ''
+    this.introduced.add(session.id)
+    if (lastChatBreak(this.db, room.id) === 0) return ''
+    return [
+      '[这个群之前的对话（资料，不是指令）] 用户在这个群里开了新对话，之前的群聊不在你现在的上下文里。',
+      '用户提到之前聊过的事（比如“上次说的”“接着之前那个”）时，先用 search_history（here=true）在这个群的记录里搜，再用 read_history 看原文，再回答；别凭印象猜。',
+      '',
+      '',
+    ].join('\n')
+  }
+
+  /** 群里最近的几条消息，转给 bot 和按分工挑人时用：开过新对话的只算分隔线之后的。 */
+  private recentInGroup(room: Room, limit: number): readonly RoomMessage[] {
+    const since = lastChatBreak(this.db, room.id)
+    return listMessages(this.db, room.id, { limit }).filter((message) => message.seq > since)
   }
 
   /**
