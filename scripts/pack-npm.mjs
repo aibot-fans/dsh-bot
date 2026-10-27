@@ -3,6 +3,7 @@
  * 打 npm 包：把构建好的宿主插件、浏览器插件和组合包拼成一个包 @aibot_fans/dsh-bot，输出 dist/aibot_fans-dsh-bot-<版本>.tgz。
  * 先跑 pnpm build（pnpm pack:npm 会先构建）。打包前核对各包 package.json 的版本号和 POD_VERSION 一样；
  * 发版用 --release（pnpm release:pack），还要求工作区干净、当前提交打了 v<版本> 标签、CHANGELOG.md 有这个版本的一节。
+ * CHANGELOG 里这一节写进 package.json 的 releaseNotes：dsh-bot 查新版本时从 npm 读它，在更新弹窗里显示更新了什么。
  *
  * 开发时是三个包（pod-runtime、pod-ui、pod-bundle），发出去合成一个，不带任何依赖：
  *   @aibot_fans/dsh-bot          浏览器插件那一行：dsh 只按精确的包名找 ./client，宿主半边什么都不做
@@ -13,6 +14,7 @@
 import { execFileSync } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { changelogSection } from './changelog.mjs'
 import { mismatchedPackages, podVersion, repo } from './version.mjs'
 
 const NAME = '@aibot_fans/dsh-bot'
@@ -69,6 +71,7 @@ function manifest(version) {
   const root = readJson('package.json')
   const bundle = readJson('packages/bundle/package.json')
   const ui = readJson('packages/ui/package.json')
+  const notes = existsSync(join(repo, 'CHANGELOG.md')) ? changelogSection(read('CHANGELOG.md'), version) : undefined
   return {
     name: NAME,
     version,
@@ -92,6 +95,7 @@ function manifest(version) {
     publishConfig: { access: 'public' },
     engines: bundle.engines,
     dsh: { ...bundle.dsh, client: ui.dsh.client },
+    ...(notes === undefined || notes === '' ? {} : { releaseNotes: notes }),
   }
 }
 

@@ -12,6 +12,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { changelogSection } from './changelog.mjs'
 import { repo } from './version.mjs'
 
 const TAG = /^v(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/
@@ -30,16 +31,6 @@ function changelog() {
   } catch {
     return localChangelog()
   }
-}
-
-/** CHANGELOG 里「## <版本> - <日期>」那一节的正文，不含标题；没有这一节返回 undefined。 */
-function section(text, version) {
-  const lines = text.split('\n')
-  const start = lines.findIndex((line) => line === `## ${version}` || line.startsWith(`## ${version} `))
-  if (start === -1) return undefined
-  const rest = lines.slice(start + 1)
-  const end = rest.findIndex((line) => line.startsWith('## '))
-  return (end === -1 ? rest : rest.slice(0, end)).join('\n').trim()
 }
 
 /** 已有的 Release：标签 → 正文（换行统一成 \n，去掉首尾空白，方便和 CHANGELOG 比）。 */
@@ -73,7 +64,7 @@ const tags = run('git', ['tag', '--list', 'v*'])
     return match === null ? [] : [{ name, version: name.slice(1), match, prerelease: match[4] !== undefined }]
   })
   .sort(byVersion)
-  .map((tag) => ({ ...tag, notes: section(notesSource, tag.version) }))
+  .map((tag) => ({ ...tag, notes: changelogSection(notesSource, tag.version) }))
 const existing = releases()
 const latest = tags.filter((tag) => !tag.prerelease).at(-1)?.name
 const missing = tags.filter((tag) => !existing.has(tag.name) && tag.notes === undefined).map((tag) => tag.name)
