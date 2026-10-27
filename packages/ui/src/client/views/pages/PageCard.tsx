@@ -13,8 +13,8 @@ export function usePages(): { readonly pages: readonly Page[] | undefined; reado
 }
 
 /**
- * 对话里的页面卡片：种类图标、标题、种类和第几版、这次改了什么，点一下打开（总是最新版）。
- * 页面后来又改过，提示现在到第几版；删了的卡片变灰。
+ * 对话里的页面卡片：种类图标、标题、种类和第几版、这次改了什么，点一下打开卡片上的这一版。
+ * 页面后来又改过，提示现在到第几版，打开的仍是卡片那一版（查看器标着在看旧版，能切到最新版）；删了的卡片变灰。
  */
 export function PageCard(props: { readonly message: RoomMessage }) {
   const app = useApp()
@@ -28,8 +28,16 @@ export function PageCard(props: { readonly message: RoomMessage }) {
   const page = find(pageId)
   const gone = pages !== undefined && page === undefined
   const newer = page !== undefined && page.version > version ? page.version : undefined
+  // 确定是最新版才不带版本号，这样 bot 再存新版时查看器跟着刷新；列表还没拿到时按卡片上的版本打开。
+  const target = page !== undefined && newer === undefined ? undefined : version
   return (
-    <button type="button" className={`pod-page-card${gone ? ' pod-page-card-gone' : ''}`} disabled={gone} onClick={() => app.openPage(pageId)} title={gone ? undefined : t('打开页面')}>
+    <button
+      type="button"
+      className={`pod-page-card${gone ? ' pod-page-card-gone' : ''}`}
+      disabled={gone}
+      onClick={() => app.openPage(pageId, target)}
+      title={gone ? undefined : target === undefined ? t('打开页面') : t('打开第 {version} 版', { version })}
+    >
       <KindIcon kind={kind} size={40} />
       <span className="pod-page-card-main">
         <strong className="pod-ellipsis">{String(data.title ?? t('页面'))}</strong>

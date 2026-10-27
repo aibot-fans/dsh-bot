@@ -9,6 +9,7 @@ export const UI_EN_PANELS: Readonly<Record<string, string>> = {
   '还没有记忆': 'No memories yet',
   '对 bot 说“记住……”，或者在上面直接添加。': 'Tell a bot “remember…”, or add one above.',
   '打开页面': 'Open page',
+  '打开第 {version} 版': 'Open v{version}',
   '页面': 'Page',
   '{kind} · 第 {version} 版{value}': '{kind} · v{version}{value}',
   '之后又改过，现在是第 {newer} 版': 'Changed since; now at v{newer}',
