@@ -9,8 +9,8 @@ packages/
   runtime/  pod-runtime  宿主插件：/api/pod 接口、会话和工具、编排、记忆、搜索、例程、共用浏览器、页面、aibot、自我优化
   ui/       pod-ui       浏览器插件：侧栏入口和主页面（React，由 dsh web 外壳提供）
   bundle/   pod-bundle   组合包：cordis.patch.yml 插入上面两个插件和 dsh-bot 的 agent 预设
-dev/mock-llm/               开发用的脚本化模型（只装进开发用的 DSH_HOME），demo.js 和 demo-browser.js 是 README 截图用的演示剧本
-dev/demo-oa.mjs             浏览器截图用的示例 OA（一个会议室预订页）
+dev/mock-llm/               开发用的脚本化模型（只装进开发用的 DSH_HOME），demo.js 和 demo-browser.js 是 README 截图用的演示剧本，剧本的中英文内容在 demo-zh.js、demo-en.js
+dev/demo-oa.mjs             浏览器截图用的示例 OA（一个会议室预订页，加 --en 是英文版）
 scripts/dev-home.mjs        在隔离的 DSH_HOME 里装上并启动 dsh-bot
 scripts/pack-npm.mjs        打 npm 包 @aibot_fans/dsh-bot：把 runtime、ui、bundle 合成一个包，输出到 dist/
 scripts/set-version.mjs     改版本号：POD_VERSION 和各包 package.json 一起改
@@ -58,7 +58,9 @@ pnpm dev:web
 
 README 的截图用的是演示剧本（`dev/mock-llm/demo.js`）：先建好「数据研究员」「增长分析师」和「设计师」（设计师预设）三个 bot，再跟主管说“帮我做第三季度的增长复盘”。主管会组一个临时小组，两个成员同时整理数据和做留存分析，设计师接着做看板，主管验收后交付；每一步停几秒，任务卡上看得到进度。数字都是编的示例数据。
 
-浏览器那张用 `dev/mock-llm/demo-browser.js`：建一个「行政助理」bot（研究档案，人设以“角色：行政助理”开头），跟它说订会议室。它在示例 OA 上打开预订页、一项一项填好，点“提交预订”时 dsh-bot 转成审批，等你批准。示例 OA 用保留给文档的域名 `oa.example.com`，截图前先在本机起预订页：
+英文截图：先在设置的「通用」里把语言改成 English（或者用英文的浏览器打开，语言保持“跟随 dsh”），剧本就换成英文版。三个 bot 叫 Data Researcher、Growth Analyst 和 Designer（设计师预设的英文版），跟主管说 “Put together our Q3 growth review: core metrics and new-user retention, plus a one-page dashboard for Friday’s meeting.”。
+
+浏览器那张用 `dev/mock-llm/demo-browser.js`：建一个「行政助理」bot（研究档案，人设以“角色：行政助理”开头），跟它说订会议室。它在示例 OA 上打开预订页、一项一项填好，点“提交预订”时 dsh-bot 转成审批，等你批准。英文版的助理叫 Office Assistant，人设以“Role: office assistant”开头，跟它说订 meeting room，示例 OA 用 `--en` 起英文版。示例 OA 用保留给文档的域名 `oa.example.com`，截图前先在本机起预订页：
 
 ```bash
 node dev/demo-oa.mjs

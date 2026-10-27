@@ -1,5 +1,6 @@
 // 开发用：浏览器截图用的「示例公司 OA」，只有一个会议室预订页，开在本机 8125 端口。
 // 演示环境的共用浏览器要把 oa.example.com 指到这里，做法见 docs/DEVELOPMENT.md。
+// 加 --en 起英文版（dsh-bot 设成英文时的演示剧本照英文的标签填表）。
 import { createServer } from 'node:http'
 
 const style = `
@@ -25,34 +26,77 @@ const style = `
   .ok { color: #157f3b; }
 `
 
+const ZH = {
+  lang: 'zh-CN',
+  site: '示例公司办公平台',
+  logo: '示',
+  brand: '示例公司 · 办公平台',
+  nav: ['工作台', '会议室', '审批', '通讯录'],
+  title: '预订会议室',
+  free: '10 月 30 日（周五）下午空闲：3F 大会议室、5F 小会议室',
+  labels: { room: '会议室', date: '日期', start: '开始时间', end: '结束时间', people: '参会人数', topic: '会议主题', note: '备注', time: '时间' },
+  choose: '请选择',
+  rooms: ['3F 大会议室（12 人）', '5F 小会议室（6 人）', '7F 洽谈室（4 人）'],
+  datePlaceholder: '例如 2026-10-30',
+  timePlaceholders: ['例如 14:00', '例如 15:30'],
+  submit: '提交预订',
+  hint: '提交后会议室门口的屏幕会显示这场会议',
+  booked: '预订成功',
+  bookedHint: '会议室门口的屏幕会显示这场会议。',
+  notFound: '没有这个页面',
+}
+
+const EN = {
+  lang: 'en',
+  site: 'Example Co. Workplace',
+  logo: 'E',
+  brand: 'Example Co. · Workplace',
+  nav: ['Home', 'Rooms', 'Approvals', 'Directory'],
+  title: 'Book a meeting room',
+  free: 'Free on Friday, Oct 30 (afternoon): 3F Large Room, 5F Small Room',
+  labels: { room: 'Room', date: 'Date', start: 'Start time', end: 'End time', people: 'Attendees', topic: 'Topic', note: 'Notes', time: 'Time' },
+  choose: 'Choose a room',
+  rooms: ['3F Large Room (12 people)', '5F Small Room (6 people)', '7F Meeting Pod (4 people)'],
+  datePlaceholder: 'e.g. 2026-10-30',
+  timePlaceholders: ['e.g. 14:00', 'e.g. 15:30'],
+  submit: 'Submit booking',
+  hint: 'Once booked, the screen by the room door shows this meeting',
+  booked: 'Booked',
+  bookedHint: 'The screen by the room door will show this meeting.',
+  notFound: 'Page not found',
+}
+
+const text = process.argv.includes('--en') ? EN : ZH
+const { labels } = text
+
 function page(title, body) {
-  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>${title} · 示例公司办公平台</title><style>${style}</style></head><body>
-<header><div class="brand"><span class="logo">示</span>示例公司 · 办公平台</div><nav><span>工作台</span><span class="on">会议室</span><span>审批</span><span>通讯录</span></nav></header>
+  return `<!doctype html><html lang="${text.lang}"><head><meta charset="utf-8"><title>${title} · ${text.site}</title><style>${style}</style></head><body>
+<header><div class="brand"><span class="logo">${text.logo}</span>${text.brand}</div><nav>${text.nav.map((item, index) => `<span${index === 1 ? ' class="on"' : ''}>${item}</span>`).join('')}</nav></header>
 <main>${body}</main></body></html>`
 }
 
-const FORM = page('预订会议室', `
-<h1>预订会议室</h1>
-<p class="sub">10 月 30 日（周五）下午空闲：3F 大会议室、5F 小会议室</p>
+const FORM = page(text.title, `
+<h1>${text.title}</h1>
+<p class="sub">${text.free}</p>
 <form method="post" action="/rooms/book">
   <div class="grid">
-    <div><label for="room">会议室</label><select id="room" name="room"><option value="">请选择</option><option>3F 大会议室（12 人）</option><option>5F 小会议室（6 人）</option><option>7F 洽谈室（4 人）</option></select></div>
-    <div><label for="date">日期</label><input id="date" name="date" placeholder="例如 2026-10-30"></div>
-    <div><label for="start">开始时间</label><input id="start" name="start" placeholder="例如 14:00"></div>
-    <div><label for="end">结束时间</label><input id="end" name="end" placeholder="例如 15:30"></div>
-    <div><label for="people">参会人数</label><input id="people" name="people" inputmode="numeric"></div>
-    <div><label for="topic">会议主题</label><input id="topic" name="topic"></div>
-    <div class="full"><label for="note">备注</label><textarea id="note" name="note" rows="2"></textarea></div>
+    <div><label for="room">${labels.room}</label><select id="room" name="room"><option value="">${text.choose}</option>${text.rooms.map((room) => `<option>${room}</option>`).join('')}</select></div>
+    <div><label for="date">${labels.date}</label><input id="date" name="date" placeholder="${text.datePlaceholder}"></div>
+    <div><label for="start">${labels.start}</label><input id="start" name="start" placeholder="${text.timePlaceholders[0]}"></div>
+    <div><label for="end">${labels.end}</label><input id="end" name="end" placeholder="${text.timePlaceholders[1]}"></div>
+    <div><label for="people">${labels.people}</label><input id="people" name="people" inputmode="numeric"></div>
+    <div><label for="topic">${labels.topic}</label><input id="topic" name="topic"></div>
+    <div class="full"><label for="note">${labels.note}</label><textarea id="note" name="note" rows="2"></textarea></div>
   </div>
-  <div class="actions"><button type="submit">提交预订</button><span class="muted">提交后会议室门口的屏幕会显示这场会议</span></div>
+  <div class="actions"><button type="submit">${text.submit}</button><span class="muted">${text.hint}</span></div>
 </form>`)
 
-const escape = (text) => text.replace(/[&<>"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char])
+const escape = (value) => value.replace(/[&<>"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char])
 
 function booked(fields) {
-  const rows = [['会议室', 'room'], ['日期', 'date'], ['时间', 'time'], ['参会人数', 'people'], ['会议主题', 'topic'], ['备注', 'note']]
+  const rows = ['room', 'date', 'time', 'people', 'topic', 'note']
   const values = { ...fields, time: `${fields.start ?? ''}–${fields.end ?? ''}` }
-  return page('预订成功', `<h1 class="ok">预订成功</h1><p class="sub">会议室门口的屏幕会显示这场会议。</p><table>${rows.map(([label, key]) => `<tr><th>${label}</th><td>${escape(values[key] ?? '')}</td></tr>`).join('')}</table>`)
+  return page(text.booked, `<h1 class="ok">${text.booked}</h1><p class="sub">${text.bookedHint}</p><table>${rows.map((key) => `<tr><th>${labels[key]}</th><td>${escape(values[key] ?? '')}</td></tr>`).join('')}</table>`)
 }
 
 createServer((request, response) => {
@@ -72,5 +116,5 @@ createServer((request, response) => {
     return
   }
   response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' })
-  response.end('没有这个页面')
+  response.end(text.notFound)
 }).listen(8125, '127.0.0.1', () => console.log('demo site on 8125'))
