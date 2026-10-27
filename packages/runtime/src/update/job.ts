@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { isRecord, type UpdateJob, type UpdateOutcome, type UpdateStep } from 'pod-domain'
+import { isRecord, t, type UpdateJob, type UpdateOutcome, type UpdateStep } from 'pod-domain'
 import type { PluginChangeResult, PluginManagerLike } from '../dsh.ts'
 
 /**
@@ -43,6 +43,7 @@ export function clearJob(dataRoot: string): void {
   rmSync(join(dataRoot, FILE), { force: true })
 }
 
+// 下面两张表是中文原文，用的时候 t() 翻译。
 const ERRORS: Readonly<Record<string, string>> = {
   'incompatible-version': '新版本要求的 dsh 版本和你装的对不上，先升级 dsh',
   'already-installed': 'dsh 说已经装着 dsh-bot，不能直接装新版',
@@ -67,13 +68,13 @@ const FAILURES: Readonly<Record<string, string>> = {
 /** 改动没成的原因；成了返回 undefined。被更高层的配置覆盖也算装上了。 */
 export function problemOf(result: PluginChangeResult): string | undefined {
   if (result.application !== 'failed' && result.application !== 'cancelled' && result.error === undefined) return undefined
-  if (result.application === 'cancelled') return '安装被取消了'
+  if (result.application === 'cancelled') return t('安装被取消了')
   const kind = result.packageResult?.kind
-  if (kind !== undefined && FAILURES[kind] !== undefined) return FAILURES[kind]
+  if (kind !== undefined && FAILURES[kind] !== undefined) return t(FAILURES[kind])
   const code = result.error?.code
-  if (code !== undefined) return ERRORS[code] ?? result.error?.diagnostic?.slice(0, 200) ?? code
+  if (code !== undefined) return ERRORS[code] === undefined ? (result.error?.diagnostic?.slice(0, 200) ?? code) : t(ERRORS[code])
   const output = result.packageResult?.output.trim().split('\n').at(-1)
-  return output === undefined || output === '' ? '安装没成功，详情见 dsh 日志' : output.slice(0, 200)
+  return output === undefined || output === '' ? t('安装没成功，详情见 dsh 日志') : output.slice(0, 200)
 }
 
 async function attempt(work: () => Promise<PluginChangeResult>): Promise<PluginChangeResult> {
@@ -104,14 +105,14 @@ export async function runUpdate(manager: PluginManagerLike, plan: UpdatePlan, re
   if (removed.error?.code === 'stop-profile') {
     record({ step: 'installing' })
     const problem = problemOf(await attempt(() => manager.installBundle(spec(plan.to), { saveExact: true })))
-    record(problem === undefined ? { outcome: 'restart' } : { outcome: 'failed', message: `${problem}。旧版照常在用。` })
+    record(problem === undefined ? { outcome: 'restart' } : { outcome: 'failed', message: t('{problem}。旧版照常在用。', { problem }) })
     return
   }
   const removeProblem = problemOf(removed)
   if (removeProblem !== undefined) {
     // 卸到一半停下时可能已经取消选中了，选回来，旧版接着用。
     await attempt(() => manager.setBundleEnabled(plan.name, true))
-    record({ outcome: 'failed', message: `卸载旧版时出错：${removeProblem}。` })
+    record({ outcome: 'failed', message: t('卸载旧版时出错：{removeProblem}。', { removeProblem }) })
     return
   }
   record({ step: 'installing' })
@@ -127,7 +128,7 @@ export async function runUpdate(manager: PluginManagerLike, plan: UpdatePlan, re
     outcome: 'failed',
     message:
       restoreProblem === undefined
-        ? `${problem}。已经装回 ${plan.from}。`
-        : `${problem}。装回 ${plan.from} 也没成：${restoreProblem}。在 dsh 的插件页重新装 ${plan.name} 就好，数据都还在。`,
+        ? t('{problem}。已经装回 {from}。', { problem, from: plan.from })
+        : t('{problem}。装回 {from} 也没成：{restoreProblem}。在 dsh 的插件页重新装 {name} 就好，数据都还在。', { problem, from: plan.from, restoreProblem, name: plan.name }),
   })
 }

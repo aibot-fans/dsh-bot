@@ -1,4 +1,4 @@
-import { compareVersions, isRecord, isReleaseVersion, type ReleaseNote } from 'pod-domain'
+import { compareVersions, isRecord, isReleaseVersion, t, type ReleaseNote } from 'pod-domain'
 
 /** 先问 npm 官方源，连不上再问国内镜像。POD_UPDATE_REGISTRY 换成别的（逗号分隔），开发时指到本机的假注册表。 */
 const DEFAULT_REGISTRIES = ['https://registry.npmjs.org/', 'https://registry.npmmirror.com/']
@@ -29,8 +29,8 @@ function host(registry: string): string {
 }
 
 function reason(error: unknown): string {
-  if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) return '超时'
-  return `连不上（${error instanceof Error ? error.message : String(error)}）`
+  if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) return t('超时')
+  return t('连不上（{value}）', { value: error instanceof Error ? error.message : String(error) })
 }
 
 /** 读注册表给的整份包信息（packument）。发包时 releaseNotes 字段带上 CHANGELOG 里那一版的说明。 */
@@ -38,7 +38,7 @@ export function parsePackument(raw: unknown): Published {
   const doc = isRecord(raw) ? raw : {}
   const tags = isRecord(doc['dist-tags']) ? doc['dist-tags'] : {}
   const latest = typeof tags.latest === 'string' ? tags.latest : ''
-  if (!isReleaseVersion(latest)) throw new Error('注册表没给出最新版本')
+  if (!isReleaseVersion(latest)) throw new Error(t('注册表没给出最新版本'))
   const versions = isRecord(doc.versions) ? doc.versions : {}
   const times = isRecord(doc.time) ? doc.time : {}
   const releases = Object.entries(versions)
@@ -62,7 +62,7 @@ export async function fetchPublished(name: string, registries: readonly string[]
     try {
       const response = await fetch(`${registry}${name.replace('/', '%2F')}`, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(TIMEOUT_MS) })
       if (!response.ok) {
-        problems.push(`${host(registry)} 回了 ${response.status}`)
+        problems.push(t('{host} 回了 {status}', { host: host(registry), status: response.status }))
         continue
       }
       return parsePackument(await response.json())
@@ -70,5 +70,5 @@ export async function fetchPublished(name: string, registries: readonly string[]
       problems.push(`${host(registry)} ${reason(error)}`)
     }
   }
-  throw new Error(`没查到新版本：${problems.join('；')}`)
+  throw new Error(t('没查到新版本：{problems}', { problems: problems.join(t('；')) }))
 }

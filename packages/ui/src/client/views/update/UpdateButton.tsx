@@ -1,4 +1,4 @@
-import type { UpdateStatus } from 'pod-domain'
+import { t, type UpdateStatus } from 'pod-domain'
 import { updateApi } from '../../api/update.ts'
 import { Icon } from '../../components/Icon.tsx'
 import { useApp } from '../../state/app.ts'
@@ -9,10 +9,10 @@ type Tone = 'info' | 'warn' | 'danger'
 /** 侧栏上怎么提：有能装的新版、正在更新、要重启、没更新成；都没有就不显示。 */
 function reminderOf(status: UpdateStatus): { readonly label: string; readonly title: string; readonly tone: Tone } | undefined {
   const { job } = status
-  if (job?.outcome === null) return { label: '正在更新', title: `正在更新到 ${job.to}`, tone: 'info' }
-  if (job?.outcome === 'restart') return { label: '重启后生效', title: `${job.to} 装好了，重启 dsh web 后生效`, tone: 'warn' }
-  if (job?.outcome === 'failed') return { label: '更新没成', title: '这次没更新成，点开看原因', tone: 'danger' }
-  if (status.target !== null) return { label: `新版 ${status.target}`, title: `dsh-bot 有新版本 ${status.target}，点开看更新了什么`, tone: 'info' }
+  if (job?.outcome === null) return { label: t('正在更新'), title: t('正在更新到 {to}', { to: job.to }), tone: 'info' }
+  if (job?.outcome === 'restart') return { label: t('重启后生效'), title: t('{to} 装好了，重启 dsh web 后生效', { to: job.to }), tone: 'warn' }
+  if (job?.outcome === 'failed') return { label: t('更新没成'), title: t('这次没更新成，点开看原因'), tone: 'danger' }
+  if (status.target !== null) return { label: t('新版 {target}', { target: status.target }), title: t('dsh-bot 有新版本 {target}，点开看更新了什么', { target: status.target }), tone: 'info' }
   return undefined
 }
 

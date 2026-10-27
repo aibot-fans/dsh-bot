@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { PodSettings } from 'pod-domain'
+import { t, type PodSettings } from 'pod-domain'
 import { errorText } from '../../api/http.ts'
 import { updateApi } from '../../api/update.ts'
 import { Button, RelativeTime, Switch } from '../../components/common.tsx'
@@ -28,27 +28,27 @@ export function UpdateRow(props: { readonly settings: PodSettings; readonly upda
   const summary =
     problem ??
     (status === undefined ? null : status.checking || checking ? (
-      '正在检查…'
+      t('正在检查…')
     ) : status.target !== null ? (
       <button type="button" className="pod-link" onClick={() => app.openUpdate()}>
-        有新版本 {status.target}
+        {t('有新版本 {target}', { target: status.target })}
       </button>
     ) : status.error !== null ? (
       status.error
     ) : status.checkedAt === null ? (
-      '还没检查过'
+      t('还没检查过')
     ) : (
       <>
-        已是最新版 · <RelativeTime time={status.checkedAt} />检查
+        {t('已是最新版 · 上次检查')} <RelativeTime time={status.checkedAt} />
       </>
     ))
   return (
-    <Row label="新版本" hint="每隔几小时问一次 npm 有没有新版本，只发包名">
+    <Row label={t('新版本')} hint={t('每隔几小时问一次 npm 有没有新版本，只发包名')}>
       <span className="pod-muted-inline">{summary}</span>
       <Button small disabled={checking || status?.checking === true} onClick={check}>
-        现在检查
+        {t('现在检查')}
       </Button>
-      <Switch checked={props.settings.checkUpdates} label="自动检查新版本" onChange={(checkUpdates) => props.update({ checkUpdates })} />
+      <Switch checked={props.settings.checkUpdates} label={t('自动检查新版本')} onChange={(checkUpdates) => props.update({ checkUpdates })} />
     </Row>
   )
 }

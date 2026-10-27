@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import type { DatabaseSync } from 'node:sqlite'
-import { PACKAGE_NAME, POD_VERSION, compareVersions, fail, isRecord, ok, type PodResult, type PodSettings, type ReleaseNote, type UpdateInstall, type UpdateJob, type UpdateStatus } from 'pod-domain'
+import { PACKAGE_NAME, POD_VERSION, compareVersions, fail, isRecord, ok, t, type PodResult, type PodSettings, type ReleaseNote, type UpdateInstall, type UpdateJob, type UpdateStatus } from 'pod-domain'
 import { readState, writeState } from 'pod-store'
 import type { PodBus } from '../core/bus.ts'
 import { later } from '../core/timers.ts'
@@ -71,7 +71,7 @@ function settle(job: UpdateJob | null, current: string, now: number): UpdateJob 
   // 下面跑的都还是旧版。说装好了，跑的却还是旧版：要重启才换过来。
   if (job.outcome === 'done') return { ...job, outcome: 'restart' }
   if (job.outcome === null && now - job.startedAt > JOB_TIMEOUT_MS) {
-    return { ...job, step: null, outcome: 'failed', message: job.message === '' ? '更新没有做完，可能 dsh web 中途重启了。' : job.message, finishedAt: now }
+    return { ...job, step: null, outcome: 'failed', message: job.message === '' ? t('更新没有做完，可能 dsh web 中途重启了。') : job.message, finishedAt: now }
   }
   return job
 }
@@ -176,15 +176,15 @@ export class UpdateService {
    */
   async apply(version: string): Promise<PodResult<UpdateStatus>> {
     const status = this.status()
-    if (status.install === 'source') return fail('conflict', '这份 dsh-bot 是从源码装的：在仓库里拉新代码、重新构建，再重启 dsh web。')
+    if (status.install === 'source') return fail('conflict', t('这份 dsh-bot 是从源码装的：在仓库里拉新代码、重新构建，再重启 dsh web。'))
     const manager = this.deps.manager()
-    if (manager === undefined) return fail('conflict', '这个 dsh 没有插件管理服务：在 dsh 的插件页里卸掉 dsh-bot，再装新版。')
-    if (this.updating || status.job?.outcome === null) return fail('conflict', '已经在更新了')
-    if (status.target === null) return fail('conflict', status.waiting === null ? '已经是最新版了' : `${status.waiting.version} 发布还不满 pnpm 要求的时间，暂时装不了`)
-    if (version !== '' && version !== status.target) return fail('conflict', `能更新到的版本变成了 ${status.target}，看一下更新内容再更新`)
+    if (manager === undefined) return fail('conflict', t('这个 dsh 没有插件管理服务：在 dsh 的插件页里卸掉 dsh-bot，再装新版。'))
+    if (this.updating || status.job?.outcome === null) return fail('conflict', t('已经在更新了'))
+    if (status.target === null) return fail('conflict', status.waiting === null ? t('已经是最新版了') : t('{version} 发布还不满 pnpm 要求的时间，暂时装不了', { version: status.waiting.version }))
+    if (version !== '' && version !== status.target) return fail('conflict', t('能更新到的版本变成了 {target}，看一下更新内容再更新', { target: status.target }))
     const bundle = (await manager.listBundles()).find((item) => item.name === PACKAGE_NAME)
-    if (bundle?.installed !== true) return fail('conflict', 'dsh 的插件列表里没有 dsh-bot 这一项：在 dsh 的插件页里更新。')
-    if (!bundle.removable) return fail('conflict', 'dsh 不让卸载 dsh-bot：在 dsh 的插件页里更新。')
+    if (bundle?.installed !== true) return fail('conflict', t('dsh 的插件列表里没有 dsh-bot 这一项：在 dsh 的插件页里更新。'))
+    if (!bundle.removable) return fail('conflict', t('dsh 不让卸载 dsh-bot：在 dsh 的插件页里更新。'))
     this.launch({ from: POD_VERSION, to: status.target, startedAt: this.deps.now(), step: null, outcome: null, message: '', finishedAt: null }, manager)
     return ok(this.status())
   }

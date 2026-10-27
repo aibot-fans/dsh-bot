@@ -1,4 +1,4 @@
-import type { UpdateJob, UpdateStatus } from 'pod-domain'
+import { t, type UpdateJob, type UpdateStatus } from 'pod-domain'
 import { updateApi } from '../../api/update.ts'
 import { markReopen } from './reopen.ts'
 import { RESTART_TEXT, STEP_TEXT } from './text.ts'
@@ -99,32 +99,32 @@ export function showUpdateOverlay(to: string): void {
         .catch(() => undefined)
         .finally(next)
   const show = (view: View): void => render(root, style, view)
-  const title = `更新 dsh-bot 到 ${to}`
-  const hide: Action = { label: '收起', run: close }
+  const title = t('更新 dsh-bot 到 {to}', { to })
+  const hide: Action = { label: t('收起'), run: close }
 
   const finish = (job: UpdateJob): void => {
     if (job.outcome === 'done') {
       show({
-        title: `已更新到 ${to}`,
+        title: t('已更新到 {to}', { to }),
         tone: 'ok',
-        text: '新版已经在跑了，不用重启 dsh web。页面显示得不对的话，刷新一下。',
+        text: t('新版已经在跑了，不用重启 dsh web。页面显示得不对的话，刷新一下。'),
         actions: [
           {
-            label: '刷新页面',
+            label: t('刷新页面'),
             run: dismissThen(() => {
               markReopen()
               window.location.reload()
             }),
           },
-          { label: '好的', primary: true, run: dismissThen(close) },
+          { label: t('好的'), primary: true, run: dismissThen(close) },
         ],
       })
     } else if (job.outcome === 'restart') {
       // 装好时 dsh 已经换上新版的页面、用掉了记号；重启后刷新页面时再回到 dsh-bot。
       markReopen()
-      show({ title: `${to} 装好了，重启 dsh web 后生效`, text: RESTART_TEXT, actions: [{ label: '知道了', primary: true, run: close }] })
+      show({ title: t('{to} 装好了，重启 dsh web 后生效', { to }), text: t(RESTART_TEXT), actions: [{ label: t('知道了'), primary: true, run: close }] })
     } else {
-      show({ title: '这次没更新成', tone: 'bad', text: job.message === '' ? '原因见 dsh 的日志。' : job.message, actions: [{ label: '知道了', primary: true, run: dismissThen(close) }] })
+      show({ title: t('这次没更新成'), tone: 'bad', text: job.message === '' ? t('原因见 dsh 的日志。') : job.message, actions: [{ label: t('知道了'), primary: true, run: dismissThen(close) }] })
     }
   }
 
@@ -133,28 +133,28 @@ export function showUpdateOverlay(to: string): void {
     const job = status?.job ?? null
     if (status === undefined) {
       // 旧版卸下、新版还没起来的这段时间，dsh-bot 的接口都不在。
-      show({ title, text: 'dsh-bot 暂时不在，正在换成新版…', busy: true, actions: [hide] })
+      show({ title, text: t('dsh-bot 暂时不在，正在换成新版…'), busy: true, actions: [hide] })
     } else if (job?.outcome !== null && job?.to === to) {
       finish(job)
       return
     } else if (job === null || job.to !== to) {
-      finish({ from: '', to, startedAt: started, step: null, outcome: status.current === to ? 'done' : 'failed', message: '找不到这次更新的记录了：在设置 → 高级里看一下现在的版本。', finishedAt: null })
+      finish({ from: '', to, startedAt: started, step: null, outcome: status.current === to ? 'done' : 'failed', message: t('找不到这次更新的记录了：在设置 → 高级里看一下现在的版本。'), finishedAt: null })
       return
     } else {
-      show({ title, text: job.step === null ? '准备更新…' : STEP_TEXT[job.step], busy: true, actions: [hide] })
+      show({ title, text: job.step === null ? t('准备更新…') : t(STEP_TEXT[job.step]), busy: true, actions: [hide] })
     }
     if (Date.now() - started > GIVE_UP_MS) {
       show({
-        title: '还没有结果',
+        title: t('还没有结果'),
         tone: 'bad',
-        text: '等了很久还没装好。去 dsh 的插件页看看 dsh-bot 还在不在；不在的话在那里重新装上，数据都还在。',
-        actions: [{ label: '关闭', run: close }],
+        text: t('等了很久还没装好。去 dsh 的插件页看看 dsh-bot 还在不在；不在的话在那里重新装上，数据都还在。'),
+        actions: [{ label: t('关闭'), run: close }],
       })
       return
     }
     timer = setTimeout(() => void tick(), POLL_MS)
   }
 
-  show({ title, text: '准备更新…', busy: true, actions: [hide] })
+  show({ title, text: t('准备更新…'), busy: true, actions: [hide] })
   void tick()
 }

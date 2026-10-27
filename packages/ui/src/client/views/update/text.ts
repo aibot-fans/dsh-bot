@@ -1,4 +1,6 @@
-import { PACKAGE_NAME, RELEASES_URL, type UpdateStep } from 'pod-domain'
+import { RELEASES_URL, type UpdateStep } from 'pod-domain'
+
+// 这里的话都是中文原文，在用的地方用 t() 翻译。
 
 /** 一键更新每一步给你看的话。 */
 export const STEP_TEXT: Readonly<Record<UpdateStep, string>> = {
@@ -13,7 +15,8 @@ export const HMR_TEXT = '更新时 dsh-bot 先卸下旧版再装新版，中间�
 
 export const SOURCE_STEPS = ['git pull', 'pnpm install', 'pnpm build'] as const
 
-export const MANUAL_TEXT = `这个 dsh 没有插件管理服务，不能一键更新：在 dsh 的插件页里卸掉 dsh-bot，再装 ${PACKAGE_NAME}。数据不受影响。`
+/** {PACKAGE_NAME} 换成包名。 */
+export const MANUAL_TEXT = '这个 dsh 没有插件管理服务，不能一键更新：在 dsh 的插件页里卸掉 dsh-bot，再装 {PACKAGE_NAME}。数据不受影响。'
 
 export function releaseUrl(version: string): string {
   return `${RELEASES_URL}/tag/v${version}`
