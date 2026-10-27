@@ -77,7 +77,8 @@ function callsSinceRequest(messages, demo) {
 /** 行政助理的单聊：打开预订页，逐项填，点提交（Pod 转成审批），说明等你批准。 */
 function assistant({ userText, messages, page }, demo) {
   if (userText.startsWith('[用户批准了')) return { text: demo.booked }
-  if (!demo.request(userText)) return undefined
+  // 走了好几步还没列计划时 dsh-bot 会插一条“[dsh-bot 提醒]”，剧本不理它，照常往下填。
+  if (!demo.request(userText) && !userText.startsWith('[dsh-bot 提醒]')) return undefined
   const calls = callsSinceRequest(messages, demo)
   if (!calls.includes('browser_open')) return step('browser_open', { url: OA_URL, fresh: true })
   const filled = calls.filter((name) => name === 'browser_type' || name === 'browser_select').length
