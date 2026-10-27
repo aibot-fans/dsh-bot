@@ -15,6 +15,7 @@ scripts/dev-home.mjs        在隔离的 DSH_HOME 里装上并启动 dsh-bot
 scripts/pack-npm.mjs        打 npm 包 @aibot_fans/dsh-bot：把 runtime、ui、bundle 合成一个包，输出到 dist/
 scripts/set-version.mjs     改版本号：POD_VERSION 和各包 package.json 一起改
 scripts/github-release.mjs  按 CHANGELOG 建和更新 GitHub Release（推送后由 .github/workflows/release.yml 运行）
+scripts/changelog.mjs       取 CHANGELOG 里一个版本的说明：GitHub Release 的正文和 npm 包里的更新说明都用它
 scripts/version.mjs         上面几个脚本共用的仓库路径和版本号读法
 docs/                       使用说明、开发说明；images/ 是 README 的截图
 ```
@@ -70,6 +71,13 @@ node dev/demo-oa.mjs
 exec "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --no-proxy-server --host-resolver-rules="MAP oa.example.com 127.0.0.1:8125" "$@"
 ```
 
+试新版本提醒和一键更新：`pnpm dev:install` 装的是源码（`link:`），弹窗里只给命令，不给按钮。要试一键更新，在临时的 DSH_HOME 里装打好的 tgz（见「发版本」），本机起一个假的 npm 源放几个版本的 tgz：启动 dsh web 时设 `POD_UPDATE_REGISTRY` 把查新版本指到它（多个源用逗号隔开），profile 目录（`$DSH_HOME/profiles/web`）的 `.npmrc` 也写上 `registry=` 这个源，dsh 才会从那里装。版本号比装着的大、发布满一天的才能一键更新（pnpm 的 `minimumReleaseAge`），不满的弹窗里只说什么时候能装。要试关了热更新、装好要重启的那条路，`--patch` 的文件里加一项：
+
+```yaml
+- id: hmr
+  disabled: true
+```
+
 ## 从源码装进平时用的 dsh web
 
 构建以后，把组合包以 `link:` 装进 `web` profile，路径换成仓库的绝对路径：
@@ -85,14 +93,14 @@ dsh plugin --profile web add link:/仓库的绝对路径/packages/bundle
 - 版本号的源头是 `packages/domain/src/version.ts` 的 `POD_VERSION`，宿主和页面各打包一份，npm 包的版本号也取它；各包 package.json 的版本号跟着它，用 `pnpm version:set <版本>` 一起改。页面发现宿主报的版本和自己不一样，就在顶部提示刷新：dsh web 重启以后，之前打开的标签页还是旧页面，旧页面调的接口可能已经换了。
 - 改了表结构就在 `packages/store/src/migrations.ts` 里加一版迁移，启动时自动迁移。
 - 改完 `pnpm build`，重启 dsh web。宿主和页面的代码都是启动时读进内存的，不重启不生效。
-- 打 npm 包用 `pnpm pack:npm`：先构建，再把 runtime、ui、bundle 合成一个包 `@aibot_fans/dsh-bot`，输出 `dist/aibot_fans-dsh-bot-<版本>.tgz`。包里浏览器插件那一行就叫 `@aibot_fans/dsh-bot`（dsh 只按精确的包名找 `./client`），宿主插件和 agent 是 `@aibot_fans/dsh-bot/runtime`、`@aibot_fans/dsh-bot/agent`；各行的 id 和源码装的一样。各包的版本号和 `POD_VERSION` 对不上时会停下。
+- 打 npm 包用 `pnpm pack:npm`：先构建，再把 runtime、ui、bundle 合成一个包 `@aibot_fans/dsh-bot`，输出 `dist/aibot_fans-dsh-bot-<版本>.tgz`。包里浏览器插件那一行就叫 `@aibot_fans/dsh-bot`（dsh 只按精确的包名找 `./client`），宿主插件和 agent 是 `@aibot_fans/dsh-bot/runtime`、`@aibot_fans/dsh-bot/agent`；各行的 id 和源码装的一样。各包的版本号和 `POD_VERSION` 对不上时会停下。包里的 package.json 带上 CHANGELOG 里这个版本的一节（`releaseNotes` 字段），dsh-bot 的更新弹窗显示的就是它，所以要先写好 CHANGELOG 再打包；没有这一节就不带，弹窗里让去 GitHub 上看。
 - 发布前可以在隔离环境里装这个 tgz 试一遍：`DSH_HOME=<临时目录> dsh plugin --profile web add <tgz 的绝对路径>`，启动时记得用 `--patch` 把 `workspaceRoot` 也指到临时目录，不然 bot 的工作区会用 `~/Pod`。
 
 ### 发布步骤
 
 一个版本的 git 标签 `v<版本>`、npm 包和 GitHub Release 都指向同一个提交。
 
-1. 在 `CHANGELOG.md` 最上面加这个版本的一节，标题写成 `## <版本> - <日期>`：新功能、修复、升级时要注意的。
+1. 在 `CHANGELOG.md` 最上面加这个版本的一节，标题写成 `## <版本> - <日期>`：新功能、修复、升级时要注意的。平时的改动先记在最上面的「## 未发布」一节里，发版时把这个标题改成版本号和日期。
 2. `pnpm version:set <版本>`，提交 `chore(release): v<版本>`，再打标签：`git tag -a v<版本> -m "v<版本>"`。
 3. `pnpm release:pack`：构建并打包，输出 `dist/aibot_fans-dsh-bot-<版本>.tgz`。工作区有没提交的改动、当前提交没有 `v<版本>` 标签、版本号对不上，或者 CHANGELOG 里没有这一节，都会停下。
 4. 推送提交和标签：`git push origin main --follow-tags`。推上去以后 GitHub Actions（`.github/workflows/release.yml`）自动给新标签建 Release：标题是 `v<版本>`，正文取 main 上 CHANGELOG 里这一节，版本号最大的标成 Latest。之后改了 CHANGELOG 里哪个版本的说明，推送后那个 Release 的正文也跟着改（在 Release 页面上手改的会被覆盖），标题和 Latest 不动。推送前想先看会建、会改什么，本机跑 `node scripts/github-release.mjs --dry`（按工作区里的 CHANGELOG）。
@@ -117,3 +125,4 @@ dsh-bot 以 `ctx.pod` 提供服务：
 - **名字颜色**：存 `#rrggbb`，在 OKLCH 里随机取（`packages/domain/src/bot-colors.ts`）：色相随便，明暗限在 0.56 到 0.64、饱和度限在 0.09 到 0.16；界面上再按 3:1 和文字颜色调一调，任何色相在白底和深色底上的对比度都在 4.7 以上。接口传进来的颜色也会拉回看得清的范围。换配法时改 `BOT_COLOR_SCHEME`，启动时老 bot 全部重新随机一次。
 - **页面**：bot 交的是组件数据（JSON），dsh-bot 在服务端画成 HTML 和 SVG，由 `/api/pod/page/view` 提供；响应头的 CSP 只放行内联样式和按哈希认的组件脚本，不许任何网络请求，页面放在 `sandbox="allow-scripts"`（不同源）的 iframe 里，深浅色用 postMessage 告诉它。PDF 和长图用共用浏览器的隐藏标签页生成（`/api/pod/page/export`）。
 - **浏览器端打包**：tsdown 输出 CommonJS，外面包一层 `window.__ModuleLoader__.load({ id: 'pod-ui', factory })`；react 由外壳提供。
+- **新版本和一键更新**（`packages/runtime/src/update/`）：宿主启动一分钟后问一次 npm，之后每 6 小时一次，查到的版本和各版的 `releaseNotes` 记在数据库里；比正在跑的新、又满足 profile 里 pnpm 的 `minimumReleaseAge`（pnpm 11 默认一天，读 profile 的 `pnpm-workspace.yaml`）的，才算能更新。运行文件往上两级的 package.json 是 `@aibot_fans/dsh-bot` 才算从 npm 装的，源码装的只给命令。一键更新交给 dsh 的插件管理：先 `removeBundle` 卸旧版，再 `installBundle` 装新版；新版没装上就装回旧版。卸旧版时 dsh-bot 自己的上下文就没了，所以用插件管理服务背后的原对象（`Symbol.for('cordis.original')`）接着装，过程写在数据目录的 `update-job.json` 里（不写数据库，那时已经关了），新版（或装回的旧版）起来后按它和正在跑的版本判断结果。dsh 关了热更新时 `removeBundle` 回 `stop-profile`，就直接把新版装在旧版上面，重启 dsh web 后生效；这时 dsh 已经先换上了新版的页面，页面比宿主新，顶部提示重启。进度框直接挂在 `document.body` 上，旧版的页面被拿掉后还在；dsh 换插件时会把面板切走，新版的页面加载后按 sessionStorage 里的记号重新选中 dsh-bot（`packages/ui/src/client/views/update/reopen.ts`）。
