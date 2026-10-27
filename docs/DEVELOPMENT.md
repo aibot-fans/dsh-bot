@@ -58,7 +58,7 @@ pnpm dev:web
 
 README 的截图用的是演示剧本（`dev/mock-llm/demo.js`）：先建好「数据研究员」「增长分析师」和「设计师」（设计师预设）三个 bot，再跟主管说“帮我做第三季度的增长复盘”。主管会组一个临时小组，两个成员同时整理数据和做留存分析，设计师接着做看板，主管验收后交付；每一步停几秒，任务卡上看得到进度。数字都是编的示例数据。
 
-英文截图：先在设置的「通用」里把语言改成 English（或者用英文的浏览器打开，语言保持“跟随 dsh”），剧本就换成英文版。三个 bot 叫 Data Researcher、Growth Analyst 和 Designer（设计师预设的英文版），跟主管说 “Put together our Q3 growth review: core metrics and new-user retention, plus a one-page dashboard for Friday’s meeting.”。
+英文截图：先在设置的「通用」里把语言改成 English（或者用英文的浏览器打开，语言保持“跟随 dsh”），剧本就换成英文版。三个 bot 叫 Data Researcher、Growth Analyst 和 Designer（设计师预设的英文版），跟主管说 “Put together our Q3 growth review: core metrics and new-user retention, plus a one-page dashboard for Friday’s meeting.”。英文截图放在 `docs/images/en/`，文件名和 `docs/images/` 里对应的中文截图一样，`README.en.md` 用的是这些。
 
 浏览器那张用 `dev/mock-llm/demo-browser.js`：建一个「行政助理」bot（研究档案，人设以“角色：行政助理”开头），跟它说订会议室。它在示例 OA 上打开预订页、一项一项填好，点“提交预订”时 dsh-bot 转成审批，等你批准。英文版的助理叫 Office Assistant，人设以“Role: office assistant”开头，跟它说订 meeting room，示例 OA 用 `--en` 起英文版。示例 OA 用保留给文档的域名 `oa.example.com`，截图前先在本机起预订页：
 

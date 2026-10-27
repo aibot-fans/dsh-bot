@@ -4,6 +4,8 @@
 
 # dsh-bot
 
+[English](README.en.md) | 中文
+
 dsh-bot 是一个基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（简称 dsh）的 bot 插件，插件将 dsh 改造为 bot 形式。每个任务都是一个团队。
 
 每天免费 1000 次 X 数据 API
