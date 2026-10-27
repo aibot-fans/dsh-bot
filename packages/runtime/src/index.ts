@@ -11,6 +11,7 @@ import { sidebarRoutes } from './api/sidebar.ts'
 import { eventStreamRoute } from './api/stream.ts'
 import { avatarRoute, v2Routes } from './api/v2.ts'
 import { aibotRoutes } from './api/aibot.ts'
+import { updateRoutes } from './api/update.ts'
 import { checkCompat } from './core/compat.ts'
 import { every } from './core/timers.ts'
 import { resolveConfig } from './config.ts'
@@ -39,9 +40,11 @@ export function apply(ctx: HostContext, rawConfig: unknown): void {
   const pod = new PodRuntime({ ctx, db, dataRoot: config.dataRoot, workspaceRoot: config.workspaceRoot, dshHome: config.dshHome, compat })
   ctx.effect(() => ctx.provide('pod', pod), 'pod: service')
   if (!compat.readOnly) ctx.effect(() => pod.start(), 'pod: runtime')
+  // 只读模式下也查新版本：多半就是 dsh-bot 太旧、跟不上 dsh 了。
+  ctx.effect(() => pod.updates.start(), 'pod: update check')
 
   const gate = { readOnly: () => pod.readOnlyReason }
-  const routes: readonly RouteSpec[] = [...baseRoutes(pod), ...workRoutes(pod), ...browserRoutes(pod), ...evolutionRoutes(pod), ...v2Routes(pod), ...sidebarRoutes(pod), ...pageRoutes(pod), ...aibotRoutes(pod)]
+  const routes: readonly RouteSpec[] = [...baseRoutes(pod), ...workRoutes(pod), ...browserRoutes(pod), ...evolutionRoutes(pod), ...v2Routes(pod), ...sidebarRoutes(pod), ...pageRoutes(pod), ...aibotRoutes(pod), ...updateRoutes(pod)]
   for (const route of toFetchRoutes(routes, ctx.logger, gate)) {
     ctx.effect(() => ctx.connection.fetch.register(route), `pod: route ${route.path}`)
   }

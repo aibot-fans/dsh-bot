@@ -20,6 +20,7 @@ import { useNarrow, useTouch } from '../../components/media.ts'
 import { RenameInput } from '../../components/RenameInput.tsx'
 import { useApp, useLiveRooms, useNav } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
+import { UpdateButton } from '../update/UpdateButton.tsx'
 import { useSideDrag, type HeadDrag } from './drag.ts'
 import { useSidebarPrefs, type SidebarStore } from './prefs.ts'
 import { SideItem } from './SideItem.tsx'
@@ -112,7 +113,7 @@ function limit(items: readonly SidebarItem[], expanded: boolean, roomId: string 
 
 /**
  * 左侧栏：顶部是搜索、新对话、临时对话，最右边是收起按钮；下面是置顶（主管总在第一个）、你建的分组、Bot、群聊，
- * Bot 和群聊默认各显示 5 条，拖动可以排顺序；归档的不在侧栏里，在设置的“归档”里看；最底下是设置。
+ * Bot 和群聊默认各显示 5 条，拖动可以排顺序；归档的不在侧栏里，在设置的“归档”里看；最底下是设置，有新版本时旁边有提醒。
  * 手机上它就是列表页：占满整屏、不能收起、全部显示；触屏上不能拖，排顺序用菜单里的置顶和移到分组。
  */
 export function Sidebar() {
@@ -239,6 +240,7 @@ export function Sidebar() {
           <Icon name="settings" size={18} />
           {collapsed ? null : <span className="pod-side-row-title">设置</span>}
         </button>
+        <UpdateButton collapsed={collapsed} />
       </div>
     </nav>
   )

@@ -50,6 +50,8 @@ export interface NavState {
   readonly focus: { readonly roomId: string; readonly seq: number; readonly messageId: string } | null
   /** 打开的页面：中间的对话换成页面查看器。 */
   readonly page: PageNav | null
+  /** 更新弹窗开着吗。 */
+  readonly update: boolean
   readonly sidebarCollapsed: boolean
 }
 
@@ -76,7 +78,7 @@ export interface HostActions {
 
 const NAV_KEY = 'pod-ui.nav.v2'
 
-const CLOSED: Omit<NavState, 'roomId' | 'sidebarCollapsed'> = { panel: null, drawer: null, settings: null, search: null, taskId: null, focus: null, page: null }
+const CLOSED: Omit<NavState, 'roomId' | 'sidebarCollapsed'> = { panel: null, drawer: null, settings: null, search: null, taskId: null, focus: null, page: null, update: false }
 
 function loadNav(): NavState {
   const fallback: NavState = { ...CLOSED, roomId: null, sidebarCollapsed: false }
@@ -253,6 +255,11 @@ export class AppState {
     this.navigate({ settings: tab })
   }
 
+  /** 打开更新弹窗：新版本的更新内容和一键更新。 */
+  openUpdate(): void {
+    this.navigate({ update: true })
+  }
+
   openSearch(query = ''): void {
     this.navigate({ search: query })
   }
@@ -420,6 +427,9 @@ export class AppState {
         return
       case 'aibot':
         cache.invalidate('aibot')
+        return
+      case 'update':
+        cache.invalidate('update')
         return
       case 'evolution':
         cache.invalidate('evolution')

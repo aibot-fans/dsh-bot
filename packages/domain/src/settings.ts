@@ -57,6 +57,8 @@ export interface PodSettings {
   readonly chromePath: string
   /** aibot（X 数据和监控）接入；关掉后不调 aibot、不连事件流，Key 和安装码保留。 */
   readonly aibotEnabled: boolean
+  /** 每隔几小时问一次 npm 有没有新版本；只发包名。 */
+  readonly checkUpdates: boolean
 }
 
 export const DEFAULT_SETTINGS: PodSettings = {
@@ -79,6 +81,7 @@ export const DEFAULT_SETTINGS: PodSettings = {
   allowedHosts: [],
   chromePath: '',
   aibotEnabled: true,
+  checkUpdates: true,
 }
 
 const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/
@@ -146,7 +149,7 @@ function allowedHostsChange(raw: unknown): Change {
   return { ok: true, value: { allowedHosts: [...new Set(hosts)] } }
 }
 
-const BOOLEAN_KEYS = ['preventSleep', 'offPeak', 'memoryExtraction', 'browserNotifications', 'onboarded', 'aibotEnabled'] as const
+const BOOLEAN_KEYS = ['preventSleep', 'offPeak', 'memoryExtraction', 'browserNotifications', 'onboarded', 'aibotEnabled', 'checkUpdates'] as const
 
 function oneChange(key: string, raw: unknown, current: PodSettings): Change {
   switch (key) {

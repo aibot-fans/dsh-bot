@@ -297,6 +297,41 @@ export interface SkillRegistryLike {
   register(skill: Readonly<Record<string, unknown>>): () => void
 }
 
+// ---------- plugin manager ----------
+
+/** dsh-plugin-manager 的一次改动结果（ChangeResult）里一键更新看的字段。 */
+export interface PluginChangeResult {
+  readonly changed: boolean
+  readonly application: 'applied' | 'restart-required' | 'overridden' | 'failed' | 'cancelled'
+  readonly restartReason?: string
+  readonly error?: { readonly code: string; readonly diagnostic?: string }
+  readonly packageResult?: { readonly exitCode: number; readonly output: string; readonly kind?: string }
+  readonly version?: string
+}
+
+/** listBundles 里的一个组合包（BundleInfo）。 */
+export interface PluginBundleInfo {
+  readonly name: string
+  readonly version?: string
+  readonly enabled: boolean
+  readonly installed: boolean
+  readonly removable: boolean
+  /** profile 里记的安装来源，pnpm add 认的写法；本地路径是 link:/file: 加绝对路径。 */
+  readonly source?: string
+}
+
+/**
+ * dsh 的插件管理服务（ctx.pluginManager），和 dsh 插件页用的是同一个。
+ * 开了 HMR 的 profile 不能在装着的包上再装，要先 removeBundle 再 installBundle；没开 HMR 的卸不掉正在跑的包
+ * （结果里 error.code 是 stop-profile），直接 installBundle 装在上面，重启后生效。
+ */
+export interface PluginManagerLike {
+  listBundles(): Promise<readonly PluginBundleInfo[]>
+  removeBundle(name: string): Promise<PluginChangeResult>
+  installBundle(spec: string, options?: { readonly saveExact?: boolean; readonly enabled?: boolean }): Promise<PluginChangeResult>
+  setBundleEnabled(name: string, enabled: boolean): Promise<PluginChangeResult>
+}
+
 /** 宿主插件拿到的 Cordis Context 里 Pod 用到的部分。 */
 export interface HostContext extends EventHub {
   effect(execute: () => Disposer, label?: string): unknown

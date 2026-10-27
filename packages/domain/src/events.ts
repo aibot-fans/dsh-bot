@@ -49,6 +49,8 @@ export type PodEvent =
   | { readonly type: 'skills' }
   /** aibot 接入的状态变了（开通、额度、停用、事件流）。 */
   | { readonly type: 'aibot' }
+  /** 查到了新版本，或者一键更新往前走了一步。 */
+  | { readonly type: 'update' }
   | { readonly type: 'evolution' }
   | { readonly type: 'browser'; readonly tabId: string | null; readonly pointer?: { readonly x: number; readonly y: number; readonly label: string } }
   | { readonly type: 'frame'; readonly tabId: string; readonly data: string; readonly width: number; readonly height: number }

@@ -7,6 +7,7 @@ import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 import { AibotRows } from '../aibot/AibotSettings.tsx'
 import { MemoryChanges } from '../memory/MemoryView.tsx'
+import { UpdateRow } from '../update/UpdateRow.tsx'
 import { BrowserSettings } from './BrowserSettings.tsx'
 import { Row, type Update } from './Row.tsx'
 
@@ -184,6 +185,7 @@ export function AdvancedPage(props: { readonly settings: PodSettings; readonly u
             </span>
             {status.readOnly ? <Badge tone="danger">只读模式</Badge> : null}
           </Row>
+          <UpdateRow settings={settings} update={update} />
           {status.exposure?.note === null || status.exposure?.note === undefined ? null : (
             <Row label="对外访问">
               <span className="pod-muted-inline">{status.exposure.note}</span>

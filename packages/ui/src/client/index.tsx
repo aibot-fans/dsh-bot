@@ -3,6 +3,7 @@ import type { ClientContext, Layout } from './dsh.ts'
 import { PodIcon } from './PodIcon.tsx'
 import { injectStyles } from './styles/index.ts'
 import { PodApp } from './views/Shell.tsx'
+import { reopenAfterUpdate } from './views/update/reopen.ts'
 
 /** 侧栏行和主区页面共用的面板 id。 */
 const PANEL_ID = 'pod'
@@ -41,5 +42,13 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(
     () => ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: PANEL_ID, inject: () => ({ host }) }, PodApp)),
     'pod-ui: main panel',
+  )
+  ctx.effect(
+    () =>
+      reopenAfterUpdate(() => {
+        const layout = ctx.get('layout')
+        return isLayout(layout) ? layout : undefined
+      }, PANEL_ID),
+    'pod-ui: reopen after update',
   )
 }

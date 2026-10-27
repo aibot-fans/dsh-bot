@@ -55,6 +55,7 @@ const PATHS: Readonly<Record<string, string>> = {
   'add-member': 'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 19a6 6 0 0 1 12 0M19 8v6M16 11h6',
   page: 'M4 4h16v16H4zM4 9h16M10 9v11',
   download: 'M12 4v11M7 10l5 5 5-5M5 20h14',
+  update: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 16V8M8.5 11.5L12 8l3.5 3.5',
   'kind-report': 'M7 4h7l4 4v12H7zM14 4v4h4M10 12h5M10 15.5h5',
   'kind-dashboard': 'M4 5h7v6H4zM13 5h7v4h-7zM13 11h7v8h-7zM4 13h7v6H4z',
   'kind-tracker': 'M4 5h16v14H4zM4 10h16M4 14.5h16M9 5v14',

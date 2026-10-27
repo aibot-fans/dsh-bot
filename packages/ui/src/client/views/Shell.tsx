@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { POD_VERSION } from 'pod-domain'
+import { POD_VERSION, compareVersions } from 'pod-domain'
 import { api } from '../api/endpoints.ts'
 import { Button } from '../components/common.tsx'
 import { useNarrow } from '../components/media.ts'
@@ -18,6 +18,8 @@ import { RightPanel } from './panel/RightPanel.tsx'
 import { SearchDialog } from './search/SearchDialog.tsx'
 import { SettingsModal } from './settings/SettingsModal.tsx'
 import { Sidebar } from './side/Sidebar.tsx'
+import { UpdateDialog } from './update/UpdateDialog.tsx'
+import { UpdateNotice } from './update/UpdateNotice.tsx'
 
 function ReadOnlyBanner() {
   const app = useApp()
@@ -34,11 +36,17 @@ function ReadOnlyBanner() {
   )
 }
 
-/** 标签页是 Pod 更新前打开的：旧页面调的接口可能已经换了，提示刷新。宿主重启后事件流会让页面重新拉状态，这里就能发现。 */
+/**
+ * 页面和宿主的版本对不上。多半是标签页在 Pod 更新前打开的：旧页面调的接口可能已经换了，提示刷新。宿主重启后事件流会让页面重新拉状态，这里就能发现。
+ * 反过来页面比宿主新：没开 HMR 时一键更新装好了新版，dsh 先换了页面，宿主要等重启 dsh web 才换，刷新没用。
+ */
 function StaleBanner() {
   const app = useApp()
   const { data: status } = useResource(app.cache, 'status', () => api.status())
   if (status === undefined || status.version === POD_VERSION) return null
+  if (compareVersions(POD_VERSION, status.version) > 0) {
+    return <div className="pod-banner">dsh-bot {POD_VERSION} 已经装好，后台还在跑 {status.version}：重启 dsh web 以后才换过来，在那之前有的按钮可能会报错。</div>
+  }
   return (
     <div className="pod-banner pod-banner-action">
       <span>dsh-bot 已经更新到 {status.version}，这个标签页还是更新前打开的（{POD_VERSION}），有的按钮会报错。刷新一下就好。</span>
@@ -122,7 +130,7 @@ function Layout() {
   )
 }
 
-/** Pod 页面的外壳：左侧栏、中间对话（或页面查看器）、右侧面板，加上设置弹窗、搜索和抽屉。没有顶部导航。 */
+/** Pod 页面的外壳：左侧栏、中间对话（或页面查看器）、右侧面板，加上设置弹窗、更新弹窗、搜索和抽屉。没有顶部导航。 */
 export function PodApp(props: { readonly host: HostActions }) {
   const [app] = useState(() => new AppState(props.host))
   useEffect(() => () => app.dispose(), [app])
@@ -135,9 +143,11 @@ export function PodApp(props: { readonly host: HostActions }) {
     <AppContext.Provider value={app}>
       <div ref={root} className={`pod-app${theme === 'dark' ? ' pod-theme-dark' : ''}`}>
         <StaleBanner />
+        <UpdateNotice />
         <ReadOnlyBanner />
         <Layout />
         <SettingsModal />
+        <UpdateDialog />
         <SearchDialog />
         <Drawers />
         <FirstRun />

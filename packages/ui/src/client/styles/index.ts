@@ -10,6 +10,7 @@ import { MOBILE_CSS } from './mobile.ts'
 import { PAGES_CSS } from './pages.ts'
 import { PANEL_CSS } from './panel.ts'
 import { PROGRESS_CSS } from './progress.ts'
+import { UPDATE_CSS } from './update.ts'
 import { V3_CSS } from './v3.ts'
 import { V5_CSS } from './v5.ts'
 import { V6_CSS } from './v6.ts'
@@ -24,7 +25,7 @@ export function injectStyles(): () => void {
   const tag = document.createElement('style')
   tag.dataset.plugin = 'pod-ui'
   tag.dataset.pluginCss = STYLE_ID
-  tag.textContent = [BASE_CSS, LAYOUT_CSS, CHAT_CSS, EDITOR_CSS, CARDS_CSS, BROWSER_CSS, PANEL_CSS, V3_CSS, V5_CSS, PAGES_CSS, V6_CSS, BUTTONS_CSS, AIBOT_CSS, PROGRESS_CSS, MOBILE_CSS].join('\n')
+  tag.textContent = [BASE_CSS, LAYOUT_CSS, CHAT_CSS, EDITOR_CSS, CARDS_CSS, BROWSER_CSS, PANEL_CSS, V3_CSS, V5_CSS, PAGES_CSS, V6_CSS, BUTTONS_CSS, AIBOT_CSS, PROGRESS_CSS, UPDATE_CSS, MOBILE_CSS].join('\n')
   document.head.appendChild(tag)
   return () => {
     tag.remove()

@@ -49,6 +49,7 @@ import { SHELL_TOOLS, detectExposure, type Exposure } from './core/exposure.ts'
 import { startRuntime } from './lifecycle.ts'
 import { PageLibrary } from './pages/library.ts'
 import { PageService } from './pages/service.ts'
+import { UpdateService, pluginManagerOf } from './update/service.ts'
 
 /** 同一条会话的实时动态最快多久推一次。 */
 const ACTIVITY_THROTTLE_MS = 1000
@@ -117,6 +118,7 @@ export class PodRuntime {
   readonly pages: PageService
   readonly pageLibrary: PageLibrary
   readonly aibot: AibotService
+  readonly updates: UpdateService
   readonly now: () => number
   private exposureState: Exposure = detectExposure()
   private readonly extras: ExtraTool[] = []
@@ -528,9 +530,20 @@ export class PodRuntime {
       warn,
       toolsChanged: () => this.reinstallXTools(),
     })
+    this.updates = new UpdateService({
+      db,
+      bus: this.bus,
+      dataRoot: options.dataRoot,
+      settings: () => this.settings.get(),
+      manager: () => pluginManagerOf(ctx),
+      busy: () => this.registry.active().filter((session) => this.dispatcher.isRunning(session.id)).length,
+      now,
+      warn,
+    })
     this.settings.onChange((next, previous) => {
       if (next.dailyBrief.time !== previous.dailyBrief.time || next.timezone !== previous.timezone || next.dailyBrief.enabled !== previous.dailyBrief.enabled) this.brief.reschedule()
       this.aibot.settingsChanged(next, previous)
+      this.updates.settingsChanged(next, previous)
     })
     this.maintenance = new Maintenance(db, options.dataRoot, () => this.settings.get().timezone, warn)
     this.maintenance.addDaily({ name: '整理记忆', run: () => this.extractor.consolidate().then(() => undefined) })
