@@ -1,3 +1,4 @@
+import { t } from 'pod-domain'
 import type { Extracted } from './formats.ts'
 import { table } from './markdown.ts'
 import { mainPart, relatedOfType, relationships } from './opc.ts'
@@ -76,7 +77,7 @@ function joinBlocks(blocks: readonly string[]): string {
 export function extractDocx(zip: ZipArchive): Extracted {
   const part = mainPart(zip, 'word/document.xml')
   const xml = zip.text(part)
-  if (xml === undefined) throw new Error('找不到 Word 的正文')
+  if (xml === undefined) throw new Error(t('找不到 Word 的正文'))
   const levels = headingLevels(zip.text(relatedOfType(relationships(zip, part), '/styles') ?? 'word/styles.xml'))
   const blocks: string[] = []
   const paragraphs: Paragraph[] = []
@@ -136,7 +137,7 @@ export function extractDocx(zip: ZipArchive): Extracted {
         case 'pic':
         case 'imagedata':
           pictures += 1
-          paragraph?.texts.push('[图片]')
+          paragraph?.texts.push(t('[图片]'))
           break
         case 'tbl':
           tableDepth += 1
@@ -194,10 +195,10 @@ export function extractDocx(zip: ZipArchive): Extracted {
       if (inText) paragraphs.at(-1)?.texts.push(value)
     },
   })
-  const parts = [tables > 0 ? `${tables} 个表格` : '', pictures > 0 ? `${pictures} 张图片` : ''].filter((item) => item !== '')
+  const parts = [tables > 0 ? t('{tables} 个表格', { tables }) : '', pictures > 0 ? t('{pictures} 张图片', { pictures }) : ''].filter((item) => item !== '')
   return {
     body: joinBlocks(blocks),
-    note: '由 dsh-bot 从 Word 文档自动转出；图片、批注、页眉页脚和排版没有保留。',
-    summary: parts.length === 0 ? '' : `含 ${parts.join('、')}`,
+    note: t('由 dsh-bot 从 Word 文档自动转出；图片、批注、页眉页脚和排版没有保留。'),
+    summary: parts.length === 0 ? '' : t('含 {parts}', { parts: parts.join(t('、')) }),
   }
 }

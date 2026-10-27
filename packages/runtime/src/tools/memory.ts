@@ -1,4 +1,4 @@
-import { MEMORY_TYPES, OWNER, POD, truncate, type MemoryType, type PodSession } from 'pod-domain'
+import { MEMORY_TYPES, OWNER, POD, t, truncate, type MemoryType, type PodSession } from 'pod-domain'
 import { firstOwnerLine, getMessage, listMessages } from 'pod-store'
 import { chatSubject } from '../chat/rooms.ts'
 import type { ToolDefinition } from '../dsh.ts'
@@ -42,23 +42,23 @@ export function memoryTools(pod: PodRuntime, session: PodSession): readonly Tool
         const said = me.roomId === null ? [] : listMessages(pod.db, me.roomId, { limit: 60 }).filter((message) => message.author === OWNER)
         const found = said.find((message) => message.body.includes(args.quote.slice(0, 30)))
         if (found === undefined) return failure('在这个房间最近的消息里找不到这句原话；用户的档案只能写用户自己说过的话')
-        const result = pod.memory.add({ scopeKind: 'owner', scopeId: '', ...common, source: 'owner', sourceRef: found.id }, me.botId, '用户说“记住……”')
+        const result = pod.memory.add({ scopeKind: 'owner', scopeId: '', ...common, source: 'owner', sourceRef: found.id }, me.botId, t('用户说“记住……”'))
         return result.ok ? success('已写进用户的档案。') : failure(result.error.message)
       }
       if (args.scope === 'team') {
         const team = pod.teams.list().find((item) => item.leaderBotId === me.botId)
         if (team === undefined) return failure('只有正式团队的组长能写团队约定')
-        const result = pod.memory.add({ scopeKind: 'team', scopeId: team.id, ...common, source: 'bot' }, me.botId, '组长写团队约定')
+        const result = pod.memory.add({ scopeKind: 'team', scopeId: team.id, ...common, source: 'bot' }, me.botId, t('组长写团队约定'))
         return result.ok ? success(`已写进「${team.name}」的团队约定。`) : failure(result.error.message)
       }
       if (args.scope === 'room') {
         if (pod.bots.get(me.botId)?.role !== 'lead' || me.roomId === null) return failure('只有主管能在房间里写房间要点')
         // 单聊分成一段段对话：单聊里定下的事记在主管名下，换一段对话也还在。
         const direct = pod.rooms.get(me.roomId)?.kind === 'direct'
-        const result = pod.memory.add({ scopeKind: direct ? 'bot' : 'room', scopeId: direct ? me.botId : me.roomId, ...common, source: 'bot' }, me.botId, '主管写房间要点')
+        const result = pod.memory.add({ scopeKind: direct ? 'bot' : 'room', scopeId: direct ? me.botId : me.roomId, ...common, source: 'bot' }, me.botId, t('主管写房间要点'))
         return result.ok ? success('已写进这个房间的要点。') : failure(result.error.message)
       }
-      const result = pod.memory.add({ scopeKind: 'bot', scopeId: me.botId, ...common, source: 'bot' }, me.botId, '自己记下的经验')
+      const result = pod.memory.add({ scopeKind: 'bot', scopeId: me.botId, ...common, source: 'bot' }, me.botId, t('自己记下的经验'))
       return result.ok ? success('已记下。') : failure(result.error.message)
     },
   })

@@ -1,4 +1,4 @@
-import { oneLine, truncate } from 'pod-domain'
+import { oneLine, t, truncate } from 'pod-domain'
 
 /**
  * 把一次工具调用压成一句人话，给任务卡的“最近动作”、回答时的“正在……”和进度快照用。
@@ -34,55 +34,55 @@ function short(value: string, max = 48): string {
 type Describe = (args: Readonly<Record<string, unknown>>) => string
 
 /** 跑命令：dsh 要求模型每次附一句这条命令在做什么，有就用它，原始命令留给 commandOf。 */
-const runCommand: Describe = (args) => (text(args.description).trim() === '' ? `运行命令：${short(text(args.command))}` : short(text(args.description)))
+const runCommand: Describe = (args) => (text(args.description).trim() === '' ? t('运行命令：{short}', { short: short(text(args.command)) }) : short(text(args.description)))
 
 const DESCRIBERS: Readonly<Record<string, Describe>> = {
   bash: runCommand,
   pwsh: runCommand,
-  read: (args) => `读取 ${short(text(args.path ?? args.file_path))}`,
-  write: (args) => `写入 ${short(text(args.path ?? args.file_path))}`,
-  edit: (args) => `修改 ${short(text(args.path ?? args.file_path))}`,
-  glob: (args) => `查找文件 ${short(text(args.pattern))}`,
-  grep: (args) => `搜索文件内容“${short(text(args.pattern), 24)}”`,
-  web_search: (args) => `搜索“${short(text(args.query), 32)}”`,
-  web_fetch: (args) => `打开 ${short(host(text(args.url)))}`,
-  skill: (args) => `加载技能 ${short(text(args.name))}`,
-  todo_write: () => '更新待办',
-  update_task: (args) => (Array.isArray(args.check) && args.check.length > 0 ? '勾选验收项' : '写进度说明'),
-  complete_task: () => '提交结果',
-  ask_owner: () => '请你处理一件事',
-  ask_bot: (args) => `咨询 ${short(text(args.bot), 16)}`,
-  delegate: (args) => `交给 ${short(text(args.bot), 16)}：${short(text(args.title), 24)}`,
-  create_task: () => '提交团队计划',
-  create_bot: (args) => `新建 bot ${short(text(args.name), 16)}`,
-  find_bots: () => '查找合适的 bot',
-  task_status: () => '查看任务进度',
-  relay_to_task: () => '转达给任务',
-  remember: () => '写记忆',
-  recall: (args) => `查记忆“${short(text(args.query), 24)}”`,
-  search_history: (args) => `搜聊天记录“${short(text(args.query), 24)}”`,
-  browser_open: (args) => `打开 ${short(host(text(args.url)))}`,
-  browser_snapshot: () => '读取页面快照',
-  browser_click: (args) => `点击 ${short(text(args.ref ?? args.element), 24)}`,
-  browser_type: () => '在页面里输入',
-  browser_screenshot: () => '截图',
-  browser_extract: () => '提取正文',
-  browser_press: (args) => `按 ${short(text(args.key), 12)}`,
-  browser_select: (args) => `选择“${short(text(args.value), 20)}”`,
-  browser_scroll: (args) => (text(args.direction) === 'up' ? '向上滚动' : '向下滚动'),
-  browser_back: () => '后退',
-  browser_tabs: () => '查看标签页',
-  browser_upload: () => '选择要上传的文件',
-  browser_dialog: (args) => (args.accept === true ? '在对话框里点确定' : '关闭对话框'),
-  browser_handover: (args) => `把标签页交给${short(text(args.to), 12)}`,
-  request_takeover: (args) => `请你接管浏览器：${short(text(args.reason), 24)}`,
-  review_task: (args) => (args.pass === false ? '打回子任务' : '验收子任务'),
-  deliver_task: () => '交付',
-  create_routine: (args) => `建例程「${short(text(args.title), 20)}」`,
-  update_routine: (args) => (args.enabled === false ? '暂停例程' : args.enabled === true ? '恢复例程' : '改例程'),
-  list_routines: () => '查看例程',
-  delete_routine: () => '删除例程',
-  watch_page: (args) => `盯网页 ${short(host(text(args.url)))}`,
+  read: (args) => t('读取 {short}', { short: short(text(args.path ?? args.file_path)) }),
+  write: (args) => t('写入 {short}', { short: short(text(args.path ?? args.file_path)) }),
+  edit: (args) => t('修改 {short}', { short: short(text(args.path ?? args.file_path)) }),
+  glob: (args) => t('查找文件 {short}', { short: short(text(args.pattern)) }),
+  grep: (args) => t('搜索文件内容“{short}”', { short: short(text(args.pattern), 24) }),
+  web_search: (args) => t('搜索“{short}”', { short: short(text(args.query), 32) }),
+  web_fetch: (args) => t('打开 {short}', { short: short(host(text(args.url))) }),
+  skill: (args) => t('加载技能 {short}', { short: short(text(args.name)) }),
+  todo_write: () => t('更新待办'),
+  update_task: (args) => (Array.isArray(args.check) && args.check.length > 0 ? t('勾选验收项') : t('写进度说明')),
+  complete_task: () => t('提交结果'),
+  ask_owner: () => t('请你处理一件事'),
+  ask_bot: (args) => t('咨询 {short}', { short: short(text(args.bot), 16) }),
+  delegate: (args) => t('交给 {short}：{short2}', { short: short(text(args.bot), 16), short2: short(text(args.title), 24) }),
+  create_task: () => t('提交团队计划'),
+  create_bot: (args) => t('新建 bot {short}', { short: short(text(args.name), 16) }),
+  find_bots: () => t('查找合适的 bot'),
+  task_status: () => t('查看任务进度'),
+  relay_to_task: () => t('转达给任务'),
+  remember: () => t('写记忆'),
+  recall: (args) => t('查记忆“{short}”', { short: short(text(args.query), 24) }),
+  search_history: (args) => t('搜聊天记录“{short}”', { short: short(text(args.query), 24) }),
+  browser_open: (args) => t('打开 {short}', { short: short(host(text(args.url))) }),
+  browser_snapshot: () => t('读取页面快照'),
+  browser_click: (args) => t('点击 {short}', { short: short(text(args.ref ?? args.element), 24) }),
+  browser_type: () => t('在页面里输入'),
+  browser_screenshot: () => t('截图'),
+  browser_extract: () => t('提取正文'),
+  browser_press: (args) => t('按 {short}', { short: short(text(args.key), 12) }),
+  browser_select: (args) => t('选择“{short}”', { short: short(text(args.value), 20) }),
+  browser_scroll: (args) => (text(args.direction) === 'up' ? t('向上滚动') : t('向下滚动')),
+  browser_back: () => t('后退'),
+  browser_tabs: () => t('查看标签页'),
+  browser_upload: () => t('选择要上传的文件'),
+  browser_dialog: (args) => (args.accept === true ? t('在对话框里点确定') : t('关闭对话框')),
+  browser_handover: (args) => t('把标签页交给{short}', { short: short(text(args.to), 12) }),
+  request_takeover: (args) => t('请你接管浏览器：{short}', { short: short(text(args.reason), 24) }),
+  review_task: (args) => (args.pass === false ? t('打回子任务') : t('验收子任务')),
+  deliver_task: () => t('交付'),
+  create_routine: (args) => t('建例程「{short}」', { short: short(text(args.title), 20) }),
+  update_routine: (args) => (args.enabled === false ? t('暂停例程') : args.enabled === true ? t('恢复例程') : t('改例程')),
+  list_routines: () => t('查看例程'),
+  delete_routine: () => t('删除例程'),
+  watch_page: (args) => t('盯网页 {short}', { short: short(host(text(args.url))) }),
 }
 
 /** 跑命令的工具调用里的原始命令（一行、截短），给进度里“当前这一步”下面那行小字；别的工具没有。 */
@@ -97,9 +97,9 @@ export function describeToolCall(name: string, rawArgs: string): string {
   const args = parseArgs(rawArgs)
   if (describe !== undefined) {
     const line = describe(args)
-    return line.endsWith('：') || line.endsWith(' ') ? `调用 ${name}` : line
+    return line.endsWith('：') || line.endsWith(' ') ? t('调用 {name}', { name }) : line
   }
-  return `调用 ${name}`
+  return t('调用 {name}', { name })
 }
 
 /** 读过网页或外部内容的工具：用过它们的会话标为受污染。 */

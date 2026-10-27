@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { MESSAGE_MAX, PAGE_KIND_LABELS, PAGE_TITLE_MAX, charLength, fail, ok, readBool, readId, readInt, readString, truncate, type Bot, type Page, type PageVersionInfo, type PodResult, type Room, type RoomMessage } from 'pod-domain'
+import { MESSAGE_MAX, PAGE_KIND_LABELS, PAGE_TITLE_MAX, charLength, fail, ok, readBool, readId, readInt, readString, t, truncate, type Bot, type Page, type PageVersionInfo, type PodResult, type Room, type RoomMessage } from 'pod-domain'
 import { listPageMessages, listPageVersions, listPages } from 'pod-store'
 import type { BotService } from '../bots/service.ts'
 import type { RoomService } from '../chat/rooms.ts'
@@ -23,14 +23,14 @@ export class PageLibrary {
 
   private page(input: unknown): PodResult<Page> {
     const id = readId(input, 'id')
-    if (id === undefined) return fail('invalid-input', '缺少页面 id')
+    if (id === undefined) return fail('invalid-input', t('缺少页面 id'))
     const page = this.deps.pages.get(id)
-    return page === undefined ? fail('not-found', '找不到这个页面') : ok(page)
+    return page === undefined ? fail('not-found', t('找不到这个页面')) : ok(page)
   }
 
   private live(input: unknown): PodResult<Page> {
     const found = this.page(input)
-    if (found.ok && found.value.deletedAt !== null) return fail('conflict', '页面在回收站里，先恢复')
+    if (found.ok && found.value.deletedAt !== null) return fail('conflict', t('页面在回收站里，先恢复'))
     return found
   }
 
@@ -64,11 +64,11 @@ export class PageLibrary {
     if (!found.ok) return found
     const page = found.value
     const title = truncate(readString(input, 'title'), PAGE_TITLE_MAX)
-    if (title === '') return fail('invalid-input', '标题不能为空')
+    if (title === '') return fail('invalid-input', t('标题不能为空'))
     if (title === page.title) return ok(page)
     const current = this.deps.pages.version(page)
-    if (current === undefined) return fail('not-found', '找不到页面内容')
-    return ok(this.deps.pages.appendByOwner(page, { title, kind: page.kind, doc: current.doc, note: `改名：${page.title} → ${title}`, source: 'user' }))
+    if (current === undefined) return fail('not-found', t('找不到页面内容'))
+    return ok(this.deps.pages.appendByOwner(page, { title, kind: page.kind, doc: current.doc, note: t('改名：{title} → {title2}', { title: page.title, title2: title }), source: 'user' }))
   }
 
   /** 删除只是放进回收站，30 天后彻底删掉。 */
@@ -90,12 +90,12 @@ export class PageLibrary {
     if (!found.ok) return found
     const page = found.value
     const version = readInt(input, 'version')
-    if (version === undefined) return fail('invalid-input', '要写明回到第几版')
-    if (version === page.version) return fail('invalid-input', '现在就是这一版')
+    if (version === undefined) return fail('invalid-input', t('要写明回到第几版'))
+    if (version === page.version) return fail('invalid-input', t('现在就是这一版'))
     const target = this.deps.pages.version(page, version)
-    if (target === undefined) return fail('not-found', `没有第 ${version} 版`)
-    const next = this.deps.pages.appendByOwner(page, { title: target.title, kind: target.kind, doc: target.doc, note: `回到第 ${version} 版`, source: 'rollback' })
-    this.deps.rooms.milestone(next.roomId, `你把${PAGE_KIND_LABELS[next.kind]}「${next.title}」回滚到第 ${version} 版的内容，存成了第 ${next.version} 版`, { pageId: next.id })
+    if (target === undefined) return fail('not-found', t('没有第 {version} 版', { version }))
+    const next = this.deps.pages.appendByOwner(page, { title: target.title, kind: target.kind, doc: target.doc, note: t('回到第 {version} 版', { version }), source: 'rollback' })
+    this.deps.rooms.milestone(next.roomId, t('你把{PAGE_KIND_LABELS}「{title}」回滚到第 {version} 版的内容，存成了第 {version2} 版', { PAGE_KIND_LABELS: t(PAGE_KIND_LABELS[next.kind]), title: next.title, version, version2: next.version }), { pageId: next.id })
     return ok(next)
   }
 
@@ -122,8 +122,8 @@ export class PageLibrary {
     if (!found.ok) return found
     const page = found.value
     const text = readString(input, 'text')
-    if (text === '') return fail('invalid-input', '要写明想怎么改')
-    if (charLength(text) > MESSAGE_MAX) return fail('invalid-input', `一次最多 ${MESSAGE_MAX} 个字`)
+    if (text === '') return fail('invalid-input', t('要写明想怎么改'))
+    if (charLength(text) > MESSAGE_MAX) return fail('invalid-input', t('一次最多 {MESSAGE_MAX} 个字', { MESSAGE_MAX }))
     const bot = this.deps.bots.activeBot(page.botId) ?? this.deps.bots.lead()
     const room = this.roomFor(page, bot)
     if (!room.ok) return room

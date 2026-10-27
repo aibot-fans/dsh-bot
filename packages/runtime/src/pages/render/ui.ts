@@ -1,4 +1,4 @@
-import type { AppBarBlock, ButtonBlock, CardBlock, InputBlock, RowsBlock, SegmentedBlock, TabBarBlock, ToggleBlock } from 'pod-domain'
+import { t, type AppBarBlock, type ButtonBlock, type CardBlock, type InputBlock, type RowsBlock, type SegmentedBlock, type TabBarBlock, type ToggleBlock } from 'pod-domain'
 import { esc } from './html.ts'
 import { inline } from './markdown.ts'
 
@@ -9,7 +9,7 @@ export function goto(target: string): string {
 }
 
 export function renderAppBar(block: AppBarBlock): string {
-  const back = block.back === '' ? '<span class="ui-side"></span>' : `<span class="ui-side ui-back"${goto(block.back)} aria-label="返回"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5"/></svg></span>`
+  const back = block.back === '' ? '<span class="ui-side"></span>' : `<span class="ui-side ui-back"${goto(block.back)} aria-label="${esc(t('返回'))}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5"/></svg></span>`
   const actions = block.actions.map((action) => `<span class="ui-action">${esc(action)}</span>`).join('')
   return `<div class="ui-appbar">${back}<div class="ui-title">${esc(block.title)}</div><span class="ui-side ui-actions">${actions}</span></div>`
 }

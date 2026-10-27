@@ -1,4 +1,4 @@
-import { fail, type PodResult } from 'pod-domain'
+import { fail, t, type PodResult } from 'pod-domain'
 import type { FetchRoute, Logger } from '../dsh.ts'
 import { readBody, readQuery, respond } from './http.ts'
 
@@ -34,7 +34,7 @@ async function settle(logger: Logger, path: string, work: () => ReturnType<Handl
   } catch (error) {
     logger.warn(`dsh-bot 接口 ${path} 出错`, error)
     const reason = (error instanceof Error ? error.message : String(error)).replace(/\s+/g, ' ').trim()
-    return respond(fail('internal', reason === '' ? '出错了，详情见 dsh 日志' : `出错了：${reason.slice(0, 160)}`))
+    return respond(fail('internal', reason === '' ? t('出错了，详情见 dsh 日志') : t('出错了：{reason}', { reason: reason.slice(0, 160) })))
   }
 }
 
@@ -62,7 +62,7 @@ export function toFetchRoutes(specs: readonly RouteSpec[], logger: Logger, gate:
     requestBody: 'buffered' as const,
     fetch: async (request: Request) => {
       const spec = group.find((item) => item.method === request.method) ?? group[0]
-      if (spec === undefined) return respond(fail('not-found', '没有这个接口'))
+      if (spec === undefined) return respond(fail('not-found', t('没有这个接口')))
       return dispatch(spec, request, logger, gate)
     },
   }))

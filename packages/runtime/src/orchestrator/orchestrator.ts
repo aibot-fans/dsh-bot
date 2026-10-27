@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import {
-  GROUP_NAME_MAX,
+  groupNameMax,
   shortGroupName,
   PRIORITY,
   childTaskFolder,
@@ -12,6 +12,7 @@ import {
   parsePlan,
   readySubtasks,
   rootTaskFolder,
+  t,
   truncate,
   validatePlan,
   type Bot,
@@ -117,15 +118,15 @@ export class Orchestrator {
   async submit(requester: PodSession, raw: unknown): Promise<PodResult<SubmitResult>> {
     const plan = parsePlan(raw, 1)
     const team = plan.level === 'L3' ? (plan.team === null ? undefined : this.deps.teams.resolve(plan.team)) : undefined
-    if (plan.level === 'L3' && team === undefined) return fail('invalid-input', `找不到团队「${plan.team ?? ''}」。先用 create_team 组建，或者改成 L2 临时小组。`)
+    if (plan.level === 'L3' && team === undefined) return fail('invalid-input', t('找不到团队「{value}」。先用 create_team 组建，或者改成 L2 临时小组。', { value: plan.team ?? '' }))
     const draftIds = new Set(plan.drafts.map((draft) => draft.draftId))
     const problems = validatePlan(plan, { profileOf: (owner) => (draftIds.has(owner) ? undefined : this.deps.bots.resolve(owner)?.toolProfile) })
-    if (problems.length > 0) return fail('invalid-input', `计划没通过校验，请修改后重新提交：\n- ${problems.join('\n- ')}`)
+    if (problems.length > 0) return fail('invalid-input', t('计划没通过校验，请修改后重新提交：\n- {problems}', { problems: problems.join('\n- ') }))
     const drafts = new Map<string, Bot>()
     for (const draft of plan.drafts) {
       const bot = this.deps.bots.createFromDraft(
         { name: draft.name, title: draft.title, persona: draft.persona, capabilities: draft.capabilities, toolProfile: draft.toolProfile, temporary: true },
-        { source: 'lead', actor: requester.botId, reason: `为「${truncate(plan.goal, 30)}」新建的临时 bot` },
+        { source: 'lead', actor: requester.botId, reason: t('为「{truncate}」新建的临时 bot', { truncate: truncate(plan.goal, 30) }) },
       )
       drafts.set(draft.draftId, bot)
     }
@@ -137,7 +138,7 @@ export class Orchestrator {
     this.deps.tasks.event(root, 'planned', requester.botId, { level: plan.level, reasons: plan.reasons, drafts: [...drafts.values()].map((bot) => bot.name) })
     this.deps.audit.record('task.plan', requester.botId, root.id, { level: plan.level, subtasks: subtasks.length })
     if (careful) {
-      this.deps.rooms.milestone(roomId, '计划等你确认（谨慎档）：点开工说明上的“开始”')
+      this.deps.rooms.milestone(roomId, t('计划等你确认（谨慎档）：点开工说明上的“开始”'))
       return ok({ rootId: root.id, roomId, pending: true })
     }
     await this.start(root.id)
@@ -223,7 +224,7 @@ export class Orchestrator {
       return { root, subtasks }
     })
     const members = [leader.id, requesterBot.id, ...tree.subtasks.map((task) => task.ownerBotId).filter((id): id is string => id !== null)]
-    const groupName = plan.name !== undefined && plan.name !== '' ? truncate(plan.name, GROUP_NAME_MAX) : shortGroupName(plan.goal)
+    const groupName = plan.name !== undefined && plan.name !== '' ? truncate(plan.name, groupNameMax()) : shortGroupName(plan.goal)
     const room = this.deps.rooms.createTaskRoom(groupName, rootId, members, team?.id ?? null)
     const root = updateTask(this.db, rootId, { roomId: room.id }, now) ?? tree.root
     for (const task of tree.subtasks) updateTask(this.db, task.id, { roomId: room.id }, now)
@@ -246,7 +247,7 @@ export class Orchestrator {
   /** 开工：组长开一条协调会话（只注入背景，不唤醒），然后派出依赖已满足的子任务。 */
   async start(rootId: string): Promise<PodResult<Task>> {
     const root = this.deps.tasks.get(rootId)
-    if (root === undefined || root.parentId !== null) return fail('not-found', '找不到这个团队任务')
+    if (root === undefined || root.parentId !== null) return fail('not-found', t('找不到这个团队任务'))
     const now = this.deps.now()
     const started = updateTask(this.db, rootId, { status: 'running', stage: 'execute', planPending: false, startedAt: root.startedAt ?? now }, now) ?? root
     this.deps.tasks.touched(started)
@@ -260,14 +261,14 @@ export class Orchestrator {
         roomId: started.roomId,
         taskId: rootId,
         folder: started.folder,
-        title: `dsh-bot · 协调 · ${started.title}`,
+        title: t('dsh-bot · 协调 · {title}', { title: started.title }),
         tainted: started.tainted,
         ceiling: started.maxProfile,
       })
     }
     if (plan !== null) {
       const context = coordContext(plan, this.board(rootId))
-      this.deps.dispatcher.enqueue({ sessionId: coord.id, mode: 'inject', priority: PRIORITY.task, text: context, source: noticeSource('你负责协调的任务') })
+      this.deps.dispatcher.enqueue({ sessionId: coord.id, mode: 'inject', priority: PRIORITY.task, text: context, source: noticeSource(t('你负责协调的任务')) })
     }
     await this.schedule(rootId)
     return ok(this.deps.tasks.get(rootId) ?? started)
@@ -321,7 +322,7 @@ export class Orchestrator {
         ceiling: task.maxProfile,
       })
     } catch (error) {
-      const failed = updateTask(this.db, task.id, { status: 'failed', note: `开任务会话失败：${error instanceof Error ? error.message : String(error)}` }, this.deps.now())
+      const failed = updateTask(this.db, task.id, { status: 'failed', note: t('开任务会话失败：{value}', { value: error instanceof Error ? error.message : String(error) }) }, this.deps.now())
       if (failed !== undefined) this.tellCoordinator(failed, stalledEvent(failed, key, failed.note, this.board(root.id)))
       return
     }
@@ -337,7 +338,7 @@ export class Orchestrator {
       mode: 'followup',
       priority: root.urgent ? PRIORITY.urgent : PRIORITY.task,
       text: handover === undefined ? brief : `${brief}\n\n[交接] ${handover}`,
-      source: coord === undefined ? noticeSource(`任务：${task.title}`) : relaySource(coord.id),
+      source: coord === undefined ? noticeSource(t('任务：{title}', { title: task.title })) : relaySource(coord.id),
     })
     this.deps.tasks.event(running, 'started', owner.id, { key })
   }
@@ -346,7 +347,7 @@ export class Orchestrator {
   tellCoordinator(task: Task, text: string): void {
     const coord = this.deps.registry.activeForTask(task.rootId, 'coord')
     if (coord === undefined) return
-    this.deps.dispatcher.enqueue({ sessionId: coord.id, mode: 'followup', priority: task.urgent ? PRIORITY.urgent : PRIORITY.task, text, source: noticeSource(text.split('\n')[0] ?? '任务事件') })
+    this.deps.dispatcher.enqueue({ sessionId: coord.id, mode: 'followup', priority: task.urgent ? PRIORITY.urgent : PRIORITY.task, text, source: noticeSource(text.split('\n')[0] ?? t('任务事件')) })
   }
 
   /** 成员提交子任务：进入待验收，成员在任务群里说一声交了什么，唤醒组长。 */

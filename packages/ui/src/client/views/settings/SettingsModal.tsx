@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { PodSettings } from 'pod-domain'
+import { t, type PodSettings } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { IconButton, Segmented, Switch } from '../../components/common.tsx'
@@ -42,29 +42,29 @@ function AutomationsPage(props: { readonly settings: PodSettings; readonly updat
       <Segmented
         value={filter}
         options={[
-          ['all', `全部 ${total}`],
-          ['on', `开着 ${on}`],
-          ['off', `暂停 ${total - on}`],
+          ['all', t('全部 {total}', { total })],
+          ['on', t('开着 {on}', { on })],
+          ['off', t('暂停 {total}', { total: total - on })],
         ]}
         onChange={setFilter}
-        label="筛选自动化"
+        label={t('筛选自动化')}
       />
       {briefShown ? (
         <div className="pod-settings-body">
-          <Row label="每日简报" hint="主管每天把进展、需要你的事和花费发到和主管的单聊">
+          <Row label={t('每日简报')} hint={t('主管每天把进展、需要你的事和花费发到和主管的单聊')}>
             <input
               className="pod-input pod-input-time"
               type="time"
-              aria-label="简报时间"
+              aria-label={t('简报时间')}
               value={settings.dailyBrief.time}
               onChange={(event) => update({ dailyBrief: { ...settings.dailyBrief, time: event.target.value } })}
             />
-            <Switch checked={settings.dailyBrief.enabled} label="每日简报" onChange={(enabled) => update({ dailyBrief: { ...settings.dailyBrief, enabled } })} />
+            <Switch checked={settings.dailyBrief.enabled} label={t('每日简报')} onChange={(enabled) => update({ dailyBrief: { ...settings.dailyBrief, enabled } })} />
           </Row>
         </div>
       ) : null}
-      <Automations match={match} empty={filter === 'off' ? '没有暂停的自动化' : undefined} />
-      <p className="pod-hint">dsh web 没开时错过的，下次打开后补跑一次；勿扰时段里照常运行，只是不弹提醒。</p>
+      <Automations match={match} empty={filter === 'off' ? t('没有暂停的自动化') : undefined} />
+      <p className="pod-hint">{t('dsh web 没开时错过的，下次打开后补跑一次；勿扰时段里照常运行，只是不弹提醒。')}</p>
     </div>
   )
 }
@@ -95,37 +95,37 @@ export function SettingsModal() {
       .catch((reason: unknown) => setProblem(errorText(reason)))
   }
   const stopAll = (): void => {
-    if (!window.confirm('停止所有任务：停掉所有任务和回答。已完成的部分和产物都保留，之后可以逐个继续或取消。')) return
+    if (!window.confirm(t('停止所有任务：停掉所有任务和回答。已完成的部分和产物都保留，之后可以逐个继续或取消。'))) return
     api
       .stopAll()
-      .then((result) => window.alert(`已停止 ${result.stopped} 个任务`))
+      .then((result) => window.alert(t('已停止 {stopped} 个任务', { stopped: result.stopped })))
       .catch((reason: unknown) => setProblem(errorText(reason)))
   }
-  const title = TABS.find(([value]) => value === tab)?.[1] ?? '设置'
+  const title = t(TABS.find(([value]) => value === tab)?.[1] ?? '设置')
   return (
     <div className="pod-modal-backdrop" onClick={close}>
-      <section className="pod-settings" role="dialog" aria-label="设置" onClick={(event) => event.stopPropagation()}>
-        <nav className="pod-settings-nav" aria-label="设置分类">
-          <strong className="pod-settings-title">设置</strong>
+      <section className="pod-settings" role="dialog" aria-label={t('设置')} onClick={(event) => event.stopPropagation()}>
+        <nav className="pod-settings-nav" aria-label={t('设置分类')}>
+          <strong className="pod-settings-title">{t('设置')}</strong>
           {TABS.map(([value, label]) => (
             <button key={value} type="button" className={value === tab ? 'pod-settings-tab-on' : undefined} aria-current={value === tab ? 'page' : undefined} onClick={() => app.openSettings(value)}>
-              {label}
+              {t(label)}
             </button>
           ))}
           <span className="pod-grow" />
           <button type="button" className="pod-settings-stop" onClick={stopAll}>
-            <Icon name="stop" size={13} /> 停止所有任务
+            <Icon name="stop" size={13} /> {t('停止所有任务')}
           </button>
         </nav>
         <div className="pod-settings-content">
           <header className="pod-settings-head">
-            {narrow ? <IconButton icon="back" label="返回" onClick={close} /> : null}
+            {narrow ? <IconButton icon="back" label={t('返回')} onClick={close} /> : null}
             <h2>{title}</h2>
-            {narrow ? null : <IconButton icon="close" label="关闭设置" onClick={close} />}
+            {narrow ? null : <IconButton icon="close" label={t('关闭设置')} onClick={close} />}
           </header>
           {problem === undefined ? null : <p className="pod-form-error">{problem}</p>}
           {settings === undefined ? (
-            <p className="pod-muted">{error ?? '正在读取设置…'}</p>
+            <p className="pod-muted">{error ?? t('正在读取设置…')}</p>
           ) : (
             <>
               {tab === 'general' ? <GeneralPage settings={settings} update={update} /> : null}

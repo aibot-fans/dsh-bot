@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BOT_NAME_MAX, ROOM_TITLE_MAX, addSidebarFolder, archiveSidebarItem, moveSidebarItem, type Bot, type SidebarItem } from 'pod-domain'
+import { BOT_NAME_MAX, ROOM_TITLE_MAX, addSidebarFolder, archiveSidebarItem, inputLimit, moveSidebarItem, t, type Bot, type SidebarItem } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { Avatar, Badge, listTime, nameColor } from '../../components/common.tsx'
@@ -26,7 +26,7 @@ export interface SideItemProps {
 /** 未读条数的红色角标：超过 99 写 99+。 */
 function UnreadBadge(props: { readonly count: number }) {
   return (
-    <span className="pod-side-badge" aria-label={`${props.count} 条未读`}>
+    <span className="pod-side-badge" aria-label={t('{count} 条未读', { count: props.count })}>
       {props.count > 99 ? '99+' : props.count}
     </span>
   )
@@ -38,10 +38,10 @@ type MenuView = 'main' | 'move' | 'new-folder'
 function previewOf(item: SidebarItem, members: readonly Bot[]): string {
   const text = item.room?.preview ?? ''
   if (item.bot !== undefined) {
-    const own = `${item.bot.name}：`
-    return text === '' ? '还没有聊过' : text.startsWith(own) ? text.slice(own.length) : text
+    const own = t('{name}：', { name: item.bot.name })
+    return text === '' ? t('还没有聊过') : text.startsWith(own) ? text.slice(own.length) : text
   }
-  return text === '' ? members.map((bot) => bot.name).join('、') : text
+  return text === '' ? members.map((bot) => bot.name).join(t('、')) : text
 }
 
 /**
@@ -89,7 +89,7 @@ export function SideItem(props: SideItemProps) {
   }
   const togglePin = (): void => {
     close()
-    const targets = item.rooms.length > 0 ? Promise.resolve(item.rooms) : bot === undefined ? Promise.reject(new Error('找不到这个对话')) : api.openDirect(bot.id).then((found) => [found])
+    const targets = item.rooms.length > 0 ? Promise.resolve(item.rooms) : bot === undefined ? Promise.reject(new Error(t('找不到这个对话'))) : api.openDirect(bot.id).then((found) => [found])
     run(targets.then((found) => Promise.all(found.map((thread) => api.updateRoom(thread.id, { pinned: !item.pinned })))))
   }
   const rename = (value: string): void => {
@@ -103,14 +103,14 @@ export function SideItem(props: SideItemProps) {
   const remove = (): void => {
     close()
     if (bot !== undefined) {
-      if (window.confirm(`删除「${bot.name}」？它的设定、记忆和聊天记录先放进回收站，30 天内可以在“设置 → 回收站”里恢复。`)) run(api.archiveBot(bot.id), leaveIfOpen)
-    } else if (room !== undefined && window.confirm(`删除群聊「${room.title}」？30 天内可以在“设置 → 回收站”里恢复。`)) {
+      if (window.confirm(t('删除「{name}」？它的设定、记忆和聊天记录先放进回收站，30 天内可以在“设置 → 回收站”里恢复。', { name: bot.name }))) run(api.archiveBot(bot.id), leaveIfOpen)
+    } else if (room !== undefined && window.confirm(t('删除群聊「{title}」？30 天内可以在“设置 → 回收站”里恢复。', { title: room.title }))) {
       run(api.updateRoom(room.id, { archived: true }), leaveIfOpen)
     }
   }
   const clearChat = (): void => {
     close()
-    if (item.rooms.length > 0 && window.confirm(`删除和「${title}」的全部聊天记录（${item.rooms.length} 段对话）？消息会全部删掉，${title} 本身和它的记忆保留。`)) {
+    if (item.rooms.length > 0 && window.confirm(t('删除和「{title}」的全部聊天记录（{length} 段对话）？消息会全部删掉，{title} 本身和它的记忆保留。', { title, length: item.rooms.length }))) {
       run(Promise.all(item.rooms.map((thread) => api.clearRoom(thread.id))))
     }
   }
@@ -127,8 +127,8 @@ export function SideItem(props: SideItemProps) {
   const press = useLongPress((x, y) => menu.openAt(x, y), menuable)
   const iconSize = narrow ? 44 : props.collapsed ? 28 : 24
   const icon = item.kind === 'bot' ? <Avatar bot={bot} size={iconSize} /> : <GroupMark members={props.members} size={iconSize} />
-  const flag = waits > 0 && !props.collapsed ? <Badge tone="warn">需要你</Badge> : unread > 0 ? <UnreadBadge count={unread} /> : null
-  const busy = props.busy ? <span className="pod-side-busy" role="img" aria-label="正在工作" /> : null
+  const flag = waits > 0 && !props.collapsed ? <Badge tone="warn">{t('需要你')}</Badge> : unread > 0 ? <UnreadBadge count={unread} /> : null
+  const busy = props.busy ? <span className="pod-side-busy" role="img" aria-label={t('正在工作')} /> : null
   const lastAt = item.room?.lastMessageAt ?? null
   return (
     <div
@@ -151,7 +151,7 @@ export function SideItem(props: SideItemProps) {
       {renaming && !props.collapsed ? (
         <div className="pod-side-row">
           {icon}
-          <RenameInput value={title} max={bot === undefined ? ROOM_TITLE_MAX : BOT_NAME_MAX} label={`给「${title}」改名`} onSave={rename} onCancel={() => setRenaming(false)} />
+          <RenameInput value={title} max={bot === undefined ? ROOM_TITLE_MAX : inputLimit(BOT_NAME_MAX)} label={t('给「{title}」改名', { title })} onSave={rename} onCancel={() => setRenaming(false)} />
         </div>
       ) : narrow ? (
         <button type="button" className="pod-side-row pod-side-row-tall" onClick={open} aria-current={active ? 'true' : undefined}>
@@ -182,24 +182,24 @@ export function SideItem(props: SideItemProps) {
           {busy}
         </button>
       )}
-      <MenuPanel control={menu} label={`「${title}」的操作`}>
+      <MenuPanel control={menu} label={t('「{title}」的操作', { title })}>
         {view === 'main' ? (
           <>
-            {lead ? null : <MenuItem icon={item.pinned ? 'unpin' : 'pin'} label={item.pinned ? '取消置顶' : '置顶'} onClick={togglePin} />}
+            {lead ? null : <MenuItem icon={item.pinned ? 'unpin' : 'pin'} label={item.pinned ? t('取消置顶') : t('置顶')} onClick={togglePin} />}
             <MenuItem
               icon="edit"
-              label="改名"
+              label={t('改名')}
               onClick={() => {
                 close()
                 setRenaming(true)
               }}
             />
-            {lead ? null : <MenuItem icon="move" label="移到分组" hint={placed === undefined ? undefined : store.prefs.folders.find((folder) => folder.id === placed)?.name} onClick={() => setView('move')} />}
+            {lead ? null : <MenuItem icon="move" label={t('移到分组')} hint={placed === undefined ? undefined : store.prefs.folders.find((folder) => folder.id === placed)?.name} onClick={() => setView('move')} />}
             {lead ? null : (
               <MenuItem
                 icon="archive"
-                label={archived ? '取消归档' : '归档'}
-                hint={archived ? undefined : '不在侧栏显示，在设置的“归档”里找回'}
+                label={archived ? t('取消归档') : t('归档')}
+                hint={archived ? undefined : t('不在侧栏显示，在设置的“归档”里找回')}
                 onClick={() => {
                   close()
                   store.save((prefs) => archiveSidebarItem(prefs, item.key, !archived))
@@ -207,13 +207,13 @@ export function SideItem(props: SideItemProps) {
               />
             )}
             <MenuDivider />
-            {bot !== undefined && room !== undefined ? <MenuItem icon="trash" label="删除聊天记录" danger onClick={clearChat} /> : null}
-            {bot?.role === 'lead' ? null : <MenuItem icon="trash" label={bot === undefined ? '删除群聊' : '删除这个 bot'} danger onClick={remove} />}
+            {bot !== undefined && room !== undefined ? <MenuItem icon="trash" label={t('删除聊天记录')} danger onClick={clearChat} /> : null}
+            {bot?.role === 'lead' ? null : <MenuItem icon="trash" label={bot === undefined ? t('删除群聊') : t('删除这个 bot')} danger onClick={remove} />}
           </>
         ) : null}
         {view === 'move' ? (
           <>
-            <MenuItem icon="back" label="返回" onClick={() => setView('main')} />
+            <MenuItem icon="back" label={t('返回')} onClick={() => setView('main')} />
             <MenuDivider />
             {store.prefs.folders.map((folder) => (
               <MenuItem
@@ -227,11 +227,11 @@ export function SideItem(props: SideItemProps) {
                 }}
               />
             ))}
-            <MenuItem icon="plus" label="新建分组…" onClick={() => setView('new-folder')} />
+            <MenuItem icon="plus" label={t('新建分组…')} onClick={() => setView('new-folder')} />
             {placed === undefined ? null : (
               <MenuItem
                 icon="close"
-                label="移出分组"
+                label={t('移出分组')}
                 onClick={() => {
                   close()
                   store.save((prefs) => moveSidebarItem(prefs, item.key, null))
@@ -247,15 +247,15 @@ export function SideItem(props: SideItemProps) {
               autoFocus
               value={folderName}
               maxLength={12}
-              placeholder="分组名，例如：量化"
-              aria-label="新分组的名字"
+              placeholder={t('分组名，例如：量化')}
+              aria-label={t('新分组的名字')}
               onChange={(event) => setFolderName(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && !event.nativeEvent.isComposing) createFolder()
               }}
             />
             <button type="button" className="pod-button pod-button-primary pod-button-small" disabled={folderName.trim() === ''} onClick={createFolder}>
-              建好并移进去
+              {t('建好并移进去')}
             </button>
           </div>
         ) : null}

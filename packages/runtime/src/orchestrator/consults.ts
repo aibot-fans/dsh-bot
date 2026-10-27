@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { PRIORITY, botFolder, fail, newId, ok, truncate, type Bot, type PodResult, type PodSession, type Task } from 'pod-domain'
+import { PRIORITY, botFolder, fail, newId, ok, t, truncate, type Bot, type PodResult, type PodSession, type Task } from 'pod-domain'
 import { answerConsult, insertConsult, oldestPendingConsult } from 'pod-store'
 import type { Dispatcher } from '../agents/dispatcher.ts'
 import { relaySource } from '../agents/messages.ts'
@@ -57,7 +57,7 @@ export class ConsultService {
       roomId: null,
       taskId: rootId,
       folder: botFolder(target),
-      title: `dsh-bot · 咨询 · ${target.name}`,
+      title: t('dsh-bot · 咨询 · {name}', { name: target.name }),
     })
   }
 
@@ -70,12 +70,12 @@ export class ConsultService {
 
   /** ask_bot：把问题投进对方的咨询会话，立即返回；答复到了再送回提问的会话。 */
   async ask(asker: PodSession, targetName: string, question: string): Promise<PodResult<string>> {
-    if (asker.kind === 'consult') return fail('forbidden', '咨询不能嵌套：正在回答咨询时不能再咨询别人')
+    if (asker.kind === 'consult') return fail('forbidden', t('咨询不能嵌套：正在回答咨询时不能再咨询别人'))
     const target = this.deps.bots.resolve(targetName)
-    if (target === undefined) return fail('not-found', `找不到 bot「${targetName}」`)
-    if (target.id === asker.botId) return fail('invalid-input', '不能咨询自己')
+    if (target === undefined) return fail('not-found', t('找不到 bot「{targetName}」', { targetName }))
+    if (target.id === asker.botId) return fail('invalid-input', t('不能咨询自己'))
     if (this.groupOf(asker)?.members.some((bot) => bot.id === target.id) === true) {
-      return fail('invalid-input', `${target.name}就在这个群里：用 mention_member 在群里 @ 它，让它当着大家回答。ask_bot 只用来问不在群里的 bot。`)
+      return fail('invalid-input', t('{name}就在这个群里：用 mention_member 在群里 @ 它，让它当着大家回答。ask_bot 只用来问不在群里的 bot。', { name: target.name }))
     }
     const root = this.rootOf(asker)
     const session = await this.consultSession(target, root?.id ?? null, false)
@@ -135,9 +135,9 @@ export class ConsultService {
       this.deps.rooms.post(consult.roomId, {
         author: consult.askerBot,
         kind: 'folded',
-        body: `**${askerName}问**：${consult.question}\n\n**${targetName}答**：${text}`,
+        body: t('**{askerName}问**：{question}\n\n**{targetName}答**：{text}', { askerName, question: consult.question, targetName, text }),
         // 群外的 bot 只回答了提问的 bot，不是在群里发言；标出来，免得看着像大家都回复了。
-        data: { label: `${askerName} 咨询了 ${targetName}${outside ? '（群外，只答给提问的人）' : ''}` },
+        data: { label: t('{askerName} 咨询了 {targetName}{value}', { askerName, targetName, value: outside ? t('（群外，只答给提问的人）') : '' }) },
       })
     }
   }
@@ -153,9 +153,9 @@ export class ConsultService {
   ): Promise<PodResult<readonly ReviewStatement[]>> {
     const members = input.bots.map((name) => this.deps.bots.resolve(name))
     const missing = input.bots.filter((_, index) => members[index] === undefined)
-    if (missing.length > 0) return fail('not-found', `找不到 bot：${missing.join('、')}`)
+    if (missing.length > 0) return fail('not-found', t('找不到 bot：{missing}', { missing: missing.join(t('、')) }))
     const reviewers = members.filter((bot): bot is Bot => bot !== undefined && bot.id !== lead.botId)
-    if (reviewers.length < 2 || reviewers.length > 4) return fail('invalid-input', '内部评审要 2–4 个 bot（不含你自己）')
+    if (reviewers.length < 2 || reviewers.length > 4) return fail('invalid-input', t('内部评审要 2–4 个 bot（不含你自己）'))
     const statements: ReviewStatement[] = []
     for (const bot of reviewers) {
       if (signal.aborted) break
@@ -168,11 +168,11 @@ export class ConsultService {
         input.format === 'free' ? '自由讨论：有新的观点就说，没有补充就只回复 PASS。' : '请给出你的看法，3–6 条，简洁具体。',
       ].join('\n\n')
       const answer = await this.await(session, text, lead, signal)
-      statements.push({ bot: bot.name, text: answer ?? '（没有在时限内回答）' })
+      statements.push({ bot: bot.name, text: answer ?? t('（没有在时限内回答）') })
     }
-    const transcript = statements.map((item) => `**${item.bot}**：${item.text}`).join('\n\n')
+    const transcript = statements.map((item) => t('**{bot}**：{text}', { bot: item.bot, text: item.text })).join('\n\n')
     if (lead.roomId !== null) {
-      this.deps.rooms.post(lead.roomId, { author: lead.botId, kind: 'folded', body: transcript, data: { label: `内部评审原文：${input.topic}` } })
+      this.deps.rooms.post(lead.roomId, { author: lead.botId, kind: 'folded', body: transcript, data: { label: t('内部评审原文：{topic}', { topic: input.topic }) } })
     }
     return ok(statements)
   }

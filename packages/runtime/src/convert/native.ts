@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
+import { t } from 'pod-domain'
 import { ConvertError, type Extracted } from './formats.ts'
 import { countChars } from './markdown.ts'
 
@@ -29,7 +30,7 @@ const PDF_SCRIPT = `function run(argv) {
 }`
 
 function requireMac(what: string): void {
-  if (process.platform !== 'darwin') throw new ConvertError(`只有 macOS 上能自动转${what}`)
+  if (process.platform !== 'darwin') throw new ConvertError(t('只有 macOS 上能自动转{what}', { what }))
 }
 
 async function withTempDir<T>(work: (dir: string) => Promise<T>): Promise<T> {
@@ -52,7 +53,7 @@ function cleanText(text: string): string {
 
 function failure(error: unknown, what: string): ConvertError {
   const killed = typeof error === 'object' && error !== null && 'killed' in error && error.killed === true
-  return new ConvertError(killed ? `${what}超过两分钟还没转完` : `${what}转换失败，文件可能已经损坏`)
+  return new ConvertError(killed ? t('{what}超过两分钟还没转完', { what }) : t('{what}转换失败，文件可能已经损坏', { what }))
 }
 
 /** PDF：每页一节。几乎没有文字时提醒可能是扫描件。 */
@@ -66,24 +67,24 @@ export async function extractPdf(path: string): Promise<Extracted> {
         throw failure(error, 'PDF ')
       },
     )
-    if (status === 'locked') throw new ConvertError('PDF 有密码')
-    if (status !== 'ok') throw new ConvertError('PDF 打不开，可能已经损坏')
+    if (status === 'locked') throw new ConvertError(t('PDF 有密码'))
+    if (status !== 'ok') throw new ConvertError(t('PDF 打不开，可能已经损坏'))
     const parsed: unknown = JSON.parse(await readFile(output, 'utf8'))
     const pages = Array.isArray(parsed) ? parsed.map((page) => (typeof page === 'string' ? cleanText(page) : '')) : []
     const chars = countChars(pages.join(''))
     const scanned = pages.length > 0 && chars < pages.length * 20
     return {
-      body: pages.map((page, index) => `## 第 ${index + 1} 页\n\n${page === '' ? '（这页没有文字）' : page}`).join('\n\n'),
-      note: '由 dsh-bot 用 macOS 自带的 PDFKit 从 PDF 抽出文字；图片和排版没有保留，表格会变成一行行的文字。',
-      summary: `共 ${pages.length} 页`,
-      ...(scanned ? { warning: '这份 PDF 几乎没有文字层，可能是扫描件或图片，文字版里基本没有正文。' } : {}),
+      body: pages.map((page, index) => t('## 第 {index} 页\n\n{value}', { index: index + 1, value: page === '' ? t('（这页没有文字）') : page })).join('\n\n'),
+      note: t('由 dsh-bot 用 macOS 自带的 PDFKit 从 PDF 抽出文字；图片和排版没有保留，表格会变成一行行的文字。'),
+      summary: t('共 {length} 页', { length: pages.length }),
+      ...(scanned ? { warning: t('这份 PDF 几乎没有文字层，可能是扫描件或图片，文字版里基本没有正文。') } : {}),
     }
   })
 }
 
 /** 老版 Word（.doc）、RTF、ODT：交给 macOS 自带的 textutil。 */
 export async function extractWithTextutil(path: string): Promise<Extracted> {
-  requireMac('这种格式')
+  requireMac(t('这种格式'))
   return withTempDir(async (dir) => {
     const output = join(dir, 'text.txt')
     await run('textutil', ['-convert', 'txt', '-encoding', 'UTF-8', '-output', output, path], { timeout: TIMEOUT }).catch((error: unknown) => {
@@ -91,7 +92,7 @@ export async function extractWithTextutil(path: string): Promise<Extracted> {
     })
     return {
       body: cleanText(await readFile(output, 'utf8')),
-      note: '由 dsh-bot 用 macOS 自带的 textutil 转出；图片和排版没有保留。',
+      note: t('由 dsh-bot 用 macOS 自带的 textutil 转出；图片和排版没有保留。'),
       summary: '',
     }
   })

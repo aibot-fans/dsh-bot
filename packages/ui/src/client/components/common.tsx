@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
-import { isAvatarImage, nameColors, type NameColors } from 'pod-domain'
+import { intlLocale, isAvatarImage, nameColors, t, type NameColors } from 'pod-domain'
 import { mediaUrl } from '../api/http.ts'
 import { BotFigure, BotIcon, iconOf, type IconBot } from './BotIcon.tsx'
 import { Icon } from './Icon.tsx'
@@ -42,9 +42,9 @@ function SheetHead(props: { readonly className: string; readonly title: string; 
   const narrow = useNarrow()
   return (
     <header className={props.className}>
-      {narrow ? <IconButton icon="back" label="返回" onClick={props.onClose} /> : null}
+      {narrow ? <IconButton icon="back" label={t('返回')} onClick={props.onClose} /> : null}
       <h2>{props.title}</h2>
-      {narrow ? null : <IconButton icon="close" label="关闭" onClick={props.onClose} />}
+      {narrow ? null : <IconButton icon="close" label={t('关闭')} onClick={props.onClose} />}
     </header>
   )
 }
@@ -139,13 +139,13 @@ export function IconButton(props: { readonly icon: string; readonly label: strin
 
 function relative(time: number, now: number): string {
   const seconds = Math.round((now - time) / 1000)
-  if (seconds < 45) return '刚刚'
+  if (seconds < 45) return t('刚刚')
   const minutes = Math.round(seconds / 60)
-  if (minutes < 60) return `${minutes} 分钟前`
+  if (minutes < 60) return t('{minutes} 分钟前', { minutes })
   const hours = Math.round(minutes / 60)
-  if (hours < 24) return `${hours} 小时前`
+  if (hours < 24) return t('{hours} 小时前', { hours })
   const date = new Date(time)
-  return `${date.getMonth() + 1}月${date.getDate()}日`
+  return date.toLocaleDateString(intlLocale(), { month: 'short', day: 'numeric' })
 }
 
 /** 每 30 秒刷新一次的“几分钟前”。 */
@@ -161,10 +161,9 @@ export function useNow(intervalMs = 30_000): number {
 export function RelativeTime(props: { readonly time: number | null | undefined }) {
   const now = useNow()
   if (props.time === null || props.time === undefined) return null
-  return <time dateTime={new Date(props.time).toISOString()} title={new Date(props.time).toLocaleString()}>{relative(props.time, now)}</time>
+  return <time dateTime={new Date(props.time).toISOString()} title={new Date(props.time).toLocaleString(intlLocale())}>{relative(props.time, now)}</time>
 }
 
-const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'] as const
 
 /** 列表上的时间：今天写几点几分，昨天写“昨天”，一周内写星期几，再早写日期（不是今年的带上年份）。 */
 export function listTime(time: number, now: number): string {
@@ -172,8 +171,8 @@ export function listTime(time: number, now: number): string {
   const today = new Date(now)
   const days = Math.round((new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime() - new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()) / 86_400_000)
   if (days <= 0) return clock(time)
-  if (days === 1) return '昨天'
-  if (days < 7) return WEEKDAYS[date.getDay()] ?? ''
+  if (days === 1) return t('昨天')
+  if (days < 7) return date.toLocaleDateString(intlLocale(), { weekday: 'short' })
   const day = `${date.getMonth() + 1}/${date.getDate()}`
   return date.getFullYear() === today.getFullYear() ? day : `${date.getFullYear()}/${day}`
 }
@@ -196,7 +195,7 @@ export function ErrorBanner(props: { readonly message: string; readonly onClose?
   return (
     <div className="pod-error" role="alert">
       <span>{props.message}</span>
-      {props.onClose === undefined ? null : <IconButton icon="close" label="关闭" onClick={props.onClose} />}
+      {props.onClose === undefined ? null : <IconButton icon="close" label={t('关闭')} onClick={props.onClose} />}
     </div>
   )
 }
@@ -234,4 +233,10 @@ export function Field(props: { readonly label: string; readonly hint?: string; r
       {props.children}
     </label>
   )
+}
+
+/** 星期几的简称（ISO：1 是周一，7 是周日），按界面语言：周一 / Mon。 */
+export function weekdayName(isoWeekday: number): string {
+  // 2024-01-01 是周一。
+  return new Date(2024, 0, isoWeekday).toLocaleDateString(intlLocale(), { weekday: 'short' })
 }

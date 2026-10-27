@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { MEMORY_TYPES, MEMORY_TYPE_LABELS, type MemoryEntry, type MemoryScopeKind, type MemoryType } from 'pod-domain'
+import { MEMORY_TYPES, MEMORY_TYPE_LABELS, t, tc, type MemoryEntry, type MemoryScopeKind, type MemoryType } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { Badge, Button, Empty, RelativeTime, clock } from '../../components/common.tsx'
@@ -39,9 +39,9 @@ function CoreEditor(props: { readonly scope: ScopeOption }) {
   const text = draft ?? core?.text ?? ''
   return (
     <section className="pod-settings-section">
-      <h2>核心记忆</h2>
-      <p className="pod-muted">每段会话开始时放进提示词。{core?.userEdited === true ? '你改过，夜间整理不会改写它。' : ''}</p>
-      <textarea className="pod-textarea" rows={5} value={text} onChange={(event) => setDraft(event.target.value)} placeholder="例如：用户是产品经理，喜欢先看结论再看细节" />
+      <h2>{t('核心记忆')}</h2>
+      <p className="pod-muted">{t('每段会话开始时放进提示词。{value}', { value: core?.userEdited === true ? t('你改过，夜间整理不会改写它。') : '' })}</p>
+      <textarea className="pod-textarea" rows={5} value={text} onChange={(event) => setDraft(event.target.value)} placeholder={t('例如：用户是产品经理，喜欢先看结论再看细节')} />
       <div className="pod-row">
         <Button
           small
@@ -54,9 +54,9 @@ function CoreEditor(props: { readonly scope: ScopeOption }) {
             })
           }}
         >
-          保存
+          {t('保存')}
         </Button>
-        {saved ? <span className="pod-muted-inline">已保存，从下一段会话开始生效</span> : null}
+        {saved ? <span className="pod-muted-inline">{t('已保存，从下一段会话开始生效')}</span> : null}
       </div>
     </section>
   )
@@ -78,25 +78,25 @@ function EntryRow(props: { readonly entry: MemoryEntry; readonly onChanged: () =
   return (
     <li className={`pod-memory${entry.status === 'pending' ? ' pod-memory-pending' : ''}`}>
       <div className="pod-row pod-wrap">
-        <Badge>{MEMORY_TYPE_LABELS[entry.type]}</Badge>
-        <Badge tone={entry.source === 'web' ? 'warn' : 'muted'}>{SOURCE_LABELS[entry.source] ?? entry.source}</Badge>
-        {entry.status === 'pending' ? <Badge tone="warn">待确认</Badge> : null}
-        {entry.status === 'archived' ? <Badge>已归档</Badge> : null}
-        {entry.pinned ? <Badge tone="info">置顶</Badge> : null}
-        {entry.private ? <Badge>私密</Badge> : null}
+        <Badge>{t(MEMORY_TYPE_LABELS[entry.type])}</Badge>
+        <Badge tone={entry.source === 'web' ? 'warn' : 'muted'}>{t(SOURCE_LABELS[entry.source] ?? entry.source)}</Badge>
+        {entry.status === 'pending' ? <Badge tone="warn">{t('待确认')}</Badge> : null}
+        {entry.status === 'archived' ? <Badge>{t('已归档')}</Badge> : null}
+        {entry.pinned ? <Badge tone="info">{tc('置顶', '状态')}</Badge> : null}
+        {entry.private ? <Badge>{t('私密')}</Badge> : null}
         <span className="pod-muted-inline">
           <RelativeTime time={entry.updatedAt} />
-          {entry.useCount > 0 ? ` · 用过 ${entry.useCount} 次` : ''}
+          {entry.useCount > 0 ? t(' · 用过 {useCount} 次', { useCount: entry.useCount }) : ''}
         </span>
       </div>
       {editing ? (
         <div className="pod-row">
           <input className="pod-input" value={content} onChange={(event) => setContent(event.target.value)} />
           <Button small kind="primary" onClick={() => act(() => api.updateMemory(entry.id, { content }))}>
-            保存
+            {t('保存')}
           </Button>
           <Button small kind="quiet" onClick={() => setEditing(false)}>
-            取消
+            {t('取消')}
           </Button>
         </div>
       ) : (
@@ -105,28 +105,28 @@ function EntryRow(props: { readonly entry: MemoryEntry; readonly onChanged: () =
       <div className="pod-row pod-wrap">
         {entry.status === 'pending' ? (
           <Button small kind="primary" onClick={() => act(() => api.updateMemory(entry.id, { status: 'active' }))}>
-            确认
+            {t('确认')}
           </Button>
         ) : null}
         <Button small kind="quiet" onClick={() => setEditing(true)}>
-          编辑
+          {t('编辑')}
         </Button>
         <Button small kind="quiet" onClick={() => act(() => api.updateMemory(entry.id, { pinned: !entry.pinned }))}>
-          {entry.pinned ? '取消置顶' : '置顶'}
+          {entry.pinned ? t('取消置顶') : t('置顶')}
         </Button>
         {entry.scopeKind === 'owner' ? (
           <Button small kind="quiet" onClick={() => act(() => api.updateMemory(entry.id, { private: !entry.private }))}>
-            {entry.private ? '取消私密' : '设为私密'}
+            {entry.private ? t('取消私密') : t('设为私密')}
           </Button>
         ) : null}
         <Button
           small
           kind="quiet"
           onClick={() => {
-            if (window.confirm('删除这条记忆？之后可以在变更日志里撤销。')) act(() => api.deleteMemory(entry.id))
+            if (window.confirm(t('删除这条记忆？之后可以在变更日志里撤销。'))) act(() => api.deleteMemory(entry.id))
           }}
         >
-          删除
+          {t('删除')}
         </Button>
       </div>
       {error === undefined ? null : <p className="pod-form-error">{error}</p>}
@@ -143,11 +143,11 @@ function AddEntry(props: { readonly scope: ScopeOption; readonly onAdded: () => 
       <select className="pod-input pod-input-number" value={type} onChange={(event) => setType(event.target.value as MemoryType)}>
         {MEMORY_TYPES.map((item) => (
           <option key={item} value={item}>
-            {MEMORY_TYPE_LABELS[item]}
+            {t(MEMORY_TYPE_LABELS[item])}
           </option>
         ))}
       </select>
-      <input className="pod-input" style={{ flex: 1 }} value={content} placeholder="写一条新的记忆" onChange={(event) => setContent(event.target.value)} />
+      <input className="pod-input" style={{ flex: 1 }} value={content} placeholder={t('写一条新的记忆')} onChange={(event) => setContent(event.target.value)} />
       <Button
         small
         kind="primary"
@@ -161,7 +161,7 @@ function AddEntry(props: { readonly scope: ScopeOption; readonly onAdded: () => 
             .catch((reason: unknown) => setError(errorText(reason)))
         }}
       >
-        添加
+        {t('添加')}
       </Button>
       {error === undefined ? null : <p className="pod-form-error">{error}</p>}
     </div>
@@ -172,18 +172,18 @@ function AddEntry(props: { readonly scope: ScopeOption; readonly onAdded: () => 
 function Changes() {
   const app = useApp()
   const { data: changes, reload } = useResource(app.cache, 'memory:changes', () => api.memoryChanges())
-  if (changes === undefined || changes.length === 0) return <p className="pod-muted">还没有变更。</p>
+  if (changes === undefined || changes.length === 0) return <p className="pod-muted">{t('还没有变更。')}</p>
   return (
     <ol className="pod-events">
       {changes.map((change) => (
         <li key={change.id}>
           <time>{clock(change.createdAt)}</time>
-          {ACTION_LABELS[change.action] ?? change.action}：{change.after?.content ?? change.before?.content ?? change.reason}
+          {t('{value}：{value2}', { value: tc(ACTION_LABELS[change.action] ?? change.action, '变更'), value2: change.after?.content ?? change.before?.content ?? change.reason })}
           <span className="pod-muted-inline"> · {change.reason}</span>
           {change.revertedAt !== null || change.action === 'core' || change.action === 'revert' ? null : (
             <button type="button" className="pod-link" onClick={() => void api.revertMemory(change.id).then(reload)}>
               {' '}
-              撤销
+              {t('撤销')}
             </button>
           )}
         </li>
@@ -208,12 +208,12 @@ export function MemoryPanel(props: { readonly scope: MemoryScope }) {
   const others = (entries ?? []).filter((entry) => entry.status !== 'pending')
   return (
     <div className="pod-stack">
-      <p className="pod-muted">记忆管“知道什么”。核心记忆每段会话开始时放进提示词；条目数量不限，用到时再取。网页来源的条目单独标记。</p>
+      <p className="pod-muted">{t('记忆管“知道什么”。核心记忆每段会话开始时放进提示词；条目数量不限，用到时再取。网页来源的条目单独标记。')}</p>
       <CoreEditor key={scope.key} scope={scope} />
       <AddEntry scope={scope} onAdded={reload} />
       {pending.length === 0 ? null : (
         <section className="pod-stack">
-          <div className="pod-section-title">待确认（bot 推断的，确认后才会使用）</div>
+          <div className="pod-section-title">{t('待确认（bot 推断的，确认后才会使用）')}</div>
           <ul className="pod-memories">
             {pending.map((entry) => (
               <EntryRow key={entry.id} entry={entry} onChanged={reload} />
@@ -222,7 +222,7 @@ export function MemoryPanel(props: { readonly scope: MemoryScope }) {
         </section>
       )}
       {others.length === 0 && pending.length === 0 ? (
-        <Empty title="还没有记忆">对 bot 说“记住……”，或者在上面直接添加。</Empty>
+        <Empty title={t('还没有记忆')}>{t('对 bot 说“记住……”，或者在上面直接添加。')}</Empty>
       ) : (
         <ul className="pod-memories">
           {others.map((entry) => (

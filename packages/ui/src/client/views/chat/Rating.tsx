@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { t } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { Button, IconButton } from '../../components/common.tsx'
@@ -34,12 +35,12 @@ export function RateButtons(props: { readonly roomId: string; readonly messageId
   return (
     <>
       <span className={current === 1 ? 'pod-rated' : ''}>
-        <IconButton icon="up" label={current === 1 ? '取消赞' : '赞'} onClick={() => rate(current === 1 ? 0 : 1)} />
+        <IconButton icon="up" label={current === 1 ? t('取消赞') : t('赞')} onClick={() => rate(current === 1 ? 0 : 1)} />
       </span>
       <span className={current === -1 ? 'pod-rated pod-rated-down' : ''}>
         <IconButton
           icon="down"
-          label={current === -1 ? '取消踩' : '踩'}
+          label={current === -1 ? t('取消踩') : t('踩')}
           onClick={() => {
             if (current === -1) rate(0)
             else setAsking(true)
@@ -48,7 +49,7 @@ export function RateButtons(props: { readonly roomId: string; readonly messageId
       </span>
       {asking ? (
         <span className="pod-rate-reason">
-          <input className="pod-input" autoFocus placeholder="哪里不好？可以不写" value={reason} onChange={(event) => setReason(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && !event.nativeEvent.isComposing && (rate(-1, reason), setAsking(false), setReason(''))} />
+          <input className="pod-input" autoFocus placeholder={t('哪里不好？可以不写')} value={reason} onChange={(event) => setReason(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && !event.nativeEvent.isComposing && (rate(-1, reason), setAsking(false), setReason(''))} />
           <Button
             small
             onClick={() => {
@@ -57,10 +58,10 @@ export function RateButtons(props: { readonly roomId: string; readonly messageId
               setReason('')
             }}
           >
-            提交
+            {t('提交')}
           </Button>
           <Button small kind="quiet" onClick={() => setAsking(false)}>
-            取消
+            {t('取消')}
           </Button>
         </span>
       ) : null}

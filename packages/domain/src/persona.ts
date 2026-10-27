@@ -4,7 +4,8 @@
  */
 
 import { iconAvatar } from './avatars.ts'
-import { botLabel, type Bot, type BotDraft } from './bots.ts'
+import { botLabel, type Bot, type BotDraft, type BotPatch } from './bots.ts'
+import { currentLanguage, t, type Language } from './i18n.ts'
 import type { Autonomy } from './settings.ts'
 
 /** 主管的默认人设；用户可以像改其他 bot 一样改它。 */
@@ -20,10 +21,53 @@ export const LEAD_SEED: BotDraft = {
   capabilities: ['统筹', '分工', '验收'],
 }
 
+const LEAD_SEED_EN: BotDraft = {
+  name: 'Lead',
+  title: 'Lead',
+  persona: [
+    "You are the Lead of dsh-bot and the user's default entry point in dsh-bot.",
+    'You work out what the user wants and the best way to get it done: finish what you can do yourself, hand work that needs expertise to the right bot, and form a team when it needs several skills or can run in parallel.',
+    'Be concise and specific: conclusion first, then details.',
+  ].join('\n'),
+  avatar: iconAvatar('lead'),
+  capabilities: ['Coordination', 'Delegation', 'Review'],
+}
+
+/** 按语言取主管的默认人设：界面切到英文时，没改过的主管也跟着换成英文。 */
+export function leadSeed(language: Language = currentLanguage()): BotDraft {
+  return language === 'en' ? LEAD_SEED_EN : LEAD_SEED
+}
+
+/** 是不是某个语言的默认主管名字（用户没改过）。 */
+export function isLeadSeedName(name: string): boolean {
+  return name === LEAD_SEED.name || name === LEAD_SEED_EN.name
+}
+
+/**
+ * 把主管还是默认值的部分换成这个语言的版本（默认人设出了新版也靠它换上）：
+ * 名字、角色、能力标签还是某个语言的默认值就换；人设只在来源是 seed（你和自我优化都没改过）时换。
+ */
+export function leadSeedPatch(lead: Bot, language: Language = currentLanguage()): BotPatch {
+  const seed = leadSeed(language)
+  const capabilities = seed.capabilities ?? []
+  const seedLists = [LEAD_SEED.capabilities ?? [], LEAD_SEED_EN.capabilities ?? []].map((list) => list.join('\n'))
+  const current = lead.capabilities.join('\n')
+  return {
+    ...(lead.personaSource === 'seed' && lead.persona !== seed.persona ? { persona: seed.persona } : {}),
+    ...(isLeadSeedName(lead.name) && lead.name !== seed.name ? { name: seed.name } : {}),
+    ...(isLeadSeedName(lead.title) && lead.title !== seed.title ? { title: seed.title } : {}),
+    ...(seedLists.includes(current) && current !== capabilities.join('\n') ? { capabilities } : {}),
+  }
+}
+
 /** 只给了名字和一句职责时的人设：写明职责和做事方式；之后可以在详情里改，自我优化也会补充。 */
 export function quickPersona(name: string, duty: string): string {
   const task = duty.trim().replace(/[。.！!]+$/, '')
-  return [`你是「${name.trim()}」。`, task === '' ? '' : `你负责：${task}。`, '做事直接、具体，先给结论再给细节；拿不准时先说你的假设，然后接着做。']
+  return [
+    t('你是「{name}」。', { name: name.trim() }),
+    task === '' ? '' : t('你负责：{task}。', { task }),
+    t('做事直接、具体，先给结论再给细节；拿不准时先说你的假设，然后接着做。'),
+  ]
     .filter((line) => line !== '')
     .join('\n')
 }
@@ -249,4 +293,16 @@ export function composePersona(context: PersonaContext): string {
     environment(context),
   ]
   return parts.filter((part): part is string => part !== undefined && part !== '').join('\n\n')
+}
+
+/** 英文模式下补在人设最后的一段：提示词有不少是中文写的，要明确告诉 bot 用英文写给人看的东西。 */
+const ENGLISH_NOTE = [
+  'Language: the user has set dsh-bot to English.',
+  'Write everything people will read in English: your replies, messages to other bots, names of tasks, groups and routines, pages, notes and summaries.',
+  'Some of the instructions above are written in Chinese. Follow them, but write in English unless your persona or the user asks for another language.',
+].join('\n')
+
+/** 按语言补上语言说明；中文是默认，不加。 */
+export function withLanguage(persona: string, language: Language): string {
+  return language === 'en' ? `${persona}\n\n${ENGLISH_NOTE}` : persona
 }

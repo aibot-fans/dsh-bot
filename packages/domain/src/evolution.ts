@@ -1,3 +1,4 @@
+import { t } from './i18n.ts'
 /**
  * 自我优化：反馈信号、评分卡、技能、进化日志。和任务一样默认自治：改动直接生效、留版本、可回滚；
  * 只有涉及代码和权限的改动（带脚本的技能）要你批准。
@@ -134,11 +135,11 @@ export function computeScorecard(tasks: readonly ScoredTask[], feedback: readonl
 export function clearlyWorse(baseline: Scorecard, current: Scorecard): string | undefined {
   if (current.done + current.failed < 3) return undefined
   if (baseline.firstPassRate !== null && current.firstPassRate !== null && baseline.firstPassRate - current.firstPassRate >= 0.25) {
-    return `一次验收通过率从 ${Math.round(baseline.firstPassRate * 100)}% 降到 ${Math.round(current.firstPassRate * 100)}%`
+    return t('一次验收通过率从 {round}% 降到 {round2}%', { round: Math.round(baseline.firstPassRate * 100), round2: Math.round(current.firstPassRate * 100) })
   }
-  if (baseline.rating !== null && current.rating !== null && current.ratings >= 2 && baseline.rating - current.rating >= 0.6) return '你的评分明显变低'
-  if (current.editsPerTask - baseline.editsPerTask >= 0.4) return '交付后被你修改的次数明显变多'
-  if (current.failed > baseline.failed && current.failed / Math.max(1, current.done + current.failed) >= 0.4) return '失败的任务明显变多'
+  if (baseline.rating !== null && current.rating !== null && current.ratings >= 2 && baseline.rating - current.rating >= 0.6) return t('你的评分明显变低')
+  if (current.editsPerTask - baseline.editsPerTask >= 0.4) return t('交付后被你修改的次数明显变多')
+  if (current.failed > baseline.failed && current.failed / Math.max(1, current.done + current.failed) >= 0.4) return t('失败的任务明显变多')
   return undefined
 }
 

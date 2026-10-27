@@ -1,4 +1,4 @@
-import { fail, ok, readString } from 'pod-domain'
+import { fail, ok, readString, t } from 'pod-domain'
 import { bindText } from '../aibot/errors.ts'
 import type { PodRuntime } from '../pod.ts'
 import { get, post, type RouteSpec } from './router.ts'
@@ -17,7 +17,7 @@ export function aibotRoutes(pod: PodRuntime): readonly RouteSpec[] {
     }),
     get('/aibot/bind/poll', async (query) => {
       const id = readString(query, 'id')
-      if (id === '') return fail('invalid-input', '缺少绑定申请的 id')
+      if (id === '') return fail('invalid-input', t('缺少绑定申请的 id'))
       try {
         return ok(await pod.aibot.bindPoll(id))
       } catch (error) {

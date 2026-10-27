@@ -2,6 +2,8 @@
 
 import type { Autonomy } from './settings.ts'
 import type { ModelChoice } from './bots.ts'
+import { currentLanguage, type Language } from './i18n.ts'
+import { TEAM_TEMPLATES_EN } from './teams-en.ts'
 
 export interface Team {
   readonly id: string
@@ -162,3 +164,8 @@ export const TEAM_TEMPLATES: readonly TeamTemplate[] = [
     ],
   },
 ]
+
+/** 按语言取团队模板：id 两种语言一样，建出来的 bot 名字和人设跟着语言走。 */
+export function teamTemplates(language: Language = currentLanguage()): readonly TeamTemplate[] {
+  return language === 'en' ? TEAM_TEMPLATES_EN : TEAM_TEMPLATES
+}

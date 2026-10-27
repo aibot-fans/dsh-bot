@@ -1,11 +1,15 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import {
+  FOLDER_NAME_MAX,
   SIDEBAR_BOTS,
   SIDEBAR_GROUPS,
   SIDEBAR_PINNED,
+  inputLimit,
   removeSidebarFolder,
   renameSidebarFolder,
   sidebarSections,
+  t,
+  tc,
   toggleSidebarFolder,
   type Bot,
   type SidebarFolder,
@@ -56,8 +60,8 @@ function FolderHead(props: { readonly folder: SidebarFolder; readonly count: num
       <div className="pod-side-section pod-side-folder">
         <RenameInput
           value={folder.name}
-          max={12}
-          label={`给分组「${folder.name}」改名`}
+          max={inputLimit(FOLDER_NAME_MAX)}
+          label={t('给分组「{name}」改名', { name: folder.name })}
           onSave={(name) => {
             setRenaming(false)
             store.save((prefs) => renameSidebarFolder(prefs, folder.id, name))
@@ -75,13 +79,13 @@ function FolderHead(props: { readonly folder: SidebarFolder; readonly count: num
         <span className="pod-ellipsis">{folder.name}</span>
         <span className="pod-side-count">{props.count}</span>
       </button>
-      <button ref={menu.anchor} type="button" className="pod-icon-button" aria-label={`分组「${folder.name}」的操作`} aria-expanded={menu.open} onClick={menu.toggle}>
+      <button ref={menu.anchor} type="button" className="pod-icon-button" aria-label={t('分组「{name}」的操作', { name: folder.name })} aria-expanded={menu.open} onClick={menu.toggle}>
         <Icon name="more" size={14} />
       </button>
-      <MenuPanel control={menu} label={`分组「${folder.name}」的操作`}>
+      <MenuPanel control={menu} label={t('分组「{name}」的操作', { name: folder.name })}>
         <MenuItem
           icon="edit"
-          label="改名"
+          label={t('改名')}
           onClick={() => {
             menu.close()
             setRenaming(true)
@@ -89,12 +93,12 @@ function FolderHead(props: { readonly folder: SidebarFolder; readonly count: num
         />
         <MenuItem
           icon="trash"
-          label="删除分组"
-          hint="里面的不会删"
+          label={t('删除分组')}
+          hint={t('里面的不会删')}
           danger
           onClick={() => {
             menu.close()
-            if (window.confirm(`删除分组「${folder.name}」？里面的 bot 和群聊会回到原来的列表，不会被删除。`)) store.save((prefs) => removeSidebarFolder(prefs, folder.id))
+            if (window.confirm(t('删除分组「{name}」？里面的 bot 和群聊会回到原来的列表，不会被删除。', { name: folder.name }))) store.save((prefs) => removeSidebarFolder(prefs, folder.id))
           }}
         />
       </MenuPanel>
@@ -157,32 +161,32 @@ export function Sidebar() {
   const moreButton = (hidden: number, expanded: boolean, toggle: () => void): ReactNode =>
     collapsed || (hidden === 0 && !expanded) ? null : (
       <button type="button" className="pod-side-toggle" onClick={toggle}>
-        {expanded ? '收起' : `更多（${hidden}）`}
+        {expanded ? t('收起') : t('更多（{hidden}）', { hidden })}
       </button>
     )
   const botList = limit(sections.bots, more.bots || narrow, nav.roomId)
   const groupList = limit(sections.groups, more.groups || narrow, nav.roomId)
 
   return (
-    <nav className={`pod-side${collapsed ? ' pod-side-collapsed' : ''}`} aria-label="Bot 和群聊">
+    <nav className={`pod-side${collapsed ? ' pod-side-collapsed' : ''}`} aria-label={t('Bot 和群聊')}>
       <div className="pod-side-top">
         {collapsed ? null : (
           <span className="pod-side-brand">
             dsh-bot
-            <span className={`pod-conn pod-conn-${stream}`} title={stream === 'open' ? '实时连接正常' : '正在重连…'} />
+            <span className={`pod-conn pod-conn-${stream}`} title={stream === 'open' ? t('实时连接正常') : t('正在重连…')} />
           </span>
         )}
-        <button type="button" className="pod-round" aria-label="搜索" title="搜索" onClick={() => app.openSearch('')}>
+        <button type="button" className="pod-round" aria-label={t('搜索')} title={t('搜索')} onClick={() => app.openSearch('')}>
           <Icon name="search" size={18} />
         </button>
-        <button type="button" className="pod-round" aria-label="和主管开新对话" title="和主管开新对话（和别的 bot 开新对话：在对话顶部点同样的按钮）" onClick={startNew}>
+        <button type="button" className="pod-round" aria-label={t('和主管开新对话')} title={t('和主管开新对话（和别的 bot 开新对话：在对话顶部点同样的按钮）')} onClick={startNew}>
           <Icon name="compose" size={18} />
         </button>
-        <button type="button" className="pod-round" aria-label="临时对话：不进列表、不写记忆" title="临时对话：不进列表、不写记忆，离开就删" onClick={() => lead !== undefined && app.startTemporary(lead.id)}>
+        <button type="button" className="pod-round" aria-label={t('临时对话：不进列表、不写记忆')} title={t('临时对话：不进列表、不写记忆，离开就删')} onClick={() => lead !== undefined && app.startTemporary(lead.id)}>
           <Icon name="incognito" size={18} />
         </button>
         {narrow ? null : (
-          <button type="button" className="pod-icon-button pod-side-fold" aria-label={collapsed ? '展开侧栏' : '收起侧栏'} title={collapsed ? '展开侧栏' : '收起侧栏'} onClick={() => app.navigate({ sidebarCollapsed: !collapsed })}>
+          <button type="button" className="pod-icon-button pod-side-fold" aria-label={collapsed ? t('展开侧栏') : t('收起侧栏')} title={collapsed ? t('展开侧栏') : t('收起侧栏')} onClick={() => app.navigate({ sidebarCollapsed: !collapsed })}>
             <Icon name="sidebar" size={18} />
           </button>
         )}
@@ -195,7 +199,7 @@ export function Sidebar() {
       <div className="pod-side-scroll">
         {sections.pinned.length === 0 ? null : (
           <>
-            <SectionHead title="置顶" collapsed={collapsed} drop={drag.head(SIDEBAR_PINNED)} />
+            <SectionHead title={tc('置顶', '状态')} collapsed={collapsed} drop={drag.head(SIDEBAR_PINNED)} />
             {sections.pinned.map(row(SIDEBAR_PINNED))}
           </>
         )}
@@ -205,7 +209,7 @@ export function Sidebar() {
             <div key={folder.id} className="pod-side-group">
               {collapsed ? <span className="pod-side-divider" /> : <FolderHead folder={folder} count={items.length} folded={folded} store={store} drop={drag.head(folder.id)} />}
               {folded && !collapsed ? null : items.map(row(folder.id))}
-              {!folded && !collapsed && items.length === 0 ? <p className="pod-side-empty">{touch ? '空的。长按 bot 或群聊，选“移到分组”。' : '空的。把 bot 或群聊拖到分组名上，或者右键它选“移到分组”。'}</p> : null}
+              {!folded && !collapsed && items.length === 0 ? <p className="pod-side-empty">{touch ? t('空的。长按 bot 或群聊，选“移到分组”。') : t('空的。把 bot 或群聊拖到分组名上，或者右键它选“移到分组”。')}</p> : null}
             </div>
           )
         })}
@@ -214,7 +218,7 @@ export function Sidebar() {
           collapsed={collapsed}
           drop={drag.head(SIDEBAR_BOTS)}
           action={
-            <button type="button" className="pod-icon-button" aria-label="新建 bot" title="新建 bot" onClick={() => app.openDrawer({ kind: 'new-bot' })}>
+            <button type="button" className="pod-icon-button" aria-label={t('新建 bot')} title={t('新建 bot')} onClick={() => app.openDrawer({ kind: 'new-bot' })}>
               <Icon name="plus" size={14} />
             </button>
           }
@@ -222,23 +226,23 @@ export function Sidebar() {
         {botList.shown.map(row(SIDEBAR_BOTS))}
         {moreButton(botList.hidden, more.bots, () => setMore({ ...more, bots: !more.bots }))}
         <SectionHead
-          title="群聊"
+          title={t('群聊')}
           collapsed={collapsed}
           drop={drag.head(SIDEBAR_GROUPS)}
           action={
-            <button type="button" className="pod-icon-button" aria-label="新建群聊" title="新建群聊" onClick={() => app.openDrawer({ kind: 'new-group' })}>
+            <button type="button" className="pod-icon-button" aria-label={t('新建群聊')} title={t('新建群聊')} onClick={() => app.openDrawer({ kind: 'new-group' })}>
               <Icon name="plus" size={14} />
             </button>
           }
         />
-        {sections.groups.length === 0 && !collapsed ? <p className="pod-side-empty">主管组队干活时会自动建群，也可以点 + 自己拉群。</p> : null}
+        {sections.groups.length === 0 && !collapsed ? <p className="pod-side-empty">{t('主管组队干活时会自动建群，也可以点 + 自己拉群。')}</p> : null}
         {groupList.shown.map(row(SIDEBAR_GROUPS))}
         {moreButton(groupList.hidden, more.groups, () => setMore({ ...more, groups: !more.groups }))}
       </div>
       <div className="pod-side-bottom">
-        <button type="button" className="pod-side-row" onClick={() => app.openSettings('general')} title={collapsed ? '设置' : undefined}>
+        <button type="button" className="pod-side-row" onClick={() => app.openSettings('general')} title={collapsed ? t('设置') : undefined}>
           <Icon name="settings" size={18} />
-          {collapsed ? null : <span className="pod-side-row-title">设置</span>}
+          {collapsed ? null : <span className="pod-side-row-title">{t('设置')}</span>}
         </button>
         <UpdateButton collapsed={collapsed} />
       </div>

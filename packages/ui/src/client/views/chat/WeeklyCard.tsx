@@ -1,4 +1,4 @@
-import { EVOLUTION_LABELS, type EvolutionEntry, type RoomMessage } from 'pod-domain'
+import { EVOLUTION_LABELS, t, type EvolutionEntry, type RoomMessage } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { Badge, Button, RelativeTime } from '../../components/common.tsx'
@@ -13,10 +13,10 @@ export function EvolutionRow(props: { readonly entry: EvolutionEntry; readonly b
   return (
     <li className="pod-evolution">
       <div className="pod-row">
-        <Badge tone={entry.kind === 'revert' ? 'warn' : entry.kind === 'skill' ? 'info' : 'muted'}>{EVOLUTION_LABELS[entry.kind]}</Badge>
+        <Badge tone={entry.kind === 'revert' ? 'warn' : entry.kind === 'skill' ? 'info' : 'muted'}>{t(EVOLUTION_LABELS[entry.kind])}</Badge>
         <span className="pod-ellipsis">{entry.summary}</span>
-        {entry.status === 'reverted' ? <Badge tone="muted">已回滚</Badge> : null}
-        {entry.status === 'kept' ? <Badge tone="ok">效果稳定</Badge> : null}
+        {entry.status === 'reverted' ? <Badge tone="muted">{t('已回滚')}</Badge> : null}
+        {entry.status === 'kept' ? <Badge tone="ok">{t('效果稳定')}</Badge> : null}
         <span className="pod-muted-inline">
           <RelativeTime time={entry.createdAt} />
         </span>
@@ -26,18 +26,18 @@ export function EvolutionRow(props: { readonly entry: EvolutionEntry; readonly b
             kind="quiet"
             icon="restore"
             onClick={() => {
-              if (!window.confirm(`回滚这条改动？\n${entry.summary}`)) return
+              if (!window.confirm(t('回滚这条改动？\n{summary}', { summary: entry.summary }))) return
               api
                 .revertEvolution(entry.id)
                 .then(() => app.cache.invalidate('evolution'))
                 .catch((reason: unknown) => window.alert(errorText(reason)))
             }}
           >
-            回滚
+            {t('回滚')}
           </Button>
         ) : null}
       </div>
-      {entry.reason === '' ? null : <div className="pod-hint">理由：{entry.reason}</div>}
+      {entry.reason === '' ? null : <div className="pod-hint">{t('理由：{reason}', { reason: entry.reason })}</div>}
     </li>
   )
 }
@@ -52,8 +52,8 @@ export function WeeklyCard(props: { readonly message: RoomMessage }) {
   return (
     <div className="pod-card pod-weekly">
       <div className="pod-row">
-        <Badge tone="info">本周变化</Badge>
-        <strong>只看不用处理，哪条不满意一键回滚</strong>
+        <Badge tone="info">{t('本周变化')}</Badge>
+        <strong>{t('只看不用处理，哪条不满意一键回滚')}</strong>
       </div>
       <p className="pod-pre">{props.message.body}</p>
       {entries.length === 0 ? null : (
@@ -65,14 +65,14 @@ export function WeeklyCard(props: { readonly message: RoomMessage }) {
       )}
       {data === undefined || data.owner.length === 0 ? null : (
         <details>
-          <summary>你的档案这一周的变化（{data.owner.length} 条）</summary>
+          <summary>{t('你的档案这一周的变化（{length} 条）', { length: data.owner.length })}</summary>
           <ul>
             {data.owner.slice(0, 20).map((line, index) => (
               <li key={index}>{line}</li>
             ))}
           </ul>
-          <Button small kind="quiet" onClick={() => app.openDrawer({ kind: 'memory', scope: 'owner', scopeId: '', label: '你的档案' })}>
-            去记忆页修改
+          <Button small kind="quiet" onClick={() => app.openDrawer({ kind: 'memory', scope: 'owner', scopeId: '', label: t('你的档案') })}>
+            {t('去记忆页修改')}
           </Button>
         </details>
       )}

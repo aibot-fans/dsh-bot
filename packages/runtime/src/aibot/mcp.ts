@@ -1,3 +1,4 @@
+import { t } from 'pod-domain'
 import { count, isJson, text, unreachable, type Json } from './client.ts'
 import { AibotError, AibotNetworkError } from './errors.ts'
 
@@ -37,7 +38,7 @@ function rpcError(error: Json): AibotError {
   return new AibotError({
     status,
     code: text(data.code) || fallback,
-    message: text(error.message) || 'aibot 出错了',
+    message: text(error.message) || t('aibot 出错了'),
     details: isJson(data.details) ? data.details : data,
     retryAfterSeconds: typeof data.retryAfterSeconds === 'number' ? data.retryAfterSeconds : null,
   })
@@ -129,7 +130,7 @@ export class McpClient {
         parsed = undefined
       }
       const error = isJson(parsed) && isJson(parsed.error) ? parsed.error : {}
-      throw new AibotError({ status: response.status, code: text(error.code) || `http_${response.status}`, message: text(error.message) || `aibot 返回 HTTP ${response.status}` })
+      throw new AibotError({ status: response.status, code: text(error.code) || `http_${response.status}`, message: text(error.message) || t('aibot 返回 HTTP {status}', { status: response.status }) })
     }
     if (reply === undefined) throw new AibotNetworkError('aibot 的回复看不懂')
     return reply

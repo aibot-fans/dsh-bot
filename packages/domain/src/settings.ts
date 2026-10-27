@@ -2,6 +2,7 @@
 
 import { parseModelChoice, type ModelChoice } from './bots.ts'
 import { asRecord } from './input.ts'
+import { isLanguageSetting, t, type LanguageSetting } from './i18n.ts'
 import { DEFAULT_SITE_RULES, type SiteMode, type SiteRule } from './policy.ts'
 import { fail, ok, type PodResult } from './result.ts'
 import { isRecord } from './text.ts'
@@ -59,6 +60,8 @@ export interface PodSettings {
   readonly aibotEnabled: boolean
   /** 每隔几小时问一次 npm 有没有新版本；只发包名。 */
   readonly checkUpdates: boolean
+  /** 界面、系统消息和 bot 回答用的语言；auto 跟随 dsh 的界面语言。 */
+  readonly language: LanguageSetting
 }
 
 export const DEFAULT_SETTINGS: PodSettings = {
@@ -82,6 +85,7 @@ export const DEFAULT_SETTINGS: PodSettings = {
   chromePath: '',
   aibotEnabled: true,
   checkUpdates: true,
+  language: 'auto',
 }
 
 const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/
@@ -107,19 +111,19 @@ function intIn(value: unknown, min: number, max: number): number | undefined {
 type Change = { readonly ok: true; readonly value: Partial<PodSettings> } | { readonly ok: false; readonly message: string }
 
 function rangeChange(key: 'quietHours', raw: unknown, current: ClockRange): Change {
-  if (!isRecord(raw)) return { ok: false, message: '勿扰时段格式不对' }
+  if (!isRecord(raw)) return { ok: false, message: t('勿扰时段格式不对') }
   const enabled = typeof raw.enabled === 'boolean' ? raw.enabled : current.enabled
   const start = raw.start === undefined ? current.start : raw.start
   const end = raw.end === undefined ? current.end : raw.end
-  if (!isClock(start) || !isClock(end)) return { ok: false, message: '时间要写成 HH:MM' }
+  if (!isClock(start) || !isClock(end)) return { ok: false, message: t('时间要写成 HH:MM') }
   return { ok: true, value: { [key]: { enabled, start, end } } }
 }
 
 function briefChange(raw: unknown, current: DailyBrief): Change {
-  if (!isRecord(raw)) return { ok: false, message: '每日简报格式不对' }
+  if (!isRecord(raw)) return { ok: false, message: t('每日简报格式不对') }
   const enabled = typeof raw.enabled === 'boolean' ? raw.enabled : current.enabled
   const time = raw.time === undefined ? current.time : raw.time
-  if (!isClock(time)) return { ok: false, message: '简报时间要写成 HH:MM' }
+  if (!isClock(time)) return { ok: false, message: t('简报时间要写成 HH:MM') }
   return { ok: true, value: { dailyBrief: { enabled, time } } }
 }
 
@@ -128,24 +132,24 @@ const SITE_PATTERN = /^(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)*$/i
 const HOST_ENTRY = /^([a-z0-9-]+(\.[a-z0-9-]+)*|\[[0-9a-f:]+\])(:\d{1,5})?$/i
 
 function siteRulesChange(raw: unknown): Change {
-  if (!Array.isArray(raw) || raw.length > 300) return { ok: false, message: '站点规则最多 300 条' }
+  if (!Array.isArray(raw) || raw.length > 300) return { ok: false, message: t('站点规则最多 300 条') }
   const rules: SiteRule[] = []
   for (const item of raw) {
-    if (!isRecord(item)) return { ok: false, message: '站点规则格式不对' }
+    if (!isRecord(item)) return { ok: false, message: t('站点规则格式不对') }
     const pattern = typeof item.pattern === 'string' ? item.pattern.trim().toLowerCase() : ''
     const mode = item.mode as SiteMode
-    if (!SITE_PATTERN.test(pattern)) return { ok: false, message: `网站“${pattern}”格式不对，写域名，可以用 *. 开头` }
-    if (!SITE_MODES.includes(mode)) return { ok: false, message: '站点规则只能是禁止、只读、写操作需审批或免审批' }
+    if (!SITE_PATTERN.test(pattern)) return { ok: false, message: t('网站“{pattern}”格式不对，写域名，可以用 *. 开头', { pattern }) }
+    if (!SITE_MODES.includes(mode)) return { ok: false, message: t('站点规则只能是禁止、只读、写操作需审批或免审批') }
     rules.push({ pattern, mode, note: typeof item.note === 'string' ? item.note.trim().slice(0, 40) : '' })
   }
   return { ok: true, value: { siteRules: rules } }
 }
 
 function allowedHostsChange(raw: unknown): Change {
-  if (!Array.isArray(raw) || raw.length > 50) return { ok: false, message: '白名单最多 50 个地址' }
+  if (!Array.isArray(raw) || raw.length > 50) return { ok: false, message: t('白名单最多 50 个地址') }
   const hosts = raw.map((item) => (typeof item === 'string' ? item.trim().toLowerCase() : ''))
   const bad = hosts.find((host) => !HOST_ENTRY.test(host))
-  if (bad !== undefined) return { ok: false, message: `地址“${bad}”格式不对，写成 localhost:5173 这样` }
+  if (bad !== undefined) return { ok: false, message: t('地址“{bad}”格式不对，写成 localhost:5173 这样', { bad }) }
   return { ok: true, value: { allowedHosts: [...new Set(hosts)] } }
 }
 
@@ -154,11 +158,11 @@ const BOOLEAN_KEYS = ['preventSleep', 'offPeak', 'memoryExtraction', 'browserNot
 function oneChange(key: string, raw: unknown, current: PodSettings): Change {
   switch (key) {
     case 'timezone':
-      return isTimeZone(raw) ? { ok: true, value: { timezone: raw } } : { ok: false, message: '时区不认识' }
+      return isTimeZone(raw) ? { ok: true, value: { timezone: raw } } : { ok: false, message: t('时区不认识') }
     case 'autonomy':
       return raw === 'hands-off' || raw === 'careful'
         ? { ok: true, value: { autonomy: raw } }
-        : { ok: false, message: '授权档位只能是放手或谨慎' }
+        : { ok: false, message: t('授权档位只能是放手或谨慎') }
     case 'defaultModel':
     case 'liteModel': {
       const parsed = parseModelChoice(raw)
@@ -169,11 +173,11 @@ function oneChange(key: string, raw: unknown, current: PodSettings): Change {
     case 'chatConcurrency':
     case 'browserTabs': {
       const value = intIn(raw, 1, 32)
-      return value === undefined ? { ok: false, message: '并发数和标签页数是 1 到 32 的整数' } : { ok: true, value: { [key]: value } }
+      return value === undefined ? { ok: false, message: t('并发数和标签页数是 1 到 32 的整数') } : { ok: true, value: { [key]: value } }
     }
     case 'softContextTokens': {
       const value = intIn(raw, 16_000, 2_000_000)
-      return value === undefined ? { ok: false, message: '上下文软上限在 16000 到 2000000 之间' } : { ok: true, value: { softContextTokens: value } }
+      return value === undefined ? { ok: false, message: t('上下文软上限在 16000 到 2000000 之间') } : { ok: true, value: { softContextTokens: value } }
     }
     case 'quietHours':
       return rangeChange('quietHours', raw, current.quietHours)
@@ -183,15 +187,17 @@ function oneChange(key: string, raw: unknown, current: PodSettings): Change {
       return siteRulesChange(raw)
     case 'allowedHosts':
       return allowedHostsChange(raw)
+    case 'language':
+      return isLanguageSetting(raw) ? { ok: true, value: { language: raw } } : { ok: false, message: t('语言只能是跟随 dsh、中文或 English') }
     case 'chromePath':
       return typeof raw === 'string' && raw.length <= 500 && (raw === '' || raw.startsWith('/') || /^[a-z]:\\/i.test(raw))
         ? { ok: true, value: { chromePath: raw.trim() } }
-        : { ok: false, message: 'Chrome 路径要写绝对路径，留空表示自动查找' }
+        : { ok: false, message: t('Chrome 路径要写绝对路径，留空表示自动查找') }
     default:
       if ((BOOLEAN_KEYS as readonly string[]).includes(key)) {
-        return typeof raw === 'boolean' ? { ok: true, value: { [key]: raw } } : { ok: false, message: `${key} 必须是开或关` }
+        return typeof raw === 'boolean' ? { ok: true, value: { [key]: raw } } : { ok: false, message: t('{key} 必须是开或关', { key }) }
       }
-      return { ok: false, message: `没有 ${key} 这项设置` }
+      return { ok: false, message: t('没有 {key} 这项设置', { key }) }
   }
 }
 

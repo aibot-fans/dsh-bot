@@ -1,5 +1,5 @@
 import { useState, type DragEvent } from 'react'
-import { SIDEBAR_BOTS, SIDEBAR_GROUPS, SIDEBAR_PINNED, moveSidebarItem, reorderSidebar, type SidebarItem, type SidebarPrefs, type SidebarSections } from 'pod-domain'
+import { SIDEBAR_BOTS, SIDEBAR_GROUPS, SIDEBAR_PINNED, moveSidebarItem, reorderSidebar, t, type SidebarItem, type SidebarPrefs, type SidebarSections } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { useApp } from '../../state/app.ts'
@@ -66,7 +66,7 @@ export function useSideDrag(sections: SidebarSections, store: SidebarStore, onEr
   }
 
   const setPinned = (item: SidebarItem, pinned: boolean): Promise<unknown> => {
-    const target = item.room !== undefined ? Promise.resolve(item.room) : item.bot === undefined ? Promise.reject(new Error('找不到这个对话')) : api.openDirect(item.bot.id)
+    const target = item.room !== undefined ? Promise.resolve(item.room) : item.bot === undefined ? Promise.reject(new Error(t('找不到这个对话'))) : api.openDirect(item.bot.id)
     return target.then((room) => api.updateRoom(room.id, { pinned })).then(() => app.cache.invalidate('rooms'))
   }
 

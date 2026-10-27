@@ -36,7 +36,9 @@ export const PANEL_CSS = `
 .pod-box-action { margin-left: auto; }
 .pod-box-pad { padding: 4px 14px 10px; }
 .pod-kv { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; gap: 10px; padding: 8px 14px; font-size: 13.5px; line-height: 1.6; }
-.pod-kv > span:first-child { color: var(--dsw-alias-label-tertiary); }
+.pod-kv > span:first-child { color: var(--dsw-alias-label-tertiary); overflow-wrap: break-word; }
+/* 英文标签长（Responsibilities 这类一个词就超过 64px），标签列放宽，多个词的会折行。 */
+.pod-kv:lang(en) { grid-template-columns: 112px minmax(0, 1fr); }
 .pod-kv-top { align-items: start; }
 .pod-kv-top > span:first-child { padding-top: 4px; }
 .pod-kv .pod-input { width: 100%; }
@@ -79,7 +81,7 @@ export const PANEL_CSS = `
 .pod-pick { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 8px; font-size: 14px; cursor: pointer; }
 .pod-pick:hover { background: var(--pod-soft); }
 .pod-segmented { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; border-radius: 999px; background: var(--pod-soft); }
-.pod-segmented button { appearance: none; padding: 4px 12px; border: 0; border-radius: 999px; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12.5px; cursor: pointer; }
+.pod-segmented button { appearance: none; padding: 4px 12px; border: 0; border-radius: 999px; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12.5px; white-space: nowrap; cursor: pointer; }
 .pod-segmented .pod-segmented-on { background: var(--dsw-alias-bg-layer-1, #fff); color: var(--dsw-alias-label-primary); box-shadow: 0 1px 2px color-mix(in srgb, #000 10%, transparent); }
 .pod-segmented button:focus-visible, .pod-switch:focus-visible { outline: 2px solid var(--pod-info); outline-offset: 1px; }
 .pod-switch { appearance: none; position: relative; flex: none; width: 38px; height: 22px; padding: 0; border: 0; border-radius: 999px; background: color-mix(in srgb, var(--dsw-alias-label-primary) 18%, transparent); cursor: pointer; }

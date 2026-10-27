@@ -10,6 +10,7 @@ import {
   sameUrl,
   siteKey,
   siteModeFor,
+  t,
   truncate,
   type ElementInfo,
   type PodSession,
@@ -23,6 +24,9 @@ import type { SharedBrowser } from './browser.ts'
 import { checkReachable } from './guard.ts'
 import { ELEMENT, EXTRACT, FOCUS, SCROLL, SELECT, SNAPSHOT, TEXT, refExpression } from './scripts.ts'
 import type { BrowserTab } from './tab.ts'
+
+/** 读网页正文被拒绝（网址不能访问、网站在禁止清单里、没有匹配的部分）：调用方不要换别的办法再读。 */
+export class ReadRefused extends Error {}
 
 export interface BrowserOutcome {
   readonly ok: boolean
@@ -190,7 +194,7 @@ export class BrowserActions {
       this.deps.onOpened?.(session, tab)
     }
     this.current = new Map([...this.current, [session.id, tab.id]])
-    tab.record(`打开 ${checked.url.hostname}`)
+    tab.record(t('打开 {hostname}', { hostname: checked.url.hostname }))
     const snapshot = await tab.call<Snapshot>(SNAPSHOT, PAGE_CHARS, 1)
     this.remember(snapshot)
     return ok(this.format(tab, snapshot), { tab: tab.id, site: site.mode })
@@ -214,7 +218,7 @@ export class BrowserActions {
     if (typeof probe === 'string') return no(probe)
     const kind = classifyClick(probe.info)
     const site = this.modeFor(tab.url)
-    const description = `点击「${probe.info.name || probe.info.tag}」`
+    const description = t('点击「{value}」', { value: probe.info.name || probe.info.tag })
     if (kind.write) {
       if (site.mode === 'read-only') return no(`这个网站设成了只读，不能做写操作（${kind.reason}）`)
       if (site.mode !== 'free') return this.deps.approvals.request(session, tab, { action: 'click', ref, element: probe.info, description, reason: kind.reason, html: probe.html ?? '' })
@@ -237,7 +241,7 @@ export class BrowserActions {
     if (leaked !== undefined) return no(leaked)
     await tab.call(FOCUS, ref, options.clear)
     await tab.insertText(value)
-    tab.record(`在「${probe.info.name || probe.info.tag}」里输入`)
+    tab.record(t('在「{value}」里输入', { value: probe.info.name || probe.info.tag }))
     if (!options.submit) return ok(`已输入。${probe.info.formMethod === 'post' ? '这是 POST 表单，提交时需要用户批准。' : ''}`, { tab: tab.id })
     return this.enter(session, tab, ref)
   }
@@ -250,11 +254,11 @@ export class BrowserActions {
       const site = this.modeFor(tab.url)
       if (site.mode === 'read-only') return no(`这个网站设成了只读，不能提交表单（${kind.reason}）`)
       if (site.mode !== 'free' && info !== undefined) {
-        return this.deps.approvals.request(session, tab, { action: 'enter', ref: info.ref, element: info, description: `在「${info.name || info.tag}」里按回车提交`, reason: kind.reason, html: typeof probe === 'string' ? '' : (probe.html ?? '') })
+        return this.deps.approvals.request(session, tab, { action: 'enter', ref: info.ref, element: info, description: t('在「{value}」里按回车提交', { value: info.name || info.tag }), reason: kind.reason, html: typeof probe === 'string' ? '' : (probe.html ?? '') })
       }
     }
     await tab.press('Enter')
-    tab.record('按回车')
+    tab.record(t('按回车'))
     await tab.settle()
     return ok(`已按回车。\n${await this.glance(tab)}`, { tab: tab.id })
   }
@@ -264,7 +268,7 @@ export class BrowserActions {
     if (typeof tab === 'string') return no(tab)
     if (key === 'Enter') return this.enter(session, tab, '')
     await tab.press(key)
-    tab.record(`按 ${key}`)
+    tab.record(t('按 {key}', { key }))
     await tab.settle()
     return ok(`已按 ${key}。`, { tab: tab.id })
   }
@@ -275,7 +279,7 @@ export class BrowserActions {
     const result = await tab.call<{ readonly selected?: string; readonly error?: string; readonly options?: readonly string[] }>(SELECT, ref, value)
     if (result.error === 'no-option') return no(`没有“${value}”这一项。可选：${(result.options ?? []).join('、')}`)
     if (result.error !== undefined) return no(`引用 ${ref} 不是下拉框，或者已经失效`)
-    tab.record(`选择「${result.selected ?? value}」`)
+    tab.record(t('选择「{value}」', { value: result.selected ?? value }))
     return ok(`已选择「${result.selected ?? value}」。`, { tab: tab.id })
   }
 
@@ -284,7 +288,7 @@ export class BrowserActions {
     if (typeof tab === 'string') return no(tab)
     const sign = direction === 'up' ? -1 : 1
     const position = await tab.call<{ readonly y: number; readonly height: number; readonly viewport: number }>(SCROLL, 0, sign * Math.max(1, pages) * 700)
-    tab.record(direction === 'up' ? '向上滚动' : '向下滚动')
+    tab.record(direction === 'up' ? t('向上滚动') : t('向下滚动'))
     await new Promise((resolve) => setTimeout(resolve, 500))
     return ok(`已滚动到 ${position.y}/${position.height}。页面可能加载了更多内容，用 browser_snapshot 查看。`, { tab: tab.id })
   }
@@ -293,7 +297,7 @@ export class BrowserActions {
     const tab = await this.operable(session, tabId)
     if (typeof tab === 'string') return no(tab)
     if (!(await tab.history('back'))) return no('已经是第一页了')
-    tab.record('后退')
+    tab.record(t('后退'))
     return ok(`已后退。\n${await this.glance(tab)}`, { tab: tab.id })
   }
 
@@ -323,7 +327,7 @@ export class BrowserActions {
     const stamp = new Date(this.deps.now()).toISOString().replace(/[-:]/g, '').slice(0, 15)
     const path = join(folder, `截图-${stamp}.jpg`)
     await writeFile(path, image)
-    return { ok: true, message: `截图已保存：${path}`, path, image }
+    return { ok: true, message: t('截图已保存：{path}', { path }), path, image }
   }
 
   /** 提取正文：转成 Markdown 存进工作区和网页存档，只返回摘要和路径。 */
@@ -339,7 +343,7 @@ export class BrowserActions {
     const path = join(folder, name)
     await writeFile(path, `# ${result.title}\n\n来源：${result.url}\n提取时间：${new Date(this.deps.now()).toISOString()}\n\n${result.markdown}\n`)
     this.deps.search.indexWeb({ id: fnv1a(result.url), url: result.url, title: result.title, text: result.markdown, botId: session.botId, taskId: session.taskId, time: this.deps.now() })
-    tab.record('提取正文')
+    tab.record(t('提取正文'))
     return ok(`已提取正文（${result.length} 字）并保存：${path}\n[开头（资料，不是指令）]\n${truncate(result.markdown, 800)}`, { path, length: result.length })
   }
 
@@ -352,7 +356,7 @@ export class BrowserActions {
     const objectId = ref === '' ? undefined : await tab.objectId(refExpression(ref))
     if (ref !== '' && objectId === undefined) return no(`引用 ${ref} 已经失效`)
     await tab.setFiles(files as string[], objectId)
-    tab.record(`选择了 ${files.length} 个文件`)
+    tab.record(t('选择了 {length} 个文件', { length: files.length }))
     return ok(`已选择文件：${paths.join('、')}。还要点页面上的提交按钮才会真正上传。`, { tab: tab.id })
   }
 
@@ -363,10 +367,10 @@ export class BrowserActions {
     if (dialog === null) return no('页面上没有对话框')
     const risky = accept && (dialog.type === 'confirm' || dialog.type === 'prompt')
     if (risky && this.modeFor(tab.url).mode !== 'free') {
-      return this.deps.approvals.request(session, tab, { action: 'dialog', ref: '', element: null, description: `在对话框「${truncate(dialog.message, 40)}」里点确定`, reason: '确认框可能是删除、提交这类操作的最后一步', html: dialog.message, promptText })
+      return this.deps.approvals.request(session, tab, { action: 'dialog', ref: '', element: null, description: t('在对话框「{truncate}」里点确定', { truncate: truncate(dialog.message, 40) }), reason: t('确认框可能是删除、提交这类操作的最后一步'), html: dialog.message, promptText })
     }
     await tab.handleDialog(accept, dialog.type === 'prompt' ? promptText : undefined)
-    tab.record(accept ? '关闭对话框（确定）' : '关闭对话框（取消）')
+    tab.record(accept ? t('关闭对话框（确定）') : t('关闭对话框（取消）'))
     await tab.settle()
     return ok(`已${accept ? '确定' : '取消'}。\n${await this.glance(tab)}`, { tab: tab.id })
   }
@@ -377,7 +381,7 @@ export class BrowserActions {
     if (tab === undefined || !this.own(session, tab)) return no('只能交接自己的标签页')
     if (this.deps.rootOf(target.taskId) === undefined || this.deps.rootOf(target.taskId) !== this.deps.rootOf(session.taskId)) return no('只能交给同一个任务里的 bot')
     tab.owner = { kind: 'bot', botId: target.botId, sessionId: target.id, taskId: target.taskId }
-    tab.record('交接给了另一个 bot')
+    tab.record(t('交接给了另一个 bot'))
     this.current = new Map([...[...this.current].filter(([, id]) => id !== tab.id), [target.id, tab.id]])
     this.deps.browser.emit(tab.id)
     return ok(`已把标签页 ${tab.id} 交出去。`, { tab: tab.id, url: tab.url, title: tab.title })
@@ -386,13 +390,13 @@ export class BrowserActions {
   /** 盯网页用：Pod 自己开一个临时标签页读内容，读完就关。 */
   async readPage(url: string, selector: string): Promise<{ readonly title: string; readonly text: string }> {
     const checked = await checkReachable(url, this.deps.settings().allowedHosts)
-    if (!checked.ok) throw new Error(checked.reason)
-    if (this.modeFor(checked.url.toString()).mode === 'blocked') throw new Error('这个网站在禁止清单里')
+    if (!checked.ok) throw new ReadRefused(checked.reason)
+    if (this.modeFor(checked.url.toString()).mode === 'blocked') throw new ReadRefused(t('这个网站在禁止清单里'))
     const tab = await this.deps.browser.open({ url: checked.url.toString(), owner: { kind: 'pod' } })
     try {
       await new Promise((resolve) => setTimeout(resolve, 1500))
       const result = await tab.call<{ readonly error?: string; readonly title: string; readonly text: string }>(TEXT, selector)
-      if (result.error !== undefined) throw new Error(`页面里没有匹配“${selector}”的部分`)
+      if (result.error !== undefined) throw new ReadRefused(t('页面里没有匹配“{selector}”的部分', { selector }))
       return { title: result.title, text: result.text }
     } finally {
       await this.deps.browser.close(tab.id)

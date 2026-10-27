@@ -1,7 +1,7 @@
 import { existsSync, statSync } from 'node:fs'
 import { readdir } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve } from 'node:path'
-import { PRIORITY, addressToUrl, fail, ok, readBool, readId, readString, type PodResult, type PodSession, type PodSettings, type TabInfo } from 'pod-domain'
+import { PRIORITY, addressToUrl, fail, ok, readBool, readId, readString, t, type PodResult, type PodSession, type PodSettings, type TabInfo } from 'pod-domain'
 import type { Dispatcher } from '../agents/dispatcher.ts'
 import { noticeSource } from '../agents/messages.ts'
 import type { SessionRegistry } from '../agents/registry.ts'
@@ -61,7 +61,7 @@ export class OwnerBrowser {
 
   private tell(tab: BrowserTab, text: string): void {
     if (tab.owner.kind !== 'bot' || this.deps.registry.get(tab.owner.sessionId) === undefined) return
-    this.deps.dispatcher.enqueue({ sessionId: tab.owner.sessionId, mode: 'followup', priority: PRIORITY.owner, text, source: noticeSource('共用浏览器') })
+    this.deps.dispatcher.enqueue({ sessionId: tab.owner.sessionId, mode: 'followup', priority: PRIORITY.owner, text, source: noticeSource(t('共用浏览器')) })
   }
 
   /** 你开一个标签页：地址先补全（没写 https:// 的补上，搜索词用必应搜）再检查；roomId 是在哪个群里开的。 */
@@ -83,21 +83,21 @@ export class OwnerBrowser {
 
   async navigate(input: unknown): Promise<PodResult<TabInfo>> {
     const tab = this.tab(input)
-    if (tab === undefined) return fail('not-found', '标签页已经关了')
-    if (tab.controller !== 'owner') return fail('conflict', '先接管这个标签页')
+    if (tab === undefined) return fail('not-found', t('标签页已经关了'))
+    if (tab.controller !== 'owner') return fail('conflict', t('先接管这个标签页'))
     const checked = await checkReachable(addressToUrl(readString(input, 'url')), this.deps.settings().allowedHosts)
     if (!checked.ok) return fail('invalid-input', checked.reason)
     await this.deps.browser.navigate(tab, checked.url.toString())
-    tab.record(`你打开了 ${checked.url.hostname}`)
+    tab.record(t('你打开了 {hostname}', { hostname: checked.url.hostname }))
     return ok(tab.info())
   }
 
   async history(input: unknown): Promise<PodResult<TabInfo>> {
     const tab = this.tab(input)
-    if (tab === undefined) return fail('not-found', '标签页已经关了')
-    if (tab.controller !== 'owner') return fail('conflict', '先接管这个标签页')
+    if (tab === undefined) return fail('not-found', t('标签页已经关了'))
+    if (tab.controller !== 'owner') return fail('conflict', t('先接管这个标签页'))
     const action = readString(input, 'action')
-    if (action !== 'back' && action !== 'forward' && action !== 'reload') return fail('invalid-input', '只能后退、前进或刷新')
+    if (action !== 'back' && action !== 'forward' && action !== 'reload') return fail('invalid-input', t('只能后退、前进或刷新'))
     await tab.history(action)
     this.deps.browser.emit(tab.id)
     return ok(tab.info())
@@ -113,9 +113,9 @@ export class OwnerBrowser {
 
   takeover(input: unknown): PodResult<TabInfo> {
     const tab = this.tab(input)
-    if (tab === undefined) return fail('not-found', '标签页已经关了')
+    if (tab === undefined) return fail('not-found', t('标签页已经关了'))
     tab.controller = 'owner'
-    tab.record('你接管了')
+    tab.record(t('你接管了'))
     this.deps.audit.record('browser.takeover', 'owner', tab.id, { url: tab.url })
     this.deps.browser.emit(tab.id)
     return ok(tab.info())
@@ -124,14 +124,14 @@ export class OwnerBrowser {
   /** 交还：可以附一句话（例如“已登录”），bot 带着这句话继续。 */
   handback(input: unknown): PodResult<TabInfo> {
     const tab = this.tab(input)
-    if (tab === undefined) return fail('not-found', '标签页已经关了')
-    if (tab.owner.kind !== 'bot') return fail('conflict', '这是你自己开的标签页')
+    if (tab === undefined) return fail('not-found', t('标签页已经关了'))
+    if (tab.owner.kind !== 'bot') return fail('conflict', t('这是你自己开的标签页'))
     const note = readString(input, 'note')
     tab.controller = 'bot'
-    tab.record(note === '' ? '你交还了' : `你交还了：${note}`)
+    tab.record(note === '' ? t('你交还了') : t('你交还了：{note}', { note }))
     const waitId = tab.waitId
     tab.waitId = null
-    if (waitId !== null && this.deps.waits.get(waitId)?.status === 'open') this.deps.waits.answer({ waitId, answer: note === '' ? '已处理好，标签页交还给你了' : note })
+    if (waitId !== null && this.deps.waits.get(waitId)?.status === 'open') this.deps.waits.answer({ waitId, answer: note === '' ? t('已处理好，标签页交还给你了') : note })
     else this.tell(tab, `[用户交还了标签页 ${tab.id}] ${note === '' ? '可以接着操作了。' : `用户原话：${note}`}`)
     this.deps.browser.emit(tab.id)
     return ok(tab.info())
@@ -140,8 +140,8 @@ export class OwnerBrowser {
   /** 画面上的输入：只在你接管时转给页面。点到下拉框时不点下去，返回选项给浮层。 */
   async input(input: unknown): Promise<PodResult<{ readonly overlay: unknown }>> {
     const tab = this.tab(input)
-    if (tab === undefined) return fail('not-found', '标签页已经关了')
-    if (tab.controller !== 'owner') return fail('conflict', '先点“接管”再操作')
+    if (tab === undefined) return fail('not-found', t('标签页已经关了'))
+    if (tab.controller !== 'owner') return fail('conflict', t('先点“接管”再操作'))
     tab.touch()
     for (const event of readEvents(input)) {
       if (event.type === 'mouse') {
@@ -173,16 +173,16 @@ export class OwnerBrowser {
 
   async select(input: unknown): Promise<PodResult<null>> {
     const tab = this.tab(input)
-    if (tab === undefined) return fail('not-found', '标签页已经关了')
-    if (tab.controller !== 'owner') return fail('conflict', '先接管这个标签页')
+    if (tab === undefined) return fail('not-found', t('标签页已经关了'))
+    if (tab.controller !== 'owner') return fail('conflict', t('先接管这个标签页'))
     const result = await tab.call<{ readonly error?: string }>(SELECT, readString(input, 'ref'), readString(input, 'value'))
-    return result.error === undefined ? ok(null) : fail('invalid-input', '这一项选不了')
+    return result.error === undefined ? ok(null) : fail('invalid-input', t('这一项选不了'))
   }
 
   async dialog(input: unknown): Promise<PodResult<null>> {
     const tab = this.tab(input)
-    if (tab === undefined || tab.dialog === null) return fail('not-found', '对话框已经关了')
-    if (tab.controller !== 'owner') return fail('conflict', '先接管这个标签页')
+    if (tab === undefined || tab.dialog === null) return fail('not-found', t('对话框已经关了'))
+    if (tab.controller !== 'owner') return fail('conflict', t('先接管这个标签页'))
     await tab.handleDialog(readBool(input, 'accept') === true, tab.dialog.type === 'prompt' ? readString(input, 'text') : undefined)
     this.deps.browser.emit(tab.id)
     return ok(null)
@@ -191,7 +191,7 @@ export class OwnerBrowser {
   /** 选择文件的浮层：列出这个标签页对应任务文件夹里的文件。 */
   async files(input: unknown): Promise<PodResult<readonly string[]>> {
     const tab = this.tab(input)
-    if (tab === undefined) return fail('not-found', '标签页已经关了')
+    if (tab === undefined) return fail('not-found', t('标签页已经关了'))
     const folder = this.deps.folderOfTab(tab)
     const found: string[] = []
     const walk = async (dir: string, depth: number): Promise<void> => {
@@ -218,10 +218,10 @@ export class OwnerBrowser {
 
   async chooseFile(input: unknown): Promise<PodResult<null>> {
     const tab = this.tab(input)
-    if (tab === undefined) return fail('not-found', '标签页已经关了')
-    if (tab.fileChooser === null) return fail('conflict', '页面没有在等选择文件')
+    if (tab === undefined) return fail('not-found', t('标签页已经关了'))
+    if (tab.fileChooser === null) return fail('conflict', t('页面没有在等选择文件'))
     const file = this.resolveWorkspaceFile(readString(input, 'path'), this.deps.workspaceRoot)
-    if (file === undefined) return fail('invalid-input', '只能选工作区里已有的文件')
+    if (file === undefined) return fail('invalid-input', t('只能选工作区里已有的文件'))
     await tab.setFiles([file])
     this.deps.browser.emit(tab.id)
     return ok(null)
@@ -229,7 +229,7 @@ export class OwnerBrowser {
 
   async selection(input: unknown): Promise<PodResult<string>> {
     const tab = this.tab(input)
-    if (tab === undefined) return fail('not-found', '标签页已经关了')
+    if (tab === undefined) return fail('not-found', t('标签页已经关了'))
     return ok(await tab.call<string>(SELECTION))
   }
 
@@ -238,13 +238,13 @@ export class OwnerBrowser {
     const wait = this.deps.waits.ask({
       session,
       kind: 'login',
-      title: `接管浏览器：${reason}`,
-      detail: `${tab.title}\n${tab.url}\n在 dsh-bot 的浏览器视图里打开这个标签页，点“接管”操作，完成后点“交还”。`,
+      title: t('接管浏览器：{reason}', { reason }),
+      detail: `${tab.title}\n${tab.url}\n${t('在 dsh-bot 的浏览器视图里打开这个标签页，点“接管”操作，完成后点“交还”。')}`,
       bypassed: false,
       data: { tabId: tab.id, url: tab.url },
     })
     tab.waitId = wait.id
-    tab.record(`请你接管：${reason}`)
+    tab.record(t('请你接管：{reason}', { reason }))
     this.deps.browser.emit(tab.id)
     return wait.id
   }

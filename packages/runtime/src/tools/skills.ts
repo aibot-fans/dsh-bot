@@ -1,4 +1,4 @@
-import type { PodSession } from 'pod-domain'
+import { t, type PodSession } from 'pod-domain'
 import type { ToolDefinition } from '../dsh.ts'
 import type { PodRuntime } from '../pod.ts'
 import { failure, oneOf, podTool, str, strList, success, text, texts } from './define.ts'
@@ -55,15 +55,15 @@ export function skillTools(pod: PodRuntime, session: PodSession): readonly ToolD
         kind: 'skill',
         botId: me.botId,
         subject: saved.value.id,
-        summary: `${before === undefined ? '新技能' : '更新技能'}「${saved.value.title}」（第 ${saved.value.version} 版）`,
+        summary: t('{value}「{title}」（第 {version} 版）', { value: before === undefined ? t('新技能') : t('更新技能'), title: saved.value.title, version: saved.value.version }),
         before: before === undefined ? null : { version: before.version },
         after: { skillId: saved.value.id, version: saved.value.version },
-        reason: '工作中沉淀的流程',
+        reason: t('工作中沉淀的流程'),
         source: 'bot',
       })
       if (saved.value.status === 'pending') {
         // 不挂在任务上：批准技能不该让任务停下来等。
-        pod.waits.ask({ session: { ...me, taskId: null }, kind: 'approval', title: `批准带脚本的技能「${saved.value.title}」`, detail: saved.value.content.slice(0, 1500), bypassed: false, data: { skillId: saved.value.id } })
+        pod.waits.ask({ session: { ...me, taskId: null }, kind: 'approval', title: t('批准带脚本的技能「{title}」', { title: saved.value.title }), detail: saved.value.content.slice(0, 1500), bypassed: false, data: { skillId: saved.value.id } })
         return success(`技能「${saved.value.title}」带脚本，已存好但要用户批准后才启用。`, { skill: saved.value.name })
       }
       return success(`技能「${saved.value.title}」已存好（第 ${saved.value.version} 版），名字是 ${saved.value.name}。`, { skill: saved.value.name })

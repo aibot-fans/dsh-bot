@@ -1,5 +1,5 @@
 import { lookup } from 'node:dns/promises'
-import { SITE_CONCURRENCY, SITE_GAP_MS, checkUrl, isPrivateHost, siteKey, type UrlCheck } from 'pod-domain'
+import { SITE_CONCURRENCY, SITE_GAP_MS, checkUrl, isPrivateHost, siteKey, t, type UrlCheck } from 'pod-domain'
 import type { CdpEvent } from './cdp.ts'
 import type { BrowserTab } from './tab.ts'
 
@@ -14,7 +14,7 @@ export async function checkReachable(raw: string, allowedHosts: readonly string[
   const hostPort = checked.url.port === '' ? host : `${host}:${checked.url.port}`
   if (allowedHosts.includes(host) || allowedHosts.includes(hostPort)) return checked
   const addresses = await lookup(host, { all: true }).catch(() => [])
-  if (addresses.some((address) => isPrivateHost(address.address))) return { ok: false, reason: '这个网址解析到了本机或局域网地址，默认不能访问' }
+  if (addresses.some((address) => isPrivateHost(address.address))) return { ok: false, reason: t('这个网址解析到了本机或局域网地址，默认不能访问') }
   return checked
 }
 

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { t } from 'pod-domain'
 import type { IconBot } from './BotIcon.tsx'
 import { Avatar } from './common.tsx'
 
@@ -44,7 +45,7 @@ export function withMentions(text: string, key: string, mentions: Mentions | und
         type="button"
         className={plain ? 'pod-mention pod-mention-plain' : 'pod-mention'}
         onClick={target.onOpen}
-        title={plain ? `只是提到${target.name}，没有通知它` : `打开${target.name}的详情`}
+        title={plain ? t('只是提到{name}，没有通知它', { name: target.name }) : t('打开{name}的详情', { name: target.name })}
       >
         <Avatar bot={target.bot} size={16} />@{target.name}
       </button>,

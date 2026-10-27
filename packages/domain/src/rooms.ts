@@ -1,5 +1,7 @@
 /** 房间和消息：单聊是你和一个 bot；任务记录按时间记下团队怎么完成任务。都以 SQLite 为准。 */
 
+import { currentLanguage, t, translate, type Language } from './i18n.ts'
+
 export type RoomKind = 'direct' | 'task' | 'team'
 
 /** 通知级别：全部、只有等你处理、关闭。 */
@@ -77,24 +79,42 @@ export const ROOM_TITLE_MAX = 40
 /** 群名最多几个字：侧栏里一眼能看完。 */
 export const GROUP_NAME_MAX = 8
 
+/** 按语言的群名上限：英文单词长，放宽到 24 个字符。 */
+export function groupNameMax(language: Language = currentLanguage()): number {
+  return language === 'en' ? 24 : GROUP_NAME_MAX
+}
+
 const GROUP_NAME_LEAD = /^(请你?|帮我|帮忙|麻烦|给我|我想|我要|需要|一起)+/
+const GROUP_NAME_LEAD_EN = /^((please|pls|help me( to)?|can you|could you|i want to|i need to|let's|lets)\s+)+/i
+
+/** 截到上限；有空格的（英文）尽量在词边上断。 */
+function clipName(text: string, max: number): string {
+  const chars = [...text]
+  if (chars.length <= max) return text
+  const cut = chars.slice(0, max).join('')
+  const space = cut.lastIndexOf(' ')
+  return space >= max / 2 ? cut.slice(0, space) : cut
+}
 
 /** 从任务目标里取一个短群名：第一个分句，去掉“帮我”这类开头，截到 8 个字。 */
 export function shortGroupName(text: string): string {
   const first = text.trim().split(/[，。,.;；:：！!？?\n、]/)[0] ?? ''
-  const cleaned = first.replace(GROUP_NAME_LEAD, '').replace(/\s+/g, '').trim()
-  const chars = [...(cleaned === '' ? text.replace(/\s+/g, '') : cleaned)]
-  return chars.slice(0, GROUP_NAME_MAX).join('') || '新群聊'
+  const latin = /[A-Za-z]/.test(first)
+  const spaces = (value: string): string => (latin ? value.replace(/\s+/g, ' ').trim() : value.replace(/\s+/g, ''))
+  const cleaned = spaces(first.replace(GROUP_NAME_LEAD, '').replace(GROUP_NAME_LEAD_EN, ''))
+  const name = clipName(cleaned === '' ? spaces(text) : cleaned, groupNameMax())
+  return name === '' ? t('新群聊') : latin ? `${name.charAt(0).toUpperCase()}${name.slice(1)}` : name
 }
 
 /** 没起群名时按成员起一个：名字连起来不超过 8 个字就直接用，否则写成「第一个成员等 N 位」。 */
 export function autoGroupName(names: readonly string[]): string {
   const clean = names.map((name) => name.trim()).filter((name) => name !== '')
-  if (clean.length === 0) return '新群聊'
-  const joined = clean.join('、')
-  if ([...joined].length <= GROUP_NAME_MAX) return joined
-  const suffix = `等${clean.length}位`
-  return `${[...(clean[0] ?? '')].slice(0, GROUP_NAME_MAX - [...suffix].length).join('')}${suffix}`
+  if (clean.length === 0) return t('新群聊')
+  const joined = clean.join(t('、'))
+  const max = groupNameMax()
+  if ([...joined].length <= max) return joined
+  const suffix = t('等{length}位', { length: clean.length })
+  return `${[...(clean[0] ?? '')].slice(0, max - [...suffix].length).join('')}${suffix}`
 }
 
 /** 群里不认得主管现在的名字时，这些叫法也指主管。 */
@@ -122,3 +142,15 @@ export function isTemporaryRoom(room: Pick<Room, 'kind' | 'incognito' | 'topic'>
 }
 
 export const MESSAGE_MAX = 20_000
+
+const UPLOAD_NOTE = '上传了文件「{name}」'
+
+/** 只传文件、没写话时消息的正文。 */
+export function uploadNote(name: string): string {
+  return t(UPLOAD_NOTE, { name })
+}
+
+/** 是不是自动写的“上传了文件”（两种语言都认）：页面上有附件卡片时就不再显示这句。 */
+export function isUploadNote(body: string, name: string): boolean {
+  return body === translate('zh', UPLOAD_NOTE, { name }) || body === translate('en', UPLOAD_NOTE, { name })
+}

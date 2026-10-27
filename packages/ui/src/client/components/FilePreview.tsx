@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { t } from 'pod-domain'
 import { mediaUrl } from '../api/http.ts'
 import { Drawer } from './common.tsx'
 import { fileKind, isTextual, type FileKind } from './fileKinds.ts'
@@ -88,8 +89,8 @@ function MediaPreview(props: { readonly kind: FileKind; readonly url: string; re
     default:
       return (
         <div className="pod-preview-none">
-          <strong>这种格式没法在页面里直接预览</strong>
-          <span className="pod-muted">点上面的“下载”，用本机的软件打开。你上传的 Word、Excel、PPT 会自动转一份文字版，点消息里的「文字版」就能看。</span>
+          <strong>{t('这种格式没法在页面里直接预览')}</strong>
+          <span className="pod-muted">{t('点上面的“下载”，用本机的软件打开。你上传的 Word、Excel、PPT 会自动转一份文字版，点消息里的「文字版」就能看。')}</span>
         </div>
       )
   }
@@ -127,11 +128,11 @@ export function FilePreview(props: { readonly path: string; readonly taskId?: st
           {props.path}
         </span>
         <a className="pod-button pod-button-small" href={mediaUrl('/file', { ...query, download: '1' })} download={name}>
-          下载
+          {t('下载')}
         </a>
       </div>
       {problem === undefined ? null : <p className="pod-form-error">{problem}</p>}
-      {shown === undefined || !(shown.clipped || text?.partial === true) ? null : <p className="pod-hint">文件比较大，这里只显示开头一部分；完整内容点“下载”。</p>}
+      {shown === undefined || !(shown.clipped || text?.partial === true) ? null : <p className="pod-hint">{t('文件比较大，这里只显示开头一部分；完整内容点“下载”。')}</p>}
       {textual ? shown === undefined ? null : <TextPreview kind={kind} text={shown.text} path={props.path} /> : <MediaPreview kind={kind} url={url} name={name} />}
     </Drawer>
   )

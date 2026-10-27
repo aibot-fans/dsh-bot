@@ -5,7 +5,7 @@
 
 import type { Bot } from './bots.ts'
 import { isTemporaryRoom, type RoomSummary } from './rooms.ts'
-import { isRecord } from './text.ts'
+import { clipUnits, isRecord } from './text.ts'
 
 export interface SidebarFolder {
   readonly id: string
@@ -55,7 +55,7 @@ export function parseSidebarPrefs(input: unknown): SidebarPrefs {
   if (!isRecord(input)) return EMPTY_SIDEBAR
   const named = (Array.isArray(input.folders) ? input.folders : []).filter(isRecord).map((folder) => ({
     id: typeof folder.id === 'string' ? folder.id : '',
-    name: typeof folder.name === 'string' ? [...folder.name.trim()].slice(0, FOLDER_NAME_MAX).join('') : '',
+    name: typeof folder.name === 'string' ? clipUnits(folder.name.trim(), FOLDER_NAME_MAX) : '',
   }))
   const folders = named
     .filter((folder, index) => FOLDER_ID.test(folder.id) && folder.name !== '' && named.findIndex((other) => other.id === folder.id) === index)
@@ -95,15 +95,15 @@ export function archiveSidebarItem(prefs: SidebarPrefs, key: string, archived: b
   return { ...prefs, archived: archived ? [...rest, key] : rest }
 }
 
-/** 新建分组：名字截到 12 个字；分组已经太多时原样返回。 */
+/** 新建分组：名字截到 12 个字（英文字母算半个字）；分组已经太多时原样返回。 */
 export function addSidebarFolder(prefs: SidebarPrefs, id: string, name: string): SidebarPrefs {
-  const clean = [...name.trim()].slice(0, FOLDER_NAME_MAX).join('')
+  const clean = clipUnits(name.trim(), FOLDER_NAME_MAX)
   if (clean === '' || prefs.folders.length >= FOLDER_COUNT_MAX || prefs.folders.some((folder) => folder.id === id)) return prefs
   return { ...prefs, folders: [...prefs.folders, { id, name: clean }] }
 }
 
 export function renameSidebarFolder(prefs: SidebarPrefs, id: string, name: string): SidebarPrefs {
-  const clean = [...name.trim()].slice(0, FOLDER_NAME_MAX).join('')
+  const clean = clipUnits(name.trim(), FOLDER_NAME_MAX)
   if (clean === '') return prefs
   return { ...prefs, folders: prefs.folders.map((folder) => (folder.id === id ? { ...folder, name: clean } : folder)) }
 }

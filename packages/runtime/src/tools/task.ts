@@ -1,4 +1,4 @@
-import { WAIT_KINDS, type PodSession, type WaitKind } from 'pod-domain'
+import { WAIT_KINDS, t, type PodSession, type WaitKind } from 'pod-domain'
 import type { ToolDefinition } from '../dsh.ts'
 import type { PodRuntime } from '../pod.ts'
 import { bool, failure, intList, oneOf, podTool, str, strList, success, text, texts, ints, flag } from './define.ts'
@@ -87,7 +87,7 @@ export function askOwnerTool(pod: PodRuntime, session: PodSession): ToolDefiniti
       return {
         kind: kind as WaitKind,
         question,
-        detail: [text(args, 'detail'), text(args, 'how_bypassed') === '' ? '' : `已先绕过：${text(args, 'how_bypassed')}`].filter(Boolean).join('\n'),
+        detail: [text(args, 'detail'), text(args, 'how_bypassed') === '' ? '' : t('已先绕过：{how}', { how: text(args, 'how_bypassed') })].filter(Boolean).join('\n'),
         bypassed: flag(args, 'bypassed') === true,
       }
     },

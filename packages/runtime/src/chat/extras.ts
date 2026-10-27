@@ -2,7 +2,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { existsSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'
-import { OWNER, POD, expandQuickCommand, fail, ok, readId, readString, type Bot, type PodResult, type Room, type RoomMessage } from 'pod-domain'
+import { OWNER, POD, expandQuickCommand, fail, ok, readId, readString, t, uploadNote as uploadLine, type Bot, type PodResult, type Room, type RoomMessage } from 'pod-domain'
 import { getMessage } from 'pod-store'
 import { canConvert, type ConvertOutcome } from '../convert/index.ts'
 import type { RoomService } from './rooms.ts'
@@ -78,20 +78,20 @@ export class ChatExtras {
   async regenerate(input: unknown): Promise<PodResult<null>> {
     const id = readId(input, 'messageId')
     const message = id === undefined ? undefined : getMessage(this.deps.db, id)
-    if (message === undefined || message.author === OWNER || message.author === POD || message.kind !== 'text') return fail('not-found', '只能重新生成 bot 的回复')
+    if (message === undefined || message.author === OWNER || message.author === POD || message.kind !== 'text') return fail('not-found', t('只能重新生成 bot 的回复'))
     const room = this.deps.rooms.get(message.roomId)
-    if (room === undefined) return fail('not-found', '找不到这个房间')
+    if (room === undefined) return fail('not-found', t('找不到这个房间'))
     const row = this.deps.db
       .prepare("SELECT id FROM messages WHERE room_id = ? AND author = 'owner' AND kind = 'text' AND seq < ? AND deleted_at IS NULL ORDER BY seq DESC LIMIT 1")
       .get(room.id, message.seq) as { readonly id: string } | undefined
     const asked = row === undefined ? undefined : getMessage(this.deps.db, row.id)
-    if (asked === undefined) return fail('not-found', '找不到这条回复对应的问题')
+    if (asked === undefined) return fail('not-found', t('找不到这条回复对应的问题'))
     this.deps.onRegenerate(message)
     // 群里交给说这条回复的成员重新回答，不是交给主管。
     const author = room.kind === 'direct' ? undefined : this.deps.rooms.memberBots(room).find((bot) => bot.id === message.author)
     const delivered = await this.deps.rooms.deliverText(room, `[用户要求重新回答] 用户对你上一条回复不满意，请换个思路重新回答下面这条消息（不用道歉，直接给新的回答）：\n${expandQuickCommand(asked.body) ?? asked.body}`, author)
     if (!delivered.ok) return delivered
-    this.deps.rooms.post(room.id, { author: POD, kind: 'receipt', body: `已请${delivered.value.name}重新回答`, data: { messageId: message.id } })
+    this.deps.rooms.post(room.id, { author: POD, kind: 'receipt', body: t('已请{name}重新回答', { name: delivered.value.name }), data: { messageId: message.id } })
     return ok(null)
   }
 
@@ -102,13 +102,13 @@ export class ChatExtras {
   async attach(input: unknown): Promise<PodResult<RoomMessage>> {
     const roomId = readId(input, 'roomId')
     const room = roomId === undefined ? undefined : this.deps.rooms.get(roomId)
-    if (room === undefined || room.archivedAt !== null) return fail('not-found', '找不到这个房间')
+    if (room === undefined || room.archivedAt !== null) return fail('not-found', t('找不到这个房间'))
     const bot = this.deps.rooms.responder(room)
-    if (bot === undefined) return fail('not-found', '这个房间里没有能回答的 bot')
+    if (bot === undefined) return fail('not-found', t('这个房间里没有能回答的 bot'))
     const name = safeName(readString(input, 'name'))
     const data = Buffer.from(readString(input, 'data'), 'base64')
-    if (data.byteLength === 0) return fail('invalid-input', '文件是空的')
-    if (data.byteLength > MAX_BYTES) return fail('invalid-input', '单个文件最大 15 MB')
+    if (data.byteLength === 0) return fail('invalid-input', t('文件是空的'))
+    if (data.byteLength > MAX_BYTES) return fail('invalid-input', t('单个文件最大 15 MB'))
     const folder = join(this.deps.attachmentsFolder(room, bot), '附件')
     await mkdir(folder, { recursive: true })
     const path = freePath(folder, name)
@@ -118,11 +118,11 @@ export class ChatExtras {
     const message = this.deps.rooms.post(room.id, {
       author: OWNER,
       kind: 'text',
-      body: note === '' ? `上传了文件「${basename(path)}」` : note,
+      body: note === '' ? uploadLine(basename(path)) : note,
       data: { attachment: { name: basename(path), path, size: data.byteLength, ...textData(converted) } },
     })
-    if (message === undefined) return fail('not-found', '找不到这个房间')
-    await this.deps.rooms.deliverUpload(room, uploadNote(path, data.byteLength, converted, note), note === '' ? `上传了文件「${basename(path)}」` : note, message.id)
+    if (message === undefined) return fail('not-found', t('找不到这个房间'))
+    await this.deps.rooms.deliverUpload(room, uploadNote(path, data.byteLength, converted, note), note === '' ? uploadLine(basename(path)) : note, message.id)
     return ok(message)
   }
 }

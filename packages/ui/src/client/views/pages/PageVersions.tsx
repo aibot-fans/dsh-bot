@@ -1,9 +1,9 @@
-import { OWNER, PAGE_SOURCE_LABELS, type Bot, type Page, type PageVersionInfo } from 'pod-domain'
+import { OWNER, PAGE_SOURCE_LABELS, t, tc, type Bot, type Page, type PageVersionInfo } from 'pod-domain'
 import { Badge, Button, RelativeTime } from '../../components/common.tsx'
 
 function authorName(author: string, bots: ReadonlyMap<string, Bot>): string {
-  if (author === OWNER) return '你'
-  return bots.get(author)?.name ?? '已删除的 bot'
+  if (author === OWNER) return t('你')
+  return bots.get(author)?.name ?? t('已删除的 bot')
 }
 
 /**
@@ -29,23 +29,23 @@ export function PageVersions(props: {
           <li key={item.version} className={active ? 'pod-page-version-on' : undefined}>
             <button type="button" className="pod-page-version" aria-current={active ? 'true' : undefined} onClick={() => props.onPreview(latest ? undefined : item.version)}>
               <span className="pod-row">
-                <strong>第 {item.version} 版</strong>
-                {latest ? <Badge tone="info">最新</Badge> : null}
+                <strong>{t('第 {version} 版', { version: item.version })}</strong>
+                {latest ? <Badge tone="info">{t('最新')}</Badge> : null}
                 <span className="pod-grow" />
                 <span className="pod-muted-inline">
                   <RelativeTime time={item.createdAt} />
                 </span>
               </span>
               <span className="pod-muted-inline">
-                {authorName(item.author, props.bots)} · {PAGE_SOURCE_LABELS[item.source]}
-                {item.title === page.title ? '' : ` · 当时叫「${item.title}」`}
+                {authorName(item.author, props.bots)} · {tc(PAGE_SOURCE_LABELS[item.source], '来源')}
+                {item.title === page.title ? '' : t(' · 当时叫「{title}」', { title: item.title })}
               </span>
               {item.note === '' ? null : <span className="pod-page-version-note">{item.note}</span>}
             </button>
             {active && !latest ? (
               <div className="pod-page-version-actions">
                 <Button small kind="primary" icon="restore" disabled={props.busy} onClick={() => props.onRestore(item.version)}>
-                  恢复成这一版
+                  {t('恢复成这一版')}
                 </Button>
               </div>
             ) : null}

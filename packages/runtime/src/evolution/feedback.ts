@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { stat } from 'node:fs/promises'
 import { isAbsolute, join } from 'node:path'
-import { computeScorecard, fail, isCorrection, ok, readId, readInt, readString, type BotStats, type Feedback, type PodResult, type RoomMessage, type Scorecard, type Task, type Wait } from 'pod-domain'
+import { computeScorecard, fail, isCorrection, ok, readId, readInt, readString, t, type BotStats, type Feedback, type PodResult, type RoomMessage, type Scorecard, type Task, type Wait } from 'pod-domain'
 import { feedbackFor, getMessage, insertFeedback, ratingOf, readState, reviewsOf, setRating, tasksOwnedBy, writeState } from 'pod-store'
 import type { PodBus } from '../core/bus.ts'
 import type { UsageMeter } from '../usage/meter.ts'
@@ -46,9 +46,9 @@ export class FeedbackService {
   rate(input: unknown): PodResult<{ readonly messageId: string; readonly value: number }> {
     const messageId = readId(input, 'messageId')
     const value = readInt(input, 'value') ?? 0
-    if (messageId === undefined || ![1, 0, -1].includes(value)) return fail('invalid-input', '评分只能是赞、踩或撤销')
+    if (messageId === undefined || ![1, 0, -1].includes(value)) return fail('invalid-input', t('评分只能是赞、踩或撤销'))
     const message = getMessage(this.db, messageId)
-    if (message === undefined || message.author === 'owner' || message.author === 'pod') return fail('not-found', '只能给 bot 的发言评分')
+    if (message === undefined || message.author === 'owner' || message.author === 'pod') return fail('not-found', t('只能给 bot 的发言评分'))
     const task = typeof message.data.taskId === 'string' ? this.deps.task(message.data.taskId) : undefined
     setRating(this.db, { kind: 'rating', botId: message.author, taskId: task?.id ?? null, rootId: task?.rootId ?? null, messageId, value, reason: readString(input, 'reason').slice(0, 300), now: this.deps.now() })
     this.deps.bus.emit({ type: 'message', roomId: message.roomId, messageId })
@@ -116,7 +116,7 @@ export class FeedbackService {
       }
       if (edited) {
         const task = this.deps.task(item.taskId)
-        insertFeedback(this.db, { kind: 'edited', botId: item.botId, taskId: item.taskId, rootId: task?.rootId ?? null, value: -1, reason: '交付后你修改了产物', now })
+        insertFeedback(this.db, { kind: 'edited', botId: item.botId, taskId: item.taskId, rootId: task?.rootId ?? null, value: -1, reason: t('交付后你修改了产物'), now })
         found += 1
       } else if (now - item.at < EDIT_WINDOW_MS) {
         remaining.push(item)

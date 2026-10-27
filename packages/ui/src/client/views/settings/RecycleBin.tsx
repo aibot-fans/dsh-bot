@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PAGE_KIND_LABELS } from 'pod-domain'
+import { PAGE_KIND_LABELS, t } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { pageApi } from '../../api/pages.ts'
@@ -35,20 +35,20 @@ export function RecycleBin() {
       })
       .catch((reason: unknown) => setProblem(errorText(reason)))
   }
-  if (bots.length === 0 && teams.length === 0 && rooms.length === 0 && chats.length === 0 && pages.length === 0) return <p className="pod-muted">回收站是空的。删除的 bot、群聊、对话和页面会先放在这里，30 天内可以恢复。</p>
+  if (bots.length === 0 && teams.length === 0 && rooms.length === 0 && chats.length === 0 && pages.length === 0) return <p className="pod-muted">{t('回收站是空的。删除的 bot、群聊、对话和页面会先放在这里，30 天内可以恢复。')}</p>
   return (
     <div className="pod-stack-tight">
-      <p className="pod-hint">删除的 bot、群聊、对话和页面先放在这里，30 天内都能恢复。</p>
+      <p className="pod-hint">{t('删除的 bot、群聊、对话和页面先放在这里，30 天内都能恢复。')}</p>
       {problem === undefined ? null : <p className="pod-form-error">{problem}</p>}
       {bots.map((bot) => (
         <div key={bot.id} className="pod-recycle-row">
           <Avatar bot={bot} size={24} />
           <span className="pod-ellipsis">{bot.name}</span>
           <span className="pod-muted-inline">
-            删除于 <RelativeTime time={bot.archivedAt} />
+            {t('删除于')} <RelativeTime time={bot.archivedAt} />
           </span>
           <Button small icon="restore" onClick={() => run(api.restoreBot(bot.id))}>
-            恢复
+            {t('恢复')}
           </Button>
         </div>
       ))}
@@ -57,7 +57,7 @@ export function RecycleBin() {
           <GroupMark members={room.memberIds.flatMap((id) => byId.get(id) ?? [])} size={24} />
           <span className="pod-ellipsis">{room.title}</span>
           <span className="pod-muted-inline">
-            删除于 <RelativeTime time={room.archivedAt} />
+            {t('删除于')} <RelativeTime time={room.archivedAt} />
           </span>
           <Button
             small
@@ -67,7 +67,7 @@ export function RecycleBin() {
               app.cache.invalidate('rooms:archived')
             }}
           >
-            恢复
+            {t('恢复')}
           </Button>
         </div>
       ))}
@@ -77,10 +77,10 @@ export function RecycleBin() {
           <div key={room.id} className="pod-recycle-row">
             <Avatar bot={bot} size={24} />
             <span className="pod-ellipsis">
-              和{bot?.name ?? 'bot'}的对话{room.subject === '' ? '' : `「${room.subject}」`}
+              {t('和{value}的对话{value2}', { value: bot?.name ?? 'bot', value2: room.subject === '' ? '' : t('「{subject}」', { subject: room.subject }) })}
             </span>
             <span className="pod-muted-inline">
-              删除于 <RelativeTime time={room.archivedAt} />
+              {t('删除于')} <RelativeTime time={room.archivedAt} />
             </span>
             <Button
               small
@@ -90,7 +90,7 @@ export function RecycleBin() {
                 app.cache.invalidate('rooms:archived')
               }}
             >
-              恢复
+              {t('恢复')}
             </Button>
           </div>
         )
@@ -99,24 +99,24 @@ export function RecycleBin() {
         <div key={page.id} className="pod-recycle-row">
           <KindIcon kind={page.kind} size={24} />
           <span className="pod-ellipsis">
-            {PAGE_KIND_LABELS[page.kind]}「{page.title}」
+            {t('{kind}「{title}」', { kind: t(PAGE_KIND_LABELS[page.kind]), title: page.title })}
           </span>
           <span className="pod-muted-inline">
-            删除于 <RelativeTime time={page.deletedAt} />
+            {t('删除于')} <RelativeTime time={page.deletedAt} />
           </span>
           <Button small icon="restore" onClick={() => run(pageApi.restore(page.id))}>
-            恢复
+            {t('恢复')}
           </Button>
         </div>
       ))}
       {teams.map((team) => (
         <div key={team.id} className="pod-recycle-row">
-          <span className="pod-ellipsis">团队：{team.name}</span>
+          <span className="pod-ellipsis">{t('团队：{name}', { name: team.name })}</span>
           <span className="pod-muted-inline">
-            归档于 <RelativeTime time={team.archivedAt} />
+            {t('归档于')} <RelativeTime time={team.archivedAt} />
           </span>
           <Button small icon="restore" onClick={() => run(api.restoreTeam(team.id))}>
-            恢复
+            {t('恢复')}
           </Button>
         </div>
       ))}

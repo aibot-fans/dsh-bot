@@ -4,6 +4,7 @@
  * 这一轮跑完以后，在最后一段回复上存一份摘要（RunSummary）：一步一行，不存命令输出。
  */
 
+import { t } from './i18n.ts'
 import { truncate } from './text.ts'
 
 export type PlanStatus = 'pending' | 'in_progress' | 'completed'
@@ -162,16 +163,16 @@ export function planProgress(plan: readonly PlanItem[]): { readonly done: number
 /** 看这一轮是不是不太对：一步跑了太久、连着出错、连着做同一步、计划很久没动。都没有返回 null。 */
 export function progressHealth(progress: TurnProgress, now: number): ProgressHealth | null {
   const long = progress.steps.find((step) => step.ok === null && now - step.startedAt >= LONG_STEP_MS)
-  if (long !== undefined) return { kind: 'long-step', text: `「${long.label}」已经跑了 ${Math.floor((now - long.startedAt) / 60_000)} 分钟` }
+  if (long !== undefined) return { kind: 'long-step', text: t('「{label}」已经跑了 {floor} 分钟', { label: long.label, floor: Math.floor((now - long.startedAt) / 60_000) }) }
   const finished = progress.steps.filter((step) => step.ok !== null).slice(-FAILING_STEPS)
-  if (finished.length === FAILING_STEPS && finished.every((step) => step.ok === false)) return { kind: 'failing', text: `连着 ${FAILING_STEPS} 步出错` }
+  if (finished.length === FAILING_STEPS && finished.every((step) => step.ok === false)) return { kind: 'failing', text: t('连着 {FAILING_STEPS} 步出错', { FAILING_STEPS }) }
   const recent = progress.steps.slice(-REPEAT_STEPS)
   const first = recent[0]
   if (first !== undefined && recent.length === REPEAT_STEPS && recent.every((step) => step.sig === first.sig)) {
-    return { kind: 'repeat', text: `连着 ${REPEAT_STEPS} 次做同一步：${first.label}` }
+    return { kind: 'repeat', text: t('连着 {REPEAT_STEPS} 次做同一步：{label}', { REPEAT_STEPS, label: first.label }) }
   }
   const idle = progress.calls - progress.planCalls
-  if (progress.plan.some((item) => item.status !== 'completed') && idle >= PLAN_STALE_CALLS) return { kind: 'stuck-plan', text: `计划已经 ${idle} 步没有推进` }
+  if (progress.plan.some((item) => item.status !== 'completed') && idle >= PLAN_STALE_CALLS) return { kind: 'stuck-plan', text: t('计划已经 {idle} 步没有推进', { idle }) }
   return null
 }
 
@@ -210,8 +211,8 @@ export function readRunSummary(value: unknown): RunSummary | undefined {
 /** 时长写成“40 秒”“3 分 12 秒”“1 小时 5 分”。 */
 export function spoken(ms: number): string {
   const seconds = Math.max(0, Math.round(ms / 1000))
-  if (seconds < 60) return `${seconds} 秒`
+  if (seconds < 60) return t('{seconds} 秒', { seconds })
   const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return seconds % 60 === 0 ? `${minutes} 分` : `${minutes} 分 ${seconds % 60} 秒`
-  return minutes % 60 === 0 ? `${Math.floor(minutes / 60)} 小时` : `${Math.floor(minutes / 60)} 小时 ${minutes % 60} 分`
+  if (minutes < 60) return seconds % 60 === 0 ? t('{minutes} 分', { minutes }) : t('{minutes} 分 {value} 秒', { minutes, value: seconds % 60 })
+  return minutes % 60 === 0 ? t('{floor} 小时', { floor: Math.floor(minutes / 60) }) : t('{floor} 小时 {value} 分', { floor: Math.floor(minutes / 60), value: minutes % 60 })
 }

@@ -10,6 +10,7 @@ import {
   fail,
   fnv1a,
   formatLocal,
+  intlLocale,
   isDeepSeekPeak,
   newId,
   nextCronRun,
@@ -22,6 +23,7 @@ import {
   readInt,
   readObject,
   readString,
+  t,
   truncate,
   type PageKind,
   type PodResult,
@@ -106,7 +108,7 @@ export class RoutineService {
     const at = readString(input, 'at')
     const time = at === '' ? readInt(input, 'runAt') : parseLocalTime(at, timezone, now)
     if (time === undefined || typeof time === 'string') return time
-    return time > now ? time : '这个时间已经过了'
+    return time > now ? time : t('这个时间已经过了')
   }
 
   /** 新建例程：{ title, kind, cron | runAt | at | url+interval, prompt, botId, roomId? }。 */
@@ -115,14 +117,14 @@ export class RoutineService {
     const title = truncate(readString(input, 'title'), 40)
     const prompt = readString(input, 'prompt')
     const botId = readId(input, 'botId')
-    if (title === '') return fail('invalid-input', '例程要有名字')
-    if (prompt === '') return fail('invalid-input', '要写清每次做什么')
+    if (title === '') return fail('invalid-input', t('例程要有名字'))
+    if (prompt === '') return fail('invalid-input', t('要写清每次做什么'))
     const bot = botId === undefined ? undefined : this.deps.bots.activeBot(botId)
-    if (bot === undefined) return fail('not-found', '找不到负责的 bot')
+    if (bot === undefined) return fail('not-found', t('找不到负责的 bot'))
     const roomId = readId(input, 'roomId') ?? null
-    if (roomId !== null && this.deps.rooms.get(roomId) === undefined) return fail('not-found', '找不到要发结果的房间')
+    if (roomId !== null && this.deps.rooms.get(roomId) === undefined) return fail('not-found', t('找不到要发结果的房间'))
     const pageId = kind === 'cron' ? (readId(input, 'pageId') ?? null) : null
-    if (pageId !== null && this.deps.describePage(pageId)?.deleted !== false) return fail('not-found', '找不到要更新的页面')
+    if (pageId !== null && this.deps.describePage(pageId)?.deleted !== false) return fail('not-found', t('找不到要更新的页面'))
     const timezone = readString(input, 'timezone') || this.deps.settings().timezone
     const runAt = kind === 'cron' ? this.readRunAt(input, timezone) : undefined
     if (typeof runAt === 'string') return fail('invalid-input', runAt)
@@ -135,7 +137,7 @@ export class RoutineService {
     } else if (kind === 'watch') {
       const checked = checkUrl(url, this.deps.settings().allowedHosts)
       if (!checked.ok) return fail('invalid-input', checked.reason)
-      if (interval < WATCH_MIN_INTERVAL || interval > WATCH_MAX_INTERVAL) return fail('invalid-input', `检查间隔在 ${WATCH_MIN_INTERVAL} 分钟到 7 天之间`)
+      if (interval < WATCH_MIN_INTERVAL || interval > WATCH_MAX_INTERVAL) return fail('invalid-input', t('检查间隔在 {WATCH_MIN_INTERVAL} 分钟到 7 天之间', { WATCH_MIN_INTERVAL }))
     }
     const now = this.deps.now()
     const draft = { kind, cron, runAt: runAt ?? null, timezone, intervalMinutes: interval } as const
@@ -176,11 +178,11 @@ export class RoutineService {
     if (typeof runAt === 'string') return runAt
     const interval = readInt(raw, 'intervalMinutes')
     if (current.kind === 'watch') {
-      if (cron !== '' || runAt !== undefined) return '盯网页按间隔检查，只能改 intervalMinutes'
+      if (cron !== '' || runAt !== undefined) return t('盯网页按间隔检查，只能改 intervalMinutes')
       if (interval === undefined) return {}
-      return interval < WATCH_MIN_INTERVAL || interval > WATCH_MAX_INTERVAL ? `检查间隔在 ${WATCH_MIN_INTERVAL} 分钟到 7 天之间` : { intervalMinutes: interval }
+      return interval < WATCH_MIN_INTERVAL || interval > WATCH_MAX_INTERVAL ? t('检查间隔在 {WATCH_MIN_INTERVAL} 分钟到 7 天之间', { WATCH_MIN_INTERVAL }) : { intervalMinutes: interval }
     }
-    if (cron !== '' && runAt !== undefined) return '重复的时间（cron）和只跑一次的时间只能写一个'
+    if (cron !== '' && runAt !== undefined) return t('重复的时间（cron）和只跑一次的时间只能写一个')
     if (runAt !== undefined) return { runAt, cron: '' }
     if (cron === '') return {}
     const parsed = parseCron(cron)
@@ -191,21 +193,21 @@ export class RoutineService {
   update(input: unknown, actor = 'owner'): PodResult<Routine> {
     const id = readId(input, 'id')
     const current = id === undefined ? undefined : this.get(id)
-    if (current === undefined) return fail('not-found', '找不到这个例程')
+    if (current === undefined) return fail('not-found', t('找不到这个例程'))
     const raw = readObject(input, 'patch')
     const schedule = this.readSchedule(current, raw)
     if (typeof schedule === 'string') return fail('invalid-input', schedule)
     const enabled = readBool(raw, 'enabled')
     const pageValue = readObject(raw, 'pageId')
     const pageId = typeof pageValue === 'string' && pageValue.trim() !== '' ? pageValue.trim() : null
-    if (pageId !== null && this.deps.describePage(pageId)?.deleted !== false) return fail('not-found', '找不到要更新的页面')
+    if (pageId !== null && this.deps.describePage(pageId)?.deleted !== false) return fail('not-found', t('找不到要更新的页面'))
     // 换人来做：之后到点由新的 bot 做，结果以它的名义发。
     const botId = readId(raw, 'botId')
-    if (botId !== undefined && this.deps.bots.activeBot(botId) === undefined) return fail('not-found', '找不到要换成的 bot')
+    if (botId !== undefined && this.deps.bots.activeBot(botId) === undefined) return fail('not-found', t('找不到要换成的 bot'))
     // 发到哪：房间 id；null 或空是负责的 bot 的单聊。
     const roomValue = readObject(raw, 'roomId')
     const roomId = typeof roomValue === 'string' && roomValue.trim() !== '' ? roomValue.trim() : null
-    if (roomId !== null && this.deps.rooms.get(roomId) === undefined) return fail('not-found', '找不到要发结果的房间')
+    if (roomId !== null && this.deps.rooms.get(roomId) === undefined) return fail('not-found', t('找不到要发结果的房间'))
     const patch: RoutinePatch = {
       ...schedule,
       ...(botId === undefined ? {} : { botId }),
@@ -219,9 +221,9 @@ export class RoutineService {
     }
     const now = this.deps.now()
     const merged = { ...current, ...patch }
-    if (enabled === true && merged.runAt !== null && merged.runAt <= now) return fail('invalid-input', '这个只跑一次的例程已经过了时间：写一个新的时间再打开')
+    if (enabled === true && merged.runAt !== null && merged.runAt <= now) return fail('invalid-input', t('这个只跑一次的例程已经过了时间：写一个新的时间再打开'))
     const updated = updateRoutine(this.db, current.id, { ...patch, nextRunAt: merged.enabled ? this.nextRun(merged, now) : null }, now)
-    if (updated === undefined) return fail('not-found', '找不到这个例程')
+    if (updated === undefined) return fail('not-found', t('找不到这个例程'))
     this.deps.audit.record('routine.update', actor, current.id, { patch })
     this.deps.bus.emit({ type: 'routines' })
     return ok(updated)
@@ -229,7 +231,7 @@ export class RoutineService {
 
   remove(input: unknown, actor = 'owner'): PodResult<null> {
     const id = readId(input, 'id')
-    if (id === undefined || !deleteRoutine(this.db, id, this.deps.now())) return fail('not-found', '找不到这个例程')
+    if (id === undefined || !deleteRoutine(this.db, id, this.deps.now())) return fail('not-found', t('找不到这个例程'))
     this.deps.audit.record('routine.delete', actor, id, {})
     this.deps.bus.emit({ type: 'routines' })
     return ok(null)
@@ -238,7 +240,7 @@ export class RoutineService {
   async runNow(input: unknown): Promise<PodResult<Routine>> {
     const id = readId(input, 'id')
     const routine = id === undefined ? undefined : this.get(id)
-    if (routine === undefined) return fail('not-found', '找不到这个例程')
+    if (routine === undefined) return fail('not-found', t('找不到这个例程'))
     await this.run(routine, 'manual')
     return ok(this.get(routine.id) ?? routine)
   }
@@ -249,7 +251,7 @@ export class RoutineService {
     for (const routine of this.list()) {
       if (!routine.enabled || routine.nextRunAt === null || routine.nextRunAt > now) continue
       if (routine.catchUp) await this.run(routine, 'catch-up')
-      else updateRoutine(this.db, routine.id, { nextRunAt: this.nextRun(routine, now), lastStatus: '错过了，没有补跑' }, now)
+      else updateRoutine(this.db, routine.id, { nextRunAt: this.nextRun(routine, now), lastStatus: t('错过了，没有补跑') }, now)
     }
   }
 
@@ -267,7 +269,7 @@ export class RoutineService {
     const now = this.deps.now()
     if (reason !== 'manual' && routine.offPeak && this.deps.settings().offPeak && isDeepSeekPeak(now) && (await this.deps.usesDeepSeek(routine.botId))) {
       const later = nextOffPeak(now)
-      updateRoutine(this.db, routine.id, { nextRunAt: later, lastStatus: `错峰：推迟到 ${new Date(later).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}` }, now)
+      updateRoutine(this.db, routine.id, { nextRunAt: later, lastStatus: t('错峰：推迟到 {toLocaleTimeString}', { toLocaleTimeString: new Date(later).toLocaleTimeString(intlLocale(), { hour: '2-digit', minute: '2-digit' }) }) }, now)
       this.deps.bus.emit({ type: 'routines' })
       return
     }
@@ -276,7 +278,7 @@ export class RoutineService {
       this.finish(routine, now, status)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      updateRoutine(this.db, routine.id, { lastRunAt: now, nextRunAt: this.nextRun(routine, now), lastStatus: `出错：${truncate(message, 80)}` }, this.deps.now())
+      updateRoutine(this.db, routine.id, { lastRunAt: now, nextRunAt: this.nextRun(routine, now), lastStatus: t('出错：{truncate}', { truncate: truncate(message, 80) }) }, this.deps.now())
       this.deps.warn(`例程「${routine.title}」运行失败：${message}`)
     }
     this.deps.bus.emit({ type: 'routines' })
@@ -290,7 +292,7 @@ export class RoutineService {
       this.deps.audit.record('routine.done', 'pod', routine.id, { title: routine.title })
       return
     }
-    updateRoutine(this.db, routine.id, { lastRunAt: now, nextRunAt: next, lastStatus: status }, this.deps.now())
+    updateRoutine(this.db, routine.id, { lastRunAt: now, nextRunAt: next, lastStatus: t(status) }, this.deps.now())
   }
 
   /** 要更新页面的例程：告诉 bot 是哪个页面、怎么更新；页面删掉了就按普通例程做。 */
@@ -304,7 +306,7 @@ export class RoutineService {
   /** 盯网页：内容没变就不调用模型。 */
   private async runWatch(routine: Routine): Promise<string> {
     const checked = checkUrl(routine.url, this.deps.settings().allowedHosts)
-    if (!checked.ok) return `没打开：${checked.reason}`
+    if (!checked.ok) return t('没打开：{reason}', { reason: checked.reason })
     const page = await this.deps.readPage(checked.url.toString(), routine.selector)
     const text = page.text.replace(/\s+/g, ' ').trim().slice(0, 20_000)
     const fingerprint = fnv1a(text)
@@ -338,7 +340,7 @@ export class RoutineService {
       roomId = opened.value.id
     }
     const session = await this.session(routine, bot.id, roomId)
-    this.deps.dispatcher.enqueue({ sessionId: session.id, mode: 'followup', priority: PRIORITY.routine, text, source: noticeSource(`例程：${routine.title}`) })
+    this.deps.dispatcher.enqueue({ sessionId: session.id, mode: 'followup', priority: PRIORITY.routine, text, source: noticeSource(t('例程：{title}', { title: routine.title })) })
     return DELIVERED
   }
 
@@ -346,21 +348,21 @@ export class RoutineService {
     const existing = this.deps.registry.active().find((session) => session.kind === 'routine' && session.botId === botId && session.roomId === roomId)
     if (existing !== undefined) return existing
     const bot = this.deps.bots.activeBot(botId)
-    if (bot === undefined) throw new Error('负责的 bot 已归档')
-    return this.deps.registry.open({ bot, kind: 'routine', roomId, taskId: null, folder: botFolder(bot), title: `dsh-bot · 例程 · ${routine.title}` })
+    if (bot === undefined) throw new Error(t('负责的 bot 已归档'))
+    return this.deps.registry.open({ bot, kind: 'routine', roomId, taskId: null, folder: botFolder(bot), title: t('dsh-bot · 例程 · {title}', { title: routine.title }) })
   }
 
   describe(routine: Routine): string {
-    if (routine.kind === 'watch') return `每 ${routine.intervalMinutes} 分钟检查 ${routine.url}`
+    if (routine.kind === 'watch') return t('每 {minutes} 分钟检查 {url}', { minutes: routine.intervalMinutes, url: routine.url })
     const page = routine.pageId === null ? undefined : this.deps.describePage(routine.pageId)
-    const target = page === undefined || page.deleted ? '' : `，更新${PAGE_KIND_LABELS[page.kind]}「${page.title}」`
-    const when = routine.runAt === null ? describeCron(routine.cron) : `${formatLocal(routine.runAt, routine.timezone)} 跑一次`
+    const target = page === undefined || page.deleted ? '' : t('，更新{kind}「{title}」', { kind: t(PAGE_KIND_LABELS[page.kind]), title: page.title })
+    const when = routine.runAt === null ? describeCron(routine.cron) : t('{time} 跑一次', { time: formatLocal(routine.runAt, routine.timezone) })
     return `${when}${target}`
   }
 
   /** 下次什么时候跑：「下次 10月26日 11:30」「已暂停」「没有下次了」。 */
   describeNext(routine: Routine): string {
-    if (!routine.enabled) return '已暂停'
-    return routine.nextRunAt === null ? '没有下次了' : `下次 ${formatLocal(routine.nextRunAt, routine.timezone)}`
+    if (!routine.enabled) return t('已暂停')
+    return routine.nextRunAt === null ? t('没有下次了') : t('下次 {time}', { time: formatLocal(routine.nextRunAt, routine.timezone) })
   }
 }

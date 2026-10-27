@@ -1,4 +1,4 @@
-import type { BlockWidth, PageBlock } from 'pod-domain'
+import { t, type BlockWidth, type PageBlock } from 'pod-domain'
 import { renderChart } from './charts.ts'
 import { renderGraph } from './graph.ts'
 import { esc } from './html.ts'
@@ -29,7 +29,7 @@ const CALLOUT_TONES = { info: 'info', ok: 'ok', warn: 'warn', danger: 'bad' } as
 function image(src: string, alt: string, caption: string, height: number, ctx: RenderContext): string {
   const data = src.startsWith('asset:') ? ctx.assets.get(src.slice(6)) : undefined
   const style = height > 0 ? ` style="height:${height}px"` : ''
-  const body = data === undefined ? `<div class="img-ph"${height > 0 ? style : ''}><span>${esc(alt || '图片')}</span></div>` : `<img src="${esc(data)}" alt="${esc(alt)}"${style}>`
+  const body = data === undefined ? `<div class="img-ph"${height > 0 ? style : ''}><span>${esc(alt || t('图片'))}</span></div>` : `<img src="${esc(data)}" alt="${esc(alt)}"${style}>`
   return `<figure class="figure">${body}${caption === '' ? '' : `<figcaption>${esc(caption)}</figcaption>`}</figure>`
 }
 
@@ -59,10 +59,10 @@ function body(block: PageBlock, ctx: RenderContext, width: number): string {
     case 'progress':
       return renderProgress(block)
     case 'callout':
-      return `<div class="callout co-${block.tone}">${statusBadge(block.title || CALLOUT_TITLES[block.tone], CALLOUT_TONES[block.tone])}<div class="prose">${markdown(block.text)}</div></div>`
+      return `<div class="callout co-${block.tone}">${statusBadge(block.title || t(CALLOUT_TITLES[block.tone]), CALLOUT_TONES[block.tone])}<div class="prose">${markdown(block.text)}</div></div>`
     case 'list': {
       const tag = block.style === 'number' ? 'ol' : 'ul'
-      const items = block.items.map((item) => (block.style === 'check' ? `<li class="${item.done ? 'done' : ''}"><span class="check" aria-label="${item.done ? '已完成' : '未完成'}"></span>${inline(item.text)}</li>` : `<li>${inline(item.text)}</li>`))
+      const items = block.items.map((item) => (block.style === 'check' ? `<li class="${item.done ? 'done' : ''}"><span class="check" aria-label="${item.done ? t('已完成') : t('未完成')}"></span>${inline(item.text)}</li>` : `<li>${inline(item.text)}</li>`))
       return `<${tag} class="list${block.style === 'check' ? ' checklist' : ''}">${items.join('')}</${tag}>`
     }
     case 'quote':

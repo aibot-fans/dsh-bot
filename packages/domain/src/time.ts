@@ -1,3 +1,4 @@
+import { intlLocale, t } from './i18n.ts'
 /** 时区和钟表时间：例程、勿扰、错峰都按用户的时区算。只用 Intl，不依赖第三方库。 */
 
 export interface WallClock {
@@ -114,19 +115,20 @@ const LOCAL_TIME = /^(?:(\d{4})-(\d{1,2})-(\d{1,2})[ T])?([01]?\d|2[0-3]):([0-5]
  */
 export function parseLocalTime(value: string, timeZone: string, now: number): number | string {
   const match = LOCAL_TIME.exec(value.trim())
-  if (match === null) return '时间写成 HH:MM 或 YYYY-MM-DD HH:MM'
+  if (match === null) return t('时间写成 HH:MM 或 YYYY-MM-DD HH:MM')
   const [, year, month, day, hour = '0', minute = '0'] = match
   if (year === undefined || month === undefined || day === undefined) return nextDailyAt(now, timeZone, `${hour}:${minute}`)
   const clock = { year: Number(year), month: Number(month), day: Number(day), hour: Number(hour), minute: Number(minute) }
   const time = zonedTime(clock, timeZone)
   const check = wallClock(time, timeZone)
-  return check.year === clock.year && check.month === clock.month && check.day === clock.day ? time : `没有这一天：${value.trim()}`
+  return check.year === clock.year && check.month === clock.month && check.day === clock.day ? time : t('没有这一天：{value}', { value: value.trim() })
 }
 
 /** 时刻写成用户时区的「10月26日 11:30」。 */
 export function formatLocal(time: number, timeZone: string): string {
   const clock = wallClock(time, timeZone)
-  return `${clock.month}月${clock.day}日 ${String(clock.hour).padStart(2, '0')}:${String(clock.minute).padStart(2, '0')}`
+  const day = new Date(time).toLocaleDateString(intlLocale(), { timeZone, month: 'short', day: 'numeric' })
+  return `${day} ${String(clock.hour).padStart(2, '0')}:${String(clock.minute).padStart(2, '0')}`
 }
 
 /** 某时刻所在的本地日期，写成 YYYY-MM-DD。 */

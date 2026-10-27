@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PAGE_KIND_LABELS, PAGE_TITLE_MAX, type Page } from 'pod-domain'
+import { PAGE_KIND_LABELS, PAGE_TITLE_MAX, t, type Page } from 'pod-domain'
 import { errorText } from '../../api/http.ts'
 import { pageApi } from '../../api/pages.ts'
 import { RelativeTime } from '../../components/common.tsx'
@@ -27,7 +27,7 @@ export function PageRow(props: { readonly page: Page; readonly onError: (message
             <RenameInput
               value={page.title}
               max={PAGE_TITLE_MAX}
-              label="页面标题"
+              label={t('页面标题')}
               onSave={(title) => {
                 setRenaming(false)
                 run(pageApi.rename(page.id, title))
@@ -38,22 +38,22 @@ export function PageRow(props: { readonly page: Page; readonly onError: (message
             <span className="pod-ellipsis">{page.title}</span>
           )}
           <span className="pod-muted-inline">
-            {PAGE_KIND_LABELS[page.kind]} · 第 {page.version} 版 · <RelativeTime time={page.updatedAt} />
+            {t('{kind} · 第 {version} 版 ·', { kind: t(PAGE_KIND_LABELS[page.kind]), version: page.version })} <RelativeTime time={page.updatedAt} />
           </span>
         </span>
       </button>
       {page.pinned ? (
-        <span className="pod-page-row-pin" title="已置顶">
+        <span className="pod-page-row-pin" title={t('已置顶')}>
           <Icon name="pin" size={13} />
         </span>
       ) : null}
-      <button ref={menu.anchor} type="button" className="pod-icon-button" aria-label={`「${page.title}」的操作`} title="更多" aria-expanded={menu.open} onClick={menu.toggle}>
+      <button ref={menu.anchor} type="button" className="pod-icon-button" aria-label={t('「{title}」的操作', { title: page.title })} title={t('更多')} aria-expanded={menu.open} onClick={menu.toggle}>
         <Icon name="more" size={15} />
       </button>
-      <MenuPanel control={menu} label={`「${page.title}」的操作`}>
+      <MenuPanel control={menu} label={t('「{title}」的操作', { title: page.title })}>
         <MenuItem
           icon={page.pinned ? 'unpin' : 'pin'}
-          label={page.pinned ? '取消置顶' : '置顶'}
+          label={page.pinned ? t('取消置顶') : t('置顶')}
           onClick={() => {
             menu.close()
             run(pageApi.pin(page.id, !page.pinned))
@@ -61,7 +61,7 @@ export function PageRow(props: { readonly page: Page; readonly onError: (message
         />
         <MenuItem
           icon="edit"
-          label="改名"
+          label={t('改名')}
           onClick={() => {
             menu.close()
             setRenaming(true)
@@ -69,11 +69,11 @@ export function PageRow(props: { readonly page: Page; readonly onError: (message
         />
         <MenuItem
           icon="trash"
-          label="删除"
+          label={t('删除')}
           danger
           onClick={() => {
             menu.close()
-            if (window.confirm(`删除「${page.title}」？30 天内可以在设置的回收站里恢复。`)) run(pageApi.remove(page.id))
+            if (window.confirm(t('删除「{title}」？30 天内可以在设置的回收站里恢复。', { title: page.title }))) run(pageApi.remove(page.id))
           }}
         />
       </MenuPanel>

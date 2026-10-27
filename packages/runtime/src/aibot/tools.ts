@@ -1,4 +1,4 @@
-import type { Bot } from 'pod-domain'
+import { t, type Bot } from 'pod-domain'
 import type { ContentBlock, JsonSchema, ToolDefinition } from '../dsh.ts'
 import type { McpTool } from './mcp.ts'
 
@@ -50,7 +50,7 @@ export function xTools(tools: readonly McpTool[], call: (name: string, args: unk
   return tools.map(
     (tool): ToolDefinition => ({
       name: tool.name,
-      description: `${tool.description === '' ? `aibot 的 X 工具 ${tool.name}` : tool.description}${tool.destructive ? `\n${DESTRUCTIVE_NOTE}` : ''}`,
+      description: `${tool.description === '' ? t('aibot 的 X 工具 {name}', { name: tool.name }) : tool.description}${tool.destructive ? `\n${DESTRUCTIVE_NOTE}` : ''}`,
       parameters: tool.inputSchema,
       output: { schema: OUTPUT_SCHEMA, render },
       timeoutMs: CALL_TIMEOUT_MS,

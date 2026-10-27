@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { POD, isRecord, newId, truncate, type Bot, type PodSession, type Room, type Task } from 'pod-domain'
+import { POD, isRecord, newId, t, truncate, type Bot, type PodSession, type Room, type Task } from 'pod-domain'
 import { insertHandover, listHandovers, listMessages, setHandoverTarget, type Handover } from 'pod-store'
 import type { LiteLlm } from '../core/lite.ts'
 import type { SessionRegistry } from './registry.ts'
@@ -164,7 +164,7 @@ export class SegmentManager {
       roomId: room.id,
       taskId: room.taskId,
       folder: old.folder,
-      title: `dsh-bot · ${room.title} · 第 ${old.segment + 1} 段`,
+      title: t('dsh-bot · {title} · 第 {segment} 段', { title: room.title, segment: old.segment + 1 }),
       segment: old.segment + 1,
       tainted: old.tainted,
     })
@@ -196,7 +196,7 @@ export class SegmentManager {
       taskId: task.id,
       botId: bot.id,
       note,
-      reason: '上下文超过软上限',
+      reason: t('上下文超过软上限'),
       createdAt: this.deps.now(),
     })
     const session = await this.deps.registry.open({
@@ -205,7 +205,7 @@ export class SegmentManager {
       roomId: null,
       taskId: task.id,
       folder: old.folder,
-      title: `dsh-bot · ${task.title} · 第 ${old.segment + 1} 段`,
+      title: t('dsh-bot · {title} · 第 {segment} 段', { title: task.title, segment: old.segment + 1 }),
       segment: old.segment + 1,
       tainted: old.tainted,
       ceiling: task.maxProfile,

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import type { Page } from 'pod-domain'
+import { t, type Page } from 'pod-domain'
 import { pageApi } from '../../api/pages.ts'
 import { Empty, ErrorBanner } from '../../components/common.tsx'
 import { useApp } from '../../state/app.ts'
@@ -27,10 +27,10 @@ export function ScopedPages(props: { readonly match: (page: Page) => boolean; re
     <div className="pod-stack">
       {error === undefined ? null : <ErrorBanner message={error} />}
       {problem === undefined ? null : <ErrorBanner message={problem} onClose={() => setProblem(undefined)} />}
-      {mine.length < SEARCH_FROM ? null : <input className="pod-input" value={query} placeholder="搜标题" aria-label="搜页面标题" onChange={(event) => setQuery(event.target.value)} />}
-      {pages === undefined ? <p className="pod-muted">正在读取…</p> : null}
-      {pages !== undefined && mine.length === 0 ? <Empty title="还没有页面">{props.empty}</Empty> : null}
-      {mine.length > 0 && shown.length === 0 ? <Empty title="没有符合条件的页面">换个词试试。</Empty> : null}
+      {mine.length < SEARCH_FROM ? null : <input className="pod-input" value={query} placeholder={t('搜标题')} aria-label={t('搜页面标题')} onChange={(event) => setQuery(event.target.value)} />}
+      {pages === undefined ? <p className="pod-muted">{t('正在读取…')}</p> : null}
+      {pages !== undefined && mine.length === 0 ? <Empty title={t('还没有页面')}>{props.empty}</Empty> : null}
+      {mine.length > 0 && shown.length === 0 ? <Empty title={t('没有符合条件的页面')}>{t('换个词试试。')}</Empty> : null}
       {shown.length === 0 ? null : (
         <div className="pod-lib-list">
           {shown.map((page) => (
@@ -40,7 +40,7 @@ export function ScopedPages(props: { readonly match: (page: Page) => boolean; re
       )}
       {pages === undefined || pages.length === mine.length ? null : (
         <button type="button" className="pod-link pod-center" onClick={() => app.showPages()}>
-          查看全部 {pages.length} 个页面
+          {t('查看全部 {length} 个页面', { length: pages.length })}
         </button>
       )}
     </div>

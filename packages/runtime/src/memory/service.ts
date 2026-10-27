@@ -13,6 +13,7 @@ import {
   readString,
   keywords,
   similarity,
+  t,
   truncate,
   type CoreMemory,
   type MemoryEntry,
@@ -157,7 +158,7 @@ export class MemoryService {
     this.log(entry.id, 'add', null, entry, actor, reason)
     if (replaced !== undefined) {
       const superseded = updateMemory(this.db, replaced.id, { status: 'superseded' }, now)
-      this.log(replaced.id, 'supersede', replaced, superseded ?? null, actor, `被「${truncate(admitted.content, 40)}」替代`)
+      this.log(replaced.id, 'supersede', replaced, superseded ?? null, actor, t('被「{content}」替代', { content: truncate(admitted.content, 40) }))
       if (superseded !== undefined) this.deps.search.indexMemory(superseded)
     }
     this.deps.search.indexMemory(entry)
@@ -172,19 +173,19 @@ export class MemoryService {
     for (const session of this.deps.registry.active()) {
       if (!this.deps.dispatcher.isRunning(session.id) && session.kind !== 'chat') continue
       if (!this.canSee(session, entry)) continue
-      this.deps.dispatcher.enqueue({ sessionId: session.id, mode: 'inject', priority: PRIORITY.maintenance, text, source: noticeSource('记忆更新') })
+      this.deps.dispatcher.enqueue({ sessionId: session.id, mode: 'inject', priority: PRIORITY.maintenance, text, source: noticeSource(t('记忆更新')) })
     }
   }
 
   update(id: string, patch: MemoryPatch, actor: string, reason: string): PodResult<MemoryEntry> {
     const current = this.get(id)
-    if (current === undefined) return fail('not-found', '找不到这条记忆')
+    if (current === undefined) return fail('not-found', t('找不到这条记忆'))
     if (patch.content !== undefined) {
       const admitted = admitMemory(patch.content, current.source)
       if (!admitted.ok) return fail('invalid-input', admitted.reason)
     }
     const updated = updateMemory(this.db, id, { ...patch, ...(actor === 'owner' ? { userEdited: true } : {}) }, this.deps.now())
-    if (updated === undefined) return fail('not-found', '找不到这条记忆')
+    if (updated === undefined) return fail('not-found', t('找不到这条记忆'))
     this.log(id, 'update', current, updated, actor, reason)
     this.deps.search.indexMemory(updated)
     this.changed()
@@ -194,7 +195,7 @@ export class MemoryService {
   /** 页面上的修改：{ id, patch: { content, type, pinned, private, status } }。 */
   updateFromPage(input: unknown): PodResult<MemoryEntry> {
     const id = readId(input, 'id')
-    if (id === undefined) return fail('invalid-input', '缺少记忆 id')
+    if (id === undefined) return fail('invalid-input', t('缺少记忆 id'))
     const raw = readObject(input, 'patch')
     const type = readString(raw, 'type')
     const status = readString(raw, 'status')
@@ -205,26 +206,26 @@ export class MemoryService {
       ...(readBool(raw, 'private') === undefined ? {} : { private: readBool(raw, 'private') }),
       ...(['active', 'archived'].includes(status) ? { status: status as MemoryStatus } : {}),
     }
-    return this.update(id, patch, 'owner', '你在记忆页面修改')
+    return this.update(id, patch, 'owner', t('你在记忆页面修改'))
   }
 
   remove(id: string, actor: string): PodResult<MemoryEntry> {
-    return this.update(id, { status: 'deleted' }, actor, actor === 'owner' ? '你删除了' : '删除')
+    return this.update(id, { status: 'deleted' }, actor, actor === 'owner' ? t('你删除了') : t('删除'))
   }
 
   /** 撤销一条变更：把条目恢复到改动之前的样子。 */
   revert(logId: number): PodResult<MemoryEntry> {
     const entry = getMemoryLog(this.db, logId)
-    if (entry === undefined || entry.revertedAt !== null) return fail('not-found', '找不到这条变更，或者已经撤销过')
+    if (entry === undefined || entry.revertedAt !== null) return fail('not-found', t('找不到这条变更，或者已经撤销过'))
     const now = this.deps.now()
     let result: MemoryEntry | undefined
     if (entry.action === 'add') result = updateMemory(this.db, entry.memoryId, { status: 'deleted' }, now)
     else if (entry.before !== null) {
       result = updateMemory(this.db, entry.memoryId, { content: entry.before.content, type: entry.before.type, status: entry.before.status, pinned: entry.before.pinned, private: entry.before.private }, now)
     }
-    if (result === undefined) return fail('conflict', '这条变更撤销不了')
+    if (result === undefined) return fail('conflict', t('这条变更撤销不了'))
     markMemoryLogReverted(this.db, logId, now)
-    this.log(entry.memoryId, 'revert', null, result, 'owner', `撤销变更 #${logId}`)
+    this.log(entry.memoryId, 'revert', null, result, 'owner', t('撤销变更 #{id}', { id: logId }))
     this.deps.search.indexMemory(result)
     this.changed()
     return ok(result)

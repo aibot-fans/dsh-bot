@@ -1,17 +1,30 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { POD, type Bot, type BotDraft, type Room } from 'pod-domain'
-import { readState, writeState } from 'pod-store'
+import { EMPTY_CARD, LANGUAGE_NAMES, POD, currentLanguage, t, translate, type Bot, type BotCard, type BotDraft, type BotPatch, type Language, type Room } from 'pod-domain'
+import { getMessage, readState, writeState } from 'pod-store'
 import type { BotService } from '../bots/service.ts'
 import type { RoomService } from '../chat/rooms.ts'
 
 /** 默认的 X bot 和「X 监控」群聊：只在第一次建；你删掉了就不再自己建 bot。 */
 const SEED_KEY = 'aibot.seed'
-export const X_ROOM_TITLE = 'X 监控'
+
+/** 「X 监控」群的默认名字：语言换了、群名还是默认的就跟着换。 */
+const X_ROOM_TITLES: Readonly<Record<Language, string>> = { zh: 'X 监控', en: 'X Monitor' }
+
+function xRoomTitle(language: Language = currentLanguage()): string {
+  return X_ROOM_TITLES[language]
+}
 
 interface SeedRecord {
   readonly done: boolean
   readonly botId: string
   readonly roomId: string
+  /** 群里的第一条提示：语言换了、还是原样的就跟着换。旧版本建的没记。 */
+  readonly noticeId?: string
+}
+
+/** 「X 监控」群里的第一条提示，按语言写。 */
+function welcome(language: Language, name: string): string {
+  return translate(language, '这里放你在 X 上监控的账号的新动态。想盯谁，在群里说“监控 @账号名”，{name}会帮你加上；也可以让它查推文、看趋势。', { name })
 }
 
 /** X 情报员的人设，中间那行讲写操作。 */
@@ -34,6 +47,31 @@ const OLD_PERSONAS: ReadonlyMap<string, string> = new Map([
   ],
 ])
 
+/** 英文界面下的 X 情报员人设。 */
+function xPersonaEn(): string {
+  return [
+    'You are the X Analyst, in charge of data lookups and account monitoring on X (Twitter).',
+    'Use the tools whose names start with twitter_ to look up users, posts, timelines, searches and trends. When the user wants to watch an account, add it with twitter_monitor_add (unless told otherwise, monitor original posts, replies and quotes); new activity is posted to the “X Monitor” group automatically.',
+    'There is a free daily quota (each read counts once; monitoring is free). Think about what you need before looking things up and do not query the same thing twice. When the quota runs out, tell the user plainly that it resets at 8:00 tomorrow morning (Beijing time).',
+    "dsh-bot's built-in twitter_ tools can only read data and manage monitoring. If the session has other X write tools (post, like, repost, follow), use them when the user explicitly asks; otherwise explain that posting needs the shared browser.",
+    'Reply in English, and include links when quoting posts.',
+  ].join('\n')
+}
+
+const X_BOT_EN: BotDraft = {
+  name: 'X Analyst',
+  title: 'X (Twitter) data and monitoring',
+  persona: xPersonaEn(),
+  capabilities: ['X', 'Twitter', 'Social listening'],
+  card: {
+    duties: 'Looks up users, posts, topics and trends on X (Twitter); manages account monitoring',
+    strengths: 'Searching posts, reading timelines, summarizing activity for an account or topic',
+    notResponsible: 'Write actions like posting and liking',
+    askWho: 'Ask the Lead when unsure',
+  },
+  toolProfile: 'research',
+}
+
 const X_BOT: BotDraft = {
   name: 'X 情报员',
   title: 'X（推特）数据和监控',
@@ -50,6 +88,10 @@ const X_BOT: BotDraft = {
   toolProfile: 'research',
 }
 
+function xBotDraft(language: Language = currentLanguage()): BotDraft {
+  return language === 'en' ? X_BOT_EN : X_BOT
+}
+
 export interface XSeed {
   readonly bot: Bot | undefined
   readonly room: Room | undefined
@@ -62,17 +104,12 @@ export interface XSeed {
 export function seedX(db: DatabaseSync, bots: BotService, rooms: RoomService): XSeed {
   const record = readState<SeedRecord | null>(db, SEED_KEY, null)
   if (record?.done === true) return { bot: upgradePersona(bots, bots.activeBot(record.botId)), room: rooms.get(record.roomId) }
-  const bot = bots.active().find((item) => item.name === X_BOT.name) ?? bots.createFromDraft(X_BOT, { source: 'seed', actor: POD })
-  const created = rooms.createGroup({ name: X_ROOM_TITLE, memberIds: [bot.id] }, POD)
+  const bot = bots.active().find((item) => item.name === X_BOT.name || item.name === X_BOT_EN.name) ?? bots.createFromDraft(xBotDraft(), { source: 'seed', actor: POD })
+  const created = rooms.createGroup({ name: xRoomTitle(), memberIds: [bot.id] }, POD)
   const room = created.ok ? created.value : undefined
-  writeState(db, SEED_KEY, { done: true, botId: bot.id, roomId: room?.id ?? '' })
-  if (room !== undefined) {
-    rooms.post(room.id, {
-      author: POD,
-      kind: 'notice',
-      body: `这里放你在 X 上监控的账号的新动态。想盯谁，在群里说“监控 @账号名”，${bot.name}会帮你加上；也可以让它查推文、看趋势。`,
-    })
-  }
+  // 第一次启动时页面多半还没报过 dsh 的语言，这条提示可能先用了中文；记下它，语言换了由 localizeX 跟着换。
+  const notice = room === undefined ? undefined : rooms.post(room.id, { author: POD, kind: 'notice', body: welcome(currentLanguage(), bot.name) })
+  writeState(db, SEED_KEY, { done: true, botId: bot.id, roomId: room?.id ?? '', ...(notice === undefined ? {} : { noticeId: notice.id }) })
   return { bot, room }
 }
 
@@ -90,7 +127,7 @@ export function xRoom(db: DatabaseSync, bots: BotService, rooms: RoomService): R
   const current = record === null ? undefined : rooms.get(record.roomId)
   if (current !== undefined && current.archivedAt === null) return current
   const bot = record === null ? undefined : bots.activeBot(record.botId)
-  const created = rooms.createGroup({ name: X_ROOM_TITLE, memberIds: bot === undefined ? [] : [bot.id] }, POD)
+  const created = rooms.createGroup({ name: xRoomTitle(), memberIds: bot === undefined ? [] : [bot.id] }, POD)
   if (!created.ok) return undefined
   writeState(db, SEED_KEY, { done: true, botId: record?.botId ?? '', roomId: created.value.id })
   return created.value
@@ -100,4 +137,47 @@ export function xRoom(db: DatabaseSync, bots: BotService, rooms: RoomService): R
 export function xBot(db: DatabaseSync, bots: BotService): Bot | undefined {
   const record = readState<SeedRecord | null>(db, SEED_KEY, null)
   return record === null ? undefined : bots.activeBot(record.botId)
+}
+
+/** 两种语言的默认值里有它、又不是这个语言的版本：说明没改过，可以换成这个语言的。 */
+function swappable<T>(current: T, wanted: T, defaults: readonly T[], same: (a: T, b: T) => boolean = Object.is): boolean {
+  return defaults.some((value) => same(value, current)) && !same(wanted, current)
+}
+
+const sameList = (a: readonly string[] | undefined, b: readonly string[] | undefined): boolean => (a ?? []).join('\n') === (b ?? []).join('\n')
+
+const sameCard = (a: BotCard | undefined, b: BotCard | undefined): boolean =>
+  (Object.keys(EMPTY_CARD) as (keyof BotCard)[]).every((key) => (a ?? EMPTY_CARD)[key] === (b ?? EMPTY_CARD)[key])
+
+/** 种子 X bot 还是默认值的部分（名字、角色、人设、能力标签、角色卡）换成这个语言的版本；改过的不动。 */
+function seedPatch(bot: Bot, wanted: BotDraft): BotPatch {
+  const drafts = [X_BOT, X_BOT_EN]
+  return {
+    ...(swappable(bot.name, wanted.name, drafts.map((draft) => draft.name)) ? { name: wanted.name } : {}),
+    ...(swappable(bot.title, wanted.title, drafts.map((draft) => draft.title)) ? { title: wanted.title } : {}),
+    ...(swappable(bot.persona, wanted.persona, drafts.map((draft) => draft.persona)) ? { persona: wanted.persona } : {}),
+    ...(swappable(bot.capabilities, wanted.capabilities ?? [], drafts.map((draft) => draft.capabilities ?? []), sameList) ? { capabilities: wanted.capabilities ?? [] } : {}),
+    ...(swappable(bot.card, wanted.card ?? EMPTY_CARD, drafts.map((draft) => draft.card ?? EMPTY_CARD), sameCard) ? { card: wanted.card ?? EMPTY_CARD } : {}),
+  }
+}
+
+/** 语言换了：种子 X bot 和「X 监控」群还是默认的部分换成这个语言的版本（bot 记一版配置，能回滚）；你改过的不动。 */
+export function localizeX(db: DatabaseSync, bots: BotService, rooms: RoomService): void {
+  const record = readState<SeedRecord | null>(db, SEED_KEY, null)
+  if (record === null) return
+  const bot = bots.activeBot(record.botId)
+  if (bot !== undefined) {
+    const patch = seedPatch(bot, xBotDraft())
+    if (Object.keys(patch).length > 0) bots.applyPatch(bot.id, patch, { source: 'seed', actor: POD, reason: t('换成现在的默认设定') })
+  }
+  const room = rooms.get(record.roomId)
+  const title = xRoomTitle()
+  if (room !== undefined && room.title !== title && Object.values(X_ROOM_TITLES).includes(room.title)) rooms.update({ roomId: room.id, patch: { title } })
+  const notice = record.noticeId === undefined ? undefined : getMessage(db, record.noticeId)
+  const name = bots.activeBot(record.botId)?.name
+  if (notice === undefined || notice.deletedAt !== null || name === undefined) return
+  // 两种语言、两个默认名字写出来的原样提示才换；bot 改过名就照新名字写。
+  const defaults = (Object.keys(LANGUAGE_NAMES) as Language[]).flatMap((language) => [X_BOT.name, X_BOT_EN.name, name].map((item) => welcome(language, item)))
+  const wanted = welcome(currentLanguage(), name)
+  if (notice.body !== wanted && defaults.includes(notice.body)) rooms.patchMessage(notice.id, { body: wanted })
 }

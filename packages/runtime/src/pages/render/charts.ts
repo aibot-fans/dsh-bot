@@ -1,4 +1,4 @@
-import type { ChartBlock } from 'pod-domain'
+import { t, type ChartBlock } from 'pod-domain'
 import { compact, esc, full, jsonAttr, niceTicks, textWidth } from './html.ts'
 
 /**
@@ -59,15 +59,15 @@ function xLabels(labels: readonly string[], position: (index: number) => number,
 
 function legend(chart: ChartBlock, shape: 'line' | 'rect'): string {
   if (chart.series.length < 2 && chart.chart !== 'pie') return ''
-  const items = chart.series.map((series, index) => `<span class="key"><i class="sw sw-${shape}" style="--k:${seriesColor(index)}"></i>${esc(series.name || `第 ${index + 1} 组`)}</span>`)
+  const items = chart.series.map((series, index) => `<span class="key"><i class="sw sw-${shape}" style="--k:${seriesColor(index)}"></i>${esc(series.name || t('第 {n} 组', { n: index + 1 }))}</span>`)
   return `<div class="legend">${items.join('')}</div>`
 }
 
 /** 数据表（无障碍和打印用）：图表下面可以展开。 */
 function dataTable(chart: ChartBlock): string {
-  const head = `<tr><th></th>${chart.series.map((series, index) => `<th>${esc(series.name || `第 ${index + 1} 组`)}</th>`).join('')}</tr>`
+  const head = `<tr><th></th>${chart.series.map((series, index) => `<th>${esc(series.name || t('第 {n} 组', { n: index + 1 }))}</th>`).join('')}</tr>`
   const rows = chart.labels.map((label, row) => `<tr><th>${esc(label)}</th>${chart.series.map((series) => `<td>${esc(valueText(series.values[row] ?? null, chart.unit))}</td>`).join('')}</tr>`)
-  return `<details class="data"><summary>数据</summary><div class="scroll"><table>${head}${rows.join('')}</table></div></details>`
+  return `<details class="data"><summary>${esc(t('数据'))}</summary><div class="scroll"><table>${head}${rows.join('')}</table></div></details>`
 }
 
 function domain(chart: ChartBlock, zero: boolean): readonly [number, number] {
@@ -144,8 +144,8 @@ function lineChart(chart: ChartBlock, width: number): string {
     const label = endLabels && last !== undefined && last !== null ? `<text class="end" x="${(last.x + 8).toFixed(1)}" y="${last.y.toFixed(1)}" dy="0.32em">${esc(series.name)}</text>` : ''
     return `${fill}<path class="ln" d="${line}" style="stroke:${color}"/>${end}${label}`
   })
-  const data = { x: chart.labels.map((_, index) => Number(x(index).toFixed(1))), labels: chart.labels, series: chart.series.map((series) => ({ name: series.name, values: series.values })), unit: chart.unit, top: frame.top, bottom: HEIGHT - frame.bottom }
-  return `<svg class="chart xy" viewBox="0 0 ${width} ${HEIGHT}" role="img" aria-label="${esc(chart.title || '折线图')}" tabindex="0" data-xy="${jsonAttr(data)}">${yAxis(ticks, y, frame)}${xLabels(chart.labels, x, frame)}${marks.join('')}<line class="xhair" x1="0" x2="0" y1="${frame.top}" y2="${HEIGHT - frame.bottom}"/></svg>`
+  const data = { x: chart.labels.map((_, index) => Number(x(index).toFixed(1))), labels: chart.labels, series: chart.series.map((series, index) => ({ name: series.name || t('第 {n} 组', { n: index + 1 }), values: series.values })), unit: chart.unit, top: frame.top, bottom: HEIGHT - frame.bottom }
+  return `<svg class="chart xy" viewBox="0 0 ${width} ${HEIGHT}" role="img" aria-label="${esc(chart.title || t('折线图'))}" tabindex="0" data-xy="${jsonAttr(data)}">${yAxis(ticks, y, frame)}${xLabels(chart.labels, x, frame)}${marks.join('')}<line class="xhair" x1="0" x2="0" y1="${frame.top}" y2="${HEIGHT - frame.bottom}"/></svg>`
 }
 
 type BarEnd = 'top' | 'bottom' | 'left' | 'right' | null
@@ -222,7 +222,7 @@ function barChart(chart: ChartBlock, width: number): string {
           : `<text class="val" x="${(start + thickness / 2).toFixed(1)}" y="${(up ? from - length - 6 : from + length + 14).toFixed(1)}" text-anchor="middle">${text}</text>`,
       )
     })
-    const tip = [label, ...chart.series.map((series, index) => `${series.name || `第 ${index + 1} 组`}：${valueText(series.values[position] ?? null, chart.unit)}`)].join('\n')
+    const tip = [label, ...chart.series.map((series, index) => `${series.name || t('第 {n} 组', { n: index + 1 })}${t('：')}${valueText(series.values[position] ?? null, chart.unit)}`)].join('\n')
     const hit = horizontal
       ? `x="${frame.left}" y="${(center - band / 2).toFixed(1)}" width="${width - frame.left - frame.right}" height="${band.toFixed(1)}"`
       : `x="${(center - band / 2).toFixed(1)}" y="${frame.top}" width="${band.toFixed(1)}" height="${height - frame.top - frame.bottom}"`
@@ -237,14 +237,14 @@ function barChart(chart: ChartBlock, width: number): string {
         })
         .join('')
     : `${yAxis(ticks, value, frame)}${xLabels(chart.labels, (index) => bandStart + band * (index + 0.5), frame)}`
-  return `<svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(chart.title || '柱状图')}">${axis}${marks.join('')}</svg>`
+  return `<svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(chart.title || t('柱状图'))}">${axis}${marks.join('')}</svg>`
 }
 
 function pieChart(chart: ChartBlock, width: number): string {
   const values = chart.series[0]?.values ?? []
   const raw = chart.labels.map((label, index) => ({ label, value: Math.max(0, values[index] ?? 0) })).filter((slice) => slice.value > 0)
   const sorted = [...raw].sort((left, right) => right.value - left.value)
-  const slices = sorted.length > 8 ? [...sorted.slice(0, 7), { label: '其他', value: sorted.slice(7).reduce((sum, slice) => sum + slice.value, 0) }] : sorted
+  const slices = sorted.length > 8 ? [...sorted.slice(0, 7), { label: t('其他'), value: sorted.slice(7).reduce((sum, slice) => sum + slice.value, 0) }] : sorted
   const total = slices.reduce((sum, slice) => sum + slice.value, 0) || 1
   const size = Math.min(220, width * 0.45)
   const radius = size / 2
@@ -263,8 +263,8 @@ function pieChart(chart: ChartBlock, width: number): string {
     return { d, color: seriesColor(index), tip: `${slice.label}\n${full(slice.value)}${chart.unit}（${share}）`, label: slice.label, share, value: slice.value }
   })
   // 百分比数据的合计总是 100%，圆心就不写了。
-  const center = chart.unit === '%' ? '' : `<text class="pie-total" x="${radius}" y="${radius}" text-anchor="middle">${esc(compact(total))}${esc(chart.unit)}</text><text class="pie-caption" x="${radius}" y="${radius}" dy="1.5em" text-anchor="middle">合计</text>`
-  const svg = `<svg class="chart pie" viewBox="0 0 ${size} ${size}" style="width:${size.toFixed(0)}px" role="img" aria-label="${esc(chart.title || '饼图')}">${arcs.map((arc) => `<path class="slice" d="${arc.d}" style="fill:${arc.color}" data-tip="${esc(arc.tip)}"/>`).join('')}${center}</svg>`
+  const center = chart.unit === '%' ? '' : `<text class="pie-total" x="${radius}" y="${radius}" text-anchor="middle">${esc(compact(total))}${esc(chart.unit)}</text><text class="pie-caption" x="${radius}" y="${radius}" dy="1.5em" text-anchor="middle">${esc(t('合计'))}</text>`
+  const svg = `<svg class="chart pie" viewBox="0 0 ${size} ${size}" style="width:${size.toFixed(0)}px" role="img" aria-label="${esc(chart.title || t('饼图'))}">${arcs.map((arc) => `<path class="slice" d="${arc.d}" style="fill:${arc.color}" data-tip="${esc(arc.tip)}"/>`).join('')}${center}</svg>`
   const keys = arcs.map((arc) => `<li><i class="sw sw-rect" style="--k:${arc.color}"></i><span class="pie-name">${esc(arc.label)}</span><span class="pie-share">${esc(arc.share)}</span></li>`).join('')
   return `<div class="pie-wrap">${svg}<ul class="pie-keys">${keys}</ul></div>`
 }
@@ -290,7 +290,7 @@ function fitted(width: number, draw: (width: number) => string): string {
 /** 图表组件：标题、图例、图、说明和可展开的数据表。width 是这块大约画多宽（viewBox 宽度）。 */
 export function renderChart(chart: ChartBlock, width: number): string {
   const body = chart.chart === 'pie' ? pieChart(chart, width) : fitted(width, (size) => (chart.chart === 'bar' ? barChart(chart, size) : lineChart(chart, size)))
-  const head = chart.title === '' && chart.unit === '' ? '' : `<div class="chart-head">${chart.title === '' ? '' : `<h3 class="block-title">${esc(chart.title)}</h3>`}${chart.unit === '' || chart.chart === 'pie' ? '' : `<span class="unit">单位：${esc(chart.unit)}</span>`}</div>`
+  const head = chart.title === '' && chart.unit === '' ? '' : `<div class="chart-head">${chart.title === '' ? '' : `<h3 class="block-title">${esc(chart.title)}</h3>`}${chart.unit === '' || chart.chart === 'pie' ? '' : `<span class="unit">${esc(t('单位：{unit}', { unit: chart.unit }))}</span>`}</div>`
   const note = chart.note === '' ? '' : `<p class="note">${esc(chart.note)}</p>`
   return `${head}${chart.chart === 'pie' ? '' : legend(chart, chart.chart === 'bar' ? 'rect' : 'line')}${body}${note}${dataTable(chart)}`
 }

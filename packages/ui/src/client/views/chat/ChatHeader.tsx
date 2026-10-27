@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ROOM_TITLE_MAX, botThreads, isTemporaryRoom, type Bot, type RoomSummary } from 'pod-domain'
+import { ROOM_TITLE_MAX, botThreads, isTemporaryRoom, t, type Bot, type RoomSummary } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { Avatar, RelativeTime, money, nameColor, tokens } from '../../components/common.tsx'
@@ -31,12 +31,12 @@ function UsageChip(props: { readonly scope: UsageScope; readonly bots: ReadonlyM
   const shares = (scope.kind === 'bot' ? usage.byRoom : usage.byBot.filter((item) => item.id !== null)).slice(0, 6)
   const max = Math.max(...shares.map((item) => item.cost), 0.0001)
   const roomName = (id: string | null): string => {
-    if (id === null) return '不在对话里（任务、自动化）'
+    if (id === null) return t('不在对话里（任务、自动化）')
     const room = (rooms ?? []).find((item) => item.id === id)
-    if (room === undefined) return '已删除的对话'
-    return room.kind === 'direct' ? (room.subject === '' ? '单聊' : `单聊「${room.subject}」`) : `群聊「${room.title}」`
+    if (room === undefined) return t('已删除的对话')
+    return room.kind === 'direct' ? (room.subject === '' ? t('单聊') : t('单聊「{subject}」', { subject: room.subject })) : t('群聊「{title}」', { title: room.title })
   }
-  const subject = scope.kind === 'bot' ? scope.bot.name : `「${scope.room.title}」`
+  const subject = scope.kind === 'bot' ? scope.bot.name : t('「{title}」', { title: scope.room.title })
   return (
     <>
       <button
@@ -44,27 +44,27 @@ function UsageChip(props: { readonly scope: UsageScope; readonly bots: ReadonlyM
         type="button"
         className="pod-usage-chip"
         aria-expanded={menu.open}
-        title={`${subject}今天的用量`}
+        title={t('{subject}今天的用量', { subject })}
         onClick={() => {
           if (!menu.open) reload()
           menu.toggle()
         }}
       >
-        今天 {money(usage.cost)} · {tokens(usage.tokens)} token
+        {t('今天 {money} · {tokens} token', { money: money(usage.cost), tokens: tokens(usage.tokens) })}
       </button>
-      <MenuPanel control={menu} label={`${subject}今天的用量`} wide>
+      <MenuPanel control={menu} label={t('{subject}今天的用量', { subject })} wide>
         <div className="pod-usage-popover">
-          <div className="pod-usage-subject">{subject}今天的用量</div>
+          <div className="pod-usage-subject">{t('{subject}今天的用量', { subject })}</div>
           <div className="pod-usage-total">
             <strong>{money(usage.cost)}</strong>
             <span className="pod-muted-inline">
-              {tokens(usage.tokens)} token · 缓存命中 {Math.round(usage.cacheHit * 100)}%
+              {t('{tokens} token · 缓存命中 {round}%', { tokens: tokens(usage.tokens), round: Math.round(usage.cacheHit * 100) })}
             </span>
           </div>
-          {shares.length === 0 ? <p className="pod-muted">今天还没有用量</p> : null}
+          {shares.length === 0 ? <p className="pod-muted">{t('今天还没有用量')}</p> : null}
           {shares.map((item) => (
             <div key={item.id ?? 'none'} className="pod-usage-row">
-              {scope.kind === 'bot' ? <span className="pod-ellipsis pod-usage-place">{roomName(item.id)}</span> : <BotName bot={props.bots.get(item.id ?? '')} fallback="已删除的 bot" size={18} />}
+              {scope.kind === 'bot' ? <span className="pod-ellipsis pod-usage-place">{roomName(item.id)}</span> : <BotName bot={props.bots.get(item.id ?? '')} fallback={t('已删除的 bot')} size={18} />}
               <span className="pod-usage-bar" aria-hidden>
                 <span style={{ width: `${Math.max(4, (item.cost / max) * 100)}%` }} />
               </span>
@@ -79,7 +79,7 @@ function UsageChip(props: { readonly scope: UsageScope; readonly bots: ReadonlyM
               app.openSettings('usage')
             }}
           >
-            查看所有 bot 和群聊的用量
+            {t('查看所有 bot 和群聊的用量')}
           </button>
         </div>
       </MenuPanel>
@@ -107,7 +107,7 @@ function NewChatButton(props: { readonly room: RoomSummary }) {
   return (
     <>
       {problem === undefined ? null : <span className="pod-form-error">{problem}</span>}
-      <button type="button" className="pod-head-button" onClick={start} aria-label="新对话" title="新对话：之前的留在对话记录里，随时能回去接着聊">
+      <button type="button" className="pod-head-button" onClick={start} aria-label={t('新对话')} title={t('新对话：之前的留在对话记录里，随时能回去接着聊')}>
         <Icon name="compose" size={17} />
       </button>
     </>
@@ -123,8 +123,8 @@ function HistoryButton(props: { readonly room: RoomSummary; readonly bot: Bot })
   const [problem, setProblem] = useState<string | undefined>(undefined)
   const threads = botThreads(bot.id, rooms ?? []).filter((thread) => thread.preview !== '' || thread.id === room.id)
   const remove = (thread: RoomSummary): void => {
-    const label = thread.subject === '' ? '这段对话' : `对话「${thread.subject}」`
-    if (!window.confirm(`删除${label}？30 天内可以在“设置 → 回收站”里恢复。`)) return
+    const label = thread.subject === '' ? t('这段对话') : t('对话「{subject}」', { subject: thread.subject })
+    if (!window.confirm(t('删除{label}？30 天内可以在“设置 → 回收站”里恢复。', { label }))) return
     setProblem(undefined)
     api
       .deleteConversation(thread.id)
@@ -139,12 +139,12 @@ function HistoryButton(props: { readonly room: RoomSummary; readonly bot: Bot })
   }
   return (
     <>
-      <button ref={menu.anchor} type="button" className={`pod-head-button${menu.open ? ' pod-head-button-on' : ''}`} aria-expanded={menu.open} aria-label="对话记录" title={`和${bot.name}的对话记录`} onClick={menu.toggle}>
+      <button ref={menu.anchor} type="button" className={`pod-head-button${menu.open ? ' pod-head-button-on' : ''}`} aria-expanded={menu.open} aria-label={t('对话记录')} title={t('和{name}的对话记录', { name: bot.name })} onClick={menu.toggle}>
         <Icon name="history" size={17} />
       </button>
-      <MenuPanel control={menu} label={`和${bot.name}的对话记录`} wide>
+      <MenuPanel control={menu} label={t('和{name}的对话记录', { name: bot.name })} wide>
         <div className="pod-history">
-          <div className="pod-history-head">和{bot.name}的对话 · {threads.length} 段</div>
+          <div className="pod-history-head">{t('和{name}的对话 · {length} 段', { name: bot.name, length: threads.length })}</div>
           {problem === undefined ? null : <p className="pod-form-error">{problem}</p>}
           <div className="pod-history-list">
             {threads.map((thread) => (
@@ -157,20 +157,20 @@ function HistoryButton(props: { readonly room: RoomSummary; readonly bot: Bot })
                     app.openRoom(thread.id)
                   }}
                 >
-                  <span className="pod-history-subject pod-ellipsis">{thread.subject === '' ? (thread.preview === '' ? '新对话' : '（没有文字）') : thread.subject}</span>
+                  <span className="pod-history-subject pod-ellipsis">{thread.subject === '' ? (thread.preview === '' ? t('新对话') : t('（没有文字）')) : thread.subject}</span>
                   <span className="pod-history-meta pod-ellipsis">
                     <RelativeTime time={thread.lastMessageAt ?? thread.createdAt} />
                     {thread.preview === '' ? null : ` · ${thread.preview}`}
                   </span>
                 </button>
                 {thread.unread > 0 && thread.id !== room.id ? <span className="pod-side-badge">{thread.unread > 99 ? '99+' : thread.unread}</span> : null}
-                <button type="button" className="pod-icon-button pod-history-remove" aria-label="删除这段对话" title="删除这段对话" onClick={() => remove(thread)}>
+                <button type="button" className="pod-icon-button pod-history-remove" aria-label={t('删除这段对话')} title={t('删除这段对话')} onClick={() => remove(thread)}>
                   <Icon name="trash" size={14} />
                 </button>
               </div>
             ))}
           </div>
-          <p className="pod-history-tip">每段对话各自记得自己的上下文；在新的一段里提到以前的事，{bot.name}会自己去翻。</p>
+          <p className="pod-history-tip">{t('每段对话各自记得自己的上下文；在新的一段里提到以前的事，{name}会自己去翻。', { name: bot.name })}</p>
         </div>
       </MenuPanel>
     </>
@@ -187,10 +187,10 @@ function GroupTitle(props: { readonly room: RoomSummary; readonly members: reado
   const { room, members } = props
   const [renaming, setRenaming] = useState(false)
   const [problem, setProblem] = useState<string | undefined>(undefined)
-  const names = members.map((member) => member.name).join('、')
+  const names = members.map((member) => member.name).join(t('、'))
   if (narrow) {
     return (
-      <button type="button" className="pod-convo-title" onClick={() => app.showGroup(room.id)} aria-label={`群聊详情：${names}`}>
+      <button type="button" className="pod-convo-title" onClick={() => app.showGroup(room.id)} aria-label={t('群聊详情：{names}', { names })}>
         <GroupMark members={members} size={30} />
         <strong>{room.title}</strong>
         <Icon name="forward" size={14} />
@@ -199,14 +199,14 @@ function GroupTitle(props: { readonly room: RoomSummary; readonly members: reado
   }
   return (
     <div className="pod-convo-group">
-      <button type="button" className="pod-convo-icon" onClick={() => app.showGroup(room.id)} title="群聊详情" aria-label={`群聊详情：${names}`}>
+      <button type="button" className="pod-convo-icon" onClick={() => app.showGroup(room.id)} title={t('群聊详情')} aria-label={t('群聊详情：{names}', { names })}>
         <GroupMark members={members} size={32} />
       </button>
       {renaming ? (
         <RenameInput
           value={room.title}
           max={ROOM_TITLE_MAX}
-          label="群名"
+          label={t('群名')}
           className="pod-convo-rename"
           onSave={(title) => {
             setRenaming(false)
@@ -218,7 +218,7 @@ function GroupTitle(props: { readonly room: RoomSummary; readonly members: reado
           onCancel={() => setRenaming(false)}
         />
       ) : (
-        <button type="button" className="pod-convo-name" onClick={() => setRenaming(true)} title="点一下改群名">
+        <button type="button" className="pod-convo-name" onClick={() => setRenaming(true)} title={t('点一下改群名')}>
           <strong>{room.title}</strong>
         </button>
       )}
@@ -241,13 +241,13 @@ export function ChatHeader(props: { readonly room: RoomSummary; readonly bots: R
   return (
     <header className="pod-convo-head">
       {narrow ? (
-        <button type="button" className="pod-head-button pod-convo-back" onClick={() => app.showList()} aria-label="回到列表" title="回到列表">
+        <button type="button" className="pod-head-button pod-convo-back" onClick={() => app.showList()} aria-label={t('回到列表')} title={t('回到列表')}>
           <Icon name="back" size={20} />
         </button>
       ) : null}
       {room.kind === 'direct' ? (
         <>
-          <button type="button" className="pod-convo-title" onClick={() => bot !== undefined && app.showBot(bot.id)} title="查看 bot 详情">
+          <button type="button" className="pod-convo-title" onClick={() => bot !== undefined && app.showBot(bot.id)} title={t('查看 bot 详情')}>
             <Avatar bot={bot} size={30} />
             <strong className="pod-bot-name" style={nameColor(bot)}>
               {bot?.name ?? room.title}
@@ -260,11 +260,11 @@ export function ChatHeader(props: { readonly room: RoomSummary; readonly bots: R
         <GroupTitle room={room} members={members} />
       )}
       {temporary ? (
-        <span className="pod-badge pod-badge-info" title="临时对话不进侧栏、不提取记忆；离开这个对话就删掉">
-          {narrow ? '临时' : '临时对话 · 离开就删'}
+        <span className="pod-badge pod-badge-info" title={t('临时对话不进侧栏、不提取记忆；离开这个对话就删掉')}>
+          {narrow ? t('临时') : t('临时对话 · 离开就删')}
         </span>
       ) : room.incognito ? (
-        <span className="pod-badge pod-badge-muted">{narrow ? '无痕' : '无痕：不提取记忆'}</span>
+        <span className="pod-badge pod-badge-muted">{narrow ? t('无痕') : t('无痕：不提取记忆')}</span>
       ) : null}
       <span className="pod-convo-head-gap" />
       {room.kind !== 'direct' || temporary || bot === undefined ? null : (

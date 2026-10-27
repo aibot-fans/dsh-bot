@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { t } from 'pod-domain'
 import { mediaUrl } from '../../api/http.ts'
 import { FilePreview } from '../../components/FilePreview.tsx'
 import { fileKind } from '../../components/fileKinds.ts'
@@ -37,7 +38,7 @@ export function Attachment(props: { readonly attachment: Readonly<Record<string,
   return (
     <>
       {fileKind(path) === 'image' ? (
-        <button type="button" className="pod-attachment-image" onClick={() => setOpen(path)} aria-label={`查看图片 ${name}`}>
+        <button type="button" className="pod-attachment-image" onClick={() => setOpen(path)} aria-label={t('查看图片 {name}', { name })}>
           <img src={mediaUrl('/file', { path })} alt={name} loading="lazy" />
         </button>
       ) : (
@@ -46,14 +47,14 @@ export function Attachment(props: { readonly attachment: Readonly<Record<string,
             {name} · {sizeLabel(size)}
           </button>
           {text === undefined ? null : (
-            <button type="button" className="pod-attachment" onClick={() => setOpen(text.path)} title={`bot 读的是这份文字版${text.summary === '' ? '' : `（${text.summary}）`}`}>
-              文字版
+            <button type="button" className="pod-attachment" onClick={() => setOpen(text.path)} title={t('bot 读的是这份文字版{value}', { value: text.summary === '' ? '' : t('（{summary}）', { summary: text.summary }) })}>
+              {t('文字版')}
             </button>
           )}
         </div>
       )}
       {text?.warning === undefined ? null : <div className="pod-hint pod-attachment-note">{text.warning}</div>}
-      {textError === undefined ? null : <div className="pod-hint pod-attachment-note">没有文字版：{textError}</div>}
+      {textError === undefined ? null : <div className="pod-hint pod-attachment-note">{t('没有文字版：{textError}', { textError })}</div>}
       {open === undefined ? null : <FilePreview path={open} onClose={() => setOpen(undefined)} />}
     </>
   )

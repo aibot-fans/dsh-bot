@@ -5,6 +5,7 @@ import {
   inDailyRange,
   isWaitNotification,
   newId,
+  t,
   truncate,
   type NotificationKind,
   type PodNotification,
@@ -89,12 +90,12 @@ export class NotificationService {
   task(task: Task, event: 'done' | 'failed' | 'stalled'): void {
     const kind: NotificationKind = event === 'done' ? 'task-done' : event === 'failed' ? 'task-failed' : 'task-stalled'
     const body = event === 'done' ? (task.result?.summary.split('\n')[0] ?? '') : task.note
-    this.notify({ kind, title: `${NOTIFICATION_LABELS[kind]}：${task.title}`, body, roomId: task.roomId, taskId: task.rootId })
+    this.notify({ kind, title: t('{label}：{title}', { label: t(NOTIFICATION_LABELS[kind]), title: task.title }), body, roomId: task.roomId, taskId: task.rootId })
   }
 
   wait(wait: Wait): void {
     if (wait.status === 'bypassed') return
-    this.notify({ kind: wait.kind === 'approval' ? 'approval' : 'wait', title: `${WAIT_KIND_LABELS[wait.kind]}：${wait.title}`, body: wait.detail, roomId: wait.roomId, taskId: wait.rootId, waitId: wait.id })
+    this.notify({ kind: wait.kind === 'approval' ? 'approval' : 'wait', title: t('{label}：{title}', { label: t(WAIT_KIND_LABELS[wait.kind]), title: wait.title }), body: wait.detail, roomId: wait.roomId, taskId: wait.rootId, waitId: wait.id })
   }
 
   list(limit = 100): readonly PodNotification[] {

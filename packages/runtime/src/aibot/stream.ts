@@ -1,3 +1,4 @@
+import { t } from 'pod-domain'
 import { isJson, reasonOf, text } from './client.ts'
 import { AibotError } from './errors.ts'
 
@@ -157,5 +158,5 @@ function refusal(response: Response, body: string): AibotError {
     parsed = undefined
   }
   const error = isJson(parsed) && isJson(parsed.error) ? parsed.error : {}
-  return new AibotError({ status: response.status, code: text(error.code) || `http_${response.status}`, message: text(error.message) || `事件流返回 HTTP ${response.status}` })
+  return new AibotError({ status: response.status, code: text(error.code) || `http_${response.status}`, message: text(error.message) || t('事件流返回 HTTP {status}', { status: response.status }) })
 }

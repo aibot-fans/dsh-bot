@@ -1,3 +1,4 @@
+import { t } from 'pod-domain'
 import { api } from '../api/endpoints.ts'
 import { mediaUrl } from '../api/http.ts'
 import { useApp } from '../state/app.ts'
@@ -12,25 +13,25 @@ export function BrowserCard(props: { readonly tabId: string; readonly botId: str
   if (data !== undefined && tab === undefined) {
     return (
       <div className="pod-line pod-line-notice">
-        <span>{props.fallback}（这个标签页已经关了）</span>
+        <span>{t('{fallback}（这个标签页已经关了）', { fallback: props.fallback })}</span>
       </div>
     )
   }
   const view = (): void => app.openBrowserTab(props.tabId, props.botId)
   return (
     <div className="pod-browser-card">
-      <button type="button" className="pod-browser-card-shot" onClick={view} aria-label="查看实时画面">
+      <button type="button" className="pod-browser-card-shot" onClick={view} aria-label={t('查看实时画面')}>
         {tab === undefined ? null : <img src={mediaUrl('/browser/thumb', { tabId: props.tabId, v: String(tab.lastUsedAt) })} alt="" />}
       </button>
       <div className="pod-browser-card-main">
         <strong className="pod-ellipsis">{tab?.title || props.fallback}</strong>
         <span className="pod-muted-inline pod-ellipsis">{tab?.url ?? ''}</span>
         <span className="pod-row">
-          {tab?.controller === 'owner' ? <Badge tone="warn">你在操作</Badge> : tab?.waitId !== null && tab !== undefined ? <Badge tone="warn">等你接管</Badge> : <Badge tone="info">AI 操作中</Badge>}
+          {tab?.controller === 'owner' ? <Badge tone="warn">{t('你在操作')}</Badge> : tab?.waitId !== null && tab !== undefined ? <Badge tone="warn">{t('等你接管')}</Badge> : <Badge tone="info">{t('AI 操作中')}</Badge>}
         </span>
         <span className="pod-row">
           <Button small onClick={view}>
-            查看
+            {t('查看')}
           </Button>
           {tab?.controller === 'owner' ? null : (
             <Button
@@ -44,7 +45,7 @@ export function BrowserCard(props: { readonly tabId: string; readonly botId: str
                 view()
               }}
             >
-              接管
+              {t('接管')}
             </Button>
           )}
         </span>

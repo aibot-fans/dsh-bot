@@ -1,4 +1,4 @@
-import type { PodResult } from 'pod-domain'
+import { t, type PodResult } from 'pod-domain'
 
 /**
  * 调 Pod 的 /api/pod 接口。用相对地址：dsh web 的页面就在站点根目录，
@@ -17,14 +17,14 @@ export class PodApiError extends Error {
 }
 
 async function parse<T>(response: Response): Promise<T> {
-  if (response.status === 401) throw new PodApiError('unauthorized', '登录已过期，请刷新 dsh 页面')
+  if (response.status === 401) throw new PodApiError('unauthorized', t('登录已过期，请刷新 dsh 页面'))
   let result: PodResult<T>
   try {
     result = (await response.json()) as PodResult<T>
   } catch {
     // 宿主不认识的地址回的是纯文字 404：多半是 Pod 刚更新过，这个标签页还是旧页面。
-    if (response.status === 404) throw new PodApiError('not_found', '这个功能的接口找不到了：多半是 dsh-bot 刚更新过，刷新页面再试')
-    throw new PodApiError('internal', `接口返回了无法识别的内容（${response.status}）`)
+    if (response.status === 404) throw new PodApiError('not_found', t('这个功能的接口找不到了：多半是 dsh-bot 刚更新过，刷新页面再试'))
+    throw new PodApiError('internal', t('接口返回了无法识别的内容（{status}）', { status: response.status }))
   }
   if (!result.ok) throw new PodApiError(result.error.code, result.error.message)
   return result.value

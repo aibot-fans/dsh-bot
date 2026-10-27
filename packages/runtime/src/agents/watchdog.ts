@@ -1,4 +1,4 @@
-import { PRIORITY, acceptanceProgress, type PodSession, type Task } from 'pod-domain'
+import { PRIORITY, acceptanceProgress, t, type PodSession, type Task } from 'pod-domain'
 import type { AgentRegistry } from '../dsh.ts'
 import type { Dispatcher } from './dispatcher.ts'
 import { noticeSource } from './messages.ts'
@@ -64,7 +64,7 @@ export class Watchdog {
       if (activity.current !== null) {
         if (silent > TOOL_STUCK_MS && !activity.stalled) {
           this.deps.observer.markStalled(session.id, true)
-          this.deps.onStall(session, this.taskOf(session), `工具「${activity.current}」已经 ${Math.round(silent / 60_000)} 分钟没有结束`)
+          this.deps.onStall(session, this.taskOf(session), t('工具「{current}」已经 {round} 分钟没有结束', { current: activity.current, round: Math.round(silent / 60_000) }))
         }
         continue
       }
@@ -73,7 +73,7 @@ export class Watchdog {
       if (this.retried.has(key)) {
         if (!activity.stalled) {
           this.deps.observer.markStalled(session.id, true)
-          this.deps.onStall(session, this.taskOf(session), '模型长时间没有响应，重试后还是卡住')
+          this.deps.onStall(session, this.taskOf(session), t('模型长时间没有响应，重试后还是卡住'))
         }
         continue
       }
@@ -96,7 +96,7 @@ export class Watchdog {
       mode: 'followup',
       priority: PRIORITY.task,
       text: '[dsh-bot] 上一步长时间没有响应，已经重试。请从上一步接着做。',
-      source: noticeSource('上一步长时间没有响应，已重试'),
+      source: noticeSource(t('上一步长时间没有响应，已重试')),
     })
   }
 
@@ -119,9 +119,9 @@ export class Watchdog {
       mode: 'inject',
       priority: PRIORITY.task,
       text: `[dsh-bot 提醒] 你已经做了 ${steps - previous.steps} 步，但没有勾新的验收项，也没有写新的进度说明，可能在绕圈。换个做法；确实卡住就用 ask_owner 说明，能绕过的先绕过。`,
-      source: noticeSource('可能在绕圈，提醒换做法'),
+      source: noticeSource(t('可能在绕圈，提醒换做法')),
     })
-    this.deps.onStall(session, task, `已经 ${steps - previous.steps} 步没有新进展，可能在绕圈`)
+    this.deps.onStall(session, task, t('已经 {steps} 步没有新进展，可能在绕圈', { steps: steps - previous.steps }))
   }
 
   /** 反复调用同一个工具、同样的参数时提醒一次。 */
@@ -136,7 +136,7 @@ export class Watchdog {
       mode: 'inject',
       priority: PRIORITY.task,
       text: `[dsh-bot 提醒] 你已经连续 ${REPEAT_LIMIT} 次用同样的参数调用 ${name}，结果不会变。换个做法。`,
-      source: noticeSource(`重复调用 ${name}，提醒换做法`),
+      source: noticeSource(t('重复调用 {name}，提醒换做法', { name })),
     })
   }
 

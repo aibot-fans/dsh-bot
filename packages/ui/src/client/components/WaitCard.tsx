@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { WAIT_KIND_LABELS, type Wait } from 'pod-domain'
+import { WAIT_KIND_LABELS, t, type Wait } from 'pod-domain'
 import { api } from '../api/endpoints.ts'
 import { errorText } from '../api/http.ts'
 import { useApp } from '../state/app.ts'
@@ -37,8 +37,8 @@ export function WaitView(props: { readonly wait: Wait; readonly showTask?: boole
   return (
     <div className={`pod-wait pod-wait-${wait.kind}`}>
       <div className="pod-wait-head">
-        <Badge tone="warn">{WAIT_KIND_LABELS[wait.kind]}</Badge>
-        {wait.status === 'bypassed' ? <Badge tone="muted">已先绕过</Badge> : null}
+        <Badge tone="warn">{t(WAIT_KIND_LABELS[wait.kind])}</Badge>
+        {wait.status === 'bypassed' ? <Badge tone="muted">{t('已先绕过')}</Badge> : null}
         <strong>{wait.title}</strong>
         <span className="pod-muted-inline">
           <RelativeTime time={wait.createdAt} />
@@ -57,39 +57,39 @@ export function WaitView(props: { readonly wait: Wait; readonly showTask?: boole
               app.openBrowserTab(tabId)
             }}
           >
-            去浏览器接管
+            {t('去浏览器接管')}
           </Button>
         </div>
       ) : null}
       {props.showTask === true && wait.rootId !== null ? (
         <button type="button" className="pod-link" onClick={() => app.openTask(wait.rootId ?? '')}>
-          查看所属任务
+          {t('查看所属任务')}
         </button>
       ) : null}
       <div className="pod-wait-answer">
         <textarea
           className="pod-textarea pod-textarea-small"
           value={answer}
-          placeholder={PLACEHOLDER[wait.kind] ?? '你的答复'}
+          placeholder={t(PLACEHOLDER[wait.kind] ?? '你的答复')}
           onChange={(event) => setAnswer(event.target.value)}
           rows={2}
         />
         {wait.kind === 'write' || (wait.kind === 'security' && typeof wait.data.key === 'string') ? (
           <div className="pod-wait-actions">
-            <Button kind="primary" small disabled={busy} onClick={() => act(() => api.answerWait(wait.id, wait.kind === 'write' ? '批准' : '允许'))}>
-              {wait.kind === 'write' ? '批准' : '允许一次'}
+            <Button kind="primary" small disabled={busy} onClick={() => act(() => api.answerWait(wait.id, wait.kind === 'write' ? t('批准') : t('允许')))}>
+              {wait.kind === 'write' ? t('批准') : t('允许一次')}
             </Button>
-            <Button kind="danger" small disabled={busy} onClick={() => act(() => api.answerWait(wait.id, answer.trim() === '' ? '不批准' : `不批准：${answer}`))}>
-              {wait.kind === 'write' ? '不批准' : '不允许'}
+            <Button kind="danger" small disabled={busy} onClick={() => act(() => api.answerWait(wait.id, answer.trim() === '' ? t('不批准') : t('不批准：{answer}', { answer })))}>
+              {wait.kind === 'write' ? t('不批准') : t('不允许')}
             </Button>
           </div>
         ) : (
           <div className="pod-wait-actions">
             <Button kind="primary" small disabled={busy} onClick={() => act(() => api.answerWait(wait.id, answer))}>
-              处理好了
+              {t('处理好了')}
             </Button>
             <Button kind="quiet" small disabled={busy} onClick={() => act(() => api.dismissWait(wait.id))}>
-              不用管
+              {t('不用管')}
             </Button>
           </div>
         )}
@@ -104,7 +104,7 @@ export function WaitCard(props: { readonly waitId: string; readonly title: strin
   const app = useApp()
   const { data: waits } = useResource(app.cache, 'waits', () => api.waits())
   const wait = waits?.find((item) => item.id === props.waitId)
-  if (waits === undefined) return <div className="pod-wait pod-wait-closed">等你：{props.title}</div>
-  if (wait === undefined) return <div className="pod-wait pod-wait-closed">已处理：{props.title}</div>
+  if (waits === undefined) return <div className="pod-wait pod-wait-closed">{t('等你：{title}', { title: props.title })}</div>
+  if (wait === undefined) return <div className="pod-wait pod-wait-closed">{t('已处理：{title}', { title: props.title })}</div>
   return <WaitView wait={wait} />
 }

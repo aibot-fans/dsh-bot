@@ -188,16 +188,51 @@ const HINTS: readonly (readonly [BotIconKind, RegExp])[] = [
   ['engineer', /研发|工程师|开发|技术|算法|实现|嵌入式|硬件/],
 ]
 
+/** 英文的线索词：界面是英文时建的 bot 多半起英文名。分开写是因为中文那组不能忽略大小写（UI、BD 这类缩写）。 */
+const HINTS_EN: Partial<Record<BotIconKind, RegExp>> = {
+  devops: /\b(devops|sre|deploy\w*|infra\w*|kubernetes)\b/i,
+  broadcast: /\b(news|digest|briefing|broadcast\w*|alerts?|newsletter)\b/i,
+  translator: /\b(translat\w*|locali[sz]\w*|interpret\w*)\b/i,
+  tester: /\b(test\w*|qa|review\w*|proofread\w*|audit\w*)\b/i,
+  architect: /\b(architect\w*|system design)\b/i,
+  sysadmin: /\b(sysadmin|it support|system admin\w*)\b/i,
+  designer: /\b(design\w*|illustrat\w*|poster\w*|video\w*|ux|ui)\b/i,
+  legal: /\b(legal|lawyer|contracts?|complian\w*)\b/i,
+  finance: /\b(financ\w*|accountant|accounting|budget\w*|invoic\w*|tax\w*)\b/i,
+  hr: /\b(hr|recruit\w*|hiring)\b/i,
+  sales: /\b(sales|selling|business development)\b/i,
+  marketing: /\b(marketing|campaigns?|brand\w*|seo|growth)\b/i,
+  operations: /\b(operations|community)\b/i,
+  support: /\b(support|helpdesk|customer service)\b/i,
+  reception: /\b(reception\w*|front desk)\b/i,
+  intern: /\b(interns?|trainee)\b/i,
+  secretary: /\b(secretar\w*|meeting notes)\b/i,
+  assistant: /\b(assistant|schedul\w*|calendar)\b/i,
+  ceo: /\b(ceo|founder|boss)\b/i,
+  admin: /\b(admin|administration|procurement)\b/i,
+  writer: /\b(writ\w*|edit\w*|copywrit\w*|blog\w*|author\w*)\b/i,
+  product: /\b(product\w*|prd)\b/i,
+  project: /\b(project manag\w*|milestones?|pmo)\b/i,
+  data: /\b(data|sql|etl|dashboards?|scrap\w*|crawl\w*)\b/i,
+  analyst: /\b(analy\w*|statistic\w*|metrics?|insights?)\b/i,
+  researcher: /\b(research\w*|literature|intelligence)\b/i,
+  coder: /\b(code|coder|coding|programm\w*|script\w*)\b/i,
+  engineer: /\b(engineer\w*|develop\w*|algorithms?|tech lead)\b/i,
+}
+
 /** 名字最要紧，其次是角色，再是每个能力标签；职责和擅长只算一次。 */
-function iconScore(subject: IconSubject, pattern: RegExp): number {
-  const tags = (subject.capabilities ?? []).filter((tag) => pattern.test(tag)).length
+function iconScore(subject: IconSubject, matches: (text: string) => boolean): number {
+  const tags = (subject.capabilities ?? []).filter((tag) => matches(tag)).length
   const card = subject.card === undefined ? '' : `${subject.card.duties} ${subject.card.strengths}`
-  return (pattern.test(subject.name) ? 3 : 0) + (pattern.test(subject.title ?? '') ? 2 : 0) + tags + (pattern.test(card) ? 1 : 0)
+  return (matches(subject.name) ? 3 : 0) + (matches(subject.title ?? '') ? 2 : 0) + tags + (matches(card) ? 1 : 0)
 }
 
 /** 有线索的图标和得分，从高到低；分数相同时保持 HINTS 里的先后。 */
 export function rankBotIcons(subject: IconSubject): readonly (readonly [BotIconKind, number])[] {
-  return HINTS.map(([kind, pattern]) => [kind, iconScore(subject, pattern)] as const)
+  return HINTS.map(([kind, pattern]) => {
+    const english = HINTS_EN[kind]
+    return [kind, iconScore(subject, (text) => pattern.test(text) || (english?.test(text) ?? false))] as const
+  })
     .filter(([, score]) => score > 0)
     .sort((left, right) => right[1] - left[1])
 }

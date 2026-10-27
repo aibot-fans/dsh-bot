@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { extname, join } from 'node:path'
-import { botFolder, fail, isAvatarImage, ok, readId, readString, roomFolder } from 'pod-domain'
+import { botFolder, fail, isAvatarImage, ok, readId, readString, roomFolder, t } from 'pod-domain'
 import { taskFoldersFor } from 'pod-store'
 import { listLibrary } from '../chat/library.ts'
 import type { FetchRoute } from '../dsh.ts'
@@ -31,11 +31,11 @@ export function v2Routes(pod: PodRuntime): readonly RouteSpec[] {
       const roomId = readId(query, 'roomId')
       if (botId !== undefined) {
         const bot = pod.bots.get(botId)
-        if (bot === undefined) return fail('not-found', '找不到这个 bot')
+        if (bot === undefined) return fail('not-found', t('找不到这个 bot'))
         return ok(await listLibrary(pod.workspaceRoot, [botFolder(bot), ...taskFoldersFor(pod.db, { botId })]))
       }
       const room = roomId === undefined ? undefined : pod.rooms.get(roomId)
-      if (room === undefined) return fail('not-found', '要指定 bot 或对话')
+      if (room === undefined) return fail('not-found', t('要指定 bot 或对话'))
       const task = room.taskId === null ? undefined : pod.tasks.get(room.taskId)
       const bot = room.botId === null ? undefined : pod.bots.get(room.botId)
       const base = room.kind === 'direct' ? (bot === undefined ? [] : [botFolder(bot)]) : [task?.folder ?? roomFolder(room)]
@@ -51,12 +51,12 @@ export function v2Routes(pod: PodRuntime): readonly RouteSpec[] {
     post('/bot/avatar', async (body) => {
       const id = readId(body, 'id')
       const bot = id === undefined ? undefined : pod.bots.get(id)
-      if (id === undefined || bot === undefined || bot.archivedAt !== null) return fail('not-found', '找不到这个 bot')
+      if (id === undefined || bot === undefined || bot.archivedAt !== null) return fail('not-found', t('找不到这个 bot'))
       const extension = extname(readString(body, 'name')).toLowerCase().slice(1)
-      if (AVATAR_TYPES[extension] === undefined) return fail('invalid-input', '头像只支持 png、jpg、webp、gif 图片')
+      if (AVATAR_TYPES[extension] === undefined) return fail('invalid-input', t('头像只支持 png、jpg、webp、gif 图片'))
       const data = Buffer.from(readString(body, 'data'), 'base64')
-      if (data.byteLength === 0) return fail('invalid-input', '图片是空的')
-      if (data.byteLength > AVATAR_MAX_BYTES) return fail('invalid-input', '头像图片最大 2 MB')
+      if (data.byteLength === 0) return fail('invalid-input', t('图片是空的'))
+      if (data.byteLength > AVATAR_MAX_BYTES) return fail('invalid-input', t('头像图片最大 2 MB'))
       const file = `${Date.now().toString(36)}-${randomBytes(4).toString('hex')}.${extension}`
       await mkdir(avatarFolder(pod), { recursive: true })
       await writeFile(join(avatarFolder(pod), file), data)

@@ -92,6 +92,8 @@ export const CARDS_CSS = `
 .pod-settings-row:first-child { border-top: 0; }
 .pod-settings-control { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .pod-settings-control .pod-input:not(.pod-input-number):not(.pod-input-time) { width: 280px; max-width: 100%; }
+/* 设置行里的分段选项排成一行：左边说明长时让说明折行，别把选项挤成两行。 */
+.pod-settings-control .pod-segmented { flex-wrap: nowrap; }
 @media (max-width: 980px) { .pod-board { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 600px) { .pod-board { grid-template-columns: minmax(0, 1fr); } .pod-settings-row { flex-direction: column; align-items: flex-start; } }
 .pod-rated .pod-icon-button { color: var(--pod-ok); }

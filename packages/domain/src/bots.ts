@@ -1,9 +1,10 @@
 /** bot 的领域模型和校验：只有普通值，不依赖 dsh，也不做 I/O。 */
 
+import { t } from './i18n.ts'
 import { hasAvatar } from './avatars.ts'
 import { asRecord, readBool, readEnum, readText, type InputRecord } from './input.ts'
 import { fail, ok, type PodResult } from './result.ts'
-import { charLength, isRecord } from './text.ts'
+import { isRecord, textUnits } from './text.ts'
 
 /** 主管是默认入口；成员是之后新建的 bot。 */
 export type BotRole = 'lead' | 'member'
@@ -94,6 +95,7 @@ export interface BotPatch {
   readonly temporary?: boolean
 }
 
+/** 下面几个上限按字算（textUnits）：英文字母算半个字，所以英文能写到两倍的字母数。 */
 export const BOT_NAME_MAX = 24
 export const BOT_TITLE_MAX = 24
 export const BOT_PERSONA_MAX = 4000
@@ -102,23 +104,23 @@ export const CAPABILITY_COUNT_MAX = 12
 export const CARD_FIELD_MAX = 200
 
 function checkName(name: string): string | undefined {
-  if (name === '') return '名字不能为空'
-  if (charLength(name) > BOT_NAME_MAX) return `名字最多 ${BOT_NAME_MAX} 个字`
+  if (name === '') return t('名字不能为空')
+  if (textUnits(name) > BOT_NAME_MAX) return t('名字最多 {BOT_NAME_MAX} 个字', { BOT_NAME_MAX, letters: BOT_NAME_MAX * 2 })
   return undefined
 }
 
 function checkTitle(title: string): string | undefined {
-  return charLength(title) > BOT_TITLE_MAX ? `角色最多 ${BOT_TITLE_MAX} 个字` : undefined
+  return textUnits(title) > BOT_TITLE_MAX ? t('角色最多 {BOT_TITLE_MAX} 个字', { BOT_TITLE_MAX, letters: BOT_TITLE_MAX * 2 }) : undefined
 }
 
 function checkPersona(persona: string): string | undefined {
-  if (persona === '') return '人设不能为空'
-  if (charLength(persona) > BOT_PERSONA_MAX) return `人设最多 ${BOT_PERSONA_MAX} 个字`
+  if (persona === '') return t('人设不能为空')
+  if (textUnits(persona) > BOT_PERSONA_MAX) return t('人设最多 {BOT_PERSONA_MAX} 个字', { BOT_PERSONA_MAX, letters: BOT_PERSONA_MAX * 2 })
   return undefined
 }
 
 function checkAvatar(avatar: string): string | undefined {
-  return avatar === '' || hasAvatar(avatar) ? undefined : '头像只能选一个小图标，或者上传一张图片'
+  return avatar === '' || hasAvatar(avatar) ? undefined : t('头像只能选一个小图标，或者上传一张图片')
 }
 
 type Parsed<T> = { readonly ok: true; readonly value: T | undefined } | { readonly ok: false; readonly message: string }
@@ -127,12 +129,12 @@ function parseCapabilities(input: InputRecord): Parsed<readonly string[]> {
   const value = input.capabilities
   if (value === undefined) return { ok: true, value: undefined }
   if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
-    return { ok: false, message: '能力标签必须是文字列表' }
+    return { ok: false, message: t('能力标签必须是文字列表') }
   }
   const tags = [...new Set(value.map((item: string) => item.trim()).filter(Boolean))]
-  if (tags.length > CAPABILITY_COUNT_MAX) return { ok: false, message: `能力标签最多 ${CAPABILITY_COUNT_MAX} 个` }
-  if (tags.some((tag) => charLength(tag) > CAPABILITY_MAX)) {
-    return { ok: false, message: `每个能力标签最多 ${CAPABILITY_MAX} 个字` }
+  if (tags.length > CAPABILITY_COUNT_MAX) return { ok: false, message: t('能力标签最多 {CAPABILITY_COUNT_MAX} 个', { CAPABILITY_COUNT_MAX }) }
+  if (tags.some((tag) => textUnits(tag) > CAPABILITY_MAX)) {
+    return { ok: false, message: t('每个能力标签最多 {CAPABILITY_MAX} 个字', { CAPABILITY_MAX, letters: CAPABILITY_MAX * 2 }) }
   }
   return { ok: true, value: tags }
 }
@@ -140,7 +142,7 @@ function parseCapabilities(input: InputRecord): Parsed<readonly string[]> {
 function parseCard(input: InputRecord): Parsed<BotCard> {
   const value = input.card
   if (value === undefined) return { ok: true, value: undefined }
-  if (!isRecord(value)) return { ok: false, message: '角色卡必须是对象' }
+  if (!isRecord(value)) return { ok: false, message: t('角色卡必须是对象') }
   const field = (key: keyof BotCard): string | null => {
     const text = value[key]
     if (text === undefined) return ''
@@ -153,9 +155,9 @@ function parseCard(input: InputRecord): Parsed<BotCard> {
     askWho: field('askWho'),
   }
   const texts = Object.values(card)
-  if (texts.some((text) => text === null)) return { ok: false, message: '角色卡的每一项都必须是文字' }
-  if (texts.some((text) => charLength(text ?? '') > CARD_FIELD_MAX)) {
-    return { ok: false, message: `角色卡每一项最多 ${CARD_FIELD_MAX} 个字` }
+  if (texts.some((text) => text === null)) return { ok: false, message: t('角色卡的每一项都必须是文字') }
+  if (texts.some((text) => textUnits(text ?? '') > CARD_FIELD_MAX)) {
+    return { ok: false, message: t('角色卡每一项最多 {CARD_FIELD_MAX} 个字', { CARD_FIELD_MAX, letters: CARD_FIELD_MAX * 2 }) }
   }
   return { ok: true, value: card as BotCard }
 }
@@ -164,10 +166,10 @@ function parseCard(input: InputRecord): Parsed<BotCard> {
 export function parseModelChoice(value: unknown): Parsed<ModelChoice | null> {
   if (value === undefined) return { ok: true, value: undefined }
   if (value === null) return { ok: true, value: null }
-  if (!isRecord(value)) return { ok: false, message: '模型必须是对象或 null' }
+  if (!isRecord(value)) return { ok: false, message: t('模型必须是对象或 null') }
   const provider = typeof value.provider === 'string' ? value.provider.trim() : ''
   const model = typeof value.model === 'string' ? value.model.trim() : ''
-  if (provider === '' || model === '') return { ok: false, message: '模型要同时写明 provider 和 model' }
+  if (provider === '' || model === '') return { ok: false, message: t('模型要同时写明 provider 和 model') }
   const effort = typeof value.reasoningEffort === 'string' ? value.reasoningEffort.trim() : ''
   return { ok: true, value: effort === '' ? { provider, model } : { provider, model, reasoningEffort: effort } }
 }
@@ -191,7 +193,7 @@ function parseCommon(input: unknown): PodResult<CommonFields> {
   const persona = readText(record, 'persona')
   const avatar = readText(record, 'avatar')
   if (name === null || title === null || persona === null || avatar === null) {
-    return fail('invalid-input', '名字、角色、人设和头像都必须是文字')
+    return fail('invalid-input', t('名字、角色、人设和头像都必须是文字'))
   }
   const capabilities = parseCapabilities(record)
   if (!capabilities.ok) return fail('invalid-input', capabilities.message)
@@ -200,7 +202,7 @@ function parseCommon(input: unknown): PodResult<CommonFields> {
   const model = parseModelChoice(record.model)
   if (!model.ok) return fail('invalid-input', model.message)
   if (record.toolProfile !== undefined && readEnum(record, 'toolProfile', TOOL_PROFILES) === undefined) {
-    return fail('invalid-input', '工具档案只能是对话、研究或执行')
+    return fail('invalid-input', t('工具档案只能是对话、研究或执行'))
   }
   const problem =
     (name === undefined ? undefined : checkName(name)) ??
@@ -284,5 +286,5 @@ export function describeConfigChange(before: BotConfig, after: BotConfig): reado
 
 /** 显示用的名字：带角色时写成“研究员 · 小研”这种。 */
 export function botLabel(bot: Pick<Bot, 'name' | 'title'>): string {
-  return bot.title === '' || bot.title === bot.name ? bot.name : `${bot.name}（${bot.title}）`
+  return bot.title === '' || bot.title === bot.name ? bot.name : t('{name}（{title}）', { name: bot.name, title: bot.title })
 }

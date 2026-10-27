@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { POD, type RoomMessage } from 'pod-domain'
+import { POD, t, type RoomMessage } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { copyText } from '../../components/clipboard.ts'
@@ -37,8 +37,8 @@ function DownReason(props: { readonly onSubmit: (reason: string) => void; readon
         className="pod-input"
         autoFocus
         value={reason}
-        placeholder="哪里不好？可以不写"
-        aria-label="踩的原因"
+        placeholder={t('哪里不好？可以不写')}
+        aria-label={t('踩的原因')}
         onChange={(event) => setReason(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === 'Enter' && !event.nativeEvent.isComposing) props.onSubmit(reason)
@@ -46,10 +46,10 @@ function DownReason(props: { readonly onSubmit: (reason: string) => void; readon
       />
       <div className="pod-row">
         <Button small kind="primary" onClick={() => props.onSubmit(reason)}>
-          提交
+          {t('提交')}
         </Button>
         <Button small kind="quiet" onClick={props.onBack}>
-          返回
+          {t('返回')}
         </Button>
       </div>
     </div>
@@ -71,7 +71,7 @@ export function MessageSheet(props: MessageSheetProps) {
     work()
   }
   return (
-    <MenuPanel control={control} label={props.owner ? '你的消息' : '这条消息'}>
+    <MenuPanel control={control} label={props.owner ? t('你的消息') : t('这条消息')}>
       {props.view === 'down' ? (
         <DownReason
           onSubmit={(reason) => {
@@ -82,24 +82,24 @@ export function MessageSheet(props: MessageSheetProps) {
         />
       ) : (
         <>
-          <MenuItem icon="copy" label="复制" onClick={() => act(() => void copyText(message.body))} />
-          <MenuItem icon="select" label="选择文字" hint="选一段再复制" onClick={() => act(props.onSelect)} />
-          <MenuItem icon="reply" label="引用回复" onClick={() => act(() => props.onReply(message))} />
+          <MenuItem icon="copy" label={t('复制')} onClick={() => act(() => void copyText(message.body))} />
+          <MenuItem icon="select" label={t('选择文字')} hint={t('选一段再复制')} onClick={() => act(props.onSelect)} />
+          <MenuItem icon="reply" label={t('引用回复')} onClick={() => act(() => props.onReply(message))} />
           {answer ? (
             <>
-              <MenuItem icon="refresh" label="重新回答" onClick={() => act(() => void api.regenerate(message.id).catch((reason: unknown) => window.alert(errorText(reason))))} />
-              <MenuItem icon="up" label={rating.current === 1 ? '取消赞' : '赞'} onClick={() => act(() => rating.rate(rating.current === 1 ? 0 : 1))} />
+              <MenuItem icon="refresh" label={t('重新回答')} onClick={() => act(() => void api.regenerate(message.id).catch((reason: unknown) => window.alert(errorText(reason))))} />
+              <MenuItem icon="up" label={rating.current === 1 ? t('取消赞') : t('赞')} onClick={() => act(() => rating.rate(rating.current === 1 ? 0 : 1))} />
               <MenuItem
                 icon="down"
-                label={rating.current === -1 ? '取消踩' : '踩'}
-                hint={rating.current === -1 ? undefined : '可以写一句原因'}
+                label={rating.current === -1 ? t('取消踩') : t('踩')}
+                hint={rating.current === -1 ? undefined : t('可以写一句原因')}
                 onClick={() => (rating.current === -1 ? act(() => rating.rate(0)) : props.onView('down'))}
               />
             </>
           ) : null}
           <MenuDivider />
-          <MenuItem icon={message.pinned ? 'unpin' : 'pin'} label={message.pinned ? '取消置顶' : '置顶这条消息'} onClick={() => act(() => void api.pinMessage(message.id, !message.pinned).then(props.onPinned))} />
-          {sessionId === null ? null : <MenuItem icon="open" label="在 dsh 里查看过程" onClick={() => act(() => app.host.openSession(sessionId))} />}
+          <MenuItem icon={message.pinned ? 'unpin' : 'pin'} label={message.pinned ? t('取消置顶') : t('置顶这条消息')} onClick={() => act(() => void api.pinMessage(message.id, !message.pinned).then(props.onPinned))} />
+          {sessionId === null ? null : <MenuItem icon="open" label={t('在 dsh 里查看过程')} onClick={() => act(() => app.host.openSession(sessionId))} />}
         </>
       )}
     </MenuPanel>

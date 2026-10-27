@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PAGE_KIND_LABELS, PAGE_TITLE_MAX, type Page } from 'pod-domain'
+import { PAGE_KIND_LABELS, PAGE_TITLE_MAX, t, type Page } from 'pod-domain'
 import { errorText } from '../../api/http.ts'
 import { exportPage, pageApi, type ExportFormat, type PageTheme } from '../../api/pages.ts'
 import { Badge, IconButton } from '../../components/common.tsx'
@@ -30,13 +30,13 @@ function ExportButton(props: { readonly page: Page; readonly version: number | u
     <>
       <button ref={menu.anchor} type="button" className="pod-button pod-button-small" aria-expanded={menu.open} disabled={running !== undefined} onClick={menu.toggle}>
         <Icon name="download" size={14} />
-        {running === undefined ? '导出' : `正在生成${running === 'png' ? '长图' : ` ${running.toUpperCase()}`}…`}
+        {running === undefined ? t('导出') : running === 'png' ? t('正在生成长图…') : t('正在生成 {format}…', { format: running.toUpperCase() })}
       </button>
-      <MenuPanel control={menu} label="导出页面" wide>
+      <MenuPanel control={menu} label={t('导出页面')} wide>
         {FORMATS.map(([format, label, hint]) => (
           <button key={format} type="button" role="menuitem" className="pod-menu-item pod-export-item" onClick={() => run(format)}>
-            <span>{label}</span>
-            <span className="pod-muted-inline">{hint}</span>
+            <span>{t(label)}</span>
+            <span className="pod-muted-inline">{t(hint)}</span>
           </button>
         ))}
       </MenuPanel>
@@ -61,13 +61,13 @@ export function ViewerHead(props: { readonly page: Page; readonly viewing: numbe
   }
   return (
     <header className="pod-viewer-head">
-      <IconButton icon="back" label="回到对话" onClick={() => app.closePage()} />
+      <IconButton icon="back" label={t('回到对话')} onClick={() => app.closePage()} />
       {props.side === undefined ? <KindIcon kind={page.kind} size={30} /> : null}
       {renaming ? (
         <RenameInput
           value={page.title}
           max={PAGE_TITLE_MAX}
-          label="页面标题"
+          label={t('页面标题')}
           className="pod-viewer-rename"
           onSave={(title) => {
             setRenaming(false)
@@ -76,24 +76,24 @@ export function ViewerHead(props: { readonly page: Page; readonly viewing: numbe
           onCancel={() => setRenaming(false)}
         />
       ) : (
-        <button type="button" className="pod-viewer-title" onClick={() => setRenaming(true)} disabled={page.deletedAt !== null} title="点一下改名">
+        <button type="button" className="pod-viewer-title" onClick={() => setRenaming(true)} disabled={page.deletedAt !== null} title={t('点一下改名')}>
           <strong>{page.title}</strong>
         </button>
       )}
-      <Badge>{PAGE_KIND_LABELS[page.kind]}</Badge>
-      {previewing ? <Badge tone="warn">在看第 {props.viewing} 版 · 最新第 {page.version} 版</Badge> : <span className="pod-muted-inline">第 {page.version} 版</span>}
+      <Badge>{t(PAGE_KIND_LABELS[page.kind])}</Badge>
+      {previewing ? <Badge tone="warn">{t('在看第 {viewing} 版 · 最新第 {version} 版', { viewing: props.viewing, version: page.version })}</Badge> : <span className="pod-muted-inline">{t('第 {version} 版', { version: page.version })}</span>}
       <span className="pod-convo-head-gap" />
       {page.deletedAt === null ? (
-        <IconButton icon={page.pinned ? 'unpin' : 'pin'} label={page.pinned ? '取消置顶' : '置顶到页面库最前'} onClick={() => run(pageApi.pin(page.id, !page.pinned))} />
+        <IconButton icon={page.pinned ? 'unpin' : 'pin'} label={page.pinned ? t('取消置顶') : t('置顶到页面库最前')} onClick={() => run(pageApi.pin(page.id, !page.pinned))} />
       ) : null}
       <ExportButton page={page} version={previewing ? props.viewing : undefined} theme={props.theme} onError={props.onError} />
       {props.side === undefined ? (
         <>
-          <IconButton icon="page" label="页面库" onClick={() => app.showPages()} />
-          <IconButton icon="close" label="关闭页面" onClick={() => app.closePage()} />
+          <IconButton icon="page" label={t('页面库')} onClick={() => app.showPages()} />
+          <IconButton icon="close" label={t('关闭页面')} onClick={() => app.closePage()} />
         </>
       ) : (
-        <button type="button" className={`pod-head-button${props.side.open ? ' pod-head-button-on' : ''}`} aria-expanded={props.side.open} aria-label="修改和版本" title="修改和版本" onClick={props.side.toggle}>
+        <button type="button" className={`pod-head-button${props.side.open ? ' pod-head-button-on' : ''}`} aria-expanded={props.side.open} aria-label={t('修改和版本')} title={t('修改和版本')} onClick={props.side.toggle}>
           <Icon name="edit" size={18} />
         </button>
       )}

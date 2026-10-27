@@ -10,6 +10,7 @@ import {
   type Screen,
   type Slide,
 } from './page-blocks.ts'
+import { t } from './i18n.ts'
 import { parseBlock } from './page-parse-blocks.ts'
 import { capped, choice, field, record, report, type Raw, type ReadContext } from './page-read.ts'
 import type { PageKind } from './pages.ts'
@@ -132,9 +133,9 @@ export function mapBlocks(doc: PageDoc, change: (block: PageBlock) => PageBlock)
 
 /** 一句话说页面有多少内容。 */
 export function describeDoc(kind: PageKind, doc: PageDoc): string {
-  if (kind === 'slides') return `${doc.slides.length} 页`
-  if (kind === 'prototype') return `${doc.screens.length} 屏`
-  return `${doc.blocks.length} 个组件`
+  if (kind === 'slides') return t('{count} 页', { count: doc.slides.length })
+  if (kind === 'prototype') return t('{count} 屏', { count: doc.screens.length })
+  return t('{count} 个组件', { count: doc.blocks.length })
 }
 
 function isDefault(key: string, value: unknown): boolean {

@@ -1,3 +1,4 @@
+import { t } from 'pod-domain'
 import { Icon } from './Icon.tsx'
 import { useNarrow } from './media.ts'
 
@@ -9,7 +10,7 @@ export function PanelClose(props: { readonly label: string; readonly onClose: ()
   const narrow = useNarrow()
   const back = narrow && props.stacked !== true
   return (
-    <button type="button" className={`pod-round${back ? ' pod-panel-back' : ''}`} aria-label={back ? '返回' : props.label} title={back ? '返回' : '关闭'} onClick={props.onClose}>
+    <button type="button" className={`pod-round${back ? ' pod-panel-back' : ''}`} aria-label={back ? t('返回') : props.label} title={back ? t('返回') : t('关闭')} onClick={props.onClose}>
       <Icon name={back ? 'back' : 'close'} size={18} />
     </button>
   )

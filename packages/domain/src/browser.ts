@@ -3,6 +3,7 @@
  * 都是纯函数，浏览器那一侧只负责取到页面元素的描述。
  */
 
+import { t } from './i18n.ts'
 import { classifySensitiveFill } from './secrets.ts'
 
 /** 标签页的归属者：某个 bot 的某条会话、你，或者 Pod 自己（盯网页时临时打开）。 */
@@ -92,12 +93,12 @@ function writeWord(text: string): string | undefined {
 export function classifyClick(element: ElementInfo): ActionClass {
   const label = element.name.trim()
   if (element.tag === 'a' && element.href !== '' && !element.isSubmit) {
-    return DESTRUCTIVE_LINK.test(label) ? { write: true, reason: `链接「${label}」会改变账号或数据` } : { write: false }
+    return DESTRUCTIVE_LINK.test(label) ? { write: true, reason: t('链接「{label}」会改变账号或数据', { label }) } : { write: false }
   }
   if (SEARCH_WORDS.test(label) && writeWord(label) === undefined) return { write: false }
   const word = writeWord(label)
-  if (word !== undefined) return { write: true, reason: `按钮「${label}」属于“${word}”一类操作` }
-  if (element.isSubmit && element.formMethod === 'post') return { write: true, reason: '会提交 POST 表单' }
+  if (word !== undefined) return { write: true, reason: t('按钮「{label}」属于“{word}”一类操作', { label, word }) }
+  if (element.isSubmit && element.formMethod === 'post') return { write: true, reason: t('会提交 POST 表单') }
   return { write: false }
 }
 
@@ -105,7 +106,7 @@ export function classifyClick(element: ElementInfo): ActionClass {
 export function classifyEnter(element: ElementInfo | undefined): ActionClass {
   if (element === undefined || element.formMethod !== 'post') return { write: false }
   if (element.tag === 'textarea') return { write: false }
-  return { write: true, reason: '在 POST 表单里按回车会提交表单' }
+  return { write: true, reason: t('在 POST 表单里按回车会提交表单') }
 }
 
 const OTP_FIELD = /验证码|校验码|动态码|动态密码|短信码|口令|\b(otp|2fa|mfa|totp|captcha|verification|verify code|security code|one[- ]time|passcode|cvv|cvc|cvn)\b/i
@@ -126,15 +127,15 @@ export function checkFill(element: ElementInfo | undefined, value: string): Fill
   if (element !== undefined) {
     const field = `${element.fieldName} ${element.name} ${element.autocomplete}`
     if (element.type === 'password' || /current-password|new-password/.test(element.autocomplete) || PASSWORD_FIELD.test(element.fieldName)) {
-      return { kind: 'password', reason: '这是密码框：bot 永远不填密码，请用户接管登录' }
+      return { kind: 'password', reason: t('这是密码框：bot 永远不填密码，请用户接管登录') }
     }
-    if (/one-time-code/.test(element.autocomplete) || OTP_FIELD.test(field)) return { kind: 'otp', reason: '这是验证码或安全码：bot 不填，请用户接管' }
-    if (/cc-number|cc-csc/.test(element.autocomplete) || CARD_FIELD.test(field)) return { kind: 'card-number', reason: '这是银行卡字段：bot 不填' }
+    if (/one-time-code/.test(element.autocomplete) || OTP_FIELD.test(field)) return { kind: 'otp', reason: t('这是验证码或安全码：bot 不填，请用户接管') }
+    if (/cc-number|cc-csc/.test(element.autocomplete) || CARD_FIELD.test(field)) return { kind: 'card-number', reason: t('这是银行卡字段：bot 不填') }
   }
   const sensitive = classifySensitiveFill(value)
-  if (sensitive === 'card-number') return { kind: 'card-number', reason: '内容像银行卡号：bot 不填' }
-  if (sensitive === 'id-number') return { kind: 'id-number', reason: '内容像身份证号：bot 不填' }
-  if (sensitive !== undefined) return { kind: 'secret', reason: '内容像密码或密钥：bot 不填' }
+  if (sensitive === 'card-number') return { kind: 'card-number', reason: t('内容像银行卡号：bot 不填') }
+  if (sensitive === 'id-number') return { kind: 'id-number', reason: t('内容像身份证号：bot 不填') }
+  if (sensitive !== undefined) return { kind: 'secret', reason: t('内容像密码或密钥：bot 不填') }
   return undefined
 }
 
@@ -178,11 +179,11 @@ function decoded(value: string): string {
 /** 外传检查：要打开的网址或要填的内容里夹带了私有片段，或网址参数里塞了很长的数据。返回可疑的原因。 */
 export function exfiltrationHits(candidate: string, fragments: readonly string[]): readonly string[] {
   const haystack = decoded(candidate).toLowerCase()
-  const hits = fragments.filter((fragment) => haystack.includes(fragment)).map((fragment) => `夹带了你的私有信息“${fragment.slice(0, 12)}${fragment.length > 12 ? '…' : ''}”`)
+  const hits = fragments.filter((fragment) => haystack.includes(fragment)).map((fragment) => t('夹带了你的私有信息“{fragment}{value}”', { fragment: fragment.slice(0, 12), value: fragment.length > 12 ? '…' : '' }))
   try {
     const url = new URL(candidate)
     const long = [...url.searchParams.values()].some((value) => value.length >= 300)
-    if (long || url.hash.length >= 300) return [...hits, '网址里夹带了很长的数据']
+    if (long || url.hash.length >= 300) return [...hits, t('网址里夹带了很长的数据')]
   } catch {
     // 不是网址，只查片段。
   }
@@ -214,9 +215,9 @@ export function siteKey(url: string): string {
 
 /** 标签页归属者的显示名。 */
 export function tabOwnerLabel(owner: TabOwner, botName: (botId: string) => string | undefined): string {
-  if (owner.kind === 'owner') return '你'
+  if (owner.kind === 'owner') return t('你')
   if (owner.kind === 'pod') return 'dsh-bot'
-  return botName(owner.botId) ?? '已归档的 bot'
+  return botName(owner.botId) ?? t('已归档的 bot')
 }
 
 /** 浏览器视图里的空闲阈值：bot 的标签页 10 分钟没人用就先存快照再关掉。 */

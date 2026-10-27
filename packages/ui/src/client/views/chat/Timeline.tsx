@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { OWNER, isTemporaryRoom, type Bot, type Room, type RoomMessage } from 'pod-domain'
+import { OWNER, intlLocale, isTemporaryRoom, t, type Bot, type Room, type RoomMessage } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { Avatar, clock, nameColor } from '../../components/common.tsx'
@@ -31,7 +31,7 @@ function UnreadSummary(props: { readonly messages: readonly RoomMessage[]; reado
   const waits = props.messages.filter((message) => message.kind === 'wait').length
   return (
     <div className="pod-unread-summary">
-      <strong>你离开期间有 {props.messages.length} 条新消息</strong>
+      <strong>{t('你离开期间有 {length} 条新消息', { length: props.messages.length })}</strong>
       {milestones.length === 0 ? null : (
         <ul>
           {milestones.map((message) => (
@@ -39,13 +39,13 @@ function UnreadSummary(props: { readonly messages: readonly RoomMessage[]; reado
           ))}
         </ul>
       )}
-      {waits === 0 ? null : <div>需要你处理：{waits} 件</div>}
+      {waits === 0 ? null : <div>{t('需要你处理：{waits} 件', { waits })}</div>}
       <div className="pod-row">
         <button type="button" className="pod-link" onClick={props.onJump}>
-          跳到第一条未读
+          {t('跳到第一条未读')}
         </button>
         <button type="button" className="pod-link" onClick={props.onDismiss}>
-          全部标为已读
+          {t('全部标为已读')}
         </button>
       </div>
     </div>
@@ -65,11 +65,11 @@ function startOfDay(time: number): number {
 /** 日期分隔线上的字：今天、昨天，再早的写几月几日周几（跨年带年份）。 */
 function dayLabel(time: number, now: number): string {
   const days = Math.round((startOfDay(now) - startOfDay(time)) / 86_400_000)
-  if (days === 0) return '今天'
-  if (days === 1) return '昨天'
+  if (days === 0) return t('今天')
+  if (days === 1) return t('昨天')
   const date = new Date(time)
-  const year = date.getFullYear() === new Date(now).getFullYear() ? '' : `${date.getFullYear()}年`
-  return `${year}${date.getMonth() + 1}月${date.getDate()}日 周${'日一二三四五六'[date.getDay()] ?? ''}`
+  const year = date.getFullYear() === new Date(now).getFullYear() ? undefined : 'numeric'
+  return date.toLocaleDateString(intlLocale(), { year, month: 'long', day: 'numeric', weekday: 'short' })
 }
 
 /** 还没有消息时：介绍一下这是谁（或群里有谁），告诉你怎么开始。 */
@@ -84,7 +84,7 @@ function Intro(props: { readonly room: Room; readonly bots: ReadonlyMap<string, 
         <strong>{bot?.name ?? room.title}</strong>
         {bot === undefined || bot.title === '' || bot.title === bot.name ? null : <span className="pod-muted">{bot.title}</span>}
         {bot === undefined || bot.card.duties === '' ? null : <p>{bot.card.duties}</p>}
-        <span className="pod-muted-inline">{temporary ? '这是临时对话：不进侧栏、不写记忆，离开就删掉。' : '在下面说点什么，开始和它对话。'}</span>
+        <span className="pod-muted-inline">{temporary ? t('这是临时对话：不进侧栏、不写记忆，离开就删掉。') : t('在下面说点什么，开始和它对话。')}</span>
       </div>
     )
   }
@@ -100,7 +100,7 @@ function Intro(props: { readonly room: Room; readonly bots: ReadonlyMap<string, 
       </div>
       <strong>{room.title}</strong>
       <span className="pod-muted-inline">
-        在下面说点什么；输入 @ 可以直接点名成员，{room.taskId === null && room.teamId === null ? '没点名时按分工交给对口的成员来接。' : '没点名时组长来接。'}
+        {t('在下面说点什么；输入 @ 可以直接点名成员，{value}', { value: room.taskId === null && room.teamId === null ? t('没点名时按分工交给对口的成员来接。') : t('没点名时组长来接。') })}
       </span>
     </div>
   )
@@ -122,7 +122,7 @@ function LiveReply(props: {
   const label = props.status === undefined ? '' : props.status.label
   return (
     <div className="pod-msg pod-msg-live" aria-live="polite">
-      <button type="button" className="pod-msg-avatar" onClick={props.onOpenBot} aria-label={`${props.bot?.name ?? 'bot'} 的详情`}>
+      <button type="button" className="pod-msg-avatar" onClick={props.onOpenBot} aria-label={t('{value} 的详情', { value: props.bot?.name ?? 'bot' })}>
         <Avatar bot={props.bot} size={28} />
       </button>
       <div className="pod-msg-main">
@@ -326,7 +326,7 @@ export function Timeline(props: TimelineProps) {
   // 让它汇报：在群里要 @ 到它，不然会按分工交给别的成员。
   const report = (botId: string): void => {
     const name = props.bots.get(botId)?.name
-    const text = room.kind === 'direct' || name === undefined ? REPORT_ASK : `@${name} ${REPORT_ASK}`
+    const text = room.kind === 'direct' || name === undefined ? t(REPORT_ASK) : `@${name} ${t(REPORT_ASK)}`
     api.send(room.id, text).catch((reason: unknown) => setError(errorText(reason)))
   }
   const stopReply = (): void => {
@@ -354,7 +354,7 @@ export function Timeline(props: TimelineProps) {
           {loaded && messages.length === 0 && replies.length === 0 ? <Intro room={room} bots={props.bots} members={props.members} /> : null}
           {hasMore && loaded && messages.length >= PAGE ? (
             <button type="button" className="pod-link pod-load-older" onClick={loadOlder}>
-              加载更早的消息
+              {t('加载更早的消息')}
             </button>
           ) : null}
           {ordered.map((message, index) => {
@@ -393,7 +393,7 @@ export function Timeline(props: TimelineProps) {
         </div>
       </div>
       {awayFrom === null && !(behind && !nearBottom.current) ? null : (
-        <button type="button" className="pod-jump-latest" onClick={() => jumpToLatest()} aria-label={arrived > 0 ? `回到最新，有 ${arrived} 条新消息` : '回到最新'} title="回到最新">
+        <button type="button" className="pod-jump-latest" onClick={() => jumpToLatest()} aria-label={arrived > 0 ? t('回到最新，有 {arrived} 条新消息', { arrived }) : t('回到最新')} title={t('回到最新')}>
           <Icon name="arrow-down" size={18} />
           {arrived > 0 ? <span className="pod-jump-count">{arrived > 99 ? '99+' : arrived}</span> : null}
         </button>

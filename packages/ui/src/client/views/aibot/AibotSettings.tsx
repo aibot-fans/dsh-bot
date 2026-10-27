@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { AibotBind, AibotStatus, PodSettings } from 'pod-domain'
+import { t, type AibotBind, type AibotStatus, type PodSettings } from 'pod-domain'
 import { aibotApi } from '../../api/aibot.ts'
 import { errorText } from '../../api/http.ts'
 import { Badge, Button, Switch } from '../../components/common.tsx'
@@ -12,19 +12,19 @@ import { useAibot } from './useAibot.ts'
 function detailOf(status: AibotStatus): string {
   switch (status.state) {
     case 'off':
-      return '关掉后不调 aibot、不收监控动态；开通信息保留，再打开接着用'
+      return t('关掉后不调 aibot、不收监控动态；开通信息保留，再打开接着用')
     case 'starting':
-      return '第一次用自动开通，不用注册登录'
+      return t('第一次用自动开通，不用注册登录')
     case 'disabled':
-      return '不会自动重新开通；aibot 那边恢复以后，点“重试”就能接着用'
+      return t('不会自动重新开通；aibot 那边恢复以后，点“重试”就能接着用')
     case 'ready': {
       if (status.message !== '') return status.message
-      const free = status.dailyFree === null ? '' : `每天免费 ${status.dailyFree.limit} 次，读一次算一次，监控不扣`
-      const key = status.keyTail === '' ? '' : `Key 尾号 ${status.keyTail}`
+      const free = status.dailyFree === null ? '' : t('每天免费 {limit} 次，读一次算一次，监控不扣', { limit: status.dailyFree.limit })
+      const key = status.keyTail === '' ? '' : t('Key 尾号 {keyTail}', { keyTail: status.keyTail })
       return [free, key].filter((part) => part !== '').join(' · ')
     }
     default:
-      return retryText(status).replace(/^，/, '')
+      return retryText(status).replace(/^(，|,\s*)/, '')
   }
 }
 
@@ -43,10 +43,10 @@ export function AibotRows(props: { readonly settings: PodSettings; readonly upda
       .catch((reason: unknown) => setProblem(errorText(reason)))
       .finally(() => setBusy(false))
   }
-  const toggle = <Switch checked={props.settings.aibotEnabled} label="X 数据和监控" onChange={(aibotEnabled) => props.update({ aibotEnabled })} />
+  const toggle = <Switch checked={props.settings.aibotEnabled} label={t('X 数据和监控')} onChange={(aibotEnabled) => props.update({ aibotEnabled })} />
   if (status === undefined) {
     return (
-      <Row label="X 数据和监控" hint={error ?? '正在读取 aibot 的状态…'}>
+      <Row label={t('X 数据和监控')} hint={error ?? t('正在读取 aibot 的状态…')}>
         {toggle}
       </Row>
     )
@@ -57,7 +57,7 @@ export function AibotRows(props: { readonly settings: PodSettings; readonly upda
   return (
     <>
       <Row
-        label="X 数据和监控"
+        label={t('X 数据和监控')}
         hint={
           <>
             <span className={status.state === 'disabled' ? 'pod-aibot-alert' : undefined}>{aibotLine(status)}</span>
@@ -68,28 +68,28 @@ export function AibotRows(props: { readonly settings: PodSettings; readonly upda
       >
         {canRetry ? (
           <Button small kind="quiet" disabled={busy} onClick={retry}>
-            {busy ? '正在检查…' : '重试'}
+            {busy ? t('正在检查…') : t('重试')}
           </Button>
         ) : null}
         {toggle}
       </Row>
       {monitor === null ? null : (
         <Row
-          label="X 监控"
-          hint={`已监控 ${monitor.activeSubscriptionCount} / ${monitor.accountLimit} 个账号，新动态发到「X 监控」群聊${monitor.pausedBySystem ? '；30 天没用暂停了，下次调用后自动恢复' : ''}`}
+          label={t('X 监控')}
+          hint={t('已监控 {activeSubscriptionCount} / {accountLimit} 个账号，新动态发到「X 监控」群聊{value}', { activeSubscriptionCount: monitor.activeSubscriptionCount, accountLimit: monitor.accountLimit, value: monitor.pausedBySystem ? t('；30 天没用暂停了，下次调用后自动恢复') : '' })}
         >
-          {status.stream === 'connected' ? <Badge tone="ok">实时接收中</Badge> : null}
-          {status.stream === 'retrying' ? <Badge tone="warn">正在连接</Badge> : null}
+          {status.stream === 'connected' ? <Badge tone="ok">{t('实时接收中')}</Badge> : null}
+          {status.stream === 'retrying' ? <Badge tone="warn">{t('正在连接')}</Badge> : null}
           {status.roomId === null ? null : (
             <Button small kind="quiet" onClick={() => app.openRoom(status.roomId ?? '')}>
-              打开群聊
+              {t('打开群聊')}
             </Button>
           )}
         </Row>
       )}
       {status.state === 'ready' && status.accountKind === 'account' ? (
-        <Row label="aibot 账号" hint={`已绑定 ${status.accountDisplay ?? '账号'}，监控和次数都算在这个账号上`}>
-          <Badge tone="ok">已绑定</Badge>
+        <Row label={t('aibot 账号')} hint={t('已绑定 {value}，监控和次数都算在这个账号上', { value: status.accountDisplay ?? t('账号') })}>
+          <Badge tone="ok">{t('已绑定')}</Badge>
         </Row>
       ) : null}
       {status.state === 'ready' && status.bindAvailable && status.accountKind !== 'account' ? <BindRow /> : null}
@@ -120,9 +120,9 @@ function BindRow() {
           .bindPoll(bind.id)
           .then((result) => {
             if (stopped) return
-            if (result.status === 'approved') finish({ tone: 'ok', text: `绑定好了${result.accountDisplay === null ? '' : `：${result.accountDisplay}`}` })
-            else if (result.status === 'denied') finish({ tone: 'warn', text: '你在网页上拒绝了这次绑定' })
-            else if (result.status === 'expired') finish({ tone: 'warn', text: '码过期了，重新申请一个' })
+            if (result.status === 'approved') finish({ tone: 'ok', text: t('绑定好了{value}', { value: result.accountDisplay === null ? '' : t('：{accountDisplay}', { accountDisplay: result.accountDisplay }) }) })
+            else if (result.status === 'denied') finish({ tone: 'warn', text: t('你在网页上拒绝了这次绑定') })
+            else if (result.status === 'expired') finish({ tone: 'warn', text: t('码过期了，重新申请一个') })
             else poll()
           })
           .catch((reason: unknown) => {
@@ -148,37 +148,37 @@ function BindRow() {
   if (bind !== undefined) {
     return (
       <Row
-        label="绑定 aibot 账号"
+        label={t('绑定 aibot 账号')}
         hint={
           <>
             <span>
-              在打开的网页上核对这个码：<code className="pod-aibot-code">{bind.code}</code>
+              {t('在打开的网页上核对这个码：')}<code className="pod-aibot-code">{bind.code}</code>
             </span>
-            <span className="pod-aibot-detail">是同一个码再点同意，10 分钟内有效；这边会自己等结果</span>
+            <span className="pod-aibot-detail">{t('是同一个码再点同意，10 分钟内有效；这边会自己等结果')}</span>
           </>
         }
       >
         <a className="pod-button pod-button-default pod-button-small" href={bind.url} target="_blank" rel="noopener noreferrer">
-          打开网页核对
+          {t('打开网页核对')}
         </a>
         <Button small kind="quiet" onClick={() => setBind(undefined)}>
-          取消
+          {t('取消')}
         </Button>
       </Row>
     )
   }
   return (
     <Row
-      label="绑定 aibot 账号"
+      label={t('绑定 aibot 账号')}
       hint={
         <>
-          <span>绑定后这台电脑上 dsh-bot 的监控和次数都算在你的 aibot 账号上，Key 不变</span>
+          <span>{t('绑定后这台电脑上 dsh-bot 的监控和次数都算在你的 aibot 账号上，Key 不变')}</span>
           {outcome === undefined ? null : <span className={`pod-aibot-detail${outcome.tone === 'warn' ? ' pod-aibot-alert' : ' pod-aibot-ok'}`}>{outcome.text}</span>}
         </>
       }
     >
       <Button small disabled={busy} onClick={start}>
-        {busy ? '正在申请…' : '绑定账号'}
+        {busy ? t('正在申请…') : t('绑定账号')}
       </Button>
     </Row>
   )

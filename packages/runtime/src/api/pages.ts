@@ -1,3 +1,4 @@
+import { t } from 'pod-domain'
 import type { PageTheme } from '../pages/render/document.ts'
 import { VIEW_CSP, renderPage } from '../pages/render/document.ts'
 import { capture, captureWidth } from '../pages/export.ts'
@@ -40,7 +41,7 @@ function themeOf(raw: string | null): PageTheme {
 
 /** 下载用的文件名：去掉路径里不能用的字符，中文按 RFC 5987 编码。 */
 function attachment(title: string, extension: string): string {
-  const clean = `${title.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').trim() || '页面'}.${extension}`
+  const clean = `${title.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').trim() || t('页面')}.${extension}`
   const encoded = encodeURIComponent(clean).replace(/['()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`)
   return `attachment; filename*=UTF-8''${encoded}`
 }
@@ -59,7 +60,7 @@ export function pageViewRoutes(pod: PodRuntime): readonly FetchRoute[] {
     fetch: async (request) => {
       const params = new URL(request.url).searchParams
       const source = pod.pages.source(params.get('id') ?? '', versionOf(params.get('v')))
-      if (source === undefined) return plain(404, '找不到这个页面')
+      if (source === undefined) return plain(404, t('找不到这个页面'))
       const { version } = source
       const html = renderPage({ title: version.title, kind: version.kind, doc: version.doc, assets: source.assets, meta: source.meta, mode: 'view', theme: themeOf(params.get('theme')) })
       return new Response(html, {
@@ -81,7 +82,7 @@ export function pageViewRoutes(pod: PodRuntime): readonly FetchRoute[] {
     fetch: async (request) => {
       const params = new URL(request.url).searchParams
       const source = pod.pages.source(params.get('id') ?? '', versionOf(params.get('v')))
-      if (source === undefined) return plain(404, '找不到这个页面')
+      if (source === undefined) return plain(404, t('找不到这个页面'))
       const { version } = source
       const format = params.get('format')
       const input = { title: version.title, kind: version.kind, doc: version.doc, assets: source.assets, meta: source.meta }
@@ -89,8 +90,8 @@ export function pageViewRoutes(pod: PodRuntime): readonly FetchRoute[] {
         const html = renderPage({ ...input, mode: 'file', theme: 'auto' })
         return new Response(html, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8', 'content-disposition': attachment(version.title, 'html'), 'content-security-policy': SANDBOX, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' } })
       }
-      if (format !== 'pdf' && format !== 'png') return plain(400, 'format 只能是 pdf、png 或 html')
-      if (pod.browser.browser.executable === undefined) return plain(503, '没找到本机的 Chrome，导出 PDF 和图片要用它；可以先导出 HTML')
+      if (format !== 'pdf' && format !== 'png') return plain(400, t('format 只能是 pdf、png 或 html'))
+      if (pod.browser.browser.executable === undefined) return plain(503, t('没找到本机的 Chrome，导出 PDF 和图片要用它；可以先导出 HTML'))
       // PDF 一律浅色（打印用）；长图跟着你现在看的深浅色。
       const theme = format === 'png' && params.get('theme') === 'dark' ? 'dark' : 'light'
       try {
@@ -100,8 +101,8 @@ export function pageViewRoutes(pod: PodRuntime): readonly FetchRoute[] {
           headers: { 'content-type': format === 'pdf' ? 'application/pdf' : 'image/png', 'content-disposition': attachment(version.title, format), 'content-security-policy': SANDBOX, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' },
         })
       } catch (error) {
-        pod.ctx.logger.warn('导出页面失败', error)
-        return plain(500, `导出失败：${error instanceof Error ? error.message : String(error)}`)
+        pod.ctx.logger.warn(t('导出页面失败'), error)
+        return plain(500, t('导出失败：{value}', { value: error instanceof Error ? error.message : String(error) }))
       }
     },
   }

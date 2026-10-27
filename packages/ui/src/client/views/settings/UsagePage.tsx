@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
+import { t } from 'pod-domain'
 import { api, type UsageRange, type UsageReport, type UsageShare } from '../../api/endpoints.ts'
 import { Avatar, money, Segmented, tokens } from '../../components/common.tsx'
 import { GroupMark } from '../../components/GroupMark.tsx'
@@ -44,26 +45,26 @@ function Chart(props: { readonly report: UsageReport }) {
   const ticks = [0, 1, 2, 3].map((step) => (top / 3) * step)
   const slots = report.range === 'today' ? report.series.length : bars.length
   const every = report.range === '30d' ? 7 : report.range === 'today' ? 6 : 1
-  const label = (bucket: { readonly label: string }, index: number): string => (report.range === 'today' ? `${bucket.label}:00` : index === bars.length - 1 ? '今天' : bucket.label)
+  const label = (bucket: { readonly label: string }, index: number): string => (report.range === 'today' ? `${bucket.label}:00` : index === bars.length - 1 ? t('今天') : bucket.label)
   return (
     <section className="pod-card pod-usage-chart">
       <div className="pod-row">
         <strong>
-          {report.range === 'today' ? '每小时' : '每天'}
-          {measure === 'cost' ? '花费' : ' token'}
+          {report.range === 'today' ? t('每小时') : t('每天')}
+          {measure === 'cost' ? t('花费') : ' token'}
         </strong>
-        {measure === 'tokens' ? <span className="pod-muted-inline">现在用的模型没有价格，按 token 看</span> : null}
+        {measure === 'tokens' ? <span className="pod-muted-inline">{t('现在用的模型没有价格，按 token 看')}</span> : null}
         <span className="pod-grow" />
         <button type="button" className="pod-button pod-button-small" aria-pressed={table} onClick={() => setTable((value) => !value)}>
-          {table ? '看图' : '看表格'}
+          {table ? t('看图') : t('看表格')}
         </button>
       </div>
       {table ? (
         <table className="pod-usage-table">
           <thead>
             <tr>
-              <th scope="col">{report.range === 'today' ? '时段' : '日期'}</th>
-              <th scope="col">花费</th>
+              <th scope="col">{report.range === 'today' ? t('时段') : t('日期')}</th>
+              <th scope="col">{t('花费')}</th>
               <th scope="col">Token</th>
             </tr>
           </thead>
@@ -100,7 +101,7 @@ function Chart(props: { readonly report: UsageReport }) {
                     <span className={`pod-chart-tip${index < 2 ? ' pod-chart-tip-left' : index > bars.length - 3 ? ' pod-chart-tip-right' : ''}`} style={{ bottom: `calc(${height}% + ${capped ? 24 : 8}px)` }}>
                       <strong>{show(measure, valueOf(bucket))}</strong>
                       <span>
-                        {label(bucket, index)} · {measure === 'cost' ? `${tokens(bucket.tokens)} token` : money(bucket.cost)}
+                        {label(bucket, index)} · {measure === 'cost' ? t('{tokens} token', { tokens: tokens(bucket.tokens) }) : money(bucket.cost)}
                       </span>
                     </span>
                   </div>
@@ -125,7 +126,7 @@ function Breakdown(props: { readonly report: UsageReport }) {
   const { data: bots } = useResource(app.cache, 'bots', () => api.bots())
   const { data: rooms } = useResource(app.cache, 'rooms', () => api.rooms())
   const botById = useMemo(() => new Map((bots ?? []).map((bot) => [bot.id, bot])), [bots])
-  const names = useMemo(() => new Map([...(bots ?? []).map((bot) => [bot.id, bot.name] as const), ...(rooms ?? []).map((room) => [room.id, room.kind === 'direct' ? `和${room.title}的单聊` : room.title] as const)]), [bots, rooms])
+  const names = useMemo(() => new Map([...(bots ?? []).map((bot) => [bot.id, bot.name] as const), ...(rooms ?? []).map((room) => [room.id, room.kind === 'direct' ? t('和{title}的单聊', { title: room.title }) : room.title] as const)]), [bots, rooms])
   /** 每一行前面的图标：成员用它的小图标；单聊用对方的小图标，群聊用成员拼成的群图标。 */
   const iconOf = (id: string | null): ReactNode => {
     if (id === null) return <span className="pod-usage-icon-blank" aria-hidden />
@@ -143,24 +144,24 @@ function Breakdown(props: { readonly report: UsageReport }) {
   return (
     <section className="pod-card">
       <div className="pod-row">
-        <strong>花在哪儿</strong>
+        <strong>{t('花在哪儿')}</strong>
         <span className="pod-grow" />
         <Segmented
           value={by}
           options={[
-            ['bot', '按成员'],
-            ['room', '按对话'],
+            ['bot', t('按成员')],
+            ['room', t('按对话')],
           ]}
           onChange={setBy}
-          label="分组方式"
+          label={t('分组方式')}
         />
       </div>
-      {list.length === 0 ? <p className="pod-muted">这段时间还没有用量。</p> : null}
+      {list.length === 0 ? <p className="pod-muted">{t('这段时间还没有用量。')}</p> : null}
       {list.map((item) => {
-        const name = item.id === null ? (by === 'bot' ? '后台（记忆、复盘）' : '不在对话里') : (names.get(item.id) ?? (by === 'bot' ? '已删除的 bot' : '已删除的对话'))
+        const name = item.id === null ? (by === 'bot' ? t('后台（记忆、复盘）') : t('不在对话里')) : (names.get(item.id) ?? (by === 'bot' ? t('已删除的 bot') : t('已删除的对话')))
         const share = Math.round((valueOf(item) / total) * 100)
         return (
-          <div key={item.id ?? 'none'} className="pod-usage-line" tabIndex={0} aria-label={`${name}，${show(measure, valueOf(item))}，占 ${share}%`}>
+          <div key={item.id ?? 'none'} className="pod-usage-line" tabIndex={0} aria-label={t('{name}，{show}，占 {share}%', { name, show: show(measure, valueOf(item)), share })}>
             <span className="pod-usage-name">
               {iconOf(item.id)}
               <span className="pod-ellipsis">{name}</span>
@@ -172,7 +173,7 @@ function Breakdown(props: { readonly report: UsageReport }) {
             <span className="pod-chart-tip pod-usage-tip">
               <strong>{show(measure, valueOf(item))}</strong>
               <span>
-                占 {share}% · {measure === 'cost' ? `${tokens(item.tokens)} token` : money(item.cost)}
+                {t('占 {share}% · {value}', { share, value: measure === 'cost' ? t('{tokens} token', { tokens: tokens(item.tokens) }) : money(item.cost) })}
               </span>
             </span>
           </div>
@@ -190,17 +191,17 @@ export function UsagePage() {
   return (
     <div className="pod-stack">
       <div className="pod-row pod-wrap">
-        <Segmented value={range} options={RANGES} onChange={setRange} label="时间范围" />
-        <span className="pod-muted-inline">所有 bot、群聊和后台加在一起</span>
+        <Segmented value={range} options={RANGES.map(([value, label]) => [value, t(label)] as const)} onChange={setRange} label={t('时间范围')} />
+        <span className="pod-muted-inline">{t('所有 bot、群聊和后台加在一起')}</span>
       </div>
       {error === undefined ? null : <p className="pod-form-error">{error}</p>}
       {report === undefined ? (
-        <p className="pod-muted">正在统计…</p>
+        <p className="pod-muted">{t('正在统计…')}</p>
       ) : (
         <>
           <div className="pod-tiles">
             <div className="pod-tile-stat">
-              <span>花费</span>
+              <span>{t('花费')}</span>
               <strong>{money(report.cost)}</strong>
             </div>
             <div className="pod-tile-stat">
@@ -208,11 +209,11 @@ export function UsagePage() {
               <strong>{tokens(report.tokens)}</strong>
             </div>
             <div className="pod-tile-stat">
-              <span>缓存命中</span>
+              <span>{t('缓存命中')}</span>
               <strong>{Math.round(report.cacheHit * 100)}%</strong>
             </div>
             <div className="pod-tile-stat">
-              <span>闲时运行省下</span>
+              <span>{t('闲时运行省下')}</span>
               <strong>{money(report.saved)}</strong>
             </div>
           </div>

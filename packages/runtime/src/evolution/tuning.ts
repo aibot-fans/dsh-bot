@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { LEAD_BOT_ID, looksInjected, truncate, type Bot } from 'pod-domain'
+import { LEAD_BOT_ID, looksInjected, t, truncate, type Bot } from 'pod-domain'
 import { getTuning, readState, setTuning, writeState } from 'pod-store'
 import type { BotService } from '../bots/service.ts'
 import type { LiteLlm } from '../core/lite.ts'
@@ -85,7 +85,7 @@ export class Tuner {
     const text = merged.map((line) => `- ${line}`).join('\n')
     if (text === current) return
     setTuning(this.deps.db, bot.id, { persona: text }, this.deps.now())
-    this.deps.evolution.log({ kind: 'persona', botId: bot.id, subject: bot.id, summary: `「${bot.name}」的人设加了 ${added.length} 条调整：${truncate(added.join('；'), 80)}`, before: { text: current }, after: { text }, reason: `最近一周有 ${negative.length} 条同类负面反馈`, source: 'nightly' })
+    this.deps.evolution.log({ kind: 'persona', botId: bot.id, subject: bot.id, summary: t('「{name}」的人设加了 {length} 条调整：{truncate}', { name: bot.name, length: added.length, truncate: truncate(added.join(t('；')), 80) }), before: { text: current }, after: { text }, reason: t('最近一周有 {length} 条同类负面反馈', { length: negative.length }), source: 'nightly' })
   }
 
   /** 最近 10 个任务八成以上一次通过、没有失败和差评：推理档位降一档（只对跟随默认模型的 bot）。 */
@@ -104,10 +104,10 @@ export class Tuner {
       kind: 'effort',
       botId: bot.id,
       subject: bot.id,
-      summary: `「${bot.name}」的推理档位从 ${info.current} 降到 ${lower}`,
+      summary: t('「{name}」的推理档位从 {current} 降到 {lower}', { name: bot.name, current: info.current, lower }),
       before: { effort: tuning?.effort ?? null },
       after: { effort: lower },
-      reason: `最近 ${card.done} 个任务一次通过率 ${Math.round((card.firstPassRate ?? 0) * 100)}%`,
+      reason: t('最近 {done} 个任务一次通过率 {round}%', { done: card.done, round: Math.round((card.firstPassRate ?? 0) * 100) }),
       source: 'nightly',
     })
   }
@@ -121,8 +121,8 @@ export class Tuner {
     const asks = feedback.filter((item) => item.kind === 'asked').length / roots.size
     const edits = feedback.filter((item) => item.kind === 'edited').length / roots.size
     const advice = [
-      asks > 1 ? `- 最近每个任务平均找用户 ${asks.toFixed(1)} 次：只有没有默认值、会让结果方向完全不同的歧义才问；其余按合理默认推进，并在交付里写明前提。` : '',
-      edits > 0.5 ? `- 最近交付后常被用户修改（每个任务平均 ${edits.toFixed(1)} 次）：关键前提定得太大胆了，开工说明里先列清前提，拿不准的给两个方案。` : '',
+      asks > 1 ? t('- 最近每个任务平均找用户 {asks} 次：只有没有默认值、会让结果方向完全不同的歧义才问；其余按合理默认推进，并在交付里写明前提。', { asks: asks.toFixed(1) }) : '',
+      edits > 0.5 ? t('- 最近交付后常被用户修改（每个任务平均 {edits} 次）：关键前提定得太大胆了，开工说明里先列清前提，拿不准的给两个方案。', { edits: edits.toFixed(1) }) : '',
     ]
       .filter(Boolean)
       .join('\n')
@@ -133,10 +133,10 @@ export class Tuner {
       kind: 'calibration',
       botId: LEAD_BOT_ID,
       subject: LEAD_BOT_ID,
-      summary: advice === '' ? '主管定前提的分寸恢复默认' : `调整了主管定前提的分寸（找你 ${asks.toFixed(1)} 次/任务，被改 ${edits.toFixed(1)} 次/任务）`,
+      summary: advice === '' ? t('主管定前提的分寸恢复默认') : t('调整了主管定前提的分寸（找你 {asks} 次/任务，被改 {edits} 次/任务）', { asks: asks.toFixed(1), edits: edits.toFixed(1) }),
       before: { text: current },
       after: { text: advice },
-      reason: '按最近两周的自治效果统计',
+      reason: t('按最近两周的自治效果统计'),
       source: 'nightly',
     })
   }

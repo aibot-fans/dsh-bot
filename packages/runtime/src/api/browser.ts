@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import { fail, ok, readId, tabOwnerLabel, type PodResult, type TabInfo } from 'pod-domain'
+import { fail, ok, readId, t, tabOwnerLabel, type PodResult, type TabInfo } from 'pod-domain'
 import { CdpTimeout } from '../browser/cdp.ts'
 import { NavigationError } from '../browser/navigation.ts'
 import type { FetchRoute } from '../dsh.ts'
@@ -47,8 +47,8 @@ async function guarded<T>(work: () => PodResult<T> | Promise<PodResult<T>>): Pro
   } catch (error) {
     const reason = (error instanceof Error ? error.message : String(error)).replace(/\s+/g, ' ').trim().slice(0, 160)
     if (error instanceof NavigationError) return fail('invalid-input', reason)
-    if (error instanceof CdpTimeout || reason.includes('浏览器连接已断开')) return fail('session-unavailable', '浏览器没有响应，稍后再试')
-    return fail('session-unavailable', `浏览器出错了：${reason || '请稍后再试'}`)
+    if (error instanceof CdpTimeout || reason.includes('浏览器连接已断开')) return fail('session-unavailable', t('浏览器没有响应，稍后再试'))
+    return fail('session-unavailable', t('浏览器出错了：{value}', { value: reason || t('请稍后再试') }))
   }
 }
 

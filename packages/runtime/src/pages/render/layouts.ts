@@ -1,4 +1,4 @@
-import { POSTER_DIMENSIONS, PAGE_KIND_LABELS, type PageBlock, type PageDoc, type PageKind, type Screen, type Slide } from 'pod-domain'
+import { POSTER_DIMENSIONS, PAGE_KIND_LABELS, t, type PageBlock, type PageDoc, type PageKind, type Screen, type Slide } from 'pod-domain'
 import { renderBlock, renderBlocks, type RenderContext } from './blocks.ts'
 import { esc } from './html.ts'
 import { accentPair } from './theme.ts'
@@ -19,7 +19,7 @@ const CONTENT_WIDTH: Readonly<Record<'report' | 'dashboard' | 'tracker' | 'diagr
 
 function header(input: LayoutInput): string {
   const subtitle = input.doc.subtitle === '' ? '' : `<p class="subtitle">${esc(input.doc.subtitle)}</p>`
-  return `<header class="page-head"><div class="eyebrow">${esc(PAGE_KIND_LABELS[input.kind])}</div><h1>${esc(input.title)}</h1>${subtitle}<div class="meta">${esc(input.meta)}</div></header>`
+  return `<header class="page-head"><div class="eyebrow">${esc(t(PAGE_KIND_LABELS[input.kind]))}</div><h1>${esc(input.title)}</h1>${subtitle}<div class="meta">${esc(input.meta)}</div></header>`
 }
 
 function documentPage(input: LayoutInput, kind: 'report' | 'dashboard' | 'tracker' | 'diagram'): string {
@@ -38,13 +38,13 @@ function slideBody(slide: Slide, index: number, input: LayoutInput): string {
   const lead = slide.subtitle === '' ? '' : `<p class="s-lead">${esc(slide.subtitle)}</p>`
   switch (slide.layout) {
     case 'title':
-      return `<div class="s-kicker">${esc(input.title === slide.title ? PAGE_KIND_LABELS.slides : input.title)}</div><h1>${esc(slide.title || input.title)}</h1>${lead}${blocks(slide.blocks, SLIDE_INNER)}`
+      return `<div class="s-kicker">${esc(input.title === slide.title ? t(PAGE_KIND_LABELS.slides) : input.title)}</div><h1>${esc(slide.title || input.title)}</h1>${lead}${blocks(slide.blocks, SLIDE_INNER)}`
     case 'section':
       return `<div class="s-num">${String(index + 1).padStart(2, '0')}</div><h2>${esc(slide.title)}</h2>${lead}`
     case 'quote':
       return `<blockquote class="s-quote">${esc(slide.title)}${slide.subtitle === '' ? '' : `<footer>${esc(slide.subtitle)}</footer>`}</blockquote>`
     case 'end':
-      return `<h1>${esc(slide.title || '谢谢')}</h1>${lead}`
+      return `<h1>${esc(slide.title || t('谢谢'))}</h1>${lead}`
     case 'two-column':
       return `${slide.title === '' ? '' : `<h2 class="s-h">${esc(slide.title)}</h2>`}${slide.subtitle === '' ? '' : `<p class="s-sub">${esc(slide.subtitle)}</p>`}<div class="s-cols"><div>${blocks(slide.blocks, (SLIDE_INNER - 48) / 2)}</div><div>${blocks(slide.right, (SLIDE_INNER - 48) / 2)}</div></div>`
     case 'content':
@@ -57,9 +57,9 @@ function slides(input: LayoutInput): string {
   const items = input.doc.slides.map((slide, index) => {
     const foot = slide.layout === 'title' ? '' : `<div class="s-foot"><span>${esc(input.title)}</span><span>${index + 1} / ${total}</span></div>`
     const notes = slide.notes === '' ? '' : `<aside class="notes">${esc(slide.notes)}</aside>`
-    return `<section class="slide l-${slide.layout}${index === 0 ? ' on' : ''}" data-index="${index}" aria-label="第 ${index + 1} 页">${slideBody(slide, index, input)}${foot}${notes}</section>`
+    return `<section class="slide l-${slide.layout}${index === 0 ? ' on' : ''}" data-index="${index}" aria-label="${esc(t('第 {n} 页', { n: index + 1 }))}">${slideBody(slide, index, input)}${foot}${notes}</section>`
   })
-  const nav = input.mode === 'export' ? '' : `<nav class="deck-nav"><button type="button" data-deck="prev" aria-label="上一页">上一页</button><span class="deck-count">1 / ${total}</span><button type="button" data-deck="next" aria-label="下一页">下一页</button><button type="button" data-deck="notes">备注</button></nav><div class="notes-panel" aria-live="polite"></div>`
+  const nav = input.mode === 'export' ? '' : `<nav class="deck-nav"><button type="button" data-deck="prev" aria-label="${esc(t('上一页'))}">${esc(t('上一页'))}</button><span class="deck-count">1 / ${total}</span><button type="button" data-deck="next" aria-label="${esc(t('下一页'))}">${esc(t('下一页'))}</button><button type="button" data-deck="notes">${esc(t('备注'))}</button></nav><div class="notes-panel" aria-live="polite" data-empty="${esc(t('这一页没有备注'))}"></div>`
   return `<main class="deck" data-total="${total}"><div class="deck-stage"><div class="slides">${items.join('')}</div></div>${nav}</main>`
 }
 

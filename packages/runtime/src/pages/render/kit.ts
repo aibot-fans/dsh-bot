@@ -138,7 +138,7 @@ export const KIT_SCRIPT = String.raw`(function () {
       each(slides, function (slide, position) { slide.classList.toggle('on', position === index) })
       if (counter) counter.textContent = (index + 1) + ' / ' + slides.length
       var notes = slides[index] ? slides[index].querySelector('.notes') : null
-      if (panel) panel.textContent = notes ? notes.textContent : '这一页没有备注'
+      if (panel) panel.textContent = notes ? notes.textContent : (panel.getAttribute('data-empty') || '')
       if (prev) prev.disabled = index === 0
       if (next) next.disabled = index === slides.length - 1
     }

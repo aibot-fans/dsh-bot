@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useSyncExternalStore } from 'react'
-import { TEMPORARY_TOPIC, isTemporaryRoom, type MemoryScopeKind, type PodEvent, type PodNotification, type PodSettings, type RoomSummary, type TurnProgress } from 'pod-domain'
+import { TEMPORARY_TOPIC, isTemporaryRoom, t, type MemoryScopeKind, type PodEvent, type PodNotification, type PodSettings, type RoomSummary, type TurnProgress } from 'pod-domain'
 import { api } from '../api/endpoints.ts'
 import { PodEvents } from '../api/events.ts'
 import { ResourceCache } from './resource.ts'
@@ -476,7 +476,7 @@ export const AppContext = createContext<AppState | null>(null)
 
 export function useApp(): AppState {
   const app = useContext(AppContext)
-  if (app === null) throw new Error('dsh-bot 页面缺少 AppContext')
+  if (app === null) throw new Error(t('dsh-bot 页面缺少 AppContext'))
   return app
 }
 

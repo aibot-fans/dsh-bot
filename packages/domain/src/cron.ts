@@ -3,6 +3,7 @@
  * 周日写 0 或 7。日和周都不是 * 时，满足任一即可（和 Vixie cron 一致）。
  */
 
+import { t, tc } from './i18n.ts'
 import { wallClock, zonedTime } from './time.ts'
 
 interface Field {
@@ -35,7 +36,7 @@ function parseField(text: string, index: number): Field | string {
   for (const part of text.split(',')) {
     const [rangePart, stepPart] = part.split('/')
     const step = stepPart === undefined ? 1 : Number(stepPart)
-    if (!Number.isInteger(step) || step < 1) return `${NAMES[index]}字段的步长不对：${part}`
+    if (!Number.isInteger(step) || step < 1) return t('{field}字段的步长不对：{part}', { field: tc(NAMES[index] ?? '', 'cron'), part })
     let start = min
     let end = max
     if (rangePart !== '*' && rangePart !== undefined) {
@@ -43,7 +44,7 @@ function parseField(text: string, index: number): Field | string {
       start = Number(from)
       end = to === undefined ? (stepPart === undefined ? start : max) : Number(to)
       if (!Number.isInteger(start) || !Number.isInteger(end) || start < min || end > max || start > end) {
-        return `${NAMES[index]}字段超出范围：${part}`
+        return t('{field}字段超出范围：{part}', { field: tc(NAMES[index] ?? '', 'cron'), part })
       }
     }
     for (let value = start; value <= end; value += step) values.add(index === 4 && value === 7 ? 0 : value)
@@ -54,7 +55,7 @@ function parseField(text: string, index: number): Field | string {
 /** 解析 cron 表达式；格式不对时返回说明文字。 */
 export function parseCron(expression: string): CronSchedule | string {
   const parts = expression.trim().split(/\s+/)
-  if (parts.length !== 5) return 'cron 要写五段：分 时 日 月 周'
+  if (parts.length !== 5) return t('cron 要写五段：分 时 日 月 周')
   const fields: Field[] = []
   for (const [index, part] of parts.entries()) {
     const field = parseField(part, index)
@@ -134,11 +135,11 @@ export function everyCron(minutes: number): string | undefined {
 /** 每隔几分钟、几小时的 cron 的说法；不是这种写法返回 undefined。 */
 function describeEvery(source: string): string | undefined {
   const minutes = /^\*\/(\d+) \* \* \* \*$/.exec(source)
-  if (minutes !== null) return `每 ${minutes[1]} 分钟`
+  if (minutes !== null) return t('每 {minutes} 分钟', { minutes: minutes[1] })
   const hours = /^(\d+) \*\/(\d+) \* \* \*$/.exec(source)
-  if (hours !== null) return `每 ${hours[2]} 小时${hours[1] === '0' ? '' : `（第 ${hours[1]} 分）`}`
+  if (hours !== null) return t('每 {hours} 小时{value}', { hours: hours[2], value: hours[1] === '0' ? '' : t('（第 {minute} 分）', { minute: hours[1] }) })
   const hourly = /^(\d+) \* \* \* \*$/.exec(source)
-  if (hourly !== null) return hourly[1] === '0' ? '每小时' : `每小时第 ${hourly[1]} 分`
+  if (hourly !== null) return hourly[1] === '0' ? t('每小时') : t('每小时第 {minute} 分', { minute: hourly[1] })
   return undefined
 }
 
@@ -151,10 +152,10 @@ export function describeCron(expression: string): string {
   const minutes = [...schedule.minute.values]
   const hours = [...schedule.hour.values]
   const time = minutes.length === 1 && hours.length === 1 ? `${String(hours[0]).padStart(2, '0')}:${String(minutes[0]).padStart(2, '0')}` : undefined
-  if (time !== undefined && schedule.day.star && schedule.month.star && schedule.weekday.star) return `每天 ${time}`
+  if (time !== undefined && schedule.day.star && schedule.month.star && schedule.weekday.star) return t('每天 {time}', { time })
   if (time !== undefined && schedule.day.star && schedule.month.star && !schedule.weekday.star) {
-    const names = ['日', '一', '二', '三', '四', '五', '六']
-    return `每周${[...schedule.weekday.values].map((day) => names[day] ?? '').join('、')} ${time}`
+    const names = ['日', '一', '二', '三', '四', '五', '六'].map((name) => tc(name, '星期'))
+    return t('每周{value} {time}', { value: [...schedule.weekday.values].map((day) => names[day] ?? '').join(t('、')), time })
   }
-  return `cron：${schedule.source}`
+  return t('cron：{source}', { source: schedule.source })
 }

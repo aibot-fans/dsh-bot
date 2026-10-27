@@ -1,4 +1,4 @@
-import type { TabAction, TabController, TabDialog, TabInfo, TabOwner } from 'pod-domain'
+import { t, type TabAction, type TabController, type TabDialog, type TabInfo, type TabOwner } from 'pod-domain'
 import { CdpTimeout, type CdpConnection, type CdpEvent } from './cdp.ts'
 import { NavigationError, describeNetError } from './navigation.ts'
 import { invoke } from './scripts.ts'
@@ -226,7 +226,7 @@ export class BrowserTab {
     const startedAt = this.now()
     this.loading = true
     const result = await this.send<{ readonly errorText?: string }>('Page.navigate', { url }, NAVIGATION_TIMEOUT_MS).catch((error: unknown) => {
-      if (error instanceof CdpTimeout) throw new NavigationError('等了 30 秒网站还没响应：网络慢或者网站打不开，过一会儿刷新试试')
+      if (error instanceof CdpTimeout) throw new NavigationError(t('等了 30 秒网站还没响应：网络慢或者网站打不开，过一会儿刷新试试'))
       throw error
     })
     const code = result.errorText ?? ''
@@ -248,7 +248,7 @@ export class BrowserTab {
       }
     }
     this.loading = false
-    throw new NavigationError(`${describeNetError(code)}（${code}）`)
+    throw new NavigationError(t('{reason}（{code}）', { reason: describeNetError(code), code }))
   }
 
   /** 点了以后可能跳转：等一会儿看看有没有开始加载，开始了就等加载完。 */
@@ -324,7 +324,7 @@ export class BrowserTab {
 
   async setFiles(files: readonly string[], objectId?: string): Promise<void> {
     const target = objectId !== undefined ? { objectId } : this.fileChooser !== null ? { backendNodeId: this.fileChooser.backendNodeId } : undefined
-    if (target === undefined) throw new Error('页面没有要选择文件的地方')
+    if (target === undefined) throw new Error(t('页面没有要选择文件的地方'))
     await this.send('DOM.setFileInputFiles', { files, ...target })
     this.fileChooser = null
   }

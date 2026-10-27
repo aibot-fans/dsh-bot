@@ -8,8 +8,10 @@ import {
   TOOL_PROFILE_LABELS,
   avatarIcon,
   iconAvatar,
+  inputLimit,
   pickBotIcon,
   quickPersona,
+  t,
   takenIcons,
   validateDraft,
   type Bot,
@@ -24,14 +26,7 @@ import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 
 /** 人设模板：角色、目标、专长、工作方法、输出格式、禁区。 */
-const PERSONA_TEMPLATE = [
-  '角色：',
-  '目标：',
-  '专长：',
-  '工作方法：',
-  '输出格式：',
-  '禁区：',
-].join('\n')
+const PERSONA_TEMPLATE: readonly string[] = ['角色：', '目标：', '专长：', '工作方法：', '输出格式：', '禁区：']
 
 const PROFILE_HINTS: Readonly<Record<ToolProfile, string>> = {
   talk: '聊天、读记忆、搜聊天记录',
@@ -64,7 +59,7 @@ function fromBot(bot: Bot | undefined): FormState {
     title: bot?.title ?? '',
     avatar: bot?.avatar ?? '',
     persona: bot?.persona ?? '',
-    capabilities: (bot?.capabilities ?? []).join('、'),
+    capabilities: (bot?.capabilities ?? []).join(t('、')),
     duties: bot?.card.duties ?? '',
     strengths: bot?.card.strengths ?? '',
     notResponsible: bot?.card.notResponsible ?? '',
@@ -147,62 +142,62 @@ export function BotForm(props: { readonly bot?: Bot; readonly prefill?: BotPrefi
   return (
     <form className="pod-form" onSubmit={submit}>
       <div className="pod-form-grid">
-        <Field label="名字" hint={`最多 ${BOT_NAME_MAX} 字`}>
-          <input className="pod-input" value={state.name} onChange={(event) => set('name', event.target.value)} maxLength={BOT_NAME_MAX} />
+        <Field label={t('名字')} hint={t('最多 {BOT_NAME_MAX} 字', { BOT_NAME_MAX, letters: BOT_NAME_MAX * 2 })}>
+          <input className="pod-input" value={state.name} onChange={(event) => set('name', event.target.value)} maxLength={inputLimit(BOT_NAME_MAX)} />
         </Field>
-        <Field label="角色" hint={`最多 ${BOT_TITLE_MAX} 字`}>
-          <input className="pod-input" value={state.title} onChange={(event) => set('title', event.target.value)} placeholder="例如：研究员" />
+        <Field label={t('角色')} hint={t('最多 {BOT_TITLE_MAX} 字', { BOT_TITLE_MAX, letters: BOT_TITLE_MAX * 2 })}>
+          <input className="pod-input" value={state.title} onChange={(event) => set('title', event.target.value)} placeholder={t('例如：研究员')} />
         </Field>
       </div>
       {props.bot === undefined ? (
         <div className="pod-field">
           <span className="pod-field-row">
-            <span>图标</span>
-            <span className="pod-hint">按名字和角色配好了，也可以点别的；建好后还能在详情里换成图片</span>
+            <span>{t('图标')}</span>
+            <span className="pod-hint">{t('按名字和角色配好了，也可以点别的；建好后还能在详情里换成图片')}</span>
           </span>
-          <div className="pod-icon-row" role="group" aria-label="选一个图标">
+          <div className="pod-icon-row" role="group" aria-label={t('选一个图标')}>
             <IconChoices kinds={MEMBER_ICONS} current={icon} onPick={(kind) => set('avatar', iconAvatar(kind))} />
           </div>
         </div>
       ) : null}
-      <Field label="人设" hint={`最多 ${BOT_PERSONA_MAX} 字`}>
+      <Field label={t('人设')} hint={t('最多 {BOT_PERSONA_MAX} 字', { BOT_PERSONA_MAX, letters: BOT_PERSONA_MAX * 2 })}>
         <textarea className="pod-textarea" value={state.persona} onChange={(event) => set('persona', event.target.value)} rows={8} />
       </Field>
       {state.persona === '' ? (
-        <button type="button" className="pod-link" onClick={() => set('persona', PERSONA_TEMPLATE)}>
-          用模板：角色、目标、专长、工作方法、输出格式、禁区
+        <button type="button" className="pod-link" onClick={() => set('persona', PERSONA_TEMPLATE.map((line) => t(line)).join('\n'))}>
+          {t('用模板：角色、目标、专长、工作方法、输出格式、禁区')}
         </button>
       ) : null}
-      <Field label="能力标签" hint="用顿号或逗号分开，分配任务时用来匹配">
-        <input className="pod-input" value={state.capabilities} onChange={(event) => set('capabilities', event.target.value)} placeholder="调研、写作" />
+      <Field label={t('能力标签')} hint={t('用顿号或逗号分开，分配任务时用来匹配')}>
+        <input className="pod-input" value={state.capabilities} onChange={(event) => set('capabilities', event.target.value)} placeholder={t('调研、写作')} />
       </Field>
       <div className="pod-form-grid">
-        <Field label="职责">
+        <Field label={t('职责')}>
           <input className="pod-input" value={state.duties} onChange={(event) => set('duties', event.target.value)} />
         </Field>
-        <Field label="擅长">
+        <Field label={t('擅长')}>
           <input className="pod-input" value={state.strengths} onChange={(event) => set('strengths', event.target.value)} />
         </Field>
-        <Field label="不负责">
+        <Field label={t('不负责')}>
           <input className="pod-input" value={state.notResponsible} onChange={(event) => set('notResponsible', event.target.value)} />
         </Field>
-        <Field label="别的问题找谁">
+        <Field label={t('别的问题找谁')}>
           <input className="pod-input" value={state.askWho} onChange={(event) => set('askWho', event.target.value)} />
         </Field>
       </div>
       <div className="pod-form-grid">
-        <Field label="工具档案" hint={PROFILE_HINTS[state.toolProfile]}>
+        <Field label={t('工具档案')} hint={t(PROFILE_HINTS[state.toolProfile])}>
           <select className="pod-input" value={state.toolProfile} onChange={(event) => set('toolProfile', event.target.value as ToolProfile)}>
             {TOOL_PROFILES.map((profile) => (
               <option key={profile} value={profile}>
-                {TOOL_PROFILE_LABELS[profile]}
+                {t(TOOL_PROFILE_LABELS[profile])}
               </option>
             ))}
           </select>
         </Field>
-        <Field label="模型" hint="从下一段会话开始生效">
+        <Field label={t('模型')} hint={t('从下一段会话开始生效')}>
           <select className="pod-input" value={state.model} onChange={(event) => set('model', event.target.value)}>
-            <option value="">跟随 dsh-bot 默认（默认跟随 dsh）</option>
+            <option value="">{t('跟随 dsh-bot 默认（默认跟随 dsh）')}</option>
             {(catalog?.groups ?? []).map((group) => (
               <optgroup key={group.id} label={group.name}>
                 {group.models.map((model) => (
@@ -218,16 +213,16 @@ export function BotForm(props: { readonly bot?: Bot; readonly prefill?: BotPrefi
       {isLead ? null : (
         <label className="pod-check-row">
           <input type="checkbox" checked={state.temporary} onChange={(event) => set('temporary', event.target.checked)} />
-          临时 bot：任务结束就自动删除（30 天内可以恢复）
+          {t('临时 bot：任务结束就自动删除（30 天内可以恢复）')}
         </label>
       )}
       {error === undefined ? null : <p className="pod-form-error">{error}</p>}
       <div className="pod-form-actions">
         <Button kind="quiet" onClick={() => props.onDone()}>
-          取消
+          {t('取消')}
         </Button>
         <Button kind="primary" type="submit" disabled={busy}>
-          {props.bot === undefined ? '新建' : '保存'}
+          {props.bot === undefined ? t('新建') : t('保存')}
         </Button>
       </div>
     </form>

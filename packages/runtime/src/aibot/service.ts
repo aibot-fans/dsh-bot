@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
-import type { AibotBind, AibotBindResult, AibotState, AibotStatus, PodSession, PodSettings } from 'pod-domain'
+import { t, type AibotBind, type AibotBindResult, type AibotState, type AibotStatus, type PodSession, type PodSettings } from 'pod-domain'
 import { ensureAibotDevice, readAibotDevice, readState, saveAibotKey, setAibotDisabled, type AibotDevice } from 'pod-store'
 import type { BotService } from '../bots/service.ts'
 import type { RoomService } from '../chat/rooms.ts'
@@ -12,7 +12,7 @@ import { parseInfo, type DeviceInfo } from './device.ts'
 import { AibotError, DEVICE_DISABLED, DISABLED_TEXT, INVALID_KEY, isQuotaCode, quotaText, signupText, toolErrorText } from './errors.ts'
 import { XInbox } from './inbox.ts'
 import { McpClient, type McpTool } from './mcp.ts'
-import { seedX, xBot } from './seed.ts'
+import { localizeX, seedX, xBot } from './seed.ts'
 import { MonitorStream, type StreamState } from './stream.ts'
 import { wantsX, xTools, type XToolValue } from './tools.ts'
 
@@ -117,9 +117,15 @@ export class AibotService {
   /** 插件启动：建好默认的 X bot 和群聊，开着的话开通并连上；设置里的开关一变就跟着开关。 */
   start(): () => void {
     seedX(this.deps.db, this.deps.bots, this.deps.rooms)
+    localizeX(this.deps.db, this.deps.bots, this.deps.rooms)
     this.running = true
     void this.boot()
     return () => this.shutdown()
+  }
+
+  /** 语言换了：默认的 X bot 和群跟着换。 */
+  languageChanged(): void {
+    localizeX(this.deps.db, this.deps.bots, this.deps.rooms)
   }
 
   /** 设置里的开关变了。 */
@@ -209,7 +215,7 @@ export class AibotService {
   private networkTrouble(error: unknown): void {
     const delay = NETWORK_RETRY_MS[Math.min(this.networkFailures, NETWORK_RETRY_MS.length - 1)] ?? 3_600_000
     this.networkFailures += 1
-    this.schedule(delay, 'error', `${networkText(error)}，稍后自动重试`)
+    this.schedule(delay, 'error', t('{reason}，稍后自动重试', { reason: networkText(error) }))
   }
 
   private schedule(delayMs: number, state: AibotState, message: string): void {
@@ -238,7 +244,7 @@ export class AibotService {
    */
   private async authed<T>(work: (key: string) => Promise<T>): Promise<T> {
     const key = this.key()
-    if (key === undefined) throw new Error(this.state === 'disabled' ? DISABLED_TEXT : 'aibot 还没开通')
+    if (key === undefined) throw new Error(this.state === 'disabled' ? t(DISABLED_TEXT) : t('aibot 还没开通'))
     try {
       return await work(key)
     } catch (error) {
@@ -270,7 +276,7 @@ export class AibotService {
     } catch (error) {
       if (this.state === 'disabled') return
       if (error instanceof AibotError) {
-        this.schedule((error.retryAfterSeconds ?? 600) * 1000, 'error', `aibot 返回错误：${error.message}`)
+        this.schedule((error.retryAfterSeconds ?? 600) * 1000, 'error', t('aibot 返回错误：{message}', { message: error.message }))
         return
       }
       this.networkTrouble(error)
@@ -337,7 +343,7 @@ export class AibotService {
 
   /** bot 调一个 X 工具。 */
   async call(name: string, args: unknown): Promise<XToolValue> {
-    if (!this.enabled) return { ok: false, message: 'aibot 接入在设置里关掉了，X 工具暂时不能用。' }
+    if (!this.enabled) return { ok: false, message: t('aibot 接入在设置里关掉了，X 工具暂时不能用。') }
     if (this.state === 'disabled') return { ok: false, message: toolErrorText(DEVICE_DISABLED, DISABLED_TEXT) }
     const blocked = this.quotaBlock
     if (blocked !== undefined && this.deps.now() < blocked.until && !isFreeTool(name)) {
@@ -354,13 +360,13 @@ export class AibotService {
       const tool = this.tools.find((item) => item.name === name)
       if (tool !== undefined && !tool.readOnly && !tool.destructive && !result.isError) this.syncStream(true)
       this.refreshSoon()
-      return result.isError ? { ok: false, message: structured || 'aibot 返回了错误' } : { ok: true, message: '', text: structured }
+      return result.isError ? { ok: false, message: structured || t('aibot 返回了错误') } : { ok: true, message: '', text: structured }
     } catch (error) {
       if (error instanceof AibotError) {
         if (isQuotaCode(error.code)) this.quotaHit(error)
         return { ok: false, message: toolErrorText(error.code, error.message) }
       }
-      return { ok: false, message: `${networkText(error)}，这次没查到，稍后再试。` }
+      return { ok: false, message: t('{networkText}，这次没查到，稍后再试。', { networkText: networkText(error) }) }
     }
   }
 
@@ -396,7 +402,8 @@ export class AibotService {
     return {
       enabled: this.enabled,
       state: this.enabled ? this.state : 'off',
-      message: this.message,
+      // 固定的提示存的是中文原文，读的时候按现在的语言翻；带参数的在写进来时已经翻好了。
+      message: t(this.message),
       keyTail: key.length > 8 ? key.slice(-4) : '',
       accountKind: info?.accountKind ?? null,
       accountDisplay: info?.accountDisplay ?? null,
@@ -429,7 +436,7 @@ export class AibotService {
         this.info = parseInfo(data)
         this.checkedAt = this.deps.now()
       } catch (error) {
-        this.setState('disabled', error instanceof AibotError && error.code === DEVICE_DISABLED ? DISABLED_TEXT : `${DISABLED_TEXT}（检查失败：${reasonOf(error)}）`)
+        this.setState('disabled', error instanceof AibotError && error.code === DEVICE_DISABLED ? DISABLED_TEXT : t('{text}（检查失败：{reason}）', { text: t(DISABLED_TEXT), reason: reasonOf(error) }))
         return this.status()
       }
     }

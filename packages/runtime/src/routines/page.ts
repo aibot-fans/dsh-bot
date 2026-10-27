@@ -1,4 +1,4 @@
-import { checkUrl } from 'pod-domain'
+import { checkUrl, t } from 'pod-domain'
 import { checkReachable } from '../browser/guard.ts'
 import type { PageContent } from './service.ts'
 
@@ -37,9 +37,9 @@ export async function readPageOverHttp(raw: string, allowedHosts: readonly strin
     signal: AbortSignal.timeout(TIMEOUT_MS),
     headers: { 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) DeepSeekPod/0.2', accept: 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5' },
   })
-  if (!response.ok) throw new Error(`网页返回 ${response.status}`)
+  if (!response.ok) throw new Error(t('网页返回 {status}', { status: response.status }))
   const final = checkUrl(response.url, allowedHosts)
-  if (!final.ok) throw new Error(`跳转到了不能访问的地址：${final.reason}`)
+  if (!final.ok) throw new Error(t('跳转到了不能访问的地址：{reason}', { reason: final.reason }))
   const buffer = await response.arrayBuffer()
   const body = new TextDecoder().decode(buffer.byteLength > MAX_BYTES ? buffer.slice(0, MAX_BYTES) : buffer)
   const type = response.headers.get('content-type') ?? ''

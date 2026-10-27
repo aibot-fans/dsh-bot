@@ -8,6 +8,7 @@ import {
   newId,
   ok,
   rootTaskFolder,
+  t,
   type Bot,
   type PodResult,
   type PodSession,
@@ -211,11 +212,11 @@ export class TaskService {
         roomId: null,
         taskId: id,
         folder: updated.folder,
-        title: `dsh-bot · 任务 · ${input.title}`,
+        title: t('dsh-bot · 任务 · {title}', { title: input.title }),
         tainted: requester.tainted,
       })
     } catch (error) {
-      const failed = this.write(updated, { status: 'failed', note: `开任务会话失败：${error instanceof Error ? error.message : String(error)}` })
+      const failed = this.write(updated, { status: 'failed', note: t('开任务会话失败：{value}', { value: error instanceof Error ? error.message : String(error) }) })
       return fail('session-unavailable', failed.note)
     }
     if (updated.roomId !== null) {
@@ -283,8 +284,8 @@ export class TaskService {
   /** update_task：勾验收项（编号从 1 开始）、写进度说明。 */
   progress(session: PodSession, check: readonly number[], note: string): PodResult<Task> {
     const task = this.taskOf(session)
-    if (task === undefined || session.kind !== 'task') return fail('not-found', '这条会话没有对应的任务')
-    if (isTerminal(task.status)) return fail('conflict', `任务已经${task.status === 'done' ? '完成' : '结束'}`)
+    if (task === undefined || session.kind !== 'task') return fail('not-found', t('这条会话没有对应的任务'))
+    if (isTerminal(task.status)) return fail('conflict', task.status === 'done' ? t('任务已经完成') : t('任务已经结束'))
     const indexes = check.map((index) => index - 1).filter((index) => index >= 0 && index < task.acceptance.length)
     const acceptance = checkAcceptance(task.acceptance, indexes, this.deps.now())
     const updated = this.write(task, { acceptance, ...(note === '' ? {} : { note }) })
@@ -295,9 +296,9 @@ export class TaskService {
   /** complete_task：提交结果。单个 bot 的任务提交即交付；团队子任务交给组长验收（M4）。 */
   complete(session: PodSession, result: TaskResult): PodResult<Task> {
     const task = this.taskOf(session)
-    if (task === undefined || session.kind !== 'task') return fail('not-found', '这条会话没有对应的任务')
-    if (isTerminal(task.status)) return fail('conflict', '任务已经结束')
-    if (task.status === 'review') return fail('conflict', '已经提交过了，正在等组长验收')
+    if (task === undefined || session.kind !== 'task') return fail('not-found', t('这条会话没有对应的任务'))
+    if (isTerminal(task.status)) return fail('conflict', t('任务已经结束'))
+    if (task.status === 'review') return fail('conflict', t('已经提交过了，正在等组长验收'))
     if (task.parentId !== null) {
       const submitted = this.deps.onSubtaskSubmitted(task, result)
       this.event(submitted, 'submitted', session.botId, { summary: result.summary, files: result.files })
@@ -316,7 +317,7 @@ export class TaskService {
     if (room !== undefined && room.kind !== 'direct' && bot !== undefined && bot.role !== 'lead') {
       this.deps.rooms.post(room.id, { author: bot.id, kind: 'text', body: doneNote(delivered, merged, undefined), sessionId: session.id, data: { taskId: delivered.id } })
     } else {
-      this.deps.rooms.milestone(delivered.roomId, `${bot?.name ?? 'bot'} 交付了「${delivered.title}」`, { taskId: delivered.id })
+      this.deps.rooms.milestone(delivered.roomId, t('{value} 交付了「{title}」', { value: bot?.name ?? 'bot', title: delivered.title }), { taskId: delivered.id })
     }
     this.nudges.delete(delivered.id)
     const awaited = this.hasWaiter(delivered.id)
@@ -373,18 +374,18 @@ export class TaskService {
       mode: 'followup',
       priority: task.urgent ? PRIORITY.urgent : PRIORITY.task,
       text,
-      source: noticeSource(`提醒提交任务（第 ${count} 次）`),
+      source: noticeSource(t('提醒提交任务（第 {count} 次）', { count })),
     })
   }
 
   private stall(task: Task): void {
-    const updated = this.write(task, { status: 'failed', note: `连续 ${MAX_NUDGES} 次提醒都没有进展，已停下等处理` })
+    const updated = this.write(task, { status: 'failed', note: t('连续 {MAX_NUDGES} 次提醒都没有进展，已停下等处理', { MAX_NUDGES }) })
     this.event(updated, 'stalled', 'pod', {})
     if (updated.parentId !== null) {
       this.deps.onSubtaskStalled(updated, updated.note)
       return
     }
-    this.deps.rooms.milestone(updated.roomId, `「${updated.title}」多次提醒仍没有进展，已停下`, { taskId: updated.id })
+    this.deps.rooms.milestone(updated.roomId, t('「{title}」多次提醒仍没有进展，已停下', { title: updated.title }), { taskId: updated.id })
     this.finish(updated)
     this.tellRequester(updated, `[任务停滞] 「${updated.title}」连续 ${MAX_NUDGES} 次提醒都没有进展，已经停下。可以换人、拆小或者自己来做。`)
     this.deps.notify(updated, 'stalled')
@@ -393,7 +394,7 @@ export class TaskService {
   /** 暂停、继续、停止、取消；作用于整棵任务树。 */
   control(taskId: string, action: ControlAction, actor: string): PodResult<Task> {
     const root = this.get(this.rootOf(taskId) ?? taskId)
-    if (root === undefined) return fail('not-found', '找不到这个任务')
+    if (root === undefined) return fail('not-found', t('找不到这个任务'))
     const tree = this.tree(root.id)
     const now = this.deps.now()
     const sessions = tree.flatMap((task) => this.deps.registry.forTask(task.id)).filter((session) => session.status === 'active')
@@ -412,7 +413,7 @@ export class TaskService {
       }
     }
     const changed = tree.filter((task) => target(task) !== undefined)
-    if (changed.length === 0) return fail('conflict', '任务现在的状态不能这样操作')
+    if (changed.length === 0) return fail('conflict', t('任务现在的状态不能这样操作'))
     for (const task of changed) {
       const status = target(task)
       if (status === undefined) continue
@@ -427,10 +428,10 @@ export class TaskService {
       }
     }
     this.deps.onRootStateChange(root.id, action === 'cancel' ? 'cancelled' : action === 'stop' ? 'stopped' : 'resumed')
-    const labels: Readonly<Record<ControlAction, string>> = { pause: '暂停', resume: '继续', stop: '停止', cancel: '取消' }
+    const notes: Readonly<Record<ControlAction, string>> = { pause: '「{title}」已暂停', resume: '「{title}」已继续', stop: '「{title}」已停止', cancel: '「{title}」已取消' }
     this.event(root, `control.${action}`, actor, {})
     this.deps.audit.record(`task.${action}`, actor, root.id, { title: root.title })
-    this.deps.rooms.milestone(root.roomId, `「${root.title}」已${labels[action]}`, { taskId: root.id })
+    this.deps.rooms.milestone(root.roomId, t(notes[action], { title: root.title }), { taskId: root.id })
     const after = this.get(root.id) ?? root
     if (action === 'cancel') this.finish(after)
     return ok(after)
@@ -445,7 +446,7 @@ export class TaskService {
       mode: 'followup',
       priority: task.urgent ? PRIORITY.urgent : PRIORITY.task,
       text: resumeText(task, after),
-      source: noticeSource('任务继续'),
+      source: noticeSource(t('任务继续')),
     })
   }
 
@@ -463,11 +464,11 @@ export class TaskService {
   /** 把你的纠正或补充转达给任务：必须带着你的原话。 */
   relay(taskId: string, ownerQuote: string, message: string, from: PodSession): PodResult<Task> {
     const task = this.get(taskId)
-    if (task === undefined) return fail('not-found', '找不到这个任务')
-    if (isTerminal(task.status)) return fail('conflict', '任务已经结束，新的要求请建新任务')
-    if (ownerQuote === '') return fail('invalid-input', '转达必须原样引用用户的话')
+    if (task === undefined) return fail('not-found', t('找不到这个任务'))
+    if (isTerminal(task.status)) return fail('conflict', t('任务已经结束，新的要求请建新任务'))
+    if (ownerQuote === '') return fail('invalid-input', t('转达必须原样引用用户的话'))
     const session = this.deps.registry.activeForTask(task.id, 'task') ?? this.deps.registry.activeForTask(task.id, 'coord')
-    if (session === undefined) return fail('not-found', '这个任务现在没有在执行的会话')
+    if (session === undefined) return fail('not-found', t('这个任务现在没有在执行的会话'))
     const text = `[用户补充，经${this.deps.bots.get(from.botId)?.name ?? '主管'}转达]\n[用户原话] ${ownerQuote}${message === '' ? '' : `\n说明：${message}`}`
     this.deps.dispatcher.enqueue({
       sessionId: session.id,
@@ -480,7 +481,7 @@ export class TaskService {
     this.deps.rooms.post(task.roomId ?? from.roomId ?? '', {
       author: 'pod',
       kind: 'receipt',
-      body: `已转达给「${task.title}」，下一步生效`,
+      body: t('已转达给「{title}」，下一步生效', { title: task.title }),
       data: { taskId: task.id },
     })
     return ok(task)
@@ -489,9 +490,9 @@ export class TaskService {
   /** “直接对任务说”：你的话直接进任务会话。 */
   talk(taskId: string, text: string): PodResult<Task> {
     const task = this.get(taskId)
-    if (task === undefined) return fail('not-found', '找不到这个任务')
+    if (task === undefined) return fail('not-found', t('找不到这个任务'))
     const session = this.deps.registry.activeForTask(task.id, 'task') ?? this.deps.registry.activeForTask(task.id, 'coord')
-    if (session === undefined) return fail('not-found', '这个任务现在没有在执行的会话')
+    if (session === undefined) return fail('not-found', t('这个任务现在没有在执行的会话'))
     this.deps.dispatcher.enqueue({
       sessionId: session.id,
       mode: this.deps.dispatcher.isRunning(session.id) ? 'steer' : 'followup',

@@ -2,6 +2,7 @@
 
 import { iconAvatar } from './avatars.ts'
 import type { BotCard } from './bots.ts'
+import { currentLanguage, type Language } from './i18n.ts'
 
 export type BotPresetId = 'designer'
 
@@ -24,6 +25,32 @@ const DESIGNER_PERSONA = [
   '禁区：不编造数据，没有的数据标“示例”；不用花哨的配色和装饰；不把整页内容塞进一个 text 组件。',
 ].join('\n')
 
+const DESIGNER_PERSONA_EN = [
+  'Role: designer who turns content into good-looking, readable pages: reports, dashboards, trackers, slides, posters, prototypes and architecture diagrams.',
+  'Goals: readers grasp the key points at a glance; the information is accurate, the layout clear and the colors restrained.',
+  'Methods: first work out the purpose and the audience (who it is for, where they will read it, what they should remember), fill any gaps with sensible defaults and say so; then choose the page kind and layout and look up how to write it with page_guide; show data with charts and metric cards instead of long paragraphs; one idea per page, at most 5 bullet points per slide; save with save_page, then check it with get_page for typos, empty blocks and numbers that do not match.',
+  'Output format: the page itself is the deliverable; in your reply, only say what you made, the key trade-offs and how to change it.',
+  'Limits: never make up data and mark missing data as “sample”; no flashy colors or decoration; do not cram a whole page into one text block.',
+].join('\n')
+
+const BOT_PRESETS_EN: readonly BotPreset[] = [
+  {
+    id: 'designer',
+    name: 'Designer',
+    title: 'Designer',
+    description: 'Makes pages like reports, dashboards, slides, posters, prototypes and architecture diagrams',
+    persona: DESIGNER_PERSONA_EN,
+    avatar: iconAvatar('designer'),
+    capabilities: ['Page design', 'Data visualization', 'Slides', 'Posters', 'Prototypes'],
+    card: {
+      duties: 'Turns content into pages: reports, dashboards, trackers, slides, posters, prototypes, architecture diagrams',
+      strengths: 'Layout, color, chart choice, information hierarchy',
+      notResponsible: 'Research and fact-checking (hand those to a researcher or analyst)',
+      askWho: '',
+    },
+  },
+]
+
 export const BOT_PRESETS: readonly BotPreset[] = [
   {
     id: 'designer',
@@ -42,6 +69,11 @@ export const BOT_PRESETS: readonly BotPreset[] = [
   },
 ]
 
-export function botPreset(id: unknown): BotPreset | undefined {
-  return BOT_PRESETS.find((preset) => preset.id === id)
+/** 按语言取预设：id 两种语言一样，名字、人设和角色卡跟着语言走。 */
+export function botPresets(language: Language = currentLanguage()): readonly BotPreset[] {
+  return language === 'en' ? BOT_PRESETS_EN : BOT_PRESETS
+}
+
+export function botPreset(id: unknown, language: Language = currentLanguage()): BotPreset | undefined {
+  return botPresets(language).find((preset) => preset.id === id)
 }

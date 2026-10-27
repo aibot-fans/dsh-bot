@@ -1,4 +1,4 @@
-import { TASK_STATUS_LABELS, acceptanceProgress, truncate, type Task, type TaskResult, type TeamPlan } from 'pod-domain'
+import { TASK_STATUS_LABELS, acceptanceProgress, t, truncate, type Task, type TaskResult, type TeamPlan } from 'pod-domain'
 
 /** 编排器发给组长、成员和房间的文字。都只用任务数据拼出来，不调用模型。 */
 
@@ -11,15 +11,21 @@ export function composeKickoff(plan: TeamPlan, subtasks: readonly Task[], nameOf
     const owner = nameOf(task.ownerBotId)
     byOwner.set(owner, [...(byOwner.get(owner) ?? []), task.title])
   }
-  const division = [...byOwner.entries()].map(([owner, titles]) => `${owner}负责${titles.join('、')}`).join('；')
-  const drafts = plan.drafts.length === 0 ? '' : `新建临时 bot：${plan.drafts.map((draft) => draft.name).join('、')}。`
+  const division = [...byOwner.entries()].map(([owner, titles]) => t('{owner}负责{titles}', { owner, titles: titles.join(t('、')) })).join(t('；'))
+  const drafts = plan.drafts.length === 0 ? '' : t('新建临时 bot：{names}。', { names: plan.drafts.map((draft) => draft.name).join(t('、')) })
   const lines = [
-    `**${plan.level === 'L3' ? '交给正式团队做' : '按临时小组做'}**：${division}。${drafts}${plan.review.owner === '' ? '' : `抽查由${plan.review.owner}负责。`}组长是${leaderName}。`,
-    plan.assumptions.length === 0 ? undefined : `**前提**：${plan.assumptions.map((item) => item.text).join('；')}`,
-    plan.conventions.length === 0 ? undefined : `**约定**：${plan.conventions.join('；')}`,
-    plan.reasons.length === 0 ? undefined : `**为什么这样分**：${plan.reasons.join('；')}`,
-    plan.deliverables.length === 0 ? undefined : `**交付物**：${plan.deliverables.join('、')}`,
-    pending ? '**谨慎档**：计划等你点“开始”才动。' : undefined,
+    t('**{mode}**：{division}。{drafts}{review}组长是{leader}。', {
+      mode: plan.level === 'L3' ? t('交给正式团队做') : t('按临时小组做'),
+      division,
+      drafts,
+      review: plan.review.owner === '' ? '' : t('抽查由{owner}负责。', { owner: plan.review.owner }),
+      leader: leaderName,
+    }),
+    plan.assumptions.length === 0 ? undefined : t('**前提**：{items}', { items: plan.assumptions.map((item) => item.text).join(t('；')) }),
+    plan.conventions.length === 0 ? undefined : t('**约定**：{items}', { items: plan.conventions.join(t('；')) }),
+    plan.reasons.length === 0 ? undefined : t('**为什么这样分**：{items}', { items: plan.reasons.join(t('；')) }),
+    plan.deliverables.length === 0 ? undefined : t('**交付物**：{items}', { items: plan.deliverables.join(t('、')) }),
+    pending ? t('**谨慎档**：计划等你点“开始”才动。') : undefined,
   ]
   return lines.filter((line): line is string => line !== undefined).join('\n\n')
 }
@@ -54,8 +60,8 @@ function resultBlock(result: TaskResult): string {
  * 要别人验收（团队子任务）时写上交给谁；单个 bot 的任务做完就是交付。
  */
 export function doneNote(task: Task, result: TaskResult, reviewer: string | undefined): string {
-  const head = reviewer === undefined ? `「${task.title}」做完了。` : `「${task.title}」做完了，交给${reviewer}验收。`
-  const files = result.files.length === 0 ? '' : `\n\n文件：${result.files.map((file) => `\`${file}\``).join('、')}`
+  const head = reviewer === undefined ? t('「{title}」做完了。', { title: task.title }) : t('「{title}」做完了，交给{reviewer}验收。', { title: task.title, reviewer })
+  const files = result.files.length === 0 ? '' : `\n\n${t('文件：{files}', { files: result.files.map((file) => `\`${file}\``).join(t('、')) })}`
   return `${head}\n\n${result.summary}${files}`
 }
 
@@ -117,6 +123,10 @@ export function changeEvent(rootTitle: string, quote: string, message: string, b
 }
 
 export function revisionLine(version: number, reason: string, added: number, dropped: number, redo: number): string {
-  const parts = [added > 0 ? `新增 ${added} 个子任务` : undefined, dropped > 0 ? `取消 ${dropped} 个` : undefined, redo > 0 ? `重做 ${redo} 个` : undefined].filter(Boolean)
-  return `计划第 ${version} 版：${parts.length === 0 ? '调整了说明' : parts.join('，')}（${reason}）`
+  const parts = [
+    added > 0 ? t('新增 {added} 个子任务', { added }) : undefined,
+    dropped > 0 ? t('取消 {dropped} 个', { dropped }) : undefined,
+    redo > 0 ? t('重做 {redo} 个', { redo }) : undefined,
+  ].filter(Boolean)
+  return t('计划第 {version} 版：{changes}（{reason}）', { version, changes: parts.length === 0 ? t('调整了说明') : parts.join(t('，')), reason })
 }

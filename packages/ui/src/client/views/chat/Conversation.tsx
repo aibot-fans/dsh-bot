@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { Bot, RoomMessage } from 'pod-domain'
+import { t, type Bot, type RoomMessage } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { Empty } from '../../components/common.tsx'
 import { useApp, useLive, useNav } from '../../state/app.ts'
@@ -50,7 +50,7 @@ export function Conversation() {
   if (room === undefined) {
     return (
       <main className="pod-convo">
-        <Empty title="正在打开和主管的对话…" />
+        <Empty title={t('正在打开和主管的对话…')} />
       </main>
     )
   }

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { t } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { pageApi } from '../../api/pages.ts'
@@ -35,11 +36,11 @@ export function PageViewer(props: { readonly pageId: string; readonly version: n
     return (
       <main className="pod-convo pod-viewer">
         {error === undefined ? (
-          <Empty title="正在打开页面…" />
+          <Empty title={t('正在打开页面…')} />
         ) : (
-          <Empty title="打不开这个页面">
+          <Empty title={t('打不开这个页面')}>
             <p className="pod-muted">{error}</p>
-            <Button onClick={() => app.closePage()}>回到对话</Button>
+            <Button onClick={() => app.closePage()}>{t('回到对话')}</Button>
           </Empty>
         )}
       </main>
@@ -61,7 +62,7 @@ export function PageViewer(props: { readonly pageId: string; readonly version: n
       .finally(() => setBusy(false))
   }
   const restore = (version: number): void => {
-    if (window.confirm(`把第 ${version} 版的内容存成新的一版？现在的版本也会留着。`)) run(pageApi.rollback(page.id, version), () => app.openPage(page.id))
+    if (window.confirm(t('把第 {version} 版的内容存成新的一版？现在的版本也会留着。', { version }))) run(pageApi.rollback(page.id, version), () => app.openPage(page.id))
   }
 
   return (
@@ -74,9 +75,9 @@ export function PageViewer(props: { readonly pageId: string; readonly version: n
       )}
       {deleted ? (
         <div className="pod-viewer-banner pod-row">
-          <span className="pod-muted pod-grow">这个页面在回收站里，30 天后彻底删除。</span>
+          <span className="pod-muted pod-grow">{t('这个页面在回收站里，30 天后彻底删除。')}</span>
           <Button small icon="restore" disabled={busy} onClick={() => run(pageApi.restore(page.id))}>
-            恢复
+            {t('恢复')}
           </Button>
         </div>
       ) : null}
@@ -84,13 +85,13 @@ export function PageViewer(props: { readonly pageId: string; readonly version: n
         <div className="pod-viewer-frame">
           <PageFrame id={page.id} version={viewing === page.version ? undefined : viewing} latest={page.version} theme={theme} title={page.title} />
         </div>
-        <aside className="pod-viewer-side" aria-label="修改和版本">
+        <aside className="pod-viewer-side" aria-label={t('修改和版本')}>
           <div className="pod-viewer-tabs" role="tablist">
             <button type="button" role="tab" aria-selected={tab === 'edit'} className={tab === 'edit' ? 'pod-panel-tab-on' : undefined} onClick={() => setTab('edit')}>
-              修改
+              {t('修改')}
             </button>
             <button type="button" role="tab" aria-selected={tab === 'versions'} className={tab === 'versions' ? 'pod-panel-tab-on' : undefined} onClick={() => setTab('versions')}>
-              版本 {versions.length}
+              {t('版本 {length}', { length: versions.length })}
             </button>
           </div>
           {tab === 'edit' ? (

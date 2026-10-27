@@ -1,4 +1,5 @@
 import { join } from 'node:path'
+import { addEnglish } from 'pod-domain'
 import { openDatabase } from 'pod-store'
 import { browserMediaRoutes, browserRoutes } from './api/browser.ts'
 import { evolutionRoutes } from './api/evolution.ts'
@@ -17,6 +18,9 @@ import { every } from './core/timers.ts'
 import { resolveConfig } from './config.ts'
 import type { HostContext } from './dsh.ts'
 import { PodRuntime } from './pod.ts'
+import { RUNTIME_EN } from './locales/en.ts'
+
+addEnglish(RUNTIME_EN)
 
 /**
  * dsh-bot 的宿主插件（代码里叫 Pod）。

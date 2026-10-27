@@ -11,6 +11,7 @@ import {
   newId,
   ok,
   parsePageDoc,
+  t,
   truncate,
   type Bot,
   type Page,
@@ -115,26 +116,26 @@ export class PageService {
   /** bot 保存页面：新建，或按 id 整份更新。内容先校验（错误带位置），图片换成页面自己存的，然后追加一版并发卡片。 */
   async save(session: PodSession, input: SaveInput): Promise<PodResult<SaveOutcome>> {
     const bot = this.deps.bots.get(session.botId)
-    if (bot === undefined) return fail('not-found', '找不到你自己')
+    if (bot === undefined) return fail('not-found', t('找不到你自己'))
     const existing = input.id === undefined ? undefined : getPage(this.db, input.id)
     if (input.id !== undefined) {
-      if (existing === undefined || existing.deletedAt !== null) return fail('not-found', `没有 id 为 ${input.id} 的页面（也可能已经删了）。新建页面不要写 id`)
-      if (!this.canSee(bot, existing)) return fail('forbidden', '这个页面不是你做的，也不在你所在的对话里，不能改')
+      if (existing === undefined || existing.deletedAt !== null) return fail('not-found', t('没有 id 为 {id} 的页面（也可能已经删了）。新建页面不要写 id', { id: input.id }))
+      if (!this.canSee(bot, existing)) return fail('forbidden', t('这个页面不是你做的，也不在你所在的对话里，不能改'))
     }
     const kind = input.kind ?? existing?.kind
-    if (kind === undefined) return fail('invalid-input', `新建页面要写 kind（${PAGE_KINDS.join(' / ')}）`)
+    if (kind === undefined) return fail('invalid-input', t('新建页面要写 kind（{PAGE_KINDS}）', { PAGE_KINDS: PAGE_KINDS.join(' / ') }))
     const title = truncate(input.title.trim() || (existing?.title ?? ''), PAGE_TITLE_MAX)
-    if (title === '') return fail('invalid-input', '新建页面要写 title')
+    if (title === '') return fail('invalid-input', t('新建页面要写 title'))
     const parsed = parsePageDoc(kind, input.content)
-    if (!parsed.ok) return fail('invalid-input', `页面内容有问题，改好再保存：\n${parsed.errors.join('\n')}`)
+    if (!parsed.ok) return fail('invalid-input', t('页面内容有问题，改好再保存：\n{errors}', { errors: parsed.errors.join('\n') }))
     const images = await resolveImages(parsed.doc, {
       workspaceRoot: this.deps.workspaceRoot,
       folders: [this.deps.folderOf(session), this.deps.workspaceRoot],
       has: (hash) => existing !== undefined && hasPageAsset(this.db, existing.id, hash),
     })
-    if (!images.ok) return fail('invalid-input', `图片有问题：\n${images.errors.join('\n')}`)
+    if (!images.ok) return fail('invalid-input', t('图片有问题：\n{errors}', { errors: images.errors.join('\n') }))
     const bytes = Buffer.byteLength(JSON.stringify(images.doc))
-    if (bytes > PAGE_DOC_MAX_BYTES) return fail('invalid-input', `页面内容有 ${(bytes / 1_000_000).toFixed(1)} MB，最多 ${PAGE_DOC_MAX_BYTES / 1_000_000} MB：拆成几个页面，或者把大表格存成文件`)
+    if (bytes > PAGE_DOC_MAX_BYTES) return fail('invalid-input', t('页面内容有 {bytes} MB，最多 {PAGE_DOC_MAX_BYTES} MB：拆成几个页面，或者把大表格存成文件', { bytes: (bytes / 1_000_000).toFixed(1), PAGE_DOC_MAX_BYTES: PAGE_DOC_MAX_BYTES / 1_000_000 }))
     const now = this.deps.now()
     const source: PageSource = session.kind === 'routine' ? 'routine' : 'bot'
     const note = truncate(input.note.trim(), PAGE_NOTE_MAX)
@@ -156,7 +157,7 @@ export class PageService {
       this.deps.rooms.post(home, {
         author: bot.id,
         kind: 'page',
-        body: created ? `新建了${PAGE_KIND_LABELS[kind]}「${title}」` : `更新了${PAGE_KIND_LABELS[kind]}「${title}」，现在是第 ${page.version} 版`,
+        body: created ? t('新建了{PAGE_KIND_LABELS}「{title}」', { PAGE_KIND_LABELS: t(PAGE_KIND_LABELS[kind]), title }) : t('更新了{PAGE_KIND_LABELS}「{title}」，现在是第 {version} 版', { PAGE_KIND_LABELS: t(PAGE_KIND_LABELS[kind]), title, version: page.version }),
         data: { pageId: page.id, version: page.version, kind, title, note, summary, created },
         sessionId: session.id,
       })
@@ -197,7 +198,8 @@ export class PageService {
     const found = getPageVersion(this.db, page.id, version ?? page.version)
     if (found === undefined) return undefined
     const assets = new Map(listPageAssets(this.db, page.id, assetHashes(found.doc)).map((asset) => [asset.hash, `data:${asset.mime};base64,${Buffer.from(asset.data).toString('base64')}`]))
-    const meta = `第 ${found.version} 版 · ${this.stamp(found.createdAt)}${found.version === page.version ? '' : `（最新是第 ${page.version} 版）`}`
+    const latest = found.version === page.version ? '' : t('（最新是第 {version} 版）', { version: page.version })
+    const meta = t('第 {version} 版 · {time}{latest}', { version: found.version, time: this.stamp(found.createdAt), latest })
     return { page, version: found, assets, meta }
   }
 

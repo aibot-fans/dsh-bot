@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { BOT_PERSONA_MAX, CARD_FIELD_MAX, TOOL_PROFILE_LABELS, botThreads, type Bot, type BotCard, type ModelChoice, type NotifyLevel, type ToolProfile } from 'pod-domain'
+import { BOT_PERSONA_MAX, CARD_FIELD_MAX, TOOL_PROFILE_LABELS, botThreads, inputLimit, t, type Bot, type BotCard, type ModelChoice, type NotifyLevel, type ToolProfile } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { Button, Segmented, Switch } from '../../components/common.tsx'
@@ -105,12 +105,12 @@ export function BotDetails(props: { readonly bot: Bot }) {
     <div className="pod-stack">
       {problem === undefined ? null : <p className="pod-form-error">{problem}</p>}
       <Section
-        title="角色卡"
-        hint={`别的 bot 靠它判断什么事找${bot.name}`}
+        title={t('角色卡')}
+        hint={t('别的 bot 靠它判断什么事找{name}', { name: bot.name })}
         action={
           editingCard ? null : (
             <Button small kind="quiet" icon="edit" onClick={() => setEditingCard(true)}>
-              编辑
+              {t('编辑')}
             </Button>
           )
         }
@@ -119,13 +119,13 @@ export function BotDetails(props: { readonly bot: Bot }) {
           <div className="pod-stack pod-box-pad">
             {CARD_FIELDS.map(([key, label, placeholder]) => (
               <label key={key} className="pod-field">
-                <span>{label}</span>
-                <input className="pod-input" value={card[key]} maxLength={CARD_FIELD_MAX} placeholder={placeholder} onChange={(event) => setCard({ ...card, [key]: event.target.value })} />
+                <span>{t(label)}</span>
+                <input className="pod-input" value={card[key]} maxLength={inputLimit(CARD_FIELD_MAX)} placeholder={t(placeholder)} onChange={(event) => setCard({ ...card, [key]: event.target.value })} />
               </label>
             ))}
             <div className="pod-row">
               <Button small kind="primary" onClick={() => save({ card }, () => setEditingCard(false))}>
-                保存
+                {t('保存')}
               </Button>
               <Button
                 small
@@ -135,35 +135,35 @@ export function BotDetails(props: { readonly bot: Bot }) {
                   setEditingCard(false)
                 }}
               >
-                取消
+                {t('取消')}
               </Button>
             </div>
           </div>
         ) : (
           CARD_FIELDS.map(([key, label]) => (
             <div key={key} className="pod-kv">
-              <span>{label}</span>
-              <span>{bot.card[key] === '' ? <span className="pod-muted-inline">没写</span> : bot.card[key]}</span>
+              <span>{t(label)}</span>
+              <span>{bot.card[key] === '' ? <span className="pod-muted-inline">{t('没写')}</span> : bot.card[key]}</span>
             </div>
           ))
         )}
       </Section>
       <Section
-        title="人设"
+        title={t('人设')}
         action={
           editingPersona ? null : (
             <Button small kind="quiet" icon="edit" onClick={() => setEditingPersona(true)}>
-              编辑
+              {t('编辑')}
             </Button>
           )
         }
       >
         {editingPersona ? (
           <div className="pod-stack pod-box-pad">
-            <textarea className="pod-textarea" rows={8} value={persona} maxLength={BOT_PERSONA_MAX} onChange={(event) => setPersona(event.target.value)} />
+            <textarea className="pod-textarea" rows={8} value={persona} maxLength={inputLimit(BOT_PERSONA_MAX)} onChange={(event) => setPersona(event.target.value)} />
             <div className="pod-row">
               <Button small kind="primary" onClick={() => save({ persona }, () => setEditingPersona(false))}>
-                保存
+                {t('保存')}
               </Button>
               <Button
                 small
@@ -173,31 +173,31 @@ export function BotDetails(props: { readonly bot: Bot }) {
                   setEditingPersona(false)
                 }}
               >
-                取消
+                {t('取消')}
               </Button>
-              <span className="pod-muted-inline">从下一段对话开始生效</span>
+              <span className="pod-muted-inline">{t('从下一段对话开始生效')}</span>
             </div>
           </div>
         ) : (
           <div className="pod-box-pad">
             <p className="pod-persona-text">{bot.persona}</p>
-            <span className="pod-muted-inline">{PERSONA_SOURCE[bot.personaSource]}</span>
+            <span className="pod-muted-inline">{t(PERSONA_SOURCE[bot.personaSource])}</span>
           </div>
         )}
       </Section>
-      <Section title="怎么干活">
+      <Section title={t('怎么干活')}>
         <div className="pod-kv">
-          <span>模型</span>
+          <span>{t('模型')}</span>
           <select
             className="pod-input"
-            aria-label="模型"
+            aria-label={t('模型')}
             value={modelKey(bot.model)}
             onChange={(event) => {
               const [provider, model] = event.target.value.split('::')
               save({ model: provider === undefined || model === undefined || event.target.value === '' ? null : { provider, model } })
             }}
           >
-            <option value="">跟随默认{catalog === undefined ? '' : `（${catalog.default.model}）`}</option>
+            <option value="">{t('跟随默认{value}', { value: catalog === undefined ? '' : t('（{model}）', { model: catalog.default.model }) })}</option>
             {(catalog?.groups ?? []).map((group) => (
               <optgroup key={group.id} label={group.name}>
                 {group.models.map((model) => (
@@ -210,68 +210,68 @@ export function BotDetails(props: { readonly bot: Bot }) {
           </select>
         </div>
         <div className="pod-kv">
-          <span>思考</span>
+          <span>{t('思考')}</span>
           {bot.model === null || efforts.length < 2 ? (
-            <span className="pod-muted-inline">{bot.model === null ? '跟随默认模型；自我优化会按效果调' : '这个模型不分思考强度'}</span>
+            <span className="pod-muted-inline">{bot.model === null ? t('跟随默认模型；自我优化会按效果调') : t('这个模型不分思考强度')}</span>
           ) : (
             <Segmented
               value={bot.model.reasoningEffort ?? ''}
-              options={[['', '跟随模型'] as const, ...efforts.map((effort) => [effort.id, effort.label ?? effort.name ?? effort.id] as const)]}
+              options={[['', t('跟随模型')] as const, ...efforts.map((effort) => [effort.id, effort.label ?? effort.name ?? effort.id] as const)]}
               onChange={(effort) => save({ model: { provider: bot.model?.provider, model: bot.model?.model, ...(effort === '' ? {} : { reasoningEffort: effort }) } })}
-              label="思考强度"
+              label={t('思考强度')}
             />
           )}
         </div>
         <div className="pod-kv pod-kv-top">
-          <span>工具</span>
+          <span>{t('工具')}</span>
           <span className="pod-stack-tight">
             <Segmented
               value={bot.toolProfile}
-              options={(Object.keys(TOOL_PROFILE_LABELS) as ToolProfile[]).map((profile) => [profile, TOOL_PROFILE_LABELS[profile]] as const)}
+              options={(Object.keys(TOOL_PROFILE_LABELS) as ToolProfile[]).map((profile) => [profile, t(TOOL_PROFILE_LABELS[profile])] as const)}
               onChange={(toolProfile) => save({ toolProfile })}
-              label="工具档案"
+              label={t('工具档案')}
             />
             <span className="pod-muted-inline">{PROFILE_HINTS[bot.toolProfile]}</span>
           </span>
         </div>
         {lead ? null : (
           <div className="pod-kv">
-            <span>临时</span>
+            <span>{t('临时')}</span>
             <span className="pod-row">
-              <span className="pod-muted-inline pod-grow">打开后，任务结束就自动删除（30 天内可以恢复）</span>
-              <Switch checked={bot.temporary} label="临时 bot" onChange={(temporary) => save({ temporary })} />
+              <span className="pod-muted-inline pod-grow">{t('打开后，任务结束就自动删除（30 天内可以恢复）')}</span>
+              <Switch checked={bot.temporary} label={t('临时 bot')} onChange={(temporary) => save({ temporary })} />
             </span>
           </div>
         )}
       </Section>
       <section className="pod-box">
-        <Entry label="记忆" value={memories === undefined ? '' : `${memories.filter((entry) => entry.status !== 'archived').length} 条`} onClick={() => app.openDrawer({ kind: 'memory', scope: 'bot', scopeId: bot.id, label: `${bot.name}的记忆` })} />
-        <Entry label="技能" value={`${ownSkills.length} 个`} onClick={() => app.openDrawer({ kind: 'skills', botId: bot.id })} />
-        <Entry label="成长记录" value={changes.length === 0 ? '还没有调整' : `${changes.length} 次调整，可撤回`} onClick={() => app.openDrawer({ kind: 'growth', botId: bot.id })} />
-        <Entry label="历史版本" value="每次改设定都留一版" onClick={() => app.openDrawer({ kind: 'versions', botId: bot.id })} />
+        <Entry label={t('记忆')} value={memories === undefined ? '' : t('{length} 条', { length: memories.filter((entry) => entry.status !== 'archived').length })} onClick={() => app.openDrawer({ kind: 'memory', scope: 'bot', scopeId: bot.id, label: t('{name}的记忆', { name: bot.name }) })} />
+        <Entry label={t('技能')} value={t('{length} 个', { length: ownSkills.length })} onClick={() => app.openDrawer({ kind: 'skills', botId: bot.id })} />
+        <Entry label={t('成长记录')} value={changes.length === 0 ? t('还没有调整') : t('{length} 次调整，可撤回', { length: changes.length })} onClick={() => app.openDrawer({ kind: 'growth', botId: bot.id })} />
+        <Entry label={t('历史版本')} value={t('每次改设定都留一版')} onClick={() => app.openDrawer({ kind: 'versions', botId: bot.id })} />
         {groups.map((room) => (
-          <Entry key={room.id} label="所在群聊" value={room.title} onClick={() => app.openRoom(room.id)} />
+          <Entry key={room.id} label={t('所在群聊')} value={room.title} onClick={() => app.openRoom(room.id)} />
         ))}
       </section>
       {direct === undefined ? null : (
-        <Section title="单聊">
+        <Section title={t('单聊')}>
           <div className="pod-kv">
-            <span>消息提醒</span>
-            <Segmented value={direct.notifyLevel} options={NOTIFY} onChange={(notifyLevel) => eachThread((roomId) => api.updateRoom(roomId, { notifyLevel }))} label="单聊的消息提醒" />
+            <span>{t('消息提醒')}</span>
+            <Segmented value={direct.notifyLevel} options={NOTIFY.map(([value, label]) => [value, t(label)] as const)} onChange={(notifyLevel) => eachThread((roomId) => api.updateRoom(roomId, { notifyLevel }))} label={t('单聊的消息提醒')} />
           </div>
           <div className="pod-kv">
-            <span>聊天记录</span>
+            <span>{t('聊天记录')}</span>
             <span className="pod-row">
-              <span className="pod-muted-inline pod-grow">{threads.length > 1 ? `${threads.length} 段对话，` : ''}删掉消息，{bot.name}和它的记忆保留</span>
+              <span className="pod-muted-inline pod-grow">{t('{value}删掉消息，{name}和它的记忆保留', { value: threads.length > 1 ? t('{length} 段对话，', { length: threads.length }) : '', name: bot.name })}</span>
               <Button
                 small
                 kind="quiet"
                 onClick={() => {
-                  if (!window.confirm(`删除和「${bot.name}」的聊天记录？${threads.length > 1 ? `${threads.length} 段对话的` : ''}消息会全部删掉，${bot.name} 本身和它的记忆保留。`)) return
+                  if (!window.confirm(t('删除和「{name}」的聊天记录？{value}消息会全部删掉，{name} 本身和它的记忆保留。', { name: bot.name, value: threads.length > 1 ? t('{length} 段对话的', { length: threads.length }) : '' }))) return
                   eachThread((roomId) => api.clearRoom(roomId))
                 }}
               >
-                删除聊天记录
+                {t('删除聊天记录')}
               </Button>
             </span>
           </div>
@@ -283,7 +283,7 @@ export function BotDetails(props: { readonly bot: Bot }) {
             kind="danger"
             small
             onClick={() => {
-              if (!window.confirm(`删除「${bot.name}」？它的设定、记忆和聊天记录先放进回收站，30 天内可以在设置里恢复。`)) return
+              if (!window.confirm(t('删除「{name}」？它的设定、记忆和聊天记录先放进回收站，30 天内可以在设置里恢复。', { name: bot.name }))) return
               api
                 .archiveBot(bot.id)
                 .then(() => {
@@ -293,9 +293,9 @@ export function BotDetails(props: { readonly bot: Bot }) {
                 .catch((reason: unknown) => setProblem(errorText(reason)))
             }}
           >
-            删除这个 bot
+            {t('删除这个 bot')}
           </Button>
-          <span className="pod-muted-inline">30 天内可以在回收站恢复</span>
+          <span className="pod-muted-inline">{t('30 天内可以在回收站恢复')}</span>
         </div>
       )}
     </div>

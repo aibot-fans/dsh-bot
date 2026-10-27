@@ -1,4 +1,4 @@
-import type { BoardBlock, Cell, HeatmapBlock, MetricsBlock, ProgressBlock, StepStatus, TableBlock, TableColumn, TimelineBlock } from 'pod-domain'
+import { intlLocale, t, type BoardBlock, type Cell, type HeatmapBlock, type MetricsBlock, type ProgressBlock, type StepStatus, type TableBlock, type TableColumn, type TimelineBlock } from 'pod-domain'
 import { sparkline } from './charts.ts'
 import { compact, esc, full } from './html.ts'
 import { inline } from './markdown.ts'
@@ -50,7 +50,7 @@ function cellHtml(cell: Cell, column: TableColumn): { readonly html: string; rea
     case 'number':
       return { html: esc(number === null ? cell : full(number)), sort: String(number ?? cell) }
     case 'money':
-      return { html: esc(number === null ? cell : number.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })), sort: String(number ?? cell) }
+      return { html: esc(number === null ? cell : number.toLocaleString(intlLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })), sort: String(number ?? cell) }
     case 'percent':
       return { html: esc(number === null ? cell : `${full(number)}%`), sort: String(number ?? cell) }
     case 'progress': {
@@ -88,7 +88,7 @@ export function renderMetrics(block: MetricsBlock): string {
 }
 
 export function renderTimeline(block: TimelineBlock): string {
-  const items = block.items.map((item) => `<li class="tl-item tl-${item.status}"><span class="tl-dot" aria-hidden="true"></span><div class="tl-date">${esc(item.date)}</div><div class="tl-body"><div class="tl-title">${esc(item.title)} ${statusBadge(STEP_LABELS[item.status], STEP_TONES[item.status])}</div>${item.note === '' ? '' : `<div class="tl-note">${inline(item.note)}</div>`}</div></li>`)
+  const items = block.items.map((item) => `<li class="tl-item tl-${item.status}"><span class="tl-dot" aria-hidden="true"></span><div class="tl-date">${esc(item.date)}</div><div class="tl-body"><div class="tl-title">${esc(item.title)} ${statusBadge(t(STEP_LABELS[item.status]), STEP_TONES[item.status])}</div>${item.note === '' ? '' : `<div class="tl-note">${inline(item.note)}</div>`}</div></li>`)
   return `${titled(block.title)}<ol class="timeline">${items.join('')}</ol>`
 }
 

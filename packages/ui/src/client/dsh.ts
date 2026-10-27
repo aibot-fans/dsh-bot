@@ -38,6 +38,12 @@ export interface UiWorkspace {
   openSession(sessionId: string): void
 }
 
+/** dsh-client-locale 提供的 ctx.locale：dsh 现在的界面语言和变化通知。 */
+export interface LocaleRuntime {
+  getLocale(): { readonly active: string }
+  subscribe(listener: () => void): Disposer
+}
+
 export interface ClientContext {
   effect(execute: () => Disposer, label?: string): unknown
   get(name: string): unknown

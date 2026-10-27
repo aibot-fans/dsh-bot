@@ -1,4 +1,4 @@
-import { BOT_ICON_LABELS, BOT_ICON_SET, avatarIcon, guessBotIcon, type Bot, type BotIconKind } from 'pod-domain'
+import { BOT_ICON_LABELS, BOT_ICON_SET, avatarIcon, guessBotIcon, t, type Bot, type BotIconKind } from 'pod-domain'
 import { mediaUrl } from '../api/http.ts'
 
 /** 画图标要用到的 bot 字段；只给了名字和头像时也能猜个大概。 */
@@ -87,12 +87,12 @@ export function IconChoices(props: { readonly kinds: readonly BotIconKind[]; rea
             type="button"
             className={`pod-icon-pick${on ? ' pod-icon-pick-on' : ''}`}
             aria-pressed={on}
-            aria-label={`${BOT_ICON_LABELS[kind]}图标${on ? '（当前）' : ''}`}
-            title={BOT_ICON_LABELS[kind]}
+            aria-label={t('{label}图标{value}', { label: t(BOT_ICON_LABELS[kind]), value: on ? t('（当前）') : '' })}
+            title={t(BOT_ICON_LABELS[kind])}
             onClick={() => props.onPick(kind)}
           >
             <BotFigure kind={kind} size={56} />
-            <span className="pod-icon-pick-label">{BOT_ICON_LABELS[kind]}</span>
+            <span className="pod-icon-pick-label">{t(BOT_ICON_LABELS[kind])}</span>
           </button>
         )
       })}

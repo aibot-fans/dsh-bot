@@ -1,6 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
 import {
-  TEAM_TEMPLATES,
   type TeamTemplate,
   fail,
   newId,
@@ -12,6 +11,8 @@ import {
   readObject,
   readString,
   readStringArray,
+  t,
+  teamTemplates,
   truncate,
   type PodResult,
   type Team,
@@ -74,11 +75,11 @@ export class TeamService {
   /** 新建团队。团队不再单独建“团队记录”房间：每个任务只有一个群聊，团队的任务各自建群。 */
   createTeam(input: { readonly name: string; readonly description: string; readonly leaderBotId: string; readonly memberIds: readonly string[]; readonly temporary: boolean }, actor: string): PodResult<Team> {
     const name = truncate(input.name.trim(), 24)
-    if (name === '') return fail('invalid-input', '团队要有名字')
-    if (this.deps.bots.activeBot(input.leaderBotId) === undefined) return fail('not-found', '找不到组长')
+    if (name === '') return fail('invalid-input', t('团队要有名字'))
+    if (this.deps.bots.activeBot(input.leaderBotId) === undefined) return fail('not-found', t('找不到组长'))
     const unknown = input.memberIds.filter((id) => this.deps.bots.activeBot(id) === undefined)
-    if (unknown.length > 0) return fail('not-found', `找不到成员：${unknown.join('、')}`)
-    if (this.list().some((team) => team.name === name)) return fail('conflict', `已经有叫「${name}」的团队`)
+    if (unknown.length > 0) return fail('not-found', t('找不到成员：{unknown}', { unknown: unknown.join(t('、')) }))
+    if (this.list().some((team) => team.name === name)) return fail('conflict', t('已经有叫「{name}」的团队', { name }))
     const now = this.deps.now()
     const team = insertTeam(this.db, { id: newId('team'), name, description: input.description, leaderBotId: input.leaderBotId, memberIds: input.memberIds, temporary: input.temporary, now })
     return ok(this.changed(team, 'team.create', actor))
@@ -87,7 +88,7 @@ export class TeamService {
   /** 页面上的新建：{ name, description, leaderBotId, memberIds }。 */
   create(input: unknown, actor = 'owner'): PodResult<Team> {
     const leaderBotId = readId(input, 'leaderBotId')
-    if (leaderBotId === undefined) return fail('invalid-input', '要选一个组长')
+    if (leaderBotId === undefined) return fail('invalid-input', t('要选一个组长'))
     return this.createTeam(
       {
         name: readString(input, 'name'),
@@ -103,12 +104,12 @@ export class TeamService {
   /** 修改名字、组长、成员、档位、默认模型：{ id, patch }。 */
   update(input: unknown, actor = 'owner'): PodResult<Team> {
     const id = readId(input, 'id')
-    if (id === undefined) return fail('invalid-input', '缺少团队 id')
+    if (id === undefined) return fail('invalid-input', t('缺少团队 id'))
     const current = this.get(id)
-    if (current === undefined || current.archivedAt !== null) return fail('not-found', '找不到这个团队')
+    if (current === undefined || current.archivedAt !== null) return fail('not-found', t('找不到这个团队'))
     const raw = readObject(input, 'patch')
     const leader = readId(raw, 'leaderBotId')
-    if (leader !== undefined && this.deps.bots.activeBot(leader) === undefined) return fail('not-found', '找不到新组长')
+    if (leader !== undefined && this.deps.bots.activeBot(leader) === undefined) return fail('not-found', t('找不到新组长'))
     const model = parseModelChoice((raw as Readonly<Record<string, unknown>> | undefined)?.model)
     if (!model.ok) return fail('invalid-input', model.message)
     const autonomyRaw = (raw as Readonly<Record<string, unknown>> | undefined)?.autonomy
@@ -134,23 +135,23 @@ export class TeamService {
 
   archive(input: unknown, actor = 'owner'): PodResult<Team> {
     const id = readId(input, 'id')
-    if (id === undefined) return fail('invalid-input', '缺少团队 id')
+    if (id === undefined) return fail('invalid-input', t('缺少团队 id'))
     const archived = updateTeam(this.db, id, { archivedAt: this.deps.now() }, this.deps.now())
-    return archived === undefined ? fail('not-found', '找不到这个团队') : ok(this.changed(archived, 'team.archive', actor))
+    return archived === undefined ? fail('not-found', t('找不到这个团队')) : ok(this.changed(archived, 'team.archive', actor))
   }
 
   restore(input: unknown, actor = 'owner'): PodResult<Team> {
     const id = readId(input, 'id')
-    if (id === undefined) return fail('invalid-input', '缺少团队 id')
+    if (id === undefined) return fail('invalid-input', t('缺少团队 id'))
     const restored = updateTeam(this.db, id, { archivedAt: null }, this.deps.now())
-    return restored === undefined ? fail('not-found', '找不到这个团队') : ok(this.changed(restored, 'team.restore', actor))
+    return restored === undefined ? fail('not-found', t('找不到这个团队')) : ok(this.changed(restored, 'team.restore', actor))
   }
 
   private extraTemplates: readonly TeamTemplate[] = []
 
   /** 内置模板加上其他插件注册的模板（ctx.pod.registerTemplate）。 */
   templates(): readonly TeamTemplate[] {
-    return [...TEAM_TEMPLATES, ...this.extraTemplates]
+    return [...teamTemplates(), ...this.extraTemplates]
   }
 
   registerTemplate(template: TeamTemplate): () => void {
@@ -165,9 +166,9 @@ export class TeamService {
   fromTemplate(input: unknown, actor = 'owner'): PodResult<Team> {
     const templateId = readId(input, 'templateId')
     const template = this.templates().find((item) => item.id === templateId)
-    if (template === undefined) return fail('not-found', '没有这个模板')
+    if (template === undefined) return fail('not-found', t('没有这个模板'))
     const name = readString(input, 'name') || template.name
-    if (this.list().some((team) => team.name === name)) return fail('conflict', `已经有叫「${name}」的团队，换个名字`)
+    if (this.list().some((team) => team.name === name)) return fail('conflict', t('已经有叫「{name}」的团队，换个名字', { name }))
     const created = template.members.map((member) => {
       const existing = this.deps.bots.active().find((bot) => bot.name === member.name)
       const bot =
@@ -182,12 +183,12 @@ export class TeamService {
             toolProfile: member.toolProfile,
             temporary: false,
           },
-          { source: actor === 'owner' ? 'user' : 'lead', actor, reason: `按「${template.name}」模板新建` },
+          { source: actor === 'owner' ? 'user' : 'lead', actor, reason: t('按「{name}」模板新建', { name: template.name }) },
         )
       return { bot, leader: member.leader === true }
     })
     const leader = created.find((item) => item.leader) ?? created[0]
-    if (leader === undefined) return fail('internal', '模板里没有成员')
+    if (leader === undefined) return fail('internal', t('模板里没有成员'))
     return this.createTeam(
       {
         name,

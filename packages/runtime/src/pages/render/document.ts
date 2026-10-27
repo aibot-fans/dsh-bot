@@ -1,4 +1,4 @@
-import { POSTER_DIMENSIONS, type PageDoc, type PageKind } from 'pod-domain'
+import { POSTER_DIMENSIONS, intlLocale, type PageDoc, type PageKind } from 'pod-domain'
 import { esc } from './html.ts'
 import { KIT_HASH, KIT_SCRIPT } from './kit.ts'
 import { layout, type RenderMode } from './layouts.ts'
@@ -69,5 +69,5 @@ export function renderPage(input: RenderPageInput): string {
   const meta = csp === '' ? '' : `<meta http-equiv="Content-Security-Policy" content="${esc(csp)}">`
   const script = input.mode === 'export' ? '' : `<script>${KIT_SCRIPT}</script>`
   const css = [TOKENS_CSS, BASE_CSS, kindCss(input.kind), pageRule(input.kind, input.doc)].join('\n')
-  return `<!doctype html><html lang="zh-CN"${theme} data-accent="${input.doc.accent}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${meta}<title>${esc(input.title)}</title><style>${css}</style></head><body class="mode-${input.mode} kind-${input.kind}">${body}${script}</body></html>`
+  return `<!doctype html><html lang="${intlLocale()}"${theme} data-accent="${input.doc.accent}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${meta}<title>${esc(input.title)}</title><style>${css}</style></head><body class="mode-${input.mode} kind-${input.kind}">${body}${script}</body></html>`
 }

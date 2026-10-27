@@ -1,9 +1,10 @@
-import { ZERO_USAGE, type Usage } from 'pod-domain'
+import { ZERO_USAGE, currentLanguage, withLanguage, type Usage } from 'pod-domain'
 import type { LlmService, ModelSelection, UserMessage } from '../dsh.ts'
 
 /**
  * 轻量调用：摘要、记忆提取、交接笔记、写操作复核这类不需要 agent 循环的单次请求。
  * 直接走 ctx.llm，仍然用 dsh 配置的模型服务和凭据；默认取模型支持的最低推理档位。
+ * 界面是英文时补一句语言说明，写出来给人看的东西（记忆、交接笔记、复盘）也用英文。
  */
 
 export interface LiteRequest {
@@ -95,7 +96,7 @@ export class LiteLlm {
     const stream = call.stream({
       ...call.config,
       messages: [message],
-      system: request.system,
+      system: withLanguage(request.system, currentLanguage()),
       ...(request.signal === undefined ? {} : { signal: request.signal }),
     })
     for await (const chunk of stream) {

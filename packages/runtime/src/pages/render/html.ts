@@ -1,3 +1,5 @@
+import { currentLanguage, intlLocale } from 'pod-domain'
+
 /** 拼 HTML 用的小工具：所有来自 bot 的文字都要先转义。 */
 
 const ESCAPES: Readonly<Record<string, string>> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
@@ -27,9 +29,15 @@ export function link(href: string, text: string): string {
   return `<a href="${esc(href)}" rel="noopener noreferrer" target="_blank">${text}</a>`
 }
 
-/** 大数字按中文习惯缩写：万、亿。 */
+/** 大数字缩写：中文按万、亿，英文按 K、M、B。 */
 export function compact(value: number): string {
   const abs = Math.abs(value)
+  if (currentLanguage() === 'en') {
+    if (abs >= 1e9) return `${trim(value / 1e9)}B`
+    if (abs >= 1e6) return `${trim(value / 1e6)}M`
+    if (abs >= 1e4) return `${trim(value / 1e3)}K`
+    return trim(value)
+  }
   if (abs >= 1e8) return `${trim(value / 1e8)}亿`
   if (abs >= 1e4) return `${trim(value / 1e4)}万`
   return trim(value)
@@ -37,12 +45,12 @@ export function compact(value: number): string {
 
 function trim(value: number): string {
   const digits = Math.abs(value) >= 100 ? 0 : Math.abs(value) >= 10 ? 1 : 2
-  return Number(value.toFixed(digits)).toLocaleString('zh-CN', { maximumFractionDigits: digits })
+  return Number(value.toFixed(digits)).toLocaleString(intlLocale(), { maximumFractionDigits: digits })
 }
 
 /** 表格和提示里的完整数字：千分位，最多两位小数。 */
 export function full(value: number): string {
-  return value.toLocaleString('zh-CN', { maximumFractionDigits: 2 })
+  return value.toLocaleString(intlLocale(), { maximumFractionDigits: 2 })
 }
 
 /** 坐标轴刻度：取整齐的数（1、2、5 乘 10 的幂）。 */

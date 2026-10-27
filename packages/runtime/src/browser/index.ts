@@ -2,7 +2,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { mkdir, rename } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { extname, basename, join } from 'node:path'
-import type { PodSession, PodSettings } from 'pod-domain'
+import { t, type PodSession, type PodSettings } from 'pod-domain'
 import type { Dispatcher } from '../agents/dispatcher.ts'
 import type { SessionRegistry } from '../agents/registry.ts'
 import type { Auditor } from '../core/audit.ts'
@@ -84,7 +84,7 @@ export function createBrowserKit(deps: BrowserKitDeps): BrowserKit {
       const target = freeName(folder, filename)
       await rename(tempPath, target)
       tab.note(`下载完成：${target}`)
-      tab.record(`下载了 ${basename(target)}`)
+      tab.record(t('下载了 {basename}', { basename: basename(target) }))
       browser.emit(tab.id)
     },
   })

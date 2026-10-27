@@ -4,6 +4,7 @@ import { mkdir } from 'node:fs/promises'
 import { arch, homedir, release } from 'node:os'
 import { join } from 'node:path'
 import type { Readable, Writable } from 'node:stream'
+import { t } from 'pod-domain'
 import { CdpConnection } from './cdp.ts'
 import type { TabIdentity } from './tab.ts'
 
@@ -117,8 +118,8 @@ export async function launchChrome(executable: string, profileDir: string): Prom
   })
   const connection = new CdpConnection(child.stdio[3] as Writable, child.stdio[4] as Readable)
   const exited = new Promise<never>((_, reject) => {
-    child.once('error', (error) => reject(new Error(`Chrome 启动失败：${error.message}`)))
-    child.once('exit', (code) => reject(new Error(`Chrome 启动后退出了（${code ?? '信号'}）：${stderr.trim().split('\n').slice(-3).join(' ')}`)))
+    child.once('error', (error) => reject(new Error(t('Chrome 启动失败：{message}', { message: error.message }))))
+    child.once('exit', (code) => reject(new Error(t('Chrome 启动后退出了（{code}）：{output}', { code: code ?? t('信号'), output: stderr.trim().split('\n').slice(-3).join(' ') }))))
   })
   exited.catch(() => undefined)
   try {

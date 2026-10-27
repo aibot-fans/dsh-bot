@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { PRIORITY, TASK_STATUS_LABELS, formatCost, nextDailyAt, type PodSettings, type Task, type Wait } from 'pod-domain'
+import { PRIORITY, TASK_STATUS_LABELS, formatCost, nextDailyAt, t, type PodSettings, type Task, type Wait } from 'pod-domain'
 import { readState, writeState } from 'pod-store'
 import type { Dispatcher } from '../agents/dispatcher.ts'
 import { noticeSource } from '../agents/messages.ts'
@@ -67,7 +67,7 @@ export class DailyBrief {
     const session = await this.deps.leadSession()
     if (session === undefined) return false
     const text = compose(this.deps.data())
-    this.deps.dispatcher.enqueue({ sessionId: session.id, mode: 'followup', priority: PRIORITY.routine, text, source: noticeSource('每日简报') })
+    this.deps.dispatcher.enqueue({ sessionId: session.id, mode: 'followup', priority: PRIORITY.routine, text, source: noticeSource(t('每日简报')) })
     this.deps.notified()
     return true
   }

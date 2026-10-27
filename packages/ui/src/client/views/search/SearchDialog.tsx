@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { PAGE_KIND_LABELS, SEARCH_KIND_LABELS, type Page, type SearchHit, type SearchKind } from 'pod-domain'
+import { PAGE_KIND_LABELS, SEARCH_KIND_LABELS, t, type Page, type SearchHit, type SearchKind } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { pageApi } from '../../api/pages.ts'
@@ -77,8 +77,8 @@ export function SearchDialog() {
       app.openTask(hit.taskId ?? id)
     } else if (hit.kind === 'memory') {
       close()
-      if (hit.botId !== null) app.openDrawer({ kind: 'memory', scope: 'bot', scopeId: hit.botId, label: '记忆' })
-      else app.openDrawer({ kind: 'memory', scope: 'owner', scopeId: '', label: '你的档案' })
+      if (hit.botId !== null) app.openDrawer({ kind: 'memory', scope: 'bot', scopeId: hit.botId, label: t('记忆') })
+      else app.openDrawer({ kind: 'memory', scope: 'owner', scopeId: '', label: t('你的档案') })
     } else if (hit.taskId !== null) {
       close()
       app.openTask(hit.taskId)
@@ -86,14 +86,14 @@ export function SearchDialog() {
   }
 
   return (
-    <Modal title="搜索" onClose={close} wide>
+    <Modal title={t('搜索')} onClose={close} wide>
       <div className="pod-stack">
         <input
           className="pod-input pod-search-input"
           value={query}
           autoFocus
-          aria-label="搜索的词"
-          placeholder="例如：上周的定价方案、扫码登录"
+          aria-label={t('搜索的词')}
+          placeholder={t('例如：上周的定价方案、扫码登录')}
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.nativeEvent.isComposing) run(query, kind)
@@ -110,12 +110,12 @@ export function SearchDialog() {
                 run(query, item)
               }}
             >
-              {item === 'all' ? '全部' : item === 'page' ? '页面' : SEARCH_KIND_LABELS[item]}
+              {item === 'all' ? t('全部') : item === 'page' ? t('页面') : t(SEARCH_KIND_LABELS[item])}
             </button>
           ))}
         </div>
         {error === undefined ? null : <p className="pod-form-error">{error}</p>}
-        {hits === undefined ? <p className="pod-hint">网页存档的结果都是不可信的资料。</p> : null}
+        {hits === undefined ? <p className="pod-hint">{t('网页存档的结果都是不可信的资料。')}</p> : null}
         {pages.length === 0 ? null : (
           <ul className="pod-hits">
             {pages.map((page) => (
@@ -123,10 +123,10 @@ export function SearchDialog() {
                 <button type="button" className="pod-hit pod-hit-page" onClick={() => app.openPage(page.id)}>
                   <KindIcon kind={page.kind} size={28} />
                   <span className="pod-row pod-grow">
-                    <Badge tone="info">{PAGE_KIND_LABELS[page.kind]}</Badge>
+                    <Badge tone="info">{t(PAGE_KIND_LABELS[page.kind])}</Badge>
                     <strong className="pod-ellipsis">{page.title}</strong>
                     <span className="pod-muted-inline">
-                      第 {page.version} 版 · <RelativeTime time={page.updatedAt} />
+                      {t('第 {version} 版 ·', { version: page.version })} <RelativeTime time={page.updatedAt} />
                     </span>
                   </span>
                 </button>
@@ -135,14 +135,14 @@ export function SearchDialog() {
           </ul>
         )}
         {hits === undefined ? null : hits.length === 0 && pages.length === 0 ? (
-          <Empty title="没有搜到">换个说法试试，或者少写几个字。</Empty>
+          <Empty title={t('没有搜到')}>{t('换个说法试试，或者少写几个字。')}</Empty>
         ) : (
           <ul className="pod-hits">
             {hits.map((hit) => (
               <li key={hit.ref}>
                 <button type="button" className="pod-hit" onClick={() => open(hit)}>
                   <div className="pod-row">
-                    <Badge tone={hit.kind === 'web' ? 'warn' : 'muted'}>{SEARCH_KIND_LABELS[hit.kind]}</Badge>
+                    <Badge tone={hit.kind === 'web' ? 'warn' : 'muted'}>{t(SEARCH_KIND_LABELS[hit.kind])}</Badge>
                     {hit.botId === null ? null : <Avatar bot={bots?.find((bot) => bot.id === hit.botId)} size={18} />}
                     <strong className="pod-ellipsis">{hit.title}</strong>
                     <span className="pod-muted-inline">

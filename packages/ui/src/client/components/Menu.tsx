@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { t } from 'pod-domain'
 import { Icon } from './Icon.tsx'
 import { useNarrow } from './media.ts'
 
@@ -114,7 +115,7 @@ export function MenuPanel(props: { readonly control: MenuControl; readonly label
           {props.wide === true ? null : <div className="pod-sheet-title">{props.label}</div>}
           <div className="pod-sheet-body">{props.children}</div>
           <button type="button" className="pod-sheet-cancel" onClick={props.control.close}>
-            取消
+            {t('取消')}
           </button>
         </div>
       </div>

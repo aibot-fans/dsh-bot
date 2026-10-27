@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { planProgress, progressHealth, spoken, type PlanItem, type PlanStatus, type RunSummary, type TurnProgress } from 'pod-domain'
+import { planProgress, progressHealth, spoken, t, type PlanItem, type PlanStatus, type RunSummary, type TurnProgress } from 'pod-domain'
 import { useNow } from './common.tsx'
 import { Icon } from './Icon.tsx'
 
@@ -15,10 +15,10 @@ interface StepLine {
 /** 计划：做完的打勾，正在做的转圈并加粗，没开始的淡色。 */
 function PlanList(props: { readonly plan: readonly PlanItem[] }) {
   return (
-    <ol className="pod-plan" aria-label="计划">
+    <ol className="pod-plan" aria-label={t('计划')}>
       {props.plan.map((item, index) => (
         <li key={`${index}:${item.content}`} className={`pod-plan-item pod-plan-${item.status}`}>
-          <span className="pod-plan-mark" role="img" aria-label={PLAN_STATUS[item.status]}>
+          <span className="pod-plan-mark" role="img" aria-label={t(PLAN_STATUS[item.status])}>
             {item.status === 'completed' ? <Icon name="check" size={12} /> : item.status === 'in_progress' ? <span className="pod-spinner pod-spinner-small" /> : <Icon name="dot" size={12} />}
           </span>
           <span>{item.content}</span>
@@ -31,11 +31,11 @@ function PlanList(props: { readonly plan: readonly PlanItem[] }) {
 /** 每一步一行：做了什么、用了多久、成没成。 */
 function StepList(props: { readonly steps: readonly StepLine[]; readonly omitted: number }) {
   return (
-    <ol className="pod-steps" aria-label="每一步">
-      {props.omitted > 0 ? <li className="pod-steps-more">前面还有 {props.omitted} 步</li> : null}
+    <ol className="pod-steps" aria-label={t('每一步')}>
+      {props.omitted > 0 ? <li className="pod-steps-more">{t('前面还有 {omitted} 步', { omitted: props.omitted })}</li> : null}
       {props.steps.map((step, index) => (
         <li key={index} className={`pod-step${step.ok === false ? ' pod-step-failed' : ''}`}>
-          <span className="pod-step-mark" role="img" aria-label={step.ok === null ? '在做' : step.ok ? '成了' : '出错'}>
+          <span className="pod-step-mark" role="img" aria-label={step.ok === null ? t('在做') : step.ok ? t('成了') : t('出错')}>
             {step.ok === null ? <span className="pod-spinner pod-spinner-small" /> : <Icon name={step.ok ? 'check' : 'close'} size={12} />}
           </span>
           <span className="pod-step-label">{step.label}</span>
@@ -70,7 +70,7 @@ export function ProgressBlock(props: ProgressBlockProps) {
   const { progress } = props
   const current = progress?.steps.findLast((step) => step.ok === null)
   const thinking = progress?.thinking ?? null
-  const status = current !== undefined ? `正在${current.label}` : thinking !== null ? '正在想' : props.streaming ? '正在输入' : props.label === '' ? '正在想' : `正在${props.label}`
+  const status = current !== undefined ? t('正在{label}', { label: current.label }) : thinking !== null ? t('正在想') : props.streaming ? t('正在输入') : props.label === '' ? t('正在想') : t('正在{label}', { label: props.label })
   const thought = progress === null ? 0 : progress.thoughtMs + (progress.thinkingSince === null ? 0 : now - progress.thinkingSince)
   const plan = planProgress(progress?.plan ?? [])
   const meta =
@@ -78,9 +78,9 @@ export function ProgressBlock(props: ProgressBlockProps) {
       ? []
       : [
           spoken(now - progress.startedAt),
-          progress.calls > 0 ? `${progress.calls} 步` : undefined,
-          plan.total > 0 ? `计划 ${plan.done}/${plan.total}` : undefined,
-          thinking === null && thought >= 1000 ? `想了 ${spoken(thought)}` : undefined,
+          progress.calls > 0 ? t('{calls} 步', { calls: progress.calls }) : undefined,
+          plan.total > 0 ? t('计划 {done}/{total}', { done: plan.done, total: plan.total }) : undefined,
+          thinking === null && thought >= 1000 ? t('想了 {spoken}', { spoken: spoken(thought) }) : undefined,
         ].filter((part): part is string => part !== undefined)
   const health = progress === null ? null : progressHealth(progress, now)
   const steps = (progress?.steps ?? []).map((step) => ({ label: step.label, ms: (step.endedAt ?? now) - step.startedAt, ok: step.ok }))
@@ -91,12 +91,12 @@ export function ProgressBlock(props: ProgressBlockProps) {
         <span className="pod-spinner" aria-hidden />
         <span className="pod-progress-now">{status}</span>
         {meta.length === 0 ? null : <span className="pod-progress-meta">{meta.join(' · ')}</span>}
-        {props.stalled === true ? <span className="pod-badge pod-badge-warn">可能在绕圈</span> : null}
+        {props.stalled === true ? <span className="pod-badge pod-badge-warn">{t('可能在绕圈')}</span> : null}
       </div>
       {current !== undefined && (current.command !== null || stepAge >= 10_000) ? (
         <div className="pod-progress-command">
           {current.command === null ? null : <code>{current.command}</code>}
-          <span>这一步 {spoken(stepAge)}</span>
+          <span>{t('这一步 {spoken}', { spoken: spoken(stepAge) })}</span>
         </div>
       ) : null}
       {thinking === null ? null : <p className="pod-progress-thought">{thinking}</p>}
@@ -104,7 +104,7 @@ export function ProgressBlock(props: ProgressBlockProps) {
       {steps.length === 0 ? null : (
         <button type="button" className="pod-progress-toggle" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
           <Icon name={open ? 'up' : 'down'} size={12} />
-          {open ? '收起每一步' : `看每一步（${progress?.calls ?? steps.length}）`}
+          {open ? t('收起每一步') : t('看每一步（{value}）', { value: progress?.calls ?? steps.length })}
         </button>
       )}
       {open ? <StepList steps={steps} omitted={(progress?.calls ?? 0) - steps.length} /> : null}
@@ -113,12 +113,12 @@ export function ProgressBlock(props: ProgressBlockProps) {
           <span>{health.text}</span>
           {props.onReport === undefined ? null : (
             <button type="button" className="pod-link" onClick={props.onReport}>
-              让它汇报
+              {t('让它汇报')}
             </button>
           )}
           {props.onStop === undefined ? null : (
             <button type="button" className="pod-link pod-link-danger" onClick={props.onStop}>
-              停止
+              {t('停止')}
             </button>
           )}
         </div>
@@ -132,7 +132,7 @@ export function RunSummaryLine(props: { readonly run: RunSummary }) {
   const [open, setOpen] = useState(false)
   const { run } = props
   const failed = run.steps.filter((step) => !step.ok).length
-  const parts = [`用时 ${spoken(run.ms)}`, run.calls > 0 ? `${run.calls} 步` : undefined, failed > 0 ? `${failed} 步出错` : undefined, run.thoughtMs >= 1000 ? `想了 ${spoken(run.thoughtMs)}` : undefined].filter(
+  const parts = [t('用时 {spoken}', { spoken: spoken(run.ms) }), run.calls > 0 ? t('{calls} 步', { calls: run.calls }) : undefined, failed > 0 ? t('{failed} 步出错', { failed }) : undefined, run.thoughtMs >= 1000 ? t('想了 {spoken}', { spoken: spoken(run.thoughtMs) }) : undefined].filter(
     (part): part is string => part !== undefined,
   )
   return (

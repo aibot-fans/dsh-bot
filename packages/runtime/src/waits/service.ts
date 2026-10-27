@@ -11,6 +11,7 @@ import {
   ok,
   readId,
   readString,
+  t,
   truncate,
   type PodResult,
   type PodSession,
@@ -115,13 +116,13 @@ export class WaitService {
   /** 你处理了一件事：写下答复，转回给原来的会话。 */
   answer(input: unknown): PodResult<Wait> {
     const id = readId(input, 'waitId')
-    if (id === undefined) return fail('invalid-input', '缺少等你事项的 id')
+    if (id === undefined) return fail('invalid-input', t('缺少等你事项的 id'))
     const wait = this.get(id)
-    if (wait === undefined) return fail('not-found', '找不到这件事')
-    if (!isOpenWait(wait) && wait.status !== 'suspended') return fail('conflict', '这件事已经处理过了')
+    if (wait === undefined) return fail('not-found', t('找不到这件事'))
+    if (!isOpenWait(wait) && wait.status !== 'suspended') return fail('conflict', t('这件事已经处理过了'))
     const raw = readString(input, 'answer')
     const answer = maskSecrets(raw).text
-    const resolved = setWaitStatus(this.db, id, 'resolved', answer === '' ? '已处理' : answer, this.deps.now()) ?? wait
+    const resolved = setWaitStatus(this.db, id, 'resolved', answer === '' ? t('已处理') : answer, this.deps.now()) ?? wait
     const handled = this.resolvers.get(resolved.kind)?.(resolved, answer) ?? false
     if (!handled) this.forward(resolved, answer)
     this.afterChange(resolved)
@@ -132,10 +133,10 @@ export class WaitService {
   /** 你说不用管：关闭这件事，告诉原会话按已有的做法继续。 */
   dismiss(input: unknown): PodResult<Wait> {
     const id = readId(input, 'waitId')
-    if (id === undefined) return fail('invalid-input', '缺少等你事项的 id')
+    if (id === undefined) return fail('invalid-input', t('缺少等你事项的 id'))
     const wait = this.get(id)
-    if (wait === undefined) return fail('not-found', '找不到这件事')
-    const closed = setWaitStatus(this.db, id, 'closed', '不用处理', this.deps.now()) ?? wait
+    if (wait === undefined) return fail('not-found', t('找不到这件事'))
+    const closed = setWaitStatus(this.db, id, 'closed', t('不用处理'), this.deps.now()) ?? wait
     if (wait.status === 'open') this.forward(closed, '这件事不用管了，按你能做到的继续，并在交付里注明。')
     this.afterChange(closed)
     return ok(closed)
@@ -161,7 +162,7 @@ export class WaitService {
       const stillBlocked = task !== undefined && this.blockingFor(task.id) > 0
       if (task !== undefined && task.status === 'waiting' && !stillBlocked) this.deps.setTaskWaiting(task, false)
     }
-    if (wait.roomId !== null) this.deps.rooms.milestone(wait.roomId, `已处理：${wait.title}`, { waitId: wait.id })
+    if (wait.roomId !== null) this.deps.rooms.milestone(wait.roomId, t('已处理：{title}', { title: wait.title }), { waitId: wait.id })
     this.deps.bus.emit({ type: 'waits' })
   }
 
@@ -181,7 +182,7 @@ export class WaitService {
     if (change === 'cancelled') setRootWaitStatus(this.db, rootId, ['open', 'bypassed', 'suspended'], 'closed', now)
     if (change === 'delivered') {
       moved = waitsForRoot(this.db, rootId).filter((wait) => wait.status === 'bypassed')
-      for (const wait of moved) setWaitStatus(this.db, wait.id, 'closed', '已绕过，写进交付的前提和待确认', now)
+      for (const wait of moved) setWaitStatus(this.db, wait.id, 'closed', t('已绕过，写进交付的前提和待确认'), now)
     }
     this.deps.bus.emit({ type: 'waits' })
     return moved
@@ -189,7 +190,7 @@ export class WaitService {
 
   /** 交付卡上的一行：已绕过的事项。 */
   static describe(wait: Wait): string {
-    return `${WAIT_KIND_LABELS[wait.kind]}：${wait.title}（已先绕过）`
+    return t('{kind}：{title}（已先绕过）', { kind: t(WAIT_KIND_LABELS[wait.kind]), title: wait.title })
   }
 
   /** Pod 自己的说明行，比如“写操作执行到一半进程退出，状态未知”。 */

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { t } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { Button, Empty, HeroAvatar } from '../../components/common.tsx'
@@ -20,18 +21,18 @@ export function MemberCard(props: { readonly botId: string; readonly roomId: str
   const bot = bots?.find((item) => item.id === props.botId)
   const room = rooms?.find((item) => item.id === props.roomId)
   const back = (): void => app.showGroup(props.roomId)
-  const card = bot === undefined ? [] : ([['负责', bot.card.duties], ['擅长', bot.card.strengths], ['不负责', bot.card.notResponsible]] as const).filter(([, value]) => value !== '')
+  const card = bot === undefined ? [] : ([[t('负责'), bot.card.duties], [t('擅长'), bot.card.strengths], [t('不负责'), bot.card.notResponsible]] as const).filter(([, value]) => value !== '')
   return (
-    <aside className="pod-panel" aria-label={bot === undefined ? '成员' : `成员：${bot.name}`}>
+    <aside className="pod-panel" aria-label={bot === undefined ? t('成员') : t('成员：{name}', { name: bot.name })}>
       <div className="pod-panel-top pod-panel-top-back">
         <button type="button" className="pod-back" onClick={back}>
           <Icon name="back" size={16} />
-          <span className="pod-ellipsis">{room?.title ?? '群聊详情'}</span>
+          <span className="pod-ellipsis">{room?.title ?? t('群聊详情')}</span>
         </button>
-        <PanelClose label="关闭详情" onClose={() => app.closePanel()} stacked />
+        <PanelClose label={t('关闭详情')} onClose={() => app.closePanel()} stacked />
       </div>
       {bot === undefined ? (
-        <Empty title={bots === undefined ? '正在读取…' : '这个 bot 已经删除了'} />
+        <Empty title={bots === undefined ? t('正在读取…') : t('这个 bot 已经删除了')} />
       ) : (
         <div className="pod-panel-scroll">
           <div className="pod-panel-hero">
@@ -39,7 +40,7 @@ export function MemberCard(props: { readonly botId: string; readonly roomId: str
             <strong className="pod-hero-plain">{bot.name}</strong>
             {bot.title === '' || bot.title === bot.name ? null : <span className="pod-muted">{bot.title}</span>}
             {bot.capabilities.length === 0 ? null : (
-              <div className="pod-tags pod-center" aria-label="能力标签">
+              <div className="pod-tags pod-center" aria-label={t('能力标签')}>
                 {bot.capabilities.map((item) => (
                   <span key={item} className="pod-tag">
                     {item}
@@ -50,18 +51,18 @@ export function MemberCard(props: { readonly botId: string; readonly roomId: str
           </div>
           <div className="pod-member-actions">
             <Button kind="primary" icon="chat" onClick={() => app.openBot(bot.id)}>
-              单聊
+              {t('单聊')}
             </Button>
             {nav.roomId === props.roomId ? (
               <Button icon="at" onClick={() => app.insertText(props.roomId, `@${bot.name} `)}>
-                在群里 @ 它
+                {t('在群里 @ 它')}
               </Button>
             ) : null}
             {bot.role === 'lead' ? null : (
               <Button
                 kind="quiet"
                 onClick={() => {
-                  if (!window.confirm(`把「${bot.name}」移出「${room?.title ?? '这个群'}」？`)) return
+                  if (!window.confirm(t('把「{name}」移出「{value}」？', { name: bot.name, value: room?.title ?? t('这个群') }))) return
                   api
                     .removeMember(props.roomId, bot.id)
                     .then(() => {
@@ -71,7 +72,7 @@ export function MemberCard(props: { readonly botId: string; readonly roomId: str
                     .catch((reason: unknown) => setProblem(errorText(reason)))
                 }}
               >
-                移出群聊
+                {t('移出群聊')}
               </Button>
             )}
           </div>
@@ -86,11 +87,11 @@ export function MemberCard(props: { readonly botId: string; readonly roomId: str
               ))}
             </section>
           )}
-          {bot.role === 'lead' ? <p className="pod-muted pod-center">主管在每个群里，负责分派、组织和验收；群里具体的活交给对口的成员。</p> : null}
+          {bot.role === 'lead' ? <p className="pod-muted pod-center">{t('主管在每个群里，负责分派、组织和验收；群里具体的活交给对口的成员。')}</p> : null}
           <section className="pod-box">
             <button type="button" className="pod-box-entry" onClick={() => app.showProfile(bot.id, 'details', props.roomId)}>
-              <span>完整资料</span>
-              <span className="pod-muted-inline">设定、记忆、资料库、自动化、浏览器</span>
+              <span>{t('完整资料')}</span>
+              <span className="pod-muted-inline">{t('设定、记忆、资料库、自动化、浏览器')}</span>
               <Icon name="forward" size={14} />
             </button>
           </section>

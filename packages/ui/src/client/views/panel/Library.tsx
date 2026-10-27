@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { t } from 'pod-domain'
 import { api, type LibraryItem } from '../../api/endpoints.ts'
 import { mediaUrl } from '../../api/http.ts'
 import { Empty, RelativeTime } from '../../components/common.tsx'
@@ -45,8 +46,8 @@ export function Library(props: { readonly botId?: string; readonly roomId?: stri
   // 每次打开都重新看一眼文件夹：文件是 bot 在工作区里写的，没有事件通知。
   useEffect(() => reload(), [reload])
   if (error !== undefined) return <p className="pod-form-error">{error}</p>
-  if (data === undefined) return <p className="pod-muted">正在读取…</p>
-  if (data.length === 0) return <Empty title="资料库是空的">对话里产出的文档、截图和你上传的文件会出现在这里。</Empty>
+  if (data === undefined) return <p className="pod-muted">{t('正在读取…')}</p>
+  if (data.length === 0) return <Empty title={t('资料库是空的')}>{t('对话里产出的文档、截图和你上传的文件会出现在这里。')}</Empty>
   const now = Date.now()
   const recent = data.filter((item) => now - item.modifiedAt < WEEK)
   const older = data.filter((item) => now - item.modifiedAt >= WEEK)
@@ -55,7 +56,7 @@ export function Library(props: { readonly botId?: string; readonly roomId?: stri
     <div className="pod-stack">
       {recent.length === 0 ? null : (
         <section className="pod-stack">
-          <div className="pod-section-title">本周</div>
+          <div className="pod-section-title">{t('本周')}</div>
           <div className="pod-lib-list">
             {recent.map((item) => (
               <Item key={item.path} item={item} onOpen={() => setOpen(item)} />
@@ -65,7 +66,7 @@ export function Library(props: { readonly botId?: string; readonly roomId?: stri
       )}
       {older.length === 0 ? null : (
         <section className="pod-stack">
-          <div className="pod-section-title">更早</div>
+          <div className="pod-section-title">{t('更早')}</div>
           <div className="pod-lib-list">
             {shown.map((item) => (
               <Item key={item.path} item={item} onOpen={() => setOpen(item)} />
@@ -73,7 +74,7 @@ export function Library(props: { readonly botId?: string; readonly roomId?: stri
           </div>
           {older.length > FOLDED && !expanded ? (
             <button type="button" className="pod-link" onClick={() => setExpanded(true)}>
-              展开另外 {older.length - FOLDED} 个
+              {t('展开另外 {length} 个', { length: older.length - FOLDED })}
             </button>
           ) : null}
         </section>

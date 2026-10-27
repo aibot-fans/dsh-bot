@@ -1,4 +1,4 @@
-import { iconAvatar } from 'pod-domain'
+import { iconAvatar, t } from 'pod-domain'
 import type { IconBot } from './BotIcon.tsx'
 import { Avatar, nameColor } from './common.tsx'
 
@@ -19,7 +19,7 @@ export function GroupMark(props: { readonly members?: readonly IconBot[]; readon
   const size = props.size ?? 26
   const all = props.members ?? []
   const ordered = [...all.filter((bot) => bot.role !== 'lead'), ...all.filter((bot) => bot.role === 'lead')]
-  const known = ordered.length < 2 ? PAIR : ordered
+  const known = ordered.length < 2 ? PAIR.map((bot) => ({ ...bot, name: t(bot.name) })) : ordered
   const shown = known.length <= MARK_CELLS ? known : known.slice(0, MARK_CELLS - 1)
   const more = known.length - shown.length
   const cells = shown.length + (more > 0 ? 1 : 0)
@@ -60,7 +60,7 @@ export function BotName(props: { readonly bot: IconBot | undefined; readonly fal
     <span className="pod-botname">
       {props.bot === undefined ? null : <Avatar bot={props.bot} size={props.size ?? 16} />}
       <span className={`pod-botname-text${props.bot === undefined ? '' : ' pod-bot-name'}`} style={nameColor(props.bot)}>
-        {props.bot?.name ?? props.fallback ?? '已删除的 bot'}
+        {props.bot?.name ?? props.fallback ?? t('已删除的 bot')}
       </span>
     </span>
   )

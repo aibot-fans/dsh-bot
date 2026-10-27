@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { EVOLUTION_LABELS, POD, clearlyWorse, fail, newId, nextCronRun, ok, parseCron, type EvolutionEntry, type EvolutionKind, type PodResult, type PodSettings, type Scorecard } from 'pod-domain'
+import { EVOLUTION_LABELS, POD, clearlyWorse, fail, newId, nextCronRun, ok, parseCron, t, type EvolutionEntry, type EvolutionKind, type PodResult, type PodSettings, type Scorecard } from 'pod-domain'
 import { getEvolution, insertEvolution, listEvolution, readState, setEvolutionStatus, setTuning, writeState } from 'pod-store'
 import type { BotService } from '../bots/service.ts'
 import type { RoomService } from '../chat/rooms.ts'
@@ -72,11 +72,11 @@ export class EvolutionService {
   }
 
   /** 回滚一条改动：按种类恢复到改之前。 */
-  revert(id: string, actor = 'owner', why = '你点了回滚'): PodResult<EvolutionEntry> {
+  revert(id: string, actor = 'owner', why = t('你点了回滚')): PodResult<EvolutionEntry> {
     const entry = getEvolution(this.deps.db, id)
-    if (entry === undefined) return fail('not-found', '找不到这条改动')
-    if (entry.status === 'reverted') return fail('conflict', '已经回滚过了')
-    if (!REVERTIBLE.has(entry.kind)) return fail('conflict', '这条记录不能回滚')
+    if (entry === undefined) return fail('not-found', t('找不到这条改动'))
+    if (entry.status === 'reverted') return fail('conflict', t('已经回滚过了'))
+    if (!REVERTIBLE.has(entry.kind)) return fail('conflict', t('这条记录不能回滚'))
     const before = (entry.before ?? {}) as Readonly<Record<string, unknown>>
     const after = (entry.after ?? {}) as Readonly<Record<string, unknown>>
     const now = this.deps.now()
@@ -100,7 +100,7 @@ export class EvolutionService {
         if (entry.botId !== null) setTuning(this.deps.db, entry.botId, { effort: typeof before.effort === 'string' ? before.effort : null }, now)
         break
       case 'promotion':
-        if (entry.botId !== null) this.deps.bots.applyPatch(entry.botId, { temporary: true }, { source: 'rollback', actor, reason: '撤销转为常驻' })
+        if (entry.botId !== null) this.deps.bots.applyPatch(entry.botId, { temporary: true }, { source: 'rollback', actor, reason: t('撤销转为常驻') })
         break
       default:
     }
@@ -123,7 +123,7 @@ export class EvolutionService {
         const result = this.revert(entry.id, POD, worse)
         if (result.ok) {
           reverted += 1
-          this.log({ kind: 'revert', botId: entry.botId, subject: entry.id, summary: `自动退回了${EVOLUTION_LABELS[entry.kind]}的改动：${entry.summary}`, before: null, after: null, reason: worse, source: 'nightly' })
+          this.log({ kind: 'revert', botId: entry.botId, subject: entry.id, summary: t('自动退回了{EVOLUTION_LABELS}的改动：{summary}', { EVOLUTION_LABELS: t(EVOLUTION_LABELS[entry.kind]), summary: entry.summary }), before: null, after: null, reason: worse, source: 'nightly' })
         }
       } else if (finished >= TRACK_TASKS) {
         setEvolutionStatus(this.deps.db, entry.id, 'kept', this.deps.now())
@@ -140,9 +140,9 @@ export class EvolutionService {
     const feedback = this.deps.feedback.list({ botId }).filter((item) => item.rootId === rootId)
     const negative = feedback.some((item) => item.value < 0)
     if (card.done === 0 || card.failed > 0 || card.firstPassRate !== 1 || negative) return false
-    const result = this.deps.bots.applyPatch(botId, { temporary: false }, { source: 'auto', actor: POD, reason: '临时 bot 表现好，转为常驻' })
+    const result = this.deps.bots.applyPatch(botId, { temporary: false }, { source: 'auto', actor: POD, reason: t('临时 bot 表现好，转为常驻') })
     if (!result.ok) return false
-    this.log({ kind: 'promotion', botId, subject: botId, summary: `「${bot.name}」转为常驻`, before: { temporary: true }, after: { temporary: false }, reason: '子任务都一次验收通过，没有负面反馈', source: 'retro' })
+    this.log({ kind: 'promotion', botId, subject: botId, summary: t('「{name}」转为常驻', { name: bot.name }), before: { temporary: true }, after: { temporary: false }, reason: t('子任务都一次验收通过，没有负面反馈'), source: 'retro' })
     return true
   }
 
@@ -186,16 +186,16 @@ export class EvolutionService {
     const data = this.weekly(since)
     const counts = new Map<EvolutionKind, number>()
     for (const entry of data.entries) counts.set(entry.kind, (counts.get(entry.kind) ?? 0) + 1)
-    const parts = [...counts].map(([kind, count]) => `${EVOLUTION_LABELS[kind]} ${count} 条`)
+    const parts = [...counts].map(([kind, count]) => t('{label} {count} 条', { label: t(EVOLUTION_LABELS[kind]), count }))
     const body = [
-      parts.length === 0 ? '这一周没有自动改动。' : `这一周的自动改动：${parts.join('、')}。`,
-      data.owner.length === 0 ? '' : `你的档案新增或改动 ${data.owner.length} 条。`,
-      `自治效果：${data.autonomy.tasks} 个任务里找了你 ${data.autonomy.asked} 次，先绕过 ${data.autonomy.bypassed} 次，交付后被你改了 ${data.autonomy.edited} 次。`,
+      parts.length === 0 ? t('这一周没有自动改动。') : t('这一周的自动改动：{parts}。', { parts: parts.join(t('、')) }),
+      data.owner.length === 0 ? '' : t('你的档案新增或改动 {count} 条。', { count: data.owner.length }),
+      t('自治效果：{tasks} 个任务里找了你 {asked} 次，先绕过 {bypassed} 次，交付后被你改了 {edited} 次。', data.autonomy),
     ]
       .filter(Boolean)
       .join('\n')
     const room = this.deps.rooms.ensureLeadRoom()
     this.deps.rooms.post(room.id, { author: POD, kind: 'weekly', body, data: { since, until: this.deps.now() } })
-    this.deps.notifications.notify({ kind: 'weekly', title: '本周变化', body, roomId: room.id })
+    this.deps.notifications.notify({ kind: 'weekly', title: t('本周变化'), body, roomId: room.id })
   }
 }

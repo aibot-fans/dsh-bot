@@ -1,3 +1,4 @@
+import { t } from './i18n.ts'
 /**
  * 网络防护和站点规则：防止 bot 被网页诱导去调用本机的 dsh web 或家里的设备。
  * 默认不能访问 localhost、127.0.0.1、局域网地址和 file://；本地开发服务按地址加白名单。
@@ -73,13 +74,13 @@ export function checkUrl(raw: string, allowedHosts: readonly string[] = []): Url
   try {
     url = new URL(text.includes('://') ? text : `https://${text}`)
   } catch {
-    return { ok: false, reason: '网址格式不对' }
+    return { ok: false, reason: t('网址格式不对') }
   }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') return { ok: false, reason: `不能打开 ${url.protocol} 地址` }
-  if (url.username !== '' || url.password !== '') return { ok: false, reason: '网址里不能带账号密码' }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return { ok: false, reason: t('不能打开 {protocol} 地址', { protocol: url.protocol }) }
+  if (url.username !== '' || url.password !== '') return { ok: false, reason: t('网址里不能带账号密码') }
   const hostPort = url.port === '' ? url.hostname : `${url.hostname}:${url.port}`
   if (isPrivateHost(url.hostname) && !allowedHosts.includes(hostPort) && !allowedHosts.includes(url.hostname)) {
-    return { ok: false, reason: '默认不能访问本机和局域网地址（防止被网页诱导调用本机服务）；需要的话在设置里把它加进白名单' }
+    return { ok: false, reason: t('默认不能访问本机和局域网地址（防止被网页诱导调用本机服务）；需要的话在设置里把它加进白名单') }
   }
   return { ok: true, url }
 }

@@ -10,6 +10,7 @@ import {
   isRecord,
   retentionScore,
   similarity,
+  t,
   truncate,
   type MemoryScopeKind,
   type MemoryType,
@@ -147,13 +148,13 @@ export class MemoryExtractor {
           status: scopeKind === 'owner' && !fromOwner ? 'pending' : 'active',
         },
         'pod',
-        `从「${room.title}」的对话里提取`,
+        t('从「{title}」的对话里提取', { title: room.title }),
       )
       if (result.ok) {
         written += 1
         if (candidate.target !== null) {
           const target = this.deps.memory.get(candidate.target)
-          if (target !== undefined && !target.userEdited && target.id !== result.value.id) this.deps.memory.update(target.id, { status: 'superseded' }, 'pod', `被「${truncate(candidate.content, 40)}」替代`)
+          if (target !== undefined && !target.userEdited && target.id !== result.value.id) this.deps.memory.update(target.id, { status: 'superseded' }, 'pod', t('被「{content}」替代', { content: truncate(candidate.content, 40) }))
         }
       }
     }
@@ -169,7 +170,7 @@ export class MemoryExtractor {
     for (const entry of active) {
       const idle = now - (entry.lastUsedAt ?? entry.createdAt)
       if (idle > ARCHIVE_AFTER_DAYS * 86_400_000 && retentionScore(entry, now) < ARCHIVE_SCORE) {
-        this.deps.memory.update(entry.id, { status: 'archived' }, 'pod', `夜间整理：${ARCHIVE_AFTER_DAYS} 天没用过，转入归档`)
+        this.deps.memory.update(entry.id, { status: 'archived' }, 'pod', t('夜间整理：{days} 天没用过，转入归档', { days: ARCHIVE_AFTER_DAYS }))
         changes += 1
       }
     }
@@ -185,7 +186,7 @@ export class MemoryExtractor {
         for (const right of entries.slice(index + 1)) {
           if (dropped.has(left.id) || dropped.has(right.id) || similarity(left.content, right.content) < 0.85) continue
           const loser = left.userEdited ? right : right.userEdited ? left : left.createdAt <= right.createdAt ? right : left
-          this.deps.memory.update(loser.id, { status: 'superseded' }, 'pod', '夜间整理：和另一条重复')
+          this.deps.memory.update(loser.id, { status: 'superseded' }, 'pod', t('夜间整理：和另一条重复'))
           dropped.add(loser.id)
           changes += 1
         }

@@ -1,4 +1,4 @@
-import type { Page, PageVersionInfo, RoomMessage } from 'pod-domain'
+import { t, type Page, type PageVersionInfo, type RoomMessage } from 'pod-domain'
 import { apiGet, apiPost, mediaUrl } from './http.ts'
 
 export type PageTheme = 'light' | 'dark'
@@ -48,7 +48,7 @@ function fileName(disposition: string | null): string | undefined {
 /** 导出并下载：PDF 和长图要等共用浏览器生成几秒；失败时抛出服务端给的原因（比如没装 Chrome）。 */
 export async function exportPage(input: { readonly id: string; readonly title: string; readonly format: ExportFormat; readonly version: number | undefined; readonly theme: PageTheme }): Promise<void> {
   const response = await fetch(exportUrl(input.id, input.format, input.version, input.theme), { credentials: 'same-origin' })
-  if (!response.ok) throw new Error((await response.text()).trim() || `导出失败（${response.status}）`)
+  if (!response.ok) throw new Error((await response.text()).trim() || t('导出失败（{status}）', { status: response.status }))
   const blob = await response.blob()
   const link = document.createElement('a')
   link.href = URL.createObjectURL(blob)

@@ -1,3 +1,4 @@
+import { t } from 'pod-domain'
 import { ConvertError, type Extracted } from './formats.ts'
 import { table } from './markdown.ts'
 import { mainPart, relatedOfType, relationships } from './opc.ts'
@@ -144,7 +145,7 @@ function notesOf(zip: ZipArchive, slidePart: string): string {
   const xml = notesPart === undefined ? undefined : zip.text(notesPart)
   if (xml === undefined) return ''
   const lines = readSlide(xml).items.flatMap((item) => (item.kind === 'shape' && item.placeholder === 'body' ? item.lines.map((line) => line.text) : []))
-  return lines.length === 0 ? '' : lines.map((line, index) => `> ${index === 0 ? '备注：' : ''}${line}`).join('\n')
+  return lines.length === 0 ? '' : lines.map((line, index) => `> ${index === 0 ? t('备注：') : ''}${line}`).join('\n')
 }
 
 function renderSlide(slide: Slide, number: number, notes: string): string {
@@ -155,11 +156,11 @@ function renderSlide(slide: Slide, number: number, notes: string): string {
   const body = slide.items
     .filter((item) => item.kind === 'table' || item.placeholder === undefined || (!TITLES.has(item.placeholder) && !SKIPPED.has(item.placeholder)))
     .map(shapeText)
-  const visuals = [slide.pictures > 0 ? `${slide.pictures} 张图片` : '', slide.charts > 0 ? `${slide.charts} 个图表` : ''].filter((item) => item !== '')
+  const visuals = [slide.pictures > 0 ? t('{pictures} 张图片', { pictures: slide.pictures }) : '', slide.charts > 0 ? t('{charts} 个图表', { charts: slide.charts }) : ''].filter((item) => item !== '')
   const parts = [
-    `## 第 ${number} 页${title === '' ? '' : `：${title}`}${slide.hidden ? '（隐藏）' : ''}`,
-    ...(body.length === 0 && visuals.length === 0 ? ['（这页没有文字）'] : body),
-    ...(visuals.length === 0 ? [] : [`（这页还有 ${visuals.join('、')}，文字版里没有）`]),
+    t('## 第 {number} 页{value}{value2}', { number, value: title === '' ? '' : t('：{title}', { title }), value2: slide.hidden ? t('（隐藏）') : '' }),
+    ...(body.length === 0 && visuals.length === 0 ? [t('（这页没有文字）')] : body),
+    ...(visuals.length === 0 ? [] : [t('（这页还有 {visuals}，文字版里没有）', { visuals: visuals.join(t('、')) })]),
     ...(notes === '' ? [] : [notes]),
   ]
   return parts.join('\n\n')
@@ -169,7 +170,7 @@ function renderSlide(slide: Slide, number: number, notes: string): string {
 export function extractPptx(zip: ZipArchive): Extracted {
   const part = mainPart(zip, 'ppt/presentation.xml')
   const xml = zip.text(part)
-  if (xml === undefined) throw new ConvertError('找不到 PPT 的幻灯片列表')
+  if (xml === undefined) throw new ConvertError(t('找不到 PPT 的幻灯片列表'))
   const relations = relationships(zip, part)
   const slideParts: string[] = []
   walkXml(xml, {
@@ -181,11 +182,11 @@ export function extractPptx(zip: ZipArchive): Extracted {
   })
   const slides = slideParts.map((slidePart, index) => {
     const slideXml = zip.text(slidePart)
-    return slideXml === undefined ? `## 第 ${index + 1} 页\n\n（读不到这一页）` : renderSlide(readSlide(slideXml), index + 1, notesOf(zip, slidePart))
+    return slideXml === undefined ? t('## 第 {index} 页\n\n（读不到这一页）', { index: index + 1 }) : renderSlide(readSlide(slideXml), index + 1, notesOf(zip, slidePart))
   })
   return {
     body: slides.join('\n\n'),
-    note: '由 dsh-bot 从 PPT 自动转出；按放映顺序写出每页的标题、文字、表格和备注，图片、图表和动画没有保留。',
-    summary: `共 ${slides.length} 页`,
+    note: t('由 dsh-bot 从 PPT 自动转出；按放映顺序写出每页的标题、文字、表格和备注，图片、图表和动画没有保留。'),
+    summary: t('共 {length} 页', { length: slides.length }),
   }
 }

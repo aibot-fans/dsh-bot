@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { POD } from 'pod-domain'
+import { POD, t } from 'pod-domain'
 import { readState, writeState } from 'pod-store'
 import type { BotService } from '../bots/service.ts'
 import type { RoomService } from '../chat/rooms.ts'
@@ -77,7 +77,7 @@ export class XInbox {
       const notice = eventNotice(first.view)
       notifications.notify({ kind: 'system', title: notice.title, body: notice.body, roomId: room?.id ?? null })
     } else {
-      notifications.notify({ kind: 'system', title: `X 监控：${live ? '' : '断线期间'}有 ${unique.length} 条新动态`, body: unique.slice(0, 3).map((event) => event.view.title).join('\n'), roomId: room?.id ?? null })
+      notifications.notify({ kind: 'system', title: t('X 监控：{value}有 {length} 条新动态', { value: live ? '' : t('断线期间'), length: unique.length }), body: unique.slice(0, 3).map((event) => event.view.title).join('\n'), roomId: room?.id ?? null })
     }
   }
 }

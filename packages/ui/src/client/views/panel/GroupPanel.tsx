@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ROOM_TITLE_MAX, type Bot, type NotifyLevel, type RoomSummary } from 'pod-domain'
+import { ROOM_TITLE_MAX, t, type Bot, type NotifyLevel, type RoomSummary } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { Avatar, Button, Empty, Modal, Segmented } from '../../components/common.tsx'
@@ -49,7 +49,7 @@ function Conventions(props: { readonly roomId: string }) {
   if (draft !== undefined) {
     return (
       <div className="pod-stack pod-box-pad">
-        <textarea className="pod-textarea" rows={4} value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="例如：文章用中文，标题不超过 20 个字；改代码先说原因再动手" />
+        <textarea className="pod-textarea" rows={4} value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={t('例如：文章用中文，标题不超过 20 个字；改代码先说原因再动手')} />
         <div className="pod-row">
           <Button
             small
@@ -64,10 +64,10 @@ function Conventions(props: { readonly roomId: string }) {
                 .catch((reason: unknown) => setProblem(errorText(reason)))
             }}
           >
-            保存
+            {t('保存')}
           </Button>
           <Button small kind="quiet" onClick={() => setDraft(undefined)}>
-            取消
+            {t('取消')}
           </Button>
         </div>
         {problem === undefined ? null : <p className="pod-form-error">{problem}</p>}
@@ -76,10 +76,10 @@ function Conventions(props: { readonly roomId: string }) {
   }
   return (
     <div className="pod-box-pad pod-stack-tight">
-      {core === undefined || core.text === '' ? <span className="pod-muted-inline">还没有约定</span> : <p className="pod-persona-text">{core.text}</p>}
+      {core === undefined || core.text === '' ? <span className="pod-muted-inline">{t('还没有约定')}</span> : <p className="pod-persona-text">{core.text}</p>}
       <div>
         <Button small kind="quiet" icon="edit" onClick={() => setDraft(core?.text ?? '')}>
-          编辑
+          {t('编辑')}
         </Button>
       </div>
     </div>
@@ -109,11 +109,11 @@ function AddMembers(props: { readonly room: RoomSummary; readonly others: readon
       .finally(() => setBusy(false))
   }
   return (
-    <Modal title={`添加成员到「${props.room.title}」`} onClose={props.onClose}>
+    <Modal title={t('添加成员到「{title}」', { title: props.room.title })} onClose={props.onClose}>
       <div className="pod-stack">
-        {props.others.length > 6 ? <input className="pod-input" autoFocus value={query} placeholder="按名字或能力找" onChange={(event) => setQuery(event.target.value)} aria-label="找 bot" /> : null}
+        {props.others.length > 6 ? <input className="pod-input" autoFocus value={query} placeholder={t('按名字或能力找')} onChange={(event) => setQuery(event.target.value)} aria-label={t('找 bot')} /> : null}
         {props.others.length === 0 ? (
-          <Empty title="所有 bot 都在群里了">
+          <Empty title={t('所有 bot 都在群里了')}>
             <button
               type="button"
               className="pod-link"
@@ -122,18 +122,18 @@ function AddMembers(props: { readonly room: RoomSummary; readonly others: readon
                 app.openDrawer({ kind: 'new-bot' })
               }}
             >
-              新建一个 bot
+              {t('新建一个 bot')}
             </button>
           </Empty>
         ) : null}
-        <div className="pod-pick-list" role="group" aria-label="选要加进来的 bot">
+        <div className="pod-pick-list" role="group" aria-label={t('选要加进来的 bot')}>
           {shown.map((bot) => (
             <label key={bot.id} className={`pod-pick${picked.includes(bot.id) ? ' pod-pick-on' : ''}`}>
               <input type="checkbox" checked={picked.includes(bot.id)} onChange={() => toggle(bot.id)} />
               <Avatar bot={bot} size={30} />
               <span className="pod-pick-main">
                 <strong>{bot.name}</strong>
-                <span className="pod-muted-inline pod-ellipsis">{bot.card.duties || bot.title || '没写职责'}</span>
+                <span className="pod-muted-inline pod-ellipsis">{bot.card.duties || bot.title || t('没写职责')}</span>
               </span>
             </label>
           ))}
@@ -141,10 +141,10 @@ function AddMembers(props: { readonly room: RoomSummary; readonly others: readon
         {problem === undefined ? null : <p className="pod-form-error">{problem}</p>}
         <div className="pod-form-actions">
           <Button kind="quiet" onClick={props.onClose}>
-            取消
+            {t('取消')}
           </Button>
           <Button kind="primary" disabled={busy || picked.length === 0} onClick={add}>
-            {picked.length === 0 ? '添加' : `添加 ${picked.length} 位`}
+            {picked.length === 0 ? t('添加') : t('添加 {length} 位', { length: picked.length })}
           </Button>
         </div>
       </div>
@@ -160,22 +160,22 @@ function Members(props: { readonly room: RoomSummary; readonly members: readonly
   return (
     <section className="pod-box">
       <div className="pod-box-head">
-        <strong>成员</strong>
-        <span className="pod-muted-inline">点成员看它是谁、单聊或移出</span>
+        <strong>{t('成员')}</strong>
+        <span className="pod-muted-inline">{t('点成员看它是谁、单聊或移出')}</span>
       </div>
       <div className="pod-member-grid">
         {props.members.map((bot) => (
           <button key={bot.id} type="button" className="pod-member-tile" onClick={() => app.showBot(bot.id, 'details', props.room.id)} title={bot.card.duties || bot.title}>
             <Avatar bot={bot} size={44} />
             <span className="pod-member-name">{bot.name}</span>
-            {bot.role === 'lead' && bot.name !== '主管' ? <span className="pod-member-role">主管</span> : null}
+            {bot.role === 'lead' && bot.name !== t('主管') ? <span className="pod-member-role">{t('主管')}</span> : null}
           </button>
         ))}
         <button type="button" className="pod-member-tile pod-member-add" onClick={() => setAdding(true)}>
           <span className="pod-member-plus">
             <Icon name="plus" size={18} />
           </span>
-          <span className="pod-member-name">添加</span>
+          <span className="pod-member-name">{t('添加')}</span>
         </button>
       </div>
       {adding ? <AddMembers room={props.room} others={others} onClose={() => setAdding(false)} /> : null}
@@ -191,14 +191,14 @@ function GroupTasks(props: { readonly room: RoomSummary; readonly bots: readonly
   const running = mine.filter((snapshot) => !['done', 'failed', 'cancelled'].includes(snapshot.task.status))
   const finished = mine.filter((snapshot) => ['done', 'failed', 'cancelled'].includes(snapshot.task.status))
   if (error !== undefined) return <p className="pod-form-error">{error}</p>
-  if (tasks !== undefined && mine.length === 0) return <Empty title="这个群还没有任务">在群里交代一件事，主管会安排。</Empty>
+  if (tasks !== undefined && mine.length === 0) return <Empty title={t('这个群还没有任务')}>{t('在群里交代一件事，主管会安排。')}</Empty>
   return (
     <div className="pod-stack">
-      {running.length === 0 ? null : <div className="pod-section-title">进行中</div>}
+      {running.length === 0 ? null : <div className="pod-section-title">{t('进行中')}</div>}
       {running.map((snapshot) => (
         <TaskTile key={snapshot.task.id} snapshot={snapshot} bots={byId} onOpen={() => app.openTask(snapshot.task.id)} />
       ))}
-      {finished.length === 0 ? null : <div className="pod-section-title">已结束</div>}
+      {finished.length === 0 ? null : <div className="pod-section-title">{t('已结束')}</div>}
       {finished.map((snapshot) => (
         <TaskTile key={snapshot.task.id} snapshot={snapshot} bots={byId} onOpen={() => app.openTask(snapshot.task.id)} />
       ))}
@@ -230,12 +230,12 @@ export function GroupPanel(props: { readonly roomId: string; readonly tab: Group
       .catch((reason: unknown) => setProblem(errorText(reason)))
   }
   return (
-    <aside className="pod-panel" aria-label="群聊详情">
+    <aside className="pod-panel" aria-label={t('群聊详情')}>
       <div className="pod-panel-top">
-        <PanelClose label="关闭详情" onClose={() => app.closePanel()} />
+        <PanelClose label={t('关闭详情')} onClose={() => app.closePanel()} />
       </div>
       {room === undefined ? (
-        <Empty title={rooms === undefined ? '正在读取…' : '这个群聊已经删除了'} />
+        <Empty title={rooms === undefined ? t('正在读取…') : t('这个群聊已经删除了')} />
       ) : (
         <div className="pod-panel-scroll">
           <div className="pod-group-hero">
@@ -245,48 +245,48 @@ export function GroupPanel(props: { readonly roomId: string; readonly tab: Group
               <RenameInput
                 value={room.title}
                 max={ROOM_TITLE_MAX}
-                label="群名"
+                label={t('群名')}
                 className="pod-hero-rename"
                 onSave={(title) => update({ title }, () => setRenaming(false))}
                 onCancel={() => setRenaming(false)}
               />
             ) : (
-              <button type="button" className="pod-hero-title" onClick={() => setRenaming(true)} title="点一下改群名">
+              <button type="button" className="pod-hero-title" onClick={() => setRenaming(true)} title={t('点一下改群名')}>
                 <strong>{room.title}</strong>
                 <Icon name="edit" size={14} />
               </button>
             )}
-            <span className="pod-hero-sub">{members.map((bot) => bot.name).join('、')}</span>
+            <span className="pod-hero-sub">{members.map((bot) => bot.name).join(t('、'))}</span>
             {problem === undefined ? null : <p className="pod-form-error">{problem}</p>}
             </div>
           </div>
           <div className="pod-panel-tabs" role="tablist">
             {TABS.map(([tab, label]) => (
               <button key={tab} type="button" role="tab" aria-selected={tab === props.tab} className={tab === props.tab ? 'pod-panel-tab-on' : undefined} onClick={() => app.showGroup(room.id, tab)}>
-                {label}
+                {t(label)}
               </button>
             ))}
           </div>
-          {props.tab === 'details' ? null : <p className="pod-tab-hint">{TAB_HINTS[props.tab]}</p>}
+          {props.tab === 'details' ? null : <p className="pod-tab-hint">{t(TAB_HINTS[props.tab])}</p>}
           {props.tab === 'details' ? (
             <div className="pod-stack">
               <Members room={room} members={members} bots={active} />
               <section className="pod-box">
                 <div className="pod-box-head">
-                  <strong>群约定</strong>
-                  <span className="pod-muted-inline">每段对话开始时带上</span>
+                  <strong>{t('群约定')}</strong>
+                  <span className="pod-muted-inline">{t('每段对话开始时带上')}</span>
                 </div>
                 <Conventions roomId={room.id} />
               </section>
               <section className="pod-box">
-                <button type="button" className="pod-box-entry" onClick={() => app.openDrawer({ kind: 'memory', scope: 'room', scopeId: room.id, label: `${room.title}的群记忆` })}>
-                  <span>群记忆</span>
-                  <span className="pod-muted-inline">群里值得记下的事</span>
+                <button type="button" className="pod-box-entry" onClick={() => app.openDrawer({ kind: 'memory', scope: 'room', scopeId: room.id, label: t('{title}的群记忆', { title: room.title }) })}>
+                  <span>{t('群记忆')}</span>
+                  <span className="pod-muted-inline">{t('群里值得记下的事')}</span>
                   <Icon name="forward" size={14} />
                 </button>
                 <div className="pod-kv">
-                  <span>消息提醒</span>
-                  <Segmented value={room.notifyLevel} options={NOTIFY} onChange={(notifyLevel) => update({ notifyLevel })} label="消息提醒" />
+                  <span>{t('消息提醒')}</span>
+                  <Segmented value={room.notifyLevel} options={NOTIFY.map(([value, label]) => [value, t(label)] as const)} onChange={(notifyLevel) => update({ notifyLevel })} label={t('消息提醒')} />
                 </div>
               </section>
               <div className="pod-row pod-center">
@@ -294,17 +294,17 @@ export function GroupPanel(props: { readonly roomId: string; readonly tab: Group
                   kind="danger"
                   small
                   onClick={() => {
-                    if (window.confirm(`删除群聊「${room.title}」？30 天内可以在“设置 → 回收站”里恢复。`)) update({ archived: true }, () => app.navigate({ panel: null, roomId: null }))
+                    if (window.confirm(t('删除群聊「{title}」？30 天内可以在“设置 → 回收站”里恢复。', { title: room.title }))) update({ archived: true }, () => app.navigate({ panel: null, roomId: null }))
                   }}
                 >
-                  删除群聊
+                  {t('删除群聊')}
                 </Button>
               </div>
             </div>
           ) : null}
-          {props.tab === 'pages' ? <ScopedPages match={(page) => page.roomId === room.id} empty="在群里说“把这周的数据做成看板”，做好的页面都在这里。" /> : null}
+          {props.tab === 'pages' ? <ScopedPages match={(page) => page.roomId === room.id} empty={t('在群里说“把这周的数据做成看板”，做好的页面都在这里。')} /> : null}
           {props.tab === 'library' ? <Library roomId={room.id} /> : null}
-          {props.tab === 'automations' ? <Automations match={(routine) => routine.roomId === room.id} defaults={{ roomId: room.id }} empty="结果发到这个群的自动化会出现在这里。" /> : null}
+          {props.tab === 'automations' ? <Automations match={(routine) => routine.roomId === room.id} defaults={{ roomId: room.id }} empty={t('结果发到这个群的自动化会出现在这里。')} /> : null}
           {props.tab === 'tasks' ? <GroupTasks room={room} bots={bots ?? []} /> : null}
           {props.tab === 'browser' ? <GroupBrowser room={room} /> : null}
         </div>

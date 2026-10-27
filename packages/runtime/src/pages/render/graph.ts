@@ -1,4 +1,4 @@
-import type { GraphBlock } from 'pod-domain'
+import { t, type GraphBlock } from 'pod-domain'
 import { GROUP_LABEL, GROUP_PAD, LINE, layoutGraph, type PlacedNode, type Point } from './graph-layout.ts'
 import { esc, textWidth } from './html.ts'
 
@@ -115,5 +115,5 @@ export function renderGraph(block: GraphBlock, uid: string): string {
   const marker = `<defs><marker id="${uid}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrow" d="M0,1L9,5L0,9Z"/></marker></defs>`
   // 线在框和节点之间，线上的文字最后画，不会被别的线压住。
   // 窄处最多缩到四分之三，再窄就横向滚动，免得节点上的字小到看不清；导出和打印时照常缩到放得下。
-  return `<div class="graph-wrap"><svg class="graph" viewBox="${f(left)} ${f(top)} ${width} ${height}" width="${width}" height="${height}" style="min-width:${Math.round(width * 0.75)}px" role="img" aria-label="${esc(block.title || (block.type === 'flow' ? '流程图' : '图示'))}">${marker}${groups.join('')}${paths.join('')}${nodes.join('')}${labels.join('')}</svg></div>`
+  return `<div class="graph-wrap"><svg class="graph" viewBox="${f(left)} ${f(top)} ${width} ${height}" width="${width}" height="${height}" style="min-width:${Math.round(width * 0.75)}px" role="img" aria-label="${esc(block.title || (block.type === 'flow' ? t('流程图') : t('图示')))}">${marker}${groups.join('')}${paths.join('')}${nodes.join('')}${labels.join('')}</svg></div>`
 }

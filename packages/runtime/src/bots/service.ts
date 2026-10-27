@@ -4,7 +4,6 @@ import {
   BOT_ICON_SET,
   EMPTY_CARD,
   LEAD_BOT_ID,
-  LEAD_SEED,
   POD,
   asRecord,
   assignBotIcons,
@@ -16,6 +15,8 @@ import {
   iconAvatar,
   isAvatarImage,
   isBotColor,
+  leadSeed,
+  leadSeedPatch,
   newId,
   ok,
   pickBotColor,
@@ -24,7 +25,9 @@ import {
   readInt,
   readObject,
   readableBotColor,
+  t,
   takenIcons,
+  tc,
   validateDraft,
   validatePatch,
   type Bot,
@@ -167,7 +170,7 @@ export class BotService {
     this.deps = deps
     const { db, now } = deps
     if (getBot(db, LEAD_BOT_ID) === undefined) {
-      insertBot(db, { id: LEAD_BOT_ID, role: 'lead', config: configFromDraft(LEAD_SEED), personaSource: 'seed', now: now() })
+      insertBot(db, { id: LEAD_BOT_ID, role: 'lead', config: configFromDraft(leadSeed()), personaSource: 'seed', now: now() })
     }
     const bots = listBots(db)
     for (const bot of bots) {
@@ -177,23 +180,26 @@ export class BotService {
           botId: bot.id,
           config: botConfig(bot),
           source: bot.role === 'lead' ? 'seed' : 'user',
-          reason: '初始版本',
+          reason: t('初始版本'),
           now: now(),
         })
       }
     }
     this.bots = new Map(fillColors(db, fillIcons(db, bots)).map((bot) => [bot.id, bot]))
-    this.upgradeLeadPersona()
+    this.syncLeadSeed()
   }
 
   /**
-   * 主管的人设还是默认人设（来源是 seed：你和自我优化都没改过）、但不是现在这版，就换成现在的（记一版配置，能回滚）。
-   * 来源一旦变成 user 或 auto 就不会再变回 seed，所以改过的不会被换掉。
+   * 主管还是默认值的部分（人设来源是 seed：你和自我优化都没改过；名字、角色、能力标签还是默认的）换成现在的版本：
+   * 默认人设出了新版，或者语言换了，都靠它跟上（记一版配置，能回滚）。
+   * 来源一旦变成 user 或 auto 就不会再变回 seed，所以改过的人设不会被换掉。
    */
-  private upgradeLeadPersona(): void {
+  syncLeadSeed(): void {
     const lead = this.activeBot(LEAD_BOT_ID)
-    if (lead === undefined || lead.personaSource !== 'seed' || lead.persona === LEAD_SEED.persona) return
-    this.applyPatch(lead.id, { persona: LEAD_SEED.persona }, { source: 'seed', actor: POD, reason: '换成新版的默认人设' })
+    if (lead === undefined) return
+    const patch = leadSeedPatch(lead)
+    if (Object.keys(patch).length === 0) return
+    this.applyPatch(lead.id, patch, { source: 'seed', actor: POD, reason: t('换成现在的默认设定') })
   }
 
   private get db(): DatabaseSync {
@@ -273,7 +279,7 @@ export class BotService {
         color: pickBotColor(this.active().map((bot) => bot.color ?? '')),
         now: now(),
       })
-      appendBotVersion(db, { id: newId('ver'), botId: id, config, source: origin.source, reason: origin.reason ?? '新建', now: now() })
+      appendBotVersion(db, { id: newId('ver'), botId: id, config, source: origin.source, reason: origin.reason ?? t('新建'), now: now() })
       return created
     })
     this.deps.audit.record('bot.create', origin.actor, id, { name: config.name, reason: origin.reason ?? '' })
@@ -283,13 +289,13 @@ export class BotService {
   /** 页面上的修改：{ id, patch }。名字颜色单独存，不算一次配置修改。 */
   update(input: unknown, origin: ChangeOrigin = OWNER_ORIGIN): PodResult<Bot> {
     const id = readId(input, 'id')
-    if (id === undefined) return fail('invalid-input', '缺少 bot 的 id')
+    if (id === undefined) return fail('invalid-input', t('缺少 bot 的 id'))
     const { color, ...rest } = asRecord(readObject(input, 'patch'))
     if (color !== undefined) {
       const readable = readableBotColor(color)
-      if (readable === undefined) return fail('invalid-input', '颜色要写成 #RRGGBB')
+      if (readable === undefined) return fail('invalid-input', t('颜色要写成 #RRGGBB'))
       const current = this.activeBot(id)
-      if (current === undefined) return fail('not-found', '找不到这个 bot')
+      if (current === undefined) return fail('not-found', t('找不到这个 bot'))
       setBotColor(this.db, id, readable)
       this.remember({ ...current, color: readable })
       if (Object.keys(rest).length === 0) return ok({ ...current, color: readable })
@@ -301,13 +307,13 @@ export class BotService {
 
   applyPatch(id: string, patch: BotPatch, origin: ChangeOrigin): PodResult<Bot> {
     const current = this.activeBot(id)
-    if (current === undefined) return fail('not-found', '找不到这个 bot')
+    if (current === undefined) return fail('not-found', t('找不到这个 bot'))
     const before = botConfig(current)
     const after: BotConfig = { ...before, ...patch }
     const changes = describeConfigChange(before, after)
     if (changes.length === 0) return ok(current)
     const personaSource = patch.persona === undefined ? current.personaSource : personaSourceFor(origin, current.personaSource)
-    return this.writeConfig(current, after, personaSource, origin, origin.reason ?? `修改了${changes.join('、')}`)
+    return this.writeConfig(current, after, personaSource, origin, origin.reason ?? t('修改了{changes}', { changes: changes.map((change) => tc(change, '配置')).join(t('、')) }))
   }
 
   private writeConfig(current: Bot, config: BotConfig, personaSource: PersonaSource, origin: ChangeOrigin, reason: string): PodResult<Bot> {
@@ -319,45 +325,45 @@ export class BotService {
       }
       return written
     })
-    if (updated === undefined) return fail('not-found', '找不到这个 bot')
+    if (updated === undefined) return fail('not-found', t('找不到这个 bot'))
     this.deps.audit.record('bot.update', origin.actor, current.id, { reason })
     return ok(this.remember(updated))
   }
 
   archive(input: unknown, actor = 'owner'): PodResult<Bot> {
     const id = readId(input, 'id')
-    if (id === undefined) return fail('invalid-input', '缺少 bot 的 id')
+    if (id === undefined) return fail('invalid-input', t('缺少 bot 的 id'))
     return this.archiveById(id, actor)
   }
 
   archiveById(id: string, actor: string): PodResult<Bot> {
     const current = this.activeBot(id)
-    if (current === undefined) return fail('not-found', '找不到这个 bot')
-    if (current.role === 'lead') return fail('lead-protected', '主管不能归档')
-    if (!setBotArchived(this.db, id, this.deps.now(), this.deps.now())) return fail('not-found', '找不到这个 bot')
+    if (current === undefined) return fail('not-found', t('找不到这个 bot'))
+    if (current.role === 'lead') return fail('lead-protected', t('主管不能归档'))
+    if (!setBotArchived(this.db, id, this.deps.now(), this.deps.now())) return fail('not-found', t('找不到这个 bot'))
     this.deps.audit.record('bot.archive', actor, id, { name: current.name })
     return this.reload(id)
   }
 
   restore(input: unknown, actor = 'owner'): PodResult<Bot> {
     const id = readId(input, 'id')
-    if (id === undefined) return fail('invalid-input', '缺少 bot 的 id')
+    if (id === undefined) return fail('invalid-input', t('缺少 bot 的 id'))
     const current = this.bots.get(id)
-    if (current === undefined || current.archivedAt === null) return fail('not-found', '回收站里没有这个 bot')
-    if (!setBotArchived(this.db, id, null, this.deps.now())) return fail('not-found', '回收站里没有这个 bot')
+    if (current === undefined || current.archivedAt === null) return fail('not-found', t('回收站里没有这个 bot'))
+    if (!setBotArchived(this.db, id, null, this.deps.now())) return fail('not-found', t('回收站里没有这个 bot'))
     this.deps.audit.record('bot.restore', actor, id, { name: current.name })
     return this.reload(id)
   }
 
   private reload(id: string): PodResult<Bot> {
     const bot = getBot(this.db, id)
-    return bot === undefined ? fail('not-found', '找不到这个 bot') : ok(this.remember(bot))
+    return bot === undefined ? fail('not-found', t('找不到这个 bot')) : ok(this.remember(bot))
   }
 
   versions(input: unknown): PodResult<readonly BotVersion[]> {
     const id = readId(input, 'id')
-    if (id === undefined) return fail('invalid-input', '缺少 bot 的 id')
-    if (this.bots.get(id) === undefined) return fail('not-found', '找不到这个 bot')
+    if (id === undefined) return fail('invalid-input', t('缺少 bot 的 id'))
+    if (this.bots.get(id) === undefined) return fail('not-found', t('找不到这个 bot'))
     return ok(listBotVersions(this.db, id))
   }
 
@@ -365,13 +371,13 @@ export class BotService {
   rollback(input: unknown, actor = 'owner'): PodResult<Bot> {
     const id = readId(input, 'id')
     const version = readInt(input, 'version') ?? Number(readId(input, 'version'))
-    if (id === undefined || !Number.isSafeInteger(version)) return fail('invalid-input', '要写明 bot 和版本号')
+    if (id === undefined || !Number.isSafeInteger(version)) return fail('invalid-input', t('要写明 bot 和版本号'))
     const current = this.activeBot(id)
-    if (current === undefined) return fail('not-found', '找不到这个 bot')
+    if (current === undefined) return fail('not-found', t('找不到这个 bot'))
     const target = getBotVersion(this.db, id, version)
-    if (target === undefined) return fail('not-found', `没有第 ${version} 版`)
+    if (target === undefined) return fail('not-found', t('没有第 {version} 版', { version }))
     const config: BotConfig = { ...botConfig(current), ...target.config }
-    return this.writeConfig(current, config, current.personaSource, { source: 'rollback', actor }, `回滚到第 ${version} 版`)
+    return this.writeConfig(current, config, current.personaSource, { source: 'rollback', actor }, t('回滚到第 {version} 版', { version }))
   }
 
   /** 回收站：归档了、还没过期的 bot。 */

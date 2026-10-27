@@ -1,4 +1,4 @@
-import { fail, type PodErrorCode, type PodResult } from 'pod-domain'
+import { fail, t, type PodErrorCode, type PodResult } from 'pod-domain'
 
 const STATUS: Readonly<Record<PodErrorCode, number>> = {
   'invalid-input': 400,
@@ -27,7 +27,7 @@ export async function readBody(request: Request): Promise<PodResult<unknown>> {
     const text = await request.text()
     return { ok: true, value: text === '' ? {} : (JSON.parse(text) as unknown) }
   } catch {
-    return fail('invalid-input', '请求体不是合法的 JSON')
+    return fail('invalid-input', t('请求体不是合法的 JSON'))
   }
 }
 

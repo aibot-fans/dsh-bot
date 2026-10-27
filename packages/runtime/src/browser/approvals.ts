@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { PRIORITY, fnv1a, newId, truncate, type ElementInfo, type PodSession, type Wait } from 'pod-domain'
+import { PRIORITY, fnv1a, newId, t, truncate, type ElementInfo, type PodSession, type Wait } from 'pod-domain'
 import { readState, writeState } from 'pod-store'
 import type { Dispatcher } from '../agents/dispatcher.ts'
 import { noticeSource } from '../agents/messages.ts'
@@ -115,14 +115,20 @@ export class WriteApprovals {
 
   async request(session: PodSession, tab: BrowserTab, request: WriteRequest): Promise<{ readonly ok: boolean; readonly message: string; readonly waitId: string }> {
     const exposed = this.deps.exposed()
-    if (exposed !== undefined) return { ok: false, waitId: '', message: `dsh web 现在对外开放（${exposed}），为了安全浏览器写操作已禁用：「${request.description}」没有提交审批。` }
+    if (exposed !== undefined) return { ok: false, waitId: '', message: t('dsh web 现在对外开放（{exposed}），为了安全浏览器写操作已禁用：「{description}」没有提交审批。', { exposed, description: request.description }) }
     const form = request.ref === '' ? [] : await tab.call<readonly { readonly label: string; readonly value: string }[]>(FORM, request.ref).catch(() => [])
     const [shot, check] = await Promise.all([this.saveShot(tab), this.review(session, tab, request, form)])
     const wait = this.deps.waits.ask({
       session,
       kind: 'write',
-      title: `批准：${request.description}`,
-      detail: [`网址：${tab.url}`, `为什么要审批：${request.reason}`, check === null ? '' : `执行前复核：${check.fits ? '符合任务说明' : '可能不符合任务说明'}${check.reason === '' ? '' : `（${check.reason}）`}`].filter(Boolean).join('\n'),
+      title: t('批准：{description}', { description: request.description }),
+      detail: [
+        t('网址：{url}', { url: tab.url }),
+        t('为什么要审批：{reason}', { reason: request.reason }),
+        check === null ? '' : t('执行前复核：{verdict}{reason}', { verdict: check.fits ? t('符合任务说明') : t('可能不符合任务说明'), reason: check.reason === '' ? '' : t('（{reason}）', { reason: check.reason }) }),
+      ]
+        .filter(Boolean)
+        .join('\n'),
       bypassed: false,
       data: {
         tabId: tab.id,
@@ -139,12 +145,12 @@ export class WriteApprovals {
         promptText: request.promptText ?? null,
       },
     })
-    tab.record(`等你批准：${request.description}`)
+    tab.record(t('等你批准：{description}', { description: request.description }))
     this.deps.browser.emit(tab.id)
     return {
       ok: true,
       waitId: wait.id,
-      message: `这一步是写操作（${request.reason}），已提交给用户审批。批准后 dsh-bot 会先确认页面没变，再按原样执行，并把结果发给你；页面变了就作废，你重新准备。现在先做不依赖它的事，或者结束这一轮等结果。`,
+      message: t('这一步是写操作（{reason}），已提交给用户审批。批准后 dsh-bot 会先确认页面没变，再按原样执行，并把结果发给你；页面变了就作废，你重新准备。现在先做不依赖它的事，或者结束这一轮等结果。', { reason: request.reason }),
     }
   }
 
@@ -171,7 +177,7 @@ export class WriteApprovals {
       mode: this.deps.dispatcher.isRunning(sessionId) ? 'steer' : 'followup',
       priority: PRIORITY.owner,
       text,
-      source: noticeSource('浏览器审批'),
+      source: noticeSource(t('浏览器审批')),
     })
   }
 
@@ -240,7 +246,7 @@ export class WriteApprovals {
     } finally {
       this.clearInFlight(wait.id)
     }
-    tab.record(`已执行（你批准的）：${description}`)
+    tab.record(t('已执行（你批准的）：{description}', { description }))
     this.deps.browser.emit(tab.id)
     this.deps.audit.record('browser.write', 'owner', wait.id, { url: tab.url, description, shot: wait.data.shot ?? null })
     this.tell(wait.sessionId, `[用户批准了「${description}」] 已执行。现在的页面：\n${truncate(await this.deps.glance(tab), 3000)}`)
@@ -271,8 +277,8 @@ export class WriteApprovals {
       this.deps.waits.ask({
         session,
         kind: 'unknown-state',
-        title: `状态未知：${entry.description}`,
-        detail: `执行到一半浏览器断了，不确定有没有提交成功。请到 ${entry.url} 上确认；dsh-bot 不会自动重做。`,
+        title: t('状态未知：{description}', { description: entry.description }),
+        detail: t('执行到一半浏览器断了，不确定有没有提交成功。请到 {url} 上确认；dsh-bot 不会自动重做。', { url: entry.url }),
         bypassed: false,
         data: { url: entry.url },
       })

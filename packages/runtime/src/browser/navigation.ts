@@ -1,3 +1,4 @@
+import { t } from 'pod-domain'
 /** 打不开网页：网站或网络的问题，不是浏览器卡住了；接口直接把这句话给你看，不再加“浏览器没有响应”。 */
 export class NavigationError extends Error {}
 
@@ -24,6 +25,6 @@ const NET_ERRORS: Readonly<Record<string, string>> = {
 }
 
 export function describeNetError(code: string): string {
-  if (code.startsWith('net::ERR_CERT_')) return '网站的证书有问题，浏览器不信任它'
-  return NET_ERRORS[code] ?? '打不开这个网页'
+  if (code.startsWith('net::ERR_CERT_')) return t('网站的证书有问题，浏览器不信任它')
+  return t(NET_ERRORS[code] ?? '打不开这个网页')
 }

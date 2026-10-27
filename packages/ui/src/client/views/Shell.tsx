@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { POD_VERSION, compareVersions } from 'pod-domain'
+import { Fragment, useEffect, useRef, useState } from 'react'
+import { POD_VERSION, compareVersions, t } from 'pod-domain'
 import { api } from '../api/endpoints.ts'
 import { Button } from '../components/common.tsx'
 import { useNarrow } from '../components/media.ts'
@@ -7,6 +7,7 @@ import { TooltipLayer } from '../components/Tooltip.tsx'
 import { AppContext, AppState, useApp, useNav, type HostActions } from '../state/app.ts'
 import { pruneDrafts } from '../state/drafts.ts'
 import { useKeyboardInset } from '../state/keyboard.ts'
+import { useLanguage, type HostLocale } from '../state/language.ts'
 import { useMobileBack } from '../state/mobileBack.ts'
 import { useResource } from '../state/resource.ts'
 import { Conversation } from './chat/Conversation.tsx'
@@ -26,12 +27,12 @@ function ReadOnlyBanner() {
   const { data: status } = useResource(app.cache, 'status', () => api.status())
   if (status === undefined) return null
   if (status.exposure?.exposed === true) {
-    return <div className="pod-banner">dsh web 现在对外开放（{status.exposure.reasons.join('；')}）。为了安全，dsh-bot 禁用了 bot 的终端和浏览器写操作；建议只在本机或 Tailscale 内使用。</div>
+    return <div className="pod-banner">{t('dsh web 现在对外开放（{reasons}）。为了安全，dsh-bot 禁用了 bot 的终端和浏览器写操作；建议只在本机或 Tailscale 内使用。', { reasons: status.exposure.reasons.join(t('；')) })}</div>
   }
   if (!status.readOnly) return null
   return (
     <div className="pod-banner">
-      dsh-bot 处于只读模式：当前 dsh（{status.dshVersion}）缺少 dsh-bot 需要的接口（{status.problems.join('、')}）。可以查看数据，但不会创建会话或派活。
+      {t('dsh-bot 处于只读模式：当前 dsh（{dshVersion}）缺少 dsh-bot 需要的接口（{problems}）。可以查看数据，但不会创建会话或派活。', { dshVersion: status.dshVersion, problems: status.problems.join(t('、')) })}
     </div>
   )
 }
@@ -45,13 +46,13 @@ function StaleBanner() {
   const { data: status } = useResource(app.cache, 'status', () => api.status())
   if (status === undefined || status.version === POD_VERSION) return null
   if (compareVersions(POD_VERSION, status.version) > 0) {
-    return <div className="pod-banner">dsh-bot {POD_VERSION} 已经装好，后台还在跑 {status.version}：重启 dsh web 以后才换过来，在那之前有的按钮可能会报错。</div>
+    return <div className="pod-banner">{t('dsh-bot {POD_VERSION} 已经装好，后台还在跑 {version}：重启 dsh web 以后才换过来，在那之前有的按钮可能会报错。', { POD_VERSION, version: status.version })}</div>
   }
   return (
     <div className="pod-banner pod-banner-action">
-      <span>dsh-bot 已经更新到 {status.version}，这个标签页还是更新前打开的（{POD_VERSION}），有的按钮会报错。刷新一下就好。</span>
+      <span>{t('dsh-bot 已经更新到 {version}，这个标签页还是更新前打开的（{POD_VERSION}），有的按钮会报错。刷新一下就好。', { version: status.version, POD_VERSION })}</span>
       <Button small kind="primary" onClick={() => window.location.reload()}>
-        刷新
+        {t('刷新')}
       </Button>
     </div>
   )
@@ -131,9 +132,11 @@ function Layout() {
 }
 
 /** Pod 页面的外壳：左侧栏、中间对话（或页面查看器）、右侧面板，加上设置弹窗、更新弹窗、搜索和抽屉。没有顶部导航。 */
-export function PodApp(props: { readonly host: HostActions }) {
+export function PodApp(props: { readonly host: HostActions; readonly locale: HostLocale }) {
   const [app] = useState(() => new AppState(props.host))
   useEffect(() => () => app.dispose(), [app])
+  // 换语言时整页按新语言重画一遍（导航和数据在 AppState 里，不会丢）。
+  const language = useLanguage(app, props.locale)
   // 跟着 dsh 的深浅色：名字颜色这类要分深浅的样式按它选。
   const theme = useSurfaceTheme()
   const root = useRef<HTMLDivElement>(null)
@@ -141,17 +144,19 @@ export function PodApp(props: { readonly host: HostActions }) {
   useKeyboardInset(root, narrow)
   return (
     <AppContext.Provider value={app}>
-      <div ref={root} className={`pod-app${theme === 'dark' ? ' pod-theme-dark' : ''}`}>
-        <StaleBanner />
-        <UpdateNotice />
-        <ReadOnlyBanner />
-        <Layout />
-        <SettingsModal />
-        <UpdateDialog />
-        <SearchDialog />
-        <Drawers />
-        <FirstRun />
-        <TooltipLayer />
+      <div ref={root} lang={language === 'en' ? 'en' : 'zh-CN'} className={`pod-app${theme === 'dark' ? ' pod-theme-dark' : ''}`}>
+        <Fragment key={language}>
+          <StaleBanner />
+          <UpdateNotice />
+          <ReadOnlyBanner />
+          <Layout />
+          <SettingsModal />
+          <UpdateDialog />
+          <SearchDialog />
+          <Drawers />
+          <FirstRun />
+          <TooltipLayer />
+        </Fragment>
       </div>
     </AppContext.Provider>
   )

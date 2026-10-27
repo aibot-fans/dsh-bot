@@ -1,4 +1,4 @@
-import { X_EVENT_LABELS, xEventSummary, type XEventView } from 'pod-domain'
+import { X_EVENT_LABELS, t, tc, xEventSummary, type XEventView } from 'pod-domain'
 import { clock } from '../../components/common.tsx'
 
 function str(value: unknown): string {
@@ -36,7 +36,7 @@ export function readXEvent(value: unknown): XEventView | undefined {
 /** 「X 监控」群里的一条动态：谁、做了什么、推文原文和图，点链接去 X 上看。 */
 export function XEventCard(props: { readonly view: XEventView }) {
   const { view } = props
-  const label = X_EVENT_LABELS[view.type] ?? '新动态'
+  const label = tc(X_EVENT_LABELS[view.type] ?? '新动态', 'X')
   const link = view.tweetUrl || view.url
   const who = view.name || view.screenName
   const summary = xEventSummary(view)
@@ -63,7 +63,7 @@ export function XEventCard(props: { readonly view: XEventView }) {
         <div className={`pod-xevent-media pod-xevent-media-${Math.min(view.media.length, 4)}`}>
           {view.media.map((url) => (
             <a key={url} href={link || url} target="_blank" rel="noopener noreferrer">
-              <img src={url} alt="推文里的图" loading="lazy" referrerPolicy="no-referrer" />
+              <img src={url} alt={t('推文里的图')} loading="lazy" referrerPolicy="no-referrer" />
             </a>
           ))}
         </div>
@@ -72,7 +72,7 @@ export function XEventCard(props: { readonly view: XEventView }) {
         {view.eventTime === null ? null : <time dateTime={new Date(view.eventTime).toISOString()}>{clock(view.eventTime)}</time>}
         {link === '' ? null : (
           <a className="pod-link" href={link} target="_blank" rel="noopener noreferrer">
-            在 X 上看
+            {t('在 X 上看')}
           </a>
         )}
       </footer>

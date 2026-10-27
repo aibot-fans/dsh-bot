@@ -1,4 +1,4 @@
-import { PAGE_KIND_LABELS, type Bot, type Page, type PageKind, type RoomSummary } from 'pod-domain'
+import { PAGE_KIND_LABELS, t, type Bot, type Page, type PageKind, type RoomSummary } from 'pod-domain'
 
 /** 页面库里的一组：群聊里做的归到那个群，其余（单聊、任务里做的）归到做它的 bot。 */
 export interface PageGroup {
@@ -19,7 +19,7 @@ const newest = (left: Page, right: Page): number => right.updatedAt - left.updat
 export function matches(page: Page, filter: PageFilter): boolean {
   if (filter.kind !== 'all' && page.kind !== filter.kind) return false
   const query = filter.query.trim().toLowerCase()
-  return query === '' || page.title.toLowerCase().includes(query) || PAGE_KIND_LABELS[page.kind].includes(query)
+  return query === '' || page.title.toLowerCase().includes(query) || t(PAGE_KIND_LABELS[page.kind]).includes(query)
 }
 
 function groupKey(page: Page, rooms: ReadonlyMap<string, RoomSummary>): string {
@@ -54,7 +54,7 @@ export function groupPages(
     const sorted = [...members].sort(newest)
     const room = key.startsWith('room:') ? roomMap.get(key.slice(5)) : undefined
     const bot = key.startsWith('bot:') ? bots.get(key.slice(4)) : undefined
-    const label = room !== undefined ? room.title : (bot?.name ?? '已删除的 bot')
+    const label = room !== undefined ? room.title : (bot?.name ?? t('已删除的 bot'))
     return { key, label, room, bot, pages: sorted }
   })
   const rank = (group: PageGroup): number => (group.key === current ? Number.POSITIVE_INFINITY : (group.pages[0]?.updatedAt ?? 0))

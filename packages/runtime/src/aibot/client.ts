@@ -1,3 +1,4 @@
+import { t } from 'pod-domain'
 import { AibotError, AibotNetworkError } from './errors.ts'
 
 /** aibot 的地址；开发时可以用 POD_AIBOT_URL 指到别的环境。 */
@@ -30,19 +31,19 @@ export function toTime(value: unknown): number | null {
 }
 
 export function reasonOf(error: unknown): string {
-  if (error instanceof Error) return error.name === 'TimeoutError' ? '超时了' : error.message
+  if (error instanceof Error) return error.name === 'TimeoutError' ? t('超时了') : error.message
   return String(error)
 }
 
 /** 请求没发出去或没等到回复时的一句话：超时说等了多久，别的说连不上。 */
 export function unreachable(error: unknown, timeoutMs: number): AibotNetworkError {
-  if (error instanceof Error && error.name === 'TimeoutError') return new AibotNetworkError(`aibot ${Math.round(timeoutMs / 1000)} 秒内没有回复`)
-  return new AibotNetworkError(`连不上 aibot：${reasonOf(error)}`)
+  if (error instanceof Error && error.name === 'TimeoutError') return new AibotNetworkError(t('aibot {round} 秒内没有回复', { round: Math.round(timeoutMs / 1000) }))
+  return new AibotNetworkError(t('连不上 aibot：{reasonOf}', { reasonOf: reasonOf(error) }))
 }
 
 /** 网络问题给你和 bot 看的话（AibotNetworkError 自己已经说清楚了）。 */
 export function networkText(error: unknown): string {
-  return error instanceof AibotNetworkError ? error.message : `连不上 aibot：${reasonOf(error)}`
+  return error instanceof AibotNetworkError ? error.message : t('连不上 aibot：{reasonOf}', { reasonOf: reasonOf(error) })
 }
 
 function parseJson(body: string): Json | undefined {
@@ -62,7 +63,7 @@ function errorFrom(response: Response, body: Json | undefined): AibotError {
   return new AibotError({
     status: response.status,
     code: text(error.code) || `http_${response.status}`,
-    message: text(error.message) || `aibot 返回 HTTP ${response.status}`,
+    message: text(error.message) || t('aibot 返回 HTTP {status}', { status: response.status }),
     details,
     retryAfterSeconds,
   })
@@ -104,7 +105,7 @@ export class AibotClient {
     }
     const body = parseJson(await response.text().catch(() => ''))
     if (!response.ok) throw errorFrom(response, body)
-    if (body === undefined) throw new AibotNetworkError(`aibot 返回的内容看不懂（HTTP ${response.status}）`)
+    if (body === undefined) throw new AibotNetworkError(t('aibot 返回的内容看不懂（HTTP {status}）', { status: response.status }))
     return { data: body.data, meta: isJson(body.meta) ? body.meta : {} }
   }
 
@@ -114,7 +115,7 @@ export class AibotClient {
     const value = isJson(data) ? data : {}
     const device = isJson(value.device) ? value.device : {}
     const apiKey = text(value.apiKey)
-    if (apiKey === '') throw new AibotNetworkError('aibot 开通成功但没有返回 Key')
+    if (apiKey === '') throw new AibotNetworkError(t('aibot 开通成功但没有返回 Key'))
     return { apiKey, deviceId: text(device.id), created: value.created === true }
   }
 

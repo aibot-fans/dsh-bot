@@ -26,6 +26,7 @@ import {
   readString,
   readStringArray,
   roomFolder,
+  t,
   truncate,
   type Bot,
   type MessageKind,
@@ -183,9 +184,9 @@ export class RoomService {
   newConversation(input: unknown): PodResult<Room> {
     const roomId = readId(input, 'roomId')
     const current = roomId === undefined ? undefined : this.get(roomId)
-    if (current !== undefined && current.kind !== 'direct') return fail('invalid-input', '群聊不分段，直接接着说就行')
+    if (current !== undefined && current.kind !== 'direct') return fail('invalid-input', t('群聊不分段，直接接着说就行'))
     const bot = this.deps.bots.activeBot(current?.botId ?? readId(input, 'botId') ?? '')
-    if (bot === undefined) return fail('not-found', '找不到这个 bot')
+    if (bot === undefined) return fail('not-found', t('找不到这个 bot'))
     const threads = this.threads(bot.id)
     const latest = current !== undefined && current.archivedAt === null && !isTemporaryRoom(current) ? current : threads[0]
     if (latest !== undefined && latest.lastSeq === 0) return ok(latest)
@@ -199,7 +200,7 @@ export class RoomService {
     const found = this.room(input)
     if (!found.ok) return found
     const room = found.value
-    if (room.kind !== 'direct') return fail('invalid-input', '群聊在侧栏的“…”里删除')
+    if (room.kind !== 'direct') return fail('invalid-input', t('群聊在侧栏的“…”里删除'))
     for (const session of this.chatsIn(room.id)) {
       this.deps.stopSession(session.id)
       this.deps.registry.retire(session.id)
@@ -214,9 +215,9 @@ export class RoomService {
   /** 打开和某个 bot 的单聊：默认回到最近那个；fresh 表示按新话题另开一个。 */
   openDirect(input: unknown): PodResult<Room> {
     const botId = readId(input, 'botId')
-    if (botId === undefined) return fail('invalid-input', '缺少 bot 的 id')
+    if (botId === undefined) return fail('invalid-input', t('缺少 bot 的 id'))
     const bot = this.deps.bots.activeBot(botId)
-    if (bot === undefined) return fail('not-found', '找不到这个 bot')
+    if (bot === undefined) return fail('not-found', t('找不到这个 bot'))
     const fresh = readBool(input, 'fresh') === true
     const incognito = readBool(input, 'incognito') === true
     const topic = readString(input, 'topic')
@@ -224,7 +225,7 @@ export class RoomService {
       const latest = findDirectRooms(this.db, bot.id).find((room) => room.archivedAt === null && room.topic === topic)
       if (latest !== undefined) return ok(latest)
     }
-    const title = topic === '' && fresh ? `${bot.name} · 新话题` : topic
+    const title = topic === '' && fresh ? t('{name} · 新话题', { name: bot.name }) : topic
     return ok(this.createDirect(bot, { topic: title, pinned: false, incognito }))
   }
 
@@ -250,10 +251,10 @@ export class RoomService {
   /** 拉群：建一个不挂任务的群聊。同名的群还在就直接用它，把没进群的成员补进去。主管总在群里。 */
   createGroup(input: { readonly name: string; readonly memberIds: readonly string[]; readonly max?: number }, actor: string): PodResult<Room> {
     const name = truncate(input.name.replace(/\s+/g, ' ').trim(), input.max ?? ROOM_TITLE_MAX)
-    if (name === '') return fail('invalid-input', '群要有名字')
+    if (name === '') return fail('invalid-input', t('群要有名字'))
     const lead = this.deps.bots.lead()
     const members = [...new Set([lead.id, ...input.memberIds])].filter((id) => this.deps.bots.activeBot(id) !== undefined)
-    if (members.length < 2) return fail('invalid-input', '至少拉一个 bot 进群')
+    if (members.length < 2) return fail('invalid-input', t('至少拉一个 bot 进群'))
     const now = this.deps.now()
     const existing = listRooms(this.db, { archived: false }).find((room) => room.kind === 'task' && room.taskId === null && room.title === name)
     if (existing !== undefined) {
@@ -286,10 +287,10 @@ export class RoomService {
     const roomId = readId(input, 'roomId')
     const botId = readId(input, 'botId')
     const room = roomId === undefined ? undefined : this.get(roomId)
-    if (room === undefined || room.archivedAt !== null) return fail('not-found', '找不到这个群聊')
-    if (room.kind === 'direct') return fail('invalid-input', '单聊不能加减成员')
+    if (room === undefined || room.archivedAt !== null) return fail('not-found', t('找不到这个群聊'))
+    if (room.kind === 'direct') return fail('invalid-input', t('单聊不能加减成员'))
     const bot = botId === undefined ? undefined : this.deps.bots.activeBot(botId)
-    if (bot === undefined) return fail('not-found', '找不到这个 bot')
+    if (bot === undefined) return fail('not-found', t('找不到这个 bot'))
     return ok({ room, bot })
   }
 
@@ -299,7 +300,7 @@ export class RoomService {
     if (!found.ok) return found
     this.addMember(found.value.room.id, found.value.bot.id)
     this.deps.audit.record('room.member.add', OWNER, found.value.room.id, { botId: found.value.bot.id })
-    this.milestone(found.value.room.id, `${found.value.bot.name} 进群了`, { botId: found.value.bot.id })
+    this.milestone(found.value.room.id, t('{name} 进群了', { name: found.value.bot.name }), { botId: found.value.bot.id })
     return ok(null)
   }
 
@@ -308,7 +309,7 @@ export class RoomService {
     const found = this.groupAndBot(input)
     if (!found.ok) return found
     const { room, bot } = found.value
-    if (bot.role === 'lead') return fail('lead-protected', '主管要留在群里，负责分派和组织')
+    if (bot.role === 'lead') return fail('lead-protected', t('主管要留在群里，负责分派和组织'))
     removeRoomMember(this.db, room.id, bot.id)
     const session = this.deps.registry.activeForRoom(room.id, bot.id)
     if (session !== undefined) {
@@ -316,7 +317,7 @@ export class RoomService {
       this.deps.registry.retire(session.id)
     }
     this.deps.audit.record('room.member.remove', OWNER, room.id, { botId: bot.id })
-    this.milestone(room.id, `${bot.name} 移出了群聊`, { botId: bot.id })
+    this.milestone(room.id, t('{name} 移出了群聊', { name: bot.name }), { botId: bot.id })
     this.deps.bus.emit({ type: 'room', roomId: room.id })
     return ok(null)
   }
@@ -328,7 +329,7 @@ export class RoomService {
   private room(input: unknown): PodResult<Room> {
     const roomId = readId(input, 'roomId')
     const room = roomId === undefined ? undefined : this.get(roomId)
-    return room === undefined || room.archivedAt !== null ? fail('not-found', '找不到这个对话') : ok(room)
+    return room === undefined || room.archivedAt !== null ? fail('not-found', t('找不到这个对话')) : ok(room)
   }
 
   /** 停止回复：停掉这个房间里正在回答的 bot。任务不受影响，任务用任务卡上的“停止”。 */
@@ -391,9 +392,9 @@ export class RoomService {
 
   messages(input: unknown): PodResult<{ readonly room: Room; readonly messages: readonly RoomMessage[] }> {
     const roomId = readId(input, 'roomId')
-    if (roomId === undefined) return fail('invalid-input', '缺少房间 id')
+    if (roomId === undefined) return fail('invalid-input', t('缺少房间 id'))
     const room = this.get(roomId)
-    if (room === undefined) return fail('not-found', '找不到这个房间')
+    if (room === undefined) return fail('not-found', t('找不到这个房间'))
     const before = Number(readString(input, 'before'))
     const after = Number(readString(input, 'after'))
     const around = Number(readString(input, 'around'))
@@ -463,18 +464,18 @@ export class RoomService {
   /** 你在房间里说话：先打码再存，然后交给负责回答的 bot；普通群聊里没点名的话按分工挑人，不等挑完就回页面。 */
   async send(input: unknown): Promise<PodResult<RoomMessage>> {
     const roomId = readId(input, 'roomId')
-    if (roomId === undefined) return fail('invalid-input', '缺少房间 id')
+    if (roomId === undefined) return fail('invalid-input', t('缺少房间 id'))
     const room = this.get(roomId)
-    if (room === undefined || room.archivedAt !== null) return fail('not-found', '找不到这个房间')
+    if (room === undefined || room.archivedAt !== null) return fail('not-found', t('找不到这个房间'))
     const raw = readString(input, 'text')
-    if (raw === '') return fail('invalid-input', '消息不能为空')
-    if (charLength(raw) > MESSAGE_MAX) return fail('invalid-input', `一条消息最多 ${MESSAGE_MAX} 个字`)
+    if (raw === '') return fail('invalid-input', t('消息不能为空'))
+    if (charLength(raw) > MESSAGE_MAX) return fail('invalid-input', t('一条消息最多 {MESSAGE_MAX} 个字', { MESSAGE_MAX }))
     const masked = maskSecrets(raw)
     const replyTo = readId(input, 'replyTo') ?? null
     const quoted = replyTo === null ? undefined : getMessage(this.db, replyTo)
     const mentioned = room.kind === 'direct' ? [] : this.mentioned(room, masked.text)
     const responder = mentioned[0] ?? this.responder(room)
-    if (responder === undefined) return fail('not-found', '这个房间里没有能回答的 bot')
+    if (responder === undefined) return fail('not-found', t('这个房间里没有能回答的 bot'))
     const message = this.post(roomId, {
       author: OWNER,
       kind: 'text',
@@ -483,7 +484,7 @@ export class RoomService {
       // calls：这条消息真的通知了谁，页面上写“已通知”；群里没 @ 到成员时是空的，提到群外 bot 的 @ 画成淡色。
       data: { ...(masked.kinds.length === 0 ? {} : { masked: masked.kinds }), ...(room.kind === 'direct' ? {} : { calls: mentioned.map((bot) => bot.id) }) },
     })
-    if (message === undefined) return fail('not-found', '找不到这个房间')
+    if (message === undefined) return fail('not-found', t('找不到这个房间'))
     markRoomRead(this.db, roomId, message.seq)
     this.deps.onOwnerText?.(message)
     // 快捷指令（/任务、/总结……）：房间里留你的原话，交给 bot 的是展开后的说明。
@@ -497,7 +498,7 @@ export class RoomService {
         try {
           await this.deliver(room, bot, text, quoted, { mentioned: mentioned.length > 0, messageId: message.id })
         } catch (error) {
-          this.milestone(roomId, `没能把消息交给${bot.name}：${error instanceof Error ? error.message : String(error)}`)
+          this.milestone(roomId, t('没能把消息交给{name}：{value}', { name: bot.name, value: error instanceof Error ? error.message : String(error) }))
         }
       }
     })
@@ -512,7 +513,7 @@ export class RoomService {
   /** 同一个房间里交给 bot 的话按先后投递。 */
   private inOrder(roomId: string, work: () => Promise<void>): Promise<void> {
     const next = (this.order.get(roomId) ?? Promise.resolve()).then(work).catch((error: unknown) => {
-      this.milestone(roomId, `没能把消息交给 bot：${error instanceof Error ? error.message : String(error)}`)
+      this.milestone(roomId, t('没能把消息交给 bot：{value}', { value: error instanceof Error ? error.message : String(error) }))
     })
     this.order.set(roomId, next)
     void next.finally(() => {
@@ -536,7 +537,7 @@ export class RoomService {
     try {
       await this.deliver(room, bot, text, quoted, { messageId, routed: bot.id !== lead.id })
     } catch (error) {
-      this.milestone(room.id, `没能把消息交给${bot.name}：${error instanceof Error ? error.message : String(error)}`)
+      this.milestone(room.id, t('没能把消息交给{name}：{value}', { name: bot.name, value: error instanceof Error ? error.message : String(error) }))
     }
     return bot
   }
@@ -576,35 +577,35 @@ export class RoomService {
     message: string,
   ): Promise<PodResult<{ readonly called: readonly string[]; readonly skipped: readonly string[] }>> {
     const room = session.roomId === null ? undefined : this.get(session.roomId)
-    if (room === undefined || room.archivedAt !== null || room.kind === 'direct') return fail('invalid-input', '只有在群聊里才能 @ 成员')
+    if (room === undefined || room.archivedAt !== null || room.kind === 'direct') return fail('invalid-input', t('只有在群聊里才能 @ 成员'))
     const speaker = this.deps.bots.activeBot(session.botId)
-    if (speaker === undefined) return fail('not-found', '找不到你自己')
+    if (speaker === undefined) return fail('not-found', t('找不到你自己'))
     const members = this.memberBots(room)
     const { found, missing } = resolveMembers(names, members, speaker)
     if (missing.length > 0) {
-      return fail('not-found', `「${missing.join('、')}」不在这个群里。群里有：${members.map((bot) => bot.name).join('、')}。要问群外的 bot 用 ask_bot，或者请用户把它拉进群。`)
+      return fail('not-found', t('「{missing}」不在这个群里。群里有：{members}。要问群外的 bot 用 ask_bot，或者请用户把它拉进群。', { missing: missing.join(t('、')), members: members.map((bot) => bot.name).join(t('、')) }))
     }
-    if (found.length === 0) return fail('invalid-input', '要 @ 的是群里的其他成员，不能只 @ 自己')
+    if (found.length === 0) return fail('invalid-input', t('要 @ 的是群里的其他成员，不能只 @ 自己'))
     const trigger = this.triggers.get(session.id)
     const skipped = found.filter((bot) => bot.id === trigger)
     const targets = found.filter((bot) => bot.id !== trigger)
     if (targets.length === 0) {
       const name = skipped[0]?.name ?? '它'
-      return fail('invalid-input', `${name}刚在群里 @ 了你。你的回复会直接发在群里，${name}和用户都看得到，不用再 @ ${name}：直接回复就行，要${name}再做什么也直接写在回复里。`)
+      return fail('invalid-input', t('{name}刚在群里 @ 了你。你的回复会直接发在群里，{name}和用户都看得到，不用再 @ {name}：直接回复就行，要{name}再做什么也直接写在回复里。', { name }))
     }
     const used = botCallsSinceOwner(listMessages(this.db, room.id, { limit: 60 }))
     if (used + targets.length > BOT_CALL_LIMIT) {
-      return fail('conflict', `用户说完上一句以后，bot 之间已经在群里点名 ${used} 次了（上限 ${BOT_CALL_LIMIT}）。先把现在的结论回给用户，等用户再开口。`)
+      return fail('conflict', t('用户说完上一句以后，bot 之间已经在群里点名 {used} 次了（上限 {BOT_CALL_LIMIT}）。先把现在的结论回给用户，等用户再开口。', { used, BOT_CALL_LIMIT }))
     }
     const text = stripMentions(message, targets, members)
-    if (text === '') return fail('invalid-input', '要写明想对他们说什么')
+    if (text === '') return fail('invalid-input', t('要写明想对他们说什么'))
     const body = maskSecrets(`${targets.map((bot) => `@${bot.name}`).join(' ')} ${text}`).text
     const posted = this.post(room.id, { author: speaker.id, kind: 'text', body, sessionId: session.id, data: { calls: targets.map((bot) => bot.id) } })
     for (const bot of targets) {
       try {
         await this.deliver(room, bot, text, undefined, { mentioned: true, messageId: posted?.id, from: { bot: speaker, sessionId: session.id } })
       } catch (error) {
-        this.milestone(room.id, `没能把${speaker.name}的消息交给${bot.name}：${error instanceof Error ? error.message : String(error)}`)
+        this.milestone(room.id, t('没能把{name}的消息交给{name2}：{value}', { name: speaker.name, name2: bot.name, value: error instanceof Error ? error.message : String(error) }))
       }
     }
     return ok({ called: targets.map((bot) => bot.name), skipped: skipped.map((bot) => bot.name) })
@@ -620,7 +621,7 @@ export class RoomService {
   /** 不经过发言、直接交给 bot 一段说明（重新回答用）：给了 bot 就交给它（群里算点名它），不然交给房间里默认回答的 bot。 */
   async deliverText(room: Room, text: string, bot?: Bot): Promise<PodResult<Bot>> {
     const target = bot ?? this.responder(room)
-    if (target === undefined) return fail('not-found', '这个房间里没有能回答的 bot')
+    if (target === undefined) return fail('not-found', t('这个房间里没有能回答的 bot'))
     await this.deliver(room, target, text, undefined, { mentioned: bot !== undefined })
     return ok(target)
   }
@@ -723,7 +724,7 @@ export class RoomService {
   ): Promise<PodResult<{ readonly message: RoomMessage; readonly deliveryId: string }>> {
     const masked = maskSecrets(input.body)
     const message = this.post(room.id, { author: OWNER, kind: 'text', body: masked.text, data: { ...input.data, ...(masked.kinds.length === 0 ? {} : { masked: masked.kinds }) } })
-    if (message === undefined) return fail('not-found', '找不到这个对话')
+    if (message === undefined) return fail('not-found', t('找不到这个对话'))
     markRoomRead(this.db, room.id, message.seq)
     const deliveryId = await this.deliver(room, bot, maskSecrets(input.text).text, undefined, { messageId: message.id })
     return ok({ message, deliveryId })
@@ -744,7 +745,7 @@ export class RoomService {
         taskId: room.taskId,
         folder: room.kind === 'direct' ? botFolder(bot) : roomFolder(room),
         // 群里每个成员各有一条会话，标题带上名字；单聊带上这段对话的第一句话，在 dsh 的会话列表里分得清。
-        title: room.kind === 'direct' ? `dsh-bot · ${bot.name} · ${room.topic !== '' ? room.topic : chatSubject(firstOwnerLine(this.db, room.id), 16) || '新对话'}` : `dsh-bot · ${room.title} · ${bot.name}`,
+        title: room.kind === 'direct' ? `dsh-bot · ${bot.name} · ${room.topic !== '' ? room.topic : chatSubject(firstOwnerLine(this.db, room.id), 16) || t('新对话')}` : `dsh-bot · ${room.title} · ${bot.name}`,
       })
       .finally(() => this.opening.delete(key))
     this.opening.set(key, opening)
@@ -773,7 +774,7 @@ export class RoomService {
   markRead(input: unknown): PodResult<null> {
     const roomId = readId(input, 'roomId')
     const seq = readInt(input, 'seq')
-    if (roomId === undefined || seq === undefined) return fail('invalid-input', '要写明房间和读到的位置')
+    if (roomId === undefined || seq === undefined) return fail('invalid-input', t('要写明房间和读到的位置'))
     markRoomRead(this.db, roomId, seq)
     this.deps.bus.emit({ type: 'rooms' })
     return ok(null)
@@ -781,7 +782,7 @@ export class RoomService {
 
   update(input: unknown): PodResult<Room> {
     const roomId = readId(input, 'roomId')
-    if (roomId === undefined) return fail('invalid-input', '缺少房间 id')
+    if (roomId === undefined) return fail('invalid-input', t('缺少房间 id'))
     const raw = readObject(input, 'patch')
     const title = readString(raw, 'title')
     const patch: RoomPatch = {
@@ -794,7 +795,7 @@ export class RoomService {
       ...(readBool(raw, 'archived') === undefined ? {} : { archivedAt: readBool(raw, 'archived') === true ? this.deps.now() : null }),
     }
     const updated = updateRoom(this.db, roomId, patch)
-    if (updated === undefined) return fail('not-found', '找不到这个房间')
+    if (updated === undefined) return fail('not-found', t('找不到这个房间'))
     this.deps.audit.record('room.update', OWNER, roomId, { patch })
     this.deps.bus.emit({ type: 'rooms' })
     this.deps.bus.emit({ type: 'room', roomId })
@@ -803,22 +804,22 @@ export class RoomService {
 
   pin(input: unknown): PodResult<RoomMessage> {
     const messageId = readId(input, 'messageId')
-    if (messageId === undefined) return fail('invalid-input', '缺少消息 id')
+    if (messageId === undefined) return fail('invalid-input', t('缺少消息 id'))
     const pinned = readBool(input, 'pinned') ?? true
     const updated = this.patchMessage(messageId, { pinned })
-    return updated === undefined ? fail('not-found', '找不到这条消息') : ok(updated)
+    return updated === undefined ? fail('not-found', t('找不到这条消息')) : ok(updated)
   }
 }
 
 function authorName(message: RoomMessage, bots: BotService): string {
-  if (message.author === OWNER) return '你'
+  if (message.author === OWNER) return t('你')
   if (message.author === POD) return 'dsh-bot'
   return bots.get(message.author)?.name ?? 'bot'
 }
 
 function previewOf(message: RoomMessage, bots: BotService): string {
   const who = authorName(message, bots)
-  if (message.kind === 'task-card') return `${who}：[任务] ${String(message.data.title ?? '')}`
-  if (message.kind === 'wait') return `等你：${message.body}`
-  return message.author === POD ? message.body : `${who}：${message.body}`
+  if (message.kind === 'task-card') return t('{who}：[任务] {title}', { who, title: String(message.data.title ?? '') })
+  if (message.kind === 'wait') return t('等你：{body}', { body: message.body })
+  return message.author === POD ? message.body : t('{who}：{body}', { who, body: message.body })
 }

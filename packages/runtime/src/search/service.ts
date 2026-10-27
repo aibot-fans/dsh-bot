@@ -5,6 +5,7 @@ import {
   MEMORY_TYPE_LABELS,
   OWNER,
   POD,
+  t,
   type Bot,
   type MemoryEntry,
   type PodSession,
@@ -54,12 +55,12 @@ export class SearchService {
 
   messageDoc(message: RoomMessage, room: Room): SearchDoc | undefined {
     if (!INDEXED_KINDS.has(message.kind) || message.deletedAt !== null || message.body.trim() === '') return undefined
-    const author = message.author === OWNER ? '你' : message.author === POD ? 'dsh-bot' : (this.deps.bot(message.author)?.name ?? '')
+    const author = message.author === OWNER ? t('你') : message.author === POD ? 'dsh-bot' : (this.deps.bot(message.author)?.name ?? '')
     return {
       ref: `message:${message.id}`,
       kind: 'message',
       title: room.title,
-      body: `${author}：${message.body}`,
+      body: t('{author}：{body}', { author, body: message.body }),
       roomId: room.id,
       botId: message.author === OWNER || message.author === POD ? null : message.author,
       teamId: room.teamId,

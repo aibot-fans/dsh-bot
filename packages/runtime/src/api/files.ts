@@ -1,5 +1,6 @@
 import { open, realpath, stat, readFile } from 'node:fs/promises'
 import { basename, extname, isAbsolute, join, resolve } from 'node:path'
+import { t } from 'pod-domain'
 import type { FetchRoute } from '../dsh.ts'
 import type { PodRuntime } from '../pod.ts'
 import { POD_API_PREFIX } from './router.ts'
@@ -64,7 +65,7 @@ async function locate(pod: PodRuntime, raw: string, taskId: string | null): Prom
 }
 
 async function whole(file: Found, type: string, max: number, extra: Readonly<Record<string, string>>): Promise<Response> {
-  if (file.size > max) return plain(413, '文件太大，不能预览')
+  if (file.size > max) return plain(413, t('文件太大，不能预览'))
   const data = await readFile(file.path)
   return new Response(new Uint8Array(data), { status: 200, headers: { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', ...extra } })
 }
@@ -140,7 +141,7 @@ export function fileRoute(pod: PodRuntime): FetchRoute {
     fetch: async (request) => {
       const params = new URL(request.url).searchParams
       const file = await locate(pod, params.get('path') ?? '', params.get('taskId'))
-      if (file === undefined) return plain(404, '找不到这个文件，或者它不在工作区里')
+      if (file === undefined) return plain(404, t('找不到这个文件，或者它不在工作区里'))
       const extension = extname(file.path).toLowerCase()
       const known = IMAGES[extension] ?? MEDIA[extension] ?? (extension === '.pdf' ? PDF : undefined)
       if (params.get('download') === '1') return whole(file, known ?? 'application/octet-stream', MAX_WHOLE, { 'content-disposition': attachmentName(file.path), 'content-security-policy': SANDBOX })

@@ -1,3 +1,4 @@
+import { t } from 'pod-domain'
 import { columnIndex, dateStyles, formatNumber, formatSerial, unescapeExcel } from './cells.ts'
 import { ConvertError, type Extracted } from './formats.ts'
 import { table } from './markdown.ts'
@@ -29,7 +30,7 @@ type Row = readonly (readonly [number, string])[]
 
 function readWorkbook(zip: ZipArchive, part: string): Workbook {
   const xml = zip.text(part)
-  if (xml === undefined) throw new ConvertError('找不到 Excel 的工作表列表')
+  if (xml === undefined) throw new ConvertError(t('找不到 Excel 的工作表列表'))
   const relations = relationships(zip, part)
   const sheets: SheetRef[] = []
   let date1904 = false
@@ -211,17 +212,17 @@ export function extractXlsx(zip: ZipArchive): Extracted {
     date1904: workbook.date1904,
   }
   const sections = workbook.sheets.map((sheet) => {
-    const hidden = sheet.hidden ? '，隐藏' : ''
+    const hidden = sheet.hidden ? t('，隐藏') : ''
     const xml = sheet.target === undefined || sheet.target.includes('chartsheets/') ? undefined : zip.text(sheet.target)
-    if (xml === undefined) return `## 工作表「${sheet.name}」\n\n（图表页或读不到的工作表，没有表格数据）`
+    if (xml === undefined) return t('## 工作表「{name}」\n\n（图表页或读不到的工作表，没有表格数据）', { name: sheet.name })
     const rows = readRows(xml, context)
-    if (rows.length === 0) return `## 工作表「${sheet.name}」（空${hidden}）`
+    if (rows.length === 0) return t('## 工作表「{name}」（空{hidden}）', { name: sheet.name, hidden })
     const rendered = renderRows(rows)
-    return `## 工作表「${sheet.name}」（${rows.length} 行 × ${rendered.width} 列${hidden}）\n\n${rendered.text}`
+    return t('## 工作表「{name}」（{length} 行 × {width} 列{hidden}）\n\n{text}', { name: sheet.name, length: rows.length, width: rendered.width, hidden, text: rendered.text })
   })
   return {
     body: sections.join('\n\n'),
-    note: '由 dsh-bot 从 Excel 表格自动转出；每个工作表一张表，第一行当表头，空行省掉了；公式只留算好的值，格式、图表和图片没有保留。',
-    summary: `共 ${workbook.sheets.length} 个工作表`,
+    note: t('由 dsh-bot 从 Excel 表格自动转出；每个工作表一张表，第一行当表头，空行省掉了；公式只留算好的值，格式、图表和图片没有保留。'),
+    summary: t('共 {length} 个工作表', { length: workbook.sheets.length }),
   }
 }

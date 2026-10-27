@@ -1,6 +1,7 @@
 import type {
   Bot,
   CoreMemory,
+  Language,
   PodNotification,
   Routine,
   MemoryEntry,
@@ -196,6 +197,7 @@ export const api = {
   status: () => apiGet<PodStatus>('/status'),
   settings: () => apiGet<PodSettings>('/settings'),
   updateSettings: (patch: Partial<PodSettings>) => apiPost<PodSettings>('/settings/update', patch),
+  reportLocale: (locale: string) => apiPost<{ readonly language: Language; readonly changed: boolean }>('/locale', { locale }),
   models: () => apiGet<ModelCatalog>('/models'),
 
   bots: () => apiGet<readonly Bot[]>('/bots'),

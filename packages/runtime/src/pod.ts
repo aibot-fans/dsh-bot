@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { join } from 'node:path'
-import { OWNER, POD, POD_VERSION, PRIORITY, botFolder, composePersona, roomFolder, fail, sessionBrowses, sessionMakesPages, worthSummary, type Bot, type BotStats, type PodEvent, type PodResult, type PodSession, type Room, type Task, type TeamTemplate } from 'pod-domain'
+import { OWNER, POD, POD_VERSION, PRIORITY, botFolder, composePersona, roomFolder, fail, sessionBrowses, sessionMakesPages, t, withLanguage, worthSummary, type Bot, type BotStats, type Language, type PodEvent, type PodResult, type PodSession, type Room, type Task, type TeamTemplate } from 'pod-domain'
 import { deliveryByMessageId, pinnedMessages, teamsOfBot } from 'pod-store'
 import { SegmentManager } from './agents/segments.ts'
 import { AibotService } from './aibot/service.ts'
@@ -30,6 +30,7 @@ import { PodBus } from './core/bus.ts'
 import type { CompatReport } from './core/compat.ts'
 import { LiteLlm } from './core/lite.ts'
 import { Maintenance } from './core/maintenance.ts'
+import { LanguageService } from './core/language.ts'
 import { SettingsService } from './core/settings.ts'
 import type { HostContext, LlmService } from './dsh.ts'
 import { SessionFactory } from './sessions/factory.ts'
@@ -40,6 +41,7 @@ import { Coordinator } from './orchestrator/coordinator.ts'
 import { TeamService } from './teams/service.ts'
 import { UsageMeter } from './usage/meter.ts'
 import { WaitService } from './waits/service.ts'
+import { ReadRefused } from './browser/actions.ts'
 import { createBrowserKit, type BrowserKit } from './browser/index.ts'
 import { createEvolutionKit, type EvolutionKit } from './evolution/index.ts'
 import { ModelResolver } from './core/models.ts'
@@ -76,6 +78,8 @@ export interface PodStatus {
   readonly workspaceRoot: string
   /** dsh web 对外开放时 shell 和浏览器写操作默认禁用。 */
   readonly exposure: Exposure
+  /** 宿主现在用的语言（系统消息、bot 回答）。 */
+  readonly language: Language
 }
 
 /**
@@ -86,6 +90,7 @@ export class PodRuntime {
   readonly bus: PodBus
   readonly audit: Auditor
   readonly settings: SettingsService
+  readonly language: LanguageService
   readonly bots: BotService
   readonly sessions: SessionFactory
   readonly registry: SessionRegistry
@@ -142,6 +147,7 @@ export class PodRuntime {
     this.bus = new PodBus(now)
     this.audit = new Auditor(db, now, warn)
     this.settings = new SettingsService(db, this.bus, now)
+    this.language = new LanguageService(db, () => this.settings.get())
     this.models = new ModelResolver({ ctx, settings: () => this.settings.get(), effortFor: (botId) => this.evolutionKit.tuner.effortFor(botId) })
     this.bots = new BotService({ db, bus: this.bus, audit: this.audit, now })
     this.teams = new TeamService({ db, bus: this.bus, bots: this.bots, audit: this.audit, now })
@@ -216,7 +222,7 @@ export class PodRuntime {
         const hints = await this.memory.hintsFor(session, text).catch(() => undefined)
         return hints === undefined ? text : `${text}\n\n${hints}`
       },
-      rotate: async (room, bot, session) => (this.segments.needsRotation(session) ? this.segments.rotateChat(room, bot, session, '上下文接近软上限或空闲太久') : undefined),
+      rotate: async (room, bot, session) => (this.segments.needsRotation(session) ? this.segments.rotateChat(room, bot, session, t('上下文接近软上限或空闲太久')) : undefined),
       indexed: (message) => this.search.indexMessage(message),
       leaderFor: (room) => this.leaderForRoom(room),
       onOwnerText: (message) => this.evolutionKit.feedback.observeOwner(message),
@@ -328,7 +334,7 @@ export class PodRuntime {
             this.bus.emit({ type: 'stream', roomId: session.roomId, botId: session.botId, sessionId: session.id, text: '', done: true })
           }
           if (session.kind === 'routine' && session.roomId !== null) {
-            this.notifications.notify({ kind: 'routine', title: `例程结果：${this.rooms.get(session.roomId)?.title ?? ''}`, body: text.slice(0, 200), roomId: session.roomId })
+            this.notifications.notify({ kind: 'routine', title: t('例程结果：{value}', { value: this.rooms.get(session.roomId)?.title ?? '' }), body: text.slice(0, 200), roomId: session.roomId })
           }
           this.consults.onText(session, text)
         },
@@ -355,7 +361,7 @@ export class PodRuntime {
             mode: 'inject',
             priority: PRIORITY.task,
             text: '[dsh-bot 提醒] 这件事要走好几步：用 todo_write 列一个简短的计划（一步一行），做完一步就勾掉。用户在页面上看得到你的计划和进度。',
-            source: noticeSource('提醒列计划'),
+            source: noticeSource(t('提醒列计划')),
           })
         },
         onStream: (session, text, done) => {
@@ -382,7 +388,7 @@ export class PodRuntime {
       onStall: (session, task, reason) => {
         this.audit.record('task.stall', 'pod', session.id, { reason, taskId: task?.id ?? null })
         if (task !== undefined) {
-          this.rooms.milestone(task.roomId, `「${task.title}」${reason}`, { taskId: task.id })
+          this.rooms.milestone(task.roomId, t('「{title}」{reason}', { title: task.title, reason }), { taskId: task.id })
           this.tasks.touched(task)
         }
       },
@@ -444,7 +450,7 @@ export class PodRuntime {
         const room = this.rooms.ensureLeadRoom()
         return this.rooms.chatSession(room, this.bots.lead())
       },
-      notified: () => this.notifications.notify({ kind: 'brief', title: '每日简报已发到主管单聊', body: '', roomId: this.rooms.ensureLeadRoom().id }),
+      notified: () => this.notifications.notify({ kind: 'brief', title: t('每日简报已发到主管单聊'), body: '', roomId: this.rooms.ensureLeadRoom().id }),
     })
     this.browser = createBrowserKit({
       db,
@@ -482,7 +488,7 @@ export class PodRuntime {
         } catch {
           // 地址不合法时就显示原样。
         }
-        this.rooms.post(roomId, { author: session.botId, kind: 'browser', body: `打开了 ${host}`, data: { tabId: tab.id, url: tab.url }, sessionId: session.id })
+        this.rooms.post(roomId, { author: session.botId, kind: 'browser', body: t('打开了 {host}', { host }), data: { tabId: tab.id, url: tab.url }, sessionId: session.id })
       },
     })
     this.evolutionKit = createEvolutionKit({
@@ -541,9 +547,17 @@ export class PodRuntime {
       warn,
     })
     this.settings.onChange((next, previous) => {
+      if (next.language !== previous.language) this.language.refresh()
       if (next.dailyBrief.time !== previous.dailyBrief.time || next.timezone !== previous.timezone || next.dailyBrief.enabled !== previous.dailyBrief.enabled) this.brief.reschedule()
       this.aibot.settingsChanged(next, previous)
       this.updates.settingsChanged(next, previous)
+    })
+    this.language.onChange(() => {
+      this.bots.syncLeadSeed()
+      this.aibot.languageChanged()
+      this.refreshExposure()
+      // 默认 bot 的名字、例程说明、各种状态提示是读的时候按语言翻的，页面要全部重新拉。
+      this.bus.emit({ type: 'resync' })
     })
     this.maintenance = new Maintenance(db, options.dataRoot, () => this.settings.get().timezone, warn)
     this.maintenance.addDaily({ name: '整理记忆', run: () => this.extractor.consolidate().then(() => undefined) })
@@ -622,7 +636,7 @@ export class PodRuntime {
 
   get readOnlyReason(): string | undefined {
     const { compat } = this.options
-    return compat.readOnly ? `当前 dsh（${compat.dshVersion}）缺少 dsh-bot 需要的接口：${compat.problems.join('、')}。dsh-bot 进入只读模式。` : undefined
+    return compat.readOnly ? t('当前 dsh（{version}）缺少 dsh-bot 需要的接口：{problems}。dsh-bot 进入只读模式。', { version: compat.dshVersion, problems: compat.problems.join(t('、')) }) : undefined
   }
 
   status(): PodStatus {
@@ -634,11 +648,12 @@ export class PodRuntime {
       problems: compat.problems,
       degraded: [
         ...compat.degraded,
-        ...(this.browser.browser.executable === undefined ? ['共用浏览器（没找到本机的 Chrome）'] : []),
-        ...(this.exposureState.exposed ? ['shell 和浏览器写操作（dsh web 对外开放中）'] : []),
+        ...(this.browser.browser.executable === undefined ? [t('共用浏览器（没找到本机的 Chrome）')] : []),
+        ...(this.exposureState.exposed ? [t('shell 和浏览器写操作（dsh web 对外开放中）')] : []),
       ],
       lastBackupAt: this.maintenance.lastBackupAt(),
       exposure: this.exposureState,
+      language: this.language.get(),
       dataRoot: this.options.dataRoot,
       workspaceRoot: this.options.workspaceRoot,
     }
@@ -670,10 +685,11 @@ export class PodRuntime {
   /** agent 预设读人设用；每次组装提示词都会调用，所以是同步的，只查内存。不是 Pod 建的会话按主管处理。 */
   personaForSession(sessionId: string | undefined): string {
     const persona = sessionId === undefined ? undefined : this.registry.persona(sessionId)
-    if (persona !== undefined) return persona
+    // 冻结的人设之外再按现在的语言补一句：切换语言后已有的会话下一轮就照新语言回答。
+    if (persona !== undefined) return withLanguage(persona, this.language.get())
     const lead: Bot = this.bots.lead()
     const settings = this.settings.get()
-    return composePersona({
+    const fallback = composePersona({
       bot: lead,
       kind: 'chat',
       roster: this.bots.active(),
@@ -682,6 +698,7 @@ export class PodRuntime {
       timezone: settings.timezone,
       autonomy: settings.autonomy,
     })
+    return withLanguage(fallback, this.language.get())
   }
 
   /** 任务记录里谁来回答：正式团队的任务交给组长，其余交给主管。 */
@@ -728,7 +745,7 @@ export class PodRuntime {
   guardFor(session: PodSession): (call: { readonly name: string; readonly arguments?: unknown }) => string | undefined {
     const cwd = join(this.options.workspaceRoot, session.folder)
     return (call) => {
-      if (this.exposureState.exposed && SHELL_TOOLS.has(call.name)) return `dsh web 现在对外开放（${this.exposureState.reasons.join('；')}），为了安全 dsh-bot 禁用了 shell。需要时请用户在本机使用。`
+      if (this.exposureState.exposed && SHELL_TOOLS.has(call.name)) return t('dsh web 现在对外开放（{reasons}），为了安全 dsh-bot 禁用了 shell。需要时请用户在本机使用。', { reasons: this.exposureState.reasons.join(t('；')) })
       return this.protectData(call, cwd)
     }
   }
@@ -736,12 +753,12 @@ export class PodRuntime {
   /** 任务复盘：做法和教训写进执行者的个人记忆，任务的结果写进任务记录。 */
   learnFromTask(session: PodSession, task: Task, lessons: string): void {
     this.tasks.event(task, 'lesson', session.botId, { lessons })
-    this.memory.add({ scopeKind: 'bot', scopeId: session.botId, type: 'experience', content: lessons, source: 'task', sourceRef: task.id }, session.botId, `任务「${task.title}」的复盘`)
+    this.memory.add({ scopeKind: 'bot', scopeId: session.botId, type: 'experience', content: lessons, source: 'task', sourceRef: task.id }, session.botId, t('任务「{title}」的复盘', { title: task.title }))
     if (task.result !== null) {
       this.memory.add(
-        { scopeKind: 'task', scopeId: task.rootId, type: 'project', content: `任务「${task.title}」：${task.result.summary.split('\n')[0] ?? ''}`, source: 'task', sourceRef: task.id },
+        { scopeKind: 'task', scopeId: task.rootId, type: 'project', content: t('任务「{title}」：{summary}', { title: task.title, summary: task.result.summary.split('\n')[0] ?? '' }), source: 'task', sourceRef: task.id },
         'pod',
-        '任务记录',
+        t('任务记录'),
       )
     }
   }
@@ -752,7 +769,7 @@ export class PodRuntime {
       try {
         return await this.browser.actions.readPage(url, selector)
       } catch (error) {
-        if (error instanceof Error && /禁止清单|没有匹配|不能访问|格式不对/.test(error.message)) throw error
+        if (error instanceof ReadRefused) throw error
       }
     }
     return readPageOverHttp(url, this.settings.get().allowedHosts)
@@ -812,7 +829,7 @@ export class PodRuntime {
         mode: 'followup',
         priority: task.urgent ? PRIORITY.urgent : PRIORITY.task,
         text: `${rotation.preface}\n\n${brief}`,
-        source: noticeSource('换段后接着做'),
+        source: noticeSource(t('换段后接着做')),
       })
     } catch (error) {
       this.options.ctx.logger.warn('任务会话换段失败', error)
@@ -828,8 +845,8 @@ export class PodRuntime {
   /** 给其他插件（ctx.pod）：以主管的名义把一件事交给某个 bot；结果用 pod/task-updated 事件跟踪。 */
   async createTask(input: { readonly bot: string; readonly title: string; readonly brief: string; readonly acceptance?: readonly string[]; readonly deliverable?: string }): Promise<PodResult<Task>> {
     const bot = this.bots.resolve(input.bot)
-    if (bot === undefined) return fail('not-found', `找不到 bot「${input.bot}」`)
-    if (input.title.trim() === '' || input.brief.trim() === '') return fail('invalid-input', '任务要有标题和说明')
+    if (bot === undefined) return fail('not-found', t('找不到 bot「{bot}」', { bot: input.bot }))
+    if (input.title.trim() === '' || input.brief.trim() === '') return fail('invalid-input', t('任务要有标题和说明'))
     const requester = await this.rooms.chatSession(this.rooms.ensureLeadRoom(), this.bots.lead())
     return this.tasks.delegate({
       requester,
@@ -840,7 +857,7 @@ export class PodRuntime {
       acceptance: input.acceptance ?? [],
       assumptions: [],
       urgent: false,
-      reason: '其他插件派的任务',
+      reason: t('其他插件派的任务'),
     })
   }
 

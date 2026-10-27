@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { isDeepSeekPeak, looksInjected, truncate, type PodSettings, type Task } from 'pod-domain'
+import { isDeepSeekPeak, looksInjected, t, truncate, type PodSettings, type Task } from 'pod-domain'
 import { listRootTasks, readState, writeState } from 'pod-store'
 import type { BotService } from '../bots/service.ts'
 import type { LiteLlm } from '../core/lite.ts'
@@ -103,9 +103,9 @@ export class Retrospective {
       if (text === '' || bot === undefined || !participants.has(bot.id) || looksInjected(text)) continue
       // 同一条经验已经记过就不重复记。
       if (this.deps.memory.list({ scopeKind: 'bot', scopeId: bot.id, statuses: ['active'] }).some((entry) => entry.content === truncate(text, 300))) continue
-      const added = this.deps.memory.add({ scopeKind: 'bot', scopeId: bot.id, type: 'experience', content: truncate(text, 300), source: 'task', sourceRef: root.id }, 'pod', `任务「${root.title}」的复盘`)
+      const added = this.deps.memory.add({ scopeKind: 'bot', scopeId: bot.id, type: 'experience', content: truncate(text, 300), source: 'task', sourceRef: root.id }, 'pod', t('任务「{title}」的复盘', { title: root.title }))
       if (added.ok) {
-        this.deps.evolution.log({ kind: 'experience', botId: bot.id, subject: added.value.id, summary: `「${bot.name}」记下经验：${truncate(text, 60)}`, before: null, after: { memoryId: added.value.id, text }, reason: `任务「${root.title}」的复盘`, source: 'retro' })
+        this.deps.evolution.log({ kind: 'experience', botId: bot.id, subject: added.value.id, summary: t('「{name}」记下经验：{truncate}', { name: bot.name, truncate: truncate(text, 60) }), before: null, after: { memoryId: added.value.id, text }, reason: t('任务「{title}」的复盘', { title: root.title }), source: 'retro' })
       }
     }
     const skill = parsed.skill
@@ -125,17 +125,17 @@ export class Retrospective {
       'pod',
       'retro',
       root.id,
-      `任务「${root.title}」的复盘`,
+      t('任务「{title}」的复盘', { title: root.title }),
     )
     if (!saved.ok) return
     this.deps.evolution.log({
       kind: 'skill',
       botId: owner,
       subject: saved.value.id,
-      summary: `${before === undefined ? '新技能' : '更新技能'}「${saved.value.title}」（第 ${saved.value.version} 版）`,
+      summary: t('{value}「{title}」（第 {version} 版）', { value: before === undefined ? t('新技能') : t('更新技能'), title: saved.value.title, version: saved.value.version }),
       before: before === undefined ? null : { version: before.version },
       after: { skillId: saved.value.id, version: saved.value.version },
-      reason: `任务「${root.title}」的流程可以复用`,
+      reason: t('任务「{title}」的流程可以复用', { title: root.title }),
       source: 'retro',
     })
   }

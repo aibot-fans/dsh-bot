@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { TAB_IDLE_MS, newId, sameUrl, type PodSettings, type TabInfo, type TabOwner } from 'pod-domain'
+import { TAB_IDLE_MS, newId, sameUrl, t, type PodSettings, type TabInfo, type TabOwner } from 'pod-domain'
 import { readState, writeState } from 'pod-store'
 import type { PodBus } from '../core/bus.ts'
 import type { CdpEvent } from './cdp.ts'
@@ -96,10 +96,10 @@ export class SharedBrowser {
 
   private async ensure(): Promise<LaunchedChrome> {
     if (this.chrome !== undefined) return this.chrome
-    if (this.disposed) throw new Error('共用浏览器已关闭')
+    if (this.disposed) throw new Error(t('共用浏览器已关闭'))
     if (this.starting !== undefined) return this.starting
     const executable = this.executable
-    if (executable === undefined) throw new Error('没找到本机的 Chrome：请安装 Chrome，或在设置里填 Chrome 的路径')
+    if (executable === undefined) throw new Error(t('没找到本机的 Chrome：请安装 Chrome，或在设置里填 Chrome 的路径'))
     this.starting = this.launch(executable).finally(() => {
       this.starting = undefined
     })
@@ -134,7 +134,7 @@ export class SharedBrowser {
     const now = this.deps.now()
     this.crashes = [...this.crashes.filter((time) => now - time < RESTART_WINDOW_MS), now]
     if (this.crashes.length > MAX_RESTARTS) {
-      this.lastError = '浏览器 10 分钟内崩溃了好几次，先不自动重启；下次用到时再启动'
+      this.lastError = t('浏览器 10 分钟内崩溃了好几次，先不自动重启；下次用到时再启动')
       this.deps.warn(this.lastError)
       return
     }

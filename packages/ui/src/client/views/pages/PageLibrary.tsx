@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { PAGE_KINDS, PAGE_KIND_LABELS, type Bot, type PageKind } from 'pod-domain'
+import { PAGE_KINDS, PAGE_KIND_LABELS, t, tc, type Bot, type PageKind } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { pageApi } from '../../api/pages.ts'
 import { Avatar, Empty, ErrorBanner } from '../../components/common.tsx'
@@ -17,7 +17,7 @@ function GroupHead(props: { readonly group: PageGroup; readonly bots: ReadonlyMa
   return (
     <div className="pod-page-group-head">
       {group.room !== undefined ? <GroupMark members={members} size={18} /> : <Avatar bot={group.bot} size={18} />}
-      <span className="pod-ellipsis">{group.room !== undefined ? `群聊「${group.label}」` : group.label}</span>
+      <span className="pod-ellipsis">{group.room !== undefined ? t('群聊「{label}」', { label: group.label }) : group.label}</span>
       <span className="pod-muted-inline">{group.pages.length}</span>
     </div>
   )
@@ -40,39 +40,39 @@ export function PageLibraryPanel() {
   const current = currentGroupKey((rooms ?? []).find((room) => room.id === nav.roomId))
   const { pinned, groups } = groupPages(shown, rooms ?? [], bots, current)
   return (
-    <aside className="pod-panel" aria-label="页面库">
+    <aside className="pod-panel" aria-label={t('页面库')}>
       <div className="pod-panel-top pod-panel-top-row">
         <Icon name="page" size={18} />
-        <strong>页面</strong>
-        <span className="pod-muted-inline">{all.length === 0 ? '' : `${all.length} 个`}</span>
+        <strong>{t('页面')}</strong>
+        <span className="pod-muted-inline">{all.length === 0 ? '' : t('{length} 个', { length: all.length })}</span>
         <span className="pod-grow" />
-        <PanelClose label="关闭页面库" onClose={() => app.closePanel()} />
+        <PanelClose label={t('关闭页面库')} onClose={() => app.closePanel()} />
       </div>
       <div className="pod-panel-scroll pod-page-library">
         {error === undefined ? null : <ErrorBanner message={error} />}
         {problem === undefined ? null : <ErrorBanner message={problem} onClose={() => setProblem(undefined)} />}
         {all.length === 0 ? null : (
           <div className="pod-stack">
-            <input className="pod-input" value={query} placeholder="搜标题" aria-label="搜页面标题" onChange={(event) => setQuery(event.target.value)} />
+            <input className="pod-input" value={query} placeholder={t('搜标题')} aria-label={t('搜页面标题')} onChange={(event) => setQuery(event.target.value)} />
             {kinds.length < 2 ? null : (
               <div className="pod-tabs pod-wrap">
                 {(['all', ...kinds] as const).map((item) => (
                   <button key={item} type="button" className={`pod-chip${kind === item ? ' pod-chip-active' : ''}`} aria-pressed={kind === item} onClick={() => setKind(item)}>
-                    {item === 'all' ? '全部' : PAGE_KIND_LABELS[item]}
+                    {item === 'all' ? t('全部') : t(PAGE_KIND_LABELS[item])}
                   </button>
                 ))}
               </div>
             )}
           </div>
         )}
-        {pages === undefined ? <p className="pod-muted">正在读取…</p> : null}
+        {pages === undefined ? <p className="pod-muted">{t('正在读取…')}</p> : null}
         {pages !== undefined && all.length === 0 ? (
-          <Empty title="还没有页面">让 bot 把结果做成报告、看板、跟踪表，或者幻灯片、海报、原型、架构图，比如“把这周的数据做成看板”。做好的页面都在这里。</Empty>
+          <Empty title={t('还没有页面')}>{t('让 bot 把结果做成报告、看板、跟踪表，或者幻灯片、海报、原型、架构图，比如“把这周的数据做成看板”。做好的页面都在这里。')}</Empty>
         ) : null}
-        {all.length > 0 && shown.length === 0 ? <Empty title="没有符合条件的页面">换个词，或者选“全部”。</Empty> : null}
+        {all.length > 0 && shown.length === 0 ? <Empty title={t('没有符合条件的页面')}>{t('换个词，或者选“全部”。')}</Empty> : null}
         {pinned.length === 0 ? null : (
           <section className="pod-stack-tight">
-            <div className="pod-section-title">置顶</div>
+            <div className="pod-section-title">{tc('置顶', '状态')}</div>
             <div className="pod-lib-list">
               {pinned.map((page) => (
                 <PageRow key={page.id} page={page} onError={setProblem} />

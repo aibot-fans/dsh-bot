@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { t } from 'pod-domain'
 import { api, type BrowserInput, type BrowserOverlay } from '../../api/endpoints.ts'
 import { mediaUrl } from '../../api/http.ts'
 
@@ -145,7 +146,7 @@ export function LiveView(props: { readonly tabId: string; readonly controlled: b
         <textarea
           ref={imeRef}
           className="pod-live-ime"
-          aria-label="向页面输入"
+          aria-label={t('向页面输入')}
           onKeyDown={(event) => {
             if (event.nativeEvent.isComposing) return
             const combo = event.ctrlKey || event.metaKey
@@ -179,7 +180,7 @@ export function LiveView(props: { readonly tabId: string; readonly controlled: b
       {marker === null ? null : (
         <span className="pod-live-pointer" style={{ left: `${(marker.x / viewport.current.width) * 100}%`, top: `${(marker.y / viewport.current.height) * 100}%` }} title={marker.label} />
       )}
-      {state === 'live' ? null : <div className="pod-live-status">{state === 'loading' ? '正在连接画面…' : '这个标签页已经关了'}</div>}
+      {state === 'live' ? null : <div className="pod-live-status">{state === 'loading' ? t('正在连接画面…') : t('这个标签页已经关了')}</div>}
     </div>
   )
 }

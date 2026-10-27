@@ -6,6 +6,8 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { parentPort, workerData } from 'node:worker_threads'
+import { addEnglish, setLanguage, t, type Language } from 'pod-domain'
+import { RUNTIME_EN } from '../locales/en.ts'
 import { extractDocument } from './extract.ts'
 import { ConvertError, type ConvertReply, type DocumentFormat } from './formats.ts'
 import { countChars, textDocument } from './markdown.ts'
@@ -15,6 +17,8 @@ interface Job {
   readonly target: string
   readonly name: string
   readonly format: DocumentFormat
+  /** 宿主现在的界面语言：worker 是单独的线程，要自己登记译文、切语言。 */
+  readonly language: Language
 }
 
 async function convert(job: Job): Promise<ConvertReply> {
@@ -25,8 +29,11 @@ async function convert(job: Job): Promise<ConvertReply> {
     await writeFile(job.target, textDocument(job.name, note, extracted.body))
     return { ok: true, chars: countChars(extracted.body), summary: extracted.summary, ...(extracted.warning === undefined ? {} : { warning: extracted.warning }) }
   } catch (error) {
-    return { ok: false, reason: error instanceof ConvertError ? error.message : '文件读不出来，可能已经损坏' }
+    return { ok: false, reason: error instanceof ConvertError ? error.message : t('文件读不出来，可能已经损坏') }
   }
 }
 
-void convert(workerData as Job).then((reply) => parentPort?.postMessage(reply))
+const job = workerData as Job
+addEnglish(RUNTIME_EN)
+setLanguage(job.language)
+void convert(job).then((reply) => parentPort?.postMessage(reply))

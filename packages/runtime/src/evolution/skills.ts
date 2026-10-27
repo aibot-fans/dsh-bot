@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { fail, fnv1a, hasScript, looksInjected, newId, ok, skillName, truncate, type PodResult, type Skill, type Wait } from 'pod-domain'
+import { fail, fnv1a, hasScript, looksInjected, newId, ok, skillName, t, truncate, type PodResult, type Skill, type Wait } from 'pod-domain'
 import { getSkill, listSkills, saveSkill, setSkillStatus, skillVersions, type SkillVersion } from 'pod-store'
 import type { Auditor } from '../core/audit.ts'
 import type { PodBus } from '../core/bus.ts'
@@ -81,7 +81,7 @@ export class SkillService {
   registrations(botId: string): readonly SkillRegistration[] {
     return this.forBot(botId).map((skill) => ({
       name: skill.name,
-      description: `${skill.title}：${truncate(skill.description, 300)}`,
+      description: t('{title}：{truncate}', { title: skill.title, truncate: truncate(skill.description, 300) }),
       whenToUse: skill.description,
       content: `# ${skill.title}\n\n${skill.content}`,
       source: 'custom',
@@ -95,12 +95,12 @@ export class SkillService {
     const title = truncate(input.title.trim(), 40)
     const description = input.description.trim()
     const content = input.content.trim()
-    if (title === '' || description === '' || content === '') return fail('invalid-input', '技能要有名字、什么时候用和具体步骤')
-    if (content.length > MAX_CONTENT) return fail('invalid-input', `技能内容太长（最多 ${MAX_CONTENT} 字），只写步骤、易错点和模板`)
-    if (looksInjected(`${title}\n${description}\n${content}`)) return fail('forbidden', '技能里有像是网页注入的指令（比如“忽略之前的规则”），不能保存')
+    if (title === '' || description === '' || content === '') return fail('invalid-input', t('技能要有名字、什么时候用和具体步骤'))
+    if (content.length > MAX_CONTENT) return fail('invalid-input', t('技能内容太长（最多 {MAX_CONTENT} 字），只写步骤、易错点和模板', { MAX_CONTENT }))
+    if (looksInjected(`${title}\n${description}\n${content}`)) return fail('forbidden', t('技能里有像是网页注入的指令（比如“忽略之前的规则”），不能保存'))
     const name = skillName(input.name) ?? skillName(title) ?? `skill-${fnv1a(`${input.scopeId}:${title}`).slice(0, 8)}`
     const existing = listSkills(this.deps.db, { scopeKind: input.scopeKind, scopeId: input.scopeId }).find((skill) => skill.name === name)
-    if (existing !== undefined && existing.source === 'owner' && source !== 'owner') return fail('forbidden', `技能「${existing.title}」是用户写的，bot 不能改；可以另起一个名字`)
+    if (existing !== undefined && existing.source === 'owner' && source !== 'owner') return fail('forbidden', t('技能「{title}」是用户写的，bot 不能改；可以另起一个名字', { title: existing.title }))
     const script = hasScript(content)
     const skill = saveSkill(this.deps.db, {
       id: existing?.id ?? newId('skill'),
@@ -125,7 +125,7 @@ export class SkillService {
 
   setStatus(id: string, status: Skill['status'], actor: string): PodResult<Skill> {
     const skill = setSkillStatus(this.deps.db, id, status, this.deps.now())
-    if (skill === undefined) return fail('not-found', '找不到这个技能')
+    if (skill === undefined) return fail('not-found', t('找不到这个技能'))
     this.deps.audit.record('skill.status', actor, id, { status })
     this.changed(skill)
     return ok(skill)
@@ -135,7 +135,7 @@ export class SkillService {
   rollback(id: string, version: number, actor: string): PodResult<Skill> {
     const skill = this.get(id)
     const target = this.versions(id).find((item) => item.version === version)
-    if (skill === undefined || target === undefined) return fail('not-found', '找不到这个版本')
+    if (skill === undefined || target === undefined) return fail('not-found', t('找不到这个版本'))
     return this.save(
       { name: skill.name, title: target.title, description: target.description, content: target.content, scopeKind: skill.scopeKind, scopeId: skill.scopeId },
       actor,

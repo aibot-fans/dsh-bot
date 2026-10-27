@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises'
+import { t } from 'pod-domain'
 import { extractDocx } from './docx.ts'
 import { ConvertError, type DocumentFormat, type Extracted } from './formats.ts'
 import { extractPdf, extractWithTextutil } from './native.ts'
@@ -17,12 +18,12 @@ export async function extractDocument(path: string, format: DocumentFormat): Pro
     case 'textutil':
       return extractWithTextutil(path)
     case 'old-excel':
-      throw new ConvertError('老版的 Excel（.xls）转不了，用 Excel 或 WPS 另存为 .xlsx 再上传就行')
+      throw new ConvertError(t('老版的 Excel（.xls）转不了，用 Excel 或 WPS 另存为 .xlsx 再上传就行'))
     case 'old-ppt':
-      throw new ConvertError('老版的 PPT（.ppt）转不了，另存为 .pptx 再上传就行')
+      throw new ConvertError(t('老版的 PPT（.ppt）转不了，另存为 .pptx 再上传就行'))
     default: {
       const data = await readFile(path)
-      if (data.subarray(0, 4).equals(OLE_SIGNATURE)) throw new ConvertError('文件加了密码，或者其实是老版格式，转不了')
+      if (data.subarray(0, 4).equals(OLE_SIGNATURE)) throw new ConvertError(t('文件加了密码，或者其实是老版格式，转不了'))
       const zip = openZip(data)
       if (format === 'docx') return extractDocx(zip)
       return format === 'xlsx' ? extractXlsx(zip) : extractPptx(zip)

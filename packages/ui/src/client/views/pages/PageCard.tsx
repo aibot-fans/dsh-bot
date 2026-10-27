@@ -1,4 +1,4 @@
-import { PAGE_KIND_LABELS, type Page, type RoomMessage } from 'pod-domain'
+import { PAGE_KIND_LABELS, t, type Page, type RoomMessage } from 'pod-domain'
 import { pageApi } from '../../api/pages.ts'
 import { Icon } from '../../components/Icon.tsx'
 import { useApp } from '../../state/app.ts'
@@ -29,18 +29,18 @@ export function PageCard(props: { readonly message: RoomMessage }) {
   const gone = pages !== undefined && page === undefined
   const newer = page !== undefined && page.version > version ? page.version : undefined
   return (
-    <button type="button" className={`pod-page-card${gone ? ' pod-page-card-gone' : ''}`} disabled={gone} onClick={() => app.openPage(pageId)} title={gone ? undefined : '打开页面'}>
+    <button type="button" className={`pod-page-card${gone ? ' pod-page-card-gone' : ''}`} disabled={gone} onClick={() => app.openPage(pageId)} title={gone ? undefined : t('打开页面')}>
       <KindIcon kind={kind} size={40} />
       <span className="pod-page-card-main">
-        <strong className="pod-ellipsis">{String(data.title ?? '页面')}</strong>
+        <strong className="pod-ellipsis">{String(data.title ?? t('页面'))}</strong>
         <span className="pod-muted-inline pod-ellipsis">
-          {PAGE_KIND_LABELS[kind]} · 第 {version} 版{summary === '' ? '' : ` · ${summary}`}
+          {t('{kind} · 第 {version} 版{value}', { kind: t(PAGE_KIND_LABELS[kind]), version, value: summary === '' ? '' : ` · ${summary}` })}
         </span>
         {note === '' || note === '第一版' ? null : <span className="pod-page-card-note">{note}</span>}
-        {newer === undefined ? null : <span className="pod-hint">之后又改过，现在是第 {newer} 版</span>}
-        {gone ? <span className="pod-hint">页面已删除，30 天内可以在设置的回收站里恢复</span> : null}
+        {newer === undefined ? null : <span className="pod-hint">{t('之后又改过，现在是第 {newer} 版', { newer })}</span>}
+        {gone ? <span className="pod-hint">{t('页面已删除，30 天内可以在设置的回收站里恢复')}</span> : null}
       </span>
-      {gone ? null : <span className="pod-page-card-open">打开</span>}
+      {gone ? null : <span className="pod-page-card-open">{t('打开')}</span>}
     </button>
   )
 }
@@ -51,9 +51,9 @@ export function PageChip(props: { readonly pageId: string }) {
   const { pages, find } = usePages()
   const page = find(props.pageId)
   return (
-    <button type="button" className="pod-page-chip" disabled={pages !== undefined && page === undefined} onClick={() => app.openPage(props.pageId)} title="打开这个页面">
+    <button type="button" className="pod-page-chip" disabled={pages !== undefined && page === undefined} onClick={() => app.openPage(props.pageId)} title={t('打开这个页面')}>
       <Icon name="page" size={12} />
-      <span className="pod-ellipsis">{page === undefined ? '页面' : `${PAGE_KIND_LABELS[page.kind]}「${page.title}」`}</span>
+      <span className="pod-ellipsis">{page === undefined ? t('页面') : t('{kind}「{title}」', { kind: t(PAGE_KIND_LABELS[page.kind]), title: page.title })}</span>
     </button>
   )
 }

@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import type { Bot } from 'pod-domain'
+import { t, type Bot } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { Drawer } from '../../components/common.tsx'
 import { useApp, useNav } from '../../state/app.ts'
@@ -18,11 +18,11 @@ function Growth(props: { readonly bot: Bot }) {
     <div className="pod-stack">
       {card === undefined ? null : (
         <section className="pod-stack">
-          <div className="pod-section-title">评分卡</div>
+          <div className="pod-section-title">{t('评分卡')}</div>
           <ScorecardStrip card={card} />
         </section>
       )}
-      <div className="pod-section-title">自我优化做过的调整</div>
+      <div className="pod-section-title">{t('自我优化做过的调整')}</div>
       <EvolutionPanel botId={props.bot.id} />
     </div>
   )
@@ -45,12 +45,12 @@ export function Drawers() {
         </Drawer>
       ) : null}
       {drawer?.kind === 'skills' ? (
-        <Drawer title={`${botOf(drawer.botId)?.name ?? 'bot'}的技能`} onClose={close} wide>
+        <Drawer title={t('{value}的技能', { value: botOf(drawer.botId)?.name ?? 'bot' })} onClose={close} wide>
           <SkillsPanel botId={drawer.botId} />
         </Drawer>
       ) : null}
       {drawer?.kind === 'growth' && botOf(drawer.botId) !== undefined ? (
-        <Drawer title={`${botOf(drawer.botId)?.name ?? 'bot'}的成长记录`} onClose={close} wide>
+        <Drawer title={t('{value}的成长记录', { value: botOf(drawer.botId)?.name ?? 'bot' })} onClose={close} wide>
           <Growth bot={botOf(drawer.botId) as Bot} />
         </Drawer>
       ) : null}

@@ -1,5 +1,5 @@
 import { useState, type KeyboardEvent } from 'react'
-import { BOT_NAME_MAX, BOT_PRESETS, CARD_FIELD_MAX, GROUP_NAME_MAX, MEMBER_ICONS, autoGroupName, iconAvatar, pickBotIcon, quickPersona, takenIcons, type Bot, type BotIconKind, type BotPreset } from 'pod-domain'
+import { BOT_NAME_MAX, CARD_FIELD_MAX, MEMBER_ICONS, autoGroupName, botPresets, groupNameMax, iconAvatar, inputLimit, pickBotIcon, quickPersona, t, takenIcons, type Bot, type BotIconKind, type BotPreset } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { IconChoices } from '../../components/BotIcon.tsx'
@@ -18,15 +18,15 @@ function onEnter(action: () => void): (event: KeyboardEvent<HTMLInputElement>) =
 function Presets(props: { readonly busy: boolean; readonly onPick: (preset: BotPreset) => void }) {
   return (
     <div className="pod-presets">
-      <span className="pod-hint">从预设开始</span>
-      {BOT_PRESETS.map((preset) => (
+      <span className="pod-hint">{t('从预设开始')}</span>
+      {botPresets().map((preset) => (
         <button key={preset.id} type="button" className="pod-preset" disabled={props.busy} onClick={() => props.onPick(preset)}>
           <Avatar bot={{ id: preset.id, name: preset.name, avatar: preset.avatar }} size={34} />
           <span className="pod-preset-text">
             <strong>{preset.name}</strong>
             <span className="pod-muted-inline">{preset.description}</span>
           </span>
-          <span className="pod-preset-go">直接新建</span>
+          <span className="pod-preset-go">{t('直接新建')}</span>
         </button>
       ))}
     </div>
@@ -58,7 +58,7 @@ export function NewBotFlow(props: { readonly bots: readonly Bot[]; readonly onCl
   }
   if (advanced !== undefined) {
     return (
-      <Drawer title="新建 bot" onClose={props.onClose} wide>
+      <Drawer title={t('新建 bot')} onClose={props.onClose} wide>
         <BotForm prefill={advanced} onDone={done} />
       </Drawer>
     )
@@ -91,7 +91,7 @@ export function NewBotFlow(props: { readonly bots: readonly Bot[]; readonly onCl
   }
   const askLead = (): void => {
     if (lead === undefined || !ready) return
-    const text = `帮我新建一个 bot：名字叫「${name.trim()}」${duty.trim() === '' ? '' : `，负责${duty.trim().replace(/[。.]$/, '')}`}。人设、能力标签和角色卡你来写，建好告诉我。`
+    const text = t('帮我新建一个 bot：名字叫「{name}」{value}。人设、能力标签和角色卡你来写，建好告诉我。', { name: name.trim(), value: duty.trim() === '' ? '' : t('，负责{replace}', { replace: duty.trim().replace(/[。.]$/, '') }) })
     setBusy(true)
     api
       .openDirect(lead.id)
@@ -105,46 +105,46 @@ export function NewBotFlow(props: { readonly bots: readonly Bot[]; readonly onCl
       .finally(() => setBusy(false))
   }
   return (
-    <Modal title="新建 bot" onClose={props.onClose}>
+    <Modal title={t('新建 bot')} onClose={props.onClose}>
       <div className="pod-stack">
         <Presets busy={busy} onPick={fromPreset} />
-        <Field label="名字">
-          <input className="pod-input" autoFocus value={name} maxLength={BOT_NAME_MAX} placeholder="例如：写手" onChange={(event) => setName(event.target.value)} onKeyDown={onEnter(create)} />
+        <Field label={t('名字')}>
+          <input className="pod-input" autoFocus value={name} maxLength={inputLimit(BOT_NAME_MAX)} placeholder={t('例如：写手')} onChange={(event) => setName(event.target.value)} onKeyDown={onEnter(create)} />
         </Field>
-        <Field label="它负责什么" hint="一句话就行，人设会按这句话写好">
-          <input className="pod-input" value={duty} maxLength={CARD_FIELD_MAX} placeholder="例如：写和改博客文章" onChange={(event) => setDuty(event.target.value)} onKeyDown={onEnter(create)} />
+        <Field label={t('它负责什么')} hint={t('一句话就行，人设会按这句话写好')}>
+          <input className="pod-input" value={duty} maxLength={inputLimit(CARD_FIELD_MAX)} placeholder={t('例如：写和改博客文章')} onChange={(event) => setDuty(event.target.value)} onKeyDown={onEnter(create)} />
         </Field>
         <div className="pod-field">
           <span className="pod-field-row">
-            <span>图标</span>
-            <span className="pod-hint">按名字自动选好了，也可以点别的</span>
+            <span>{t('图标')}</span>
+            <span className="pod-hint">{t('按名字自动选好了，也可以点别的')}</span>
           </span>
-          <div className="pod-icon-row" role="group" aria-label="选一个图标">
+          <div className="pod-icon-row" role="group" aria-label={t('选一个图标')}>
             <IconChoices kinds={MEMBER_ICONS} current={chosen} onPick={setIcon} />
           </div>
         </div>
         <label className="pod-check-row">
           <input type="checkbox" checked={temporary} onChange={(event) => setTemporary(event.target.checked)} />
-          临时 bot：任务结束就自动删除（30 天内可以恢复）
+          {t('临时 bot：任务结束就自动删除（30 天内可以恢复）')}
         </label>
         {problem === undefined ? null : <p className="pod-form-error">{problem}</p>}
         <div className="pod-form-actions pod-form-split">
           <span className="pod-row">
             <button type="button" className="pod-link" onClick={() => setAdvanced({ name, duties: duty, avatar: iconAvatar(chosen), temporary })}>
-              更多设置
+              {t('更多设置')}
             </button>
             {lead === undefined ? null : (
-              <button type="button" className="pod-link" disabled={!ready} onClick={askLead} title="主管会把人设、能力标签和角色卡写完整">
-                让主管来建
+              <button type="button" className="pod-link" disabled={!ready} onClick={askLead} title={t('主管会把人设、能力标签和角色卡写完整')}>
+                {t('让主管来建')}
               </button>
             )}
           </span>
           <span className="pod-row">
             <Button kind="quiet" onClick={props.onClose}>
-              取消
+              {t('取消')}
             </Button>
             <Button kind="primary" disabled={!ready} onClick={create}>
-              新建
+              {t('新建')}
             </Button>
           </span>
         </div>
@@ -179,12 +179,12 @@ export function NewGroup(props: { readonly bots: readonly Bot[]; readonly onClos
       .finally(() => setBusy(false))
   }
   return (
-    <Modal title="新建群聊" onClose={props.onClose}>
+    <Modal title={t('新建群聊')} onClose={props.onClose}>
       <div className="pod-stack">
-        <p className="pod-muted">点选要拉进群的 bot。主管会自动在群里，负责分派和组织；没点名的话按分工交给对口的成员来接。</p>
+        <p className="pod-muted">{t('点选要拉进群的 bot。主管会自动在群里，负责分派和组织；没点名的话按分工交给对口的成员来接。')}</p>
         {candidates.length === 0 ? (
           <p className="pod-muted">
-            还没有别的 bot。
+            {t('还没有别的 bot。')}
             <button
               type="button"
               className="pod-link"
@@ -193,11 +193,11 @@ export function NewGroup(props: { readonly bots: readonly Bot[]; readonly onClos
                 app.openDrawer({ kind: 'new-bot' })
               }}
             >
-              先新建一个
+              {t('先新建一个')}
             </button>
           </p>
         ) : null}
-        <div className="pod-member-grid pod-member-grid-pick" role="group" aria-label="选成员">
+        <div className="pod-member-grid pod-member-grid-pick" role="group" aria-label={t('选成员')}>
           {candidates.map((bot) => {
             const on = picked.includes(bot.id)
             return (
@@ -213,16 +213,16 @@ export function NewGroup(props: { readonly bots: readonly Bot[]; readonly onClos
             )
           })}
         </div>
-        <Field label="群名" hint={`可以不填；最好不超过 ${GROUP_NAME_MAX} 个字`}>
-          <input className="pod-input" value={name} maxLength={40} placeholder={picked.length === 0 ? '不填就按成员起名' : autoGroupName(names)} onChange={(event) => setName(event.target.value)} onKeyDown={onEnter(create)} />
+        <Field label={t('群名')} hint={t('可以不填；最好不超过 {GROUP_NAME_MAX} 个字', { GROUP_NAME_MAX: groupNameMax() })}>
+          <input className="pod-input" value={name} maxLength={40} placeholder={picked.length === 0 ? t('不填就按成员起名') : autoGroupName(names)} onChange={(event) => setName(event.target.value)} onKeyDown={onEnter(create)} />
         </Field>
         {problem === undefined ? null : <p className="pod-form-error">{problem}</p>}
         <div className="pod-form-actions">
           <Button kind="quiet" onClick={props.onClose}>
-            取消
+            {t('取消')}
           </Button>
           <Button kind="primary" disabled={busy || picked.length === 0} onClick={create}>
-            {picked.length === 0 ? '建群' : `建群（${picked.length + 1} 位）`}
+            {picked.length === 0 ? t('建群') : t('建群（{length} 位）', { length: picked.length + 1 })}
           </Button>
         </div>
       </div>

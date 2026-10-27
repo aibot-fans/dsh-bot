@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { t } from 'pod-domain'
 
 export interface Exposure {
   readonly exposed: boolean
@@ -36,15 +37,15 @@ export function detectExposure(options: { readonly argv?: readonly string[]; rea
   const dshHome = options.dshHome ?? process.env.DSH_HOME ?? join(homedir(), '.dsh')
   const reasons: string[] = []
   const host = argValue(argv, '--host')
-  if (host !== undefined && !LOOPBACK.test(host)) reasons.push(`dsh web 绑定在 ${host}，不只是本机`)
-  if (argValue(argv, '--public-url') !== undefined) reasons.push('dsh web 配了公网入口（--public-url）')
-  if (argValue(argv, '--trusted-host') !== undefined) reasons.push('dsh web 信任了额外的访问来源（--trusted-host）')
+  if (host !== undefined && !LOOPBACK.test(host)) reasons.push(t('dsh web 绑定在 {host}，不只是本机', { host }))
+  if (argValue(argv, '--public-url') !== undefined) reasons.push(t('dsh web 配了公网入口（--public-url）'))
+  if (argValue(argv, '--trusted-host') !== undefined) reasons.push(t('dsh web 信任了额外的访问来源（--trusted-host）'))
   const publicPid = join(dshHome, 'web-public.pid')
   let note: string | null = null
   if (existsSync(publicPid)) {
     const pid = Number(readFileSync(publicPid, 'utf8').trim().split(/\s+/)[0])
-    if (Number.isInteger(pid) && pid > 0 && alive(pid)) reasons.push('dsh 的对外访问正在运行（web-public.pid）')
-    else note = 'dsh 目录里有 web-public.pid，说明以前开过对外访问；现在没在运行'
+    if (Number.isInteger(pid) && pid > 0 && alive(pid)) reasons.push(t('dsh 的对外访问正在运行（web-public.pid）'))
+    else note = t('dsh 目录里有 web-public.pid，说明以前开过对外访问；现在没在运行')
   }
   return { exposed: reasons.length > 0, reasons, note }
 }

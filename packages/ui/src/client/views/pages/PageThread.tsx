@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { MESSAGE_MAX, OWNER, type Bot, type Page, type RoomMessage } from 'pod-domain'
+import { MESSAGE_MAX, OWNER, t, type Bot, type Page, type RoomMessage } from 'pod-domain'
 import { errorText } from '../../api/http.ts'
 import { pageApi } from '../../api/pages.ts'
 import { Avatar, Button, clock } from '../../components/common.tsx'
@@ -18,10 +18,10 @@ function ThreadItem(props: { readonly message: RoomMessage; readonly bots: Reado
     )
   }
   if (message.kind === 'page' || message.kind === 'milestone') {
-    const note = typeof message.data.note === 'string' && message.data.note !== '' && message.data.note !== '第一版' ? `：${message.data.note}` : ''
+    const note = typeof message.data.note === 'string' && message.data.note !== '' && message.data.note !== '第一版' ? t('：{note}', { note: t(message.data.note) }) : ''
     return (
       <div className="pod-thread-line">
-        <span>{message.kind === 'page' ? `存成了第 ${String(message.data.version ?? '')} 版${note}` : message.body}</span>
+        <span>{message.kind === 'page' ? t('存成了第 {String} 版{note}', { String: String(message.data.version ?? ''), note }) : message.body}</span>
         <time>{clock(message.createdAt)}</time>
       </div>
     )
@@ -87,8 +87,8 @@ export function PageThread(props: { readonly page: Page; readonly bots: Readonly
         {error === undefined ? null : <p className="pod-form-error">{error}</p>}
         {messages !== undefined && list.length === 0 ? (
           <div className="pod-thread-empty">
-            <strong>想怎么改，直接说</strong>
-            <span>比如“折线图换成柱状图”“标题短一点”“加一页总结”。{handler?.name ?? 'bot'}会读当前内容，改好存成新的一版，旧版本随时能恢复。</span>
+            <strong>{t('想怎么改，直接说')}</strong>
+            <span>{t('比如“折线图换成柱状图”“标题短一点”“加一页总结”。{value}会读当前内容，改好存成新的一版，旧版本随时能恢复。', { value: handler?.name ?? 'bot' })}</span>
           </div>
         ) : null}
         {list.map((message) => (
@@ -97,7 +97,7 @@ export function PageThread(props: { readonly page: Page; readonly bots: Readonly
         {working ? (
           <div className="pod-thread-bot pod-thread-live">
             <Avatar bot={handler} size={22} />
-            <div className="pod-thread-bot-main">{stream === undefined || stream.text === '' ? <span className="pod-muted-inline">{handler?.name ?? 'bot'}正在改…</span> : <Markdown text={stream.text} />}</div>
+            <div className="pod-thread-bot-main">{stream === undefined || stream.text === '' ? <span className="pod-muted-inline">{t('{value}正在改…', { value: handler?.name ?? 'bot' })}</span> : <Markdown text={stream.text} />}</div>
           </div>
         ) : null}
         <div ref={end} />
@@ -110,8 +110,8 @@ export function PageThread(props: { readonly page: Page; readonly bots: Readonly
           value={text}
           maxLength={MESSAGE_MAX}
           disabled={props.disabled}
-          placeholder={props.disabled ? '页面在回收站里，恢复后才能改' : `告诉${handler?.name ?? 'bot'}想怎么改（回车发送，Shift+回车换行）`}
-          aria-label="修改要求"
+          placeholder={props.disabled ? t('页面在回收站里，恢复后才能改') : t('告诉{value}想怎么改（回车发送，Shift+回车换行）', { value: handler?.name ?? 'bot' })}
+          aria-label={t('修改要求')}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -121,9 +121,9 @@ export function PageThread(props: { readonly page: Page; readonly bots: Readonly
           }}
         />
         <div className="pod-row">
-          <span className="pod-hint pod-grow">只发给{handler?.name ?? '做页面的 bot'}，群里其他成员不会被打扰</span>
+          <span className="pod-hint pod-grow">{t('只发给{value}，群里其他成员不会被打扰', { value: handler?.name ?? t('做页面的 bot') })}</span>
           <Button small kind="primary" icon="send" disabled={props.disabled || busy || text.trim() === ''} onClick={send}>
-            发送
+            {t('发送')}
           </Button>
         </div>
       </div>

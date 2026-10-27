@@ -8,6 +8,7 @@ import {
   readId,
   readInt,
   readString,
+  t,
   zonedTime,
   type MemoryScopeKind,
   type MemoryStatus,
@@ -25,6 +26,8 @@ export function baseRoutes(pod: PodRuntime): readonly RouteSpec[] {
     get('/status', () => ok(pod.status())),
     get('/settings', () => ok(pod.settings.get())),
     post('/settings/update', (body) => pod.settings.update(body)),
+    // 页面上报 dsh 的界面语言：设置是“跟随 dsh”时宿主照它说话。
+    post('/locale', (body) => pod.language.reportHost(readString(body, 'locale'))),
     get('/models', async () => ok(await pod.models.catalog())),
 
     get('/bots', () => ok(pod.bots.active())),
@@ -85,12 +88,12 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
     get('/room/messages', (query) => pod.rooms.messages(query)),
     get('/room/members', (query) => {
       const roomId = readId(query, 'roomId')
-      return roomId === undefined ? fail('invalid-input', '缺少房间 id') : ok(pod.rooms.members(roomId))
+      return roomId === undefined ? fail('invalid-input', t('缺少房间 id')) : ok(pod.rooms.members(roomId))
     }),
     get('/room/info', (query) => {
       const roomId = readId(query, 'roomId')
       const room = roomId === undefined ? undefined : pod.rooms.get(roomId)
-      if (room === undefined) return fail('not-found', '找不到这个房间')
+      if (room === undefined) return fail('not-found', t('找不到这个房间'))
       const sessions = pod.registry.active().filter((session) => session.roomId === room.id)
       return ok({ room, members: pod.rooms.members(room.id), sessions })
     }),
@@ -101,7 +104,7 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
     get('/message', (query) => {
       const id = readId(query, 'id')
       const message = id === undefined ? undefined : getMessage(pod.db, id)
-      return message === undefined ? fail('not-found', '找不到这条消息') : ok(message)
+      return message === undefined ? fail('not-found', t('找不到这条消息')) : ok(message)
     }),
 
     get('/tasks', (query) => {
@@ -113,12 +116,12 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
     get('/task/snapshot', (query) => {
       const id = readId(query, 'id')
       const snapshot = id === undefined ? undefined : pod.tasks.snapshot(id)
-      return snapshot === undefined ? fail('not-found', '找不到这个任务') : ok(snapshot)
+      return snapshot === undefined ? fail('not-found', t('找不到这个任务')) : ok(snapshot)
     }),
     get('/task/detail', (query) => {
       const id = readId(query, 'id')
       const snapshot = id === undefined ? undefined : pod.tasks.snapshot(id)
-      if (snapshot === undefined) return fail('not-found', '找不到这个任务')
+      if (snapshot === undefined) return fail('not-found', t('找不到这个任务'))
       const rootId = snapshot.task.rootId
       return ok({
         snapshot,
@@ -130,22 +133,22 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
     post('/task/control', (body) => {
       const taskId = readId(body, 'taskId')
       const action = readString(body, 'action')
-      if (taskId === undefined || !['pause', 'resume', 'stop', 'cancel'].includes(action)) return fail('invalid-input', '要写明任务和操作')
+      if (taskId === undefined || !['pause', 'resume', 'stop', 'cancel'].includes(action)) return fail('invalid-input', t('要写明任务和操作'))
       return pod.tasks.control(taskId, action as 'pause' | 'resume' | 'stop' | 'cancel', 'owner')
     }),
     post('/task/approve', async (body) => {
       const taskId = readId(body, 'taskId')
-      return taskId === undefined ? fail('invalid-input', '缺少任务 id') : pod.coordinator.approve(taskId)
+      return taskId === undefined ? fail('invalid-input', t('缺少任务 id')) : pod.coordinator.approve(taskId)
     }),
     get('/task/plan', (query) => {
       const id = readId(query, 'id')
       const plan = id === undefined ? null : pod.coordinator.plan(id)
-      return plan === null ? fail('not-found', '这个任务没有团队计划') : ok({ plan, keys: Object.fromEntries(pod.coordinator.keys(id ?? '')) })
+      return plan === null ? fail('not-found', t('这个任务没有团队计划')) : ok({ plan, keys: Object.fromEntries(pod.coordinator.keys(id ?? '')) })
     }),
     post('/task/talk', (body) => {
       const taskId = readId(body, 'taskId')
       const text = readString(body, 'text')
-      if (taskId === undefined || text === '') return fail('invalid-input', '要写明任务和要说的话')
+      if (taskId === undefined || text === '') return fail('invalid-input', t('要写明任务和要说的话'))
       return pod.tasks.talk(taskId, text)
     }),
     post('/tasks/stop-all', () => {
@@ -183,17 +186,17 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
     }),
     get('/memory/core', (query) => {
       const scope = readString(query, 'scope') as MemoryScopeKind
-      return SCOPES.includes(scope) ? ok(pod.memory.core(scope, readString(query, 'scopeId'))) : fail('invalid-input', '作用域不对')
+      return SCOPES.includes(scope) ? ok(pod.memory.core(scope, readString(query, 'scopeId'))) : fail('invalid-input', t('作用域不对'))
     }),
     post('/memory/core', (body) => {
       const scope = readString(body, 'scope') as MemoryScopeKind
-      if (!SCOPES.includes(scope)) return fail('invalid-input', '作用域不对')
+      if (!SCOPES.includes(scope)) return fail('invalid-input', t('作用域不对'))
       return ok(pod.memory.setCore(scope, readString(body, 'scopeId'), readString(body, 'text'), 'owner'))
     }),
     post('/memory/add', (body) => {
       const scope = readString(body, 'scope') as MemoryScopeKind
       const type = readString(body, 'type') as MemoryType
-      if (!SCOPES.includes(scope)) return fail('invalid-input', '作用域不对')
+      if (!SCOPES.includes(scope)) return fail('invalid-input', t('作用域不对'))
       return pod.memory.add(
         {
           scopeKind: scope,
@@ -211,7 +214,7 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
     post('/memory/update', (body) => pod.memory.updateFromPage(body)),
     post('/memory/delete', (body) => {
       const id = readId(body, 'id')
-      return id === undefined ? fail('invalid-input', '缺少记忆 id') : pod.memory.remove(id, 'owner')
+      return id === undefined ? fail('invalid-input', t('缺少记忆 id')) : pod.memory.remove(id, 'owner')
     }),
     get('/memory/changes', (query) => {
       const since = Number(readString(query, 'since'))
@@ -219,7 +222,7 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
     }),
     post('/memory/revert', (body) => {
       const logId = readInt(body, 'logId')
-      return logId === undefined ? fail('invalid-input', '缺少变更编号') : pod.memory.revert(logId)
+      return logId === undefined ? fail('invalid-input', t('缺少变更编号')) : pod.memory.revert(logId)
     }),
 
     // ---------- 搜索和交接笔记 ----------
@@ -246,16 +249,16 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
     post('/handover/update', (body) => {
       const id = readId(body, 'id')
       const note = (body as { readonly note?: unknown }).note
-      if (id === undefined || typeof note !== 'object' || note === null) return fail('invalid-input', '要写明交接笔记和内容')
+      if (id === undefined || typeof note !== 'object' || note === null) return fail('invalid-input', t('要写明交接笔记和内容'))
       const updated = updateHandoverNote(pod.db, id, note as Readonly<Record<string, unknown>>, pod.now())
-      return updated === undefined ? fail('not-found', '找不到这份交接笔记') : ok(updated)
+      return updated === undefined ? fail('not-found', t('找不到这份交接笔记')) : ok(updated)
     }),
     post('/wait/answer', (body) => pod.waits.answer(body)),
     post('/wait/dismiss', (body) => pod.waits.dismiss(body)),
 
     get('/session/activity', (query) => {
       const id = readId(query, 'id')
-      return id === undefined ? fail('invalid-input', '缺少会话 id') : ok(pod.observer.activityOf(id) ?? null)
+      return id === undefined ? fail('invalid-input', t('缺少会话 id')) : ok(pod.observer.activityOf(id) ?? null)
     }),
   ]
 }

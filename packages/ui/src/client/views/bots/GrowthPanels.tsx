@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { EVOLUTION_LABELS, formatCost, type EvolutionKind, type Scorecard } from 'pod-domain'
+import { EVOLUTION_LABELS, formatCost, t, tc, type EvolutionKind, type Scorecard } from 'pod-domain'
 import { api, type SkillView } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { Badge, Button, Drawer, Empty, Field, RelativeTime } from '../../components/common.tsx'
@@ -15,38 +15,38 @@ function percent(value: number | null): string {
 /** 评分卡：验收通过率、返工、你的评分、费用、耗时，以及找你、先绕过、被你改的次数。 */
 export function ScorecardStrip(props: { readonly card: Scorecard }) {
   const { card } = props
-  if (card.tasks === 0) return <p className="pod-hint">还没做过任务，没有评分卡。</p>
+  if (card.tasks === 0) return <p className="pod-hint">{t('还没做过任务，没有评分卡。')}</p>
   const minutes = Math.round(card.avgDurationMs / 60_000)
   return (
     <div className="pod-scorecard">
       <div>
-        <span className="pod-hint">一次通过</span>
+        <span className="pod-hint">{t('一次通过')}</span>
         <strong>{percent(card.firstPassRate)}</strong>
       </div>
       <div>
-        <span className="pod-hint">完成 / 失败</span>
+        <span className="pod-hint">{t('完成 / 失败')}</span>
         <strong>
           {card.done} / {card.failed}
         </strong>
       </div>
       <div>
-        <span className="pod-hint">返工</span>
+        <span className="pod-hint">{t('返工')}</span>
         <strong>{card.reworks}</strong>
       </div>
       <div>
-        <span className="pod-hint">你的评分</span>
-        <strong>{card.rating === null ? '—' : card.rating > 0 ? `好评 ${card.ratings}` : card.rating < 0 ? `差评居多（${card.ratings}）` : `${card.ratings} 次`}</strong>
+        <span className="pod-hint">{t('你的评分')}</span>
+        <strong>{card.rating === null ? '—' : card.rating > 0 ? t('好评 {ratings}', { ratings: card.ratings }) : card.rating < 0 ? t('差评居多（{ratings}）', { ratings: card.ratings }) : t('{ratings} 次', { ratings: card.ratings })}</strong>
       </div>
       <div>
-        <span className="pod-hint">平均花费</span>
+        <span className="pod-hint">{t('平均花费')}</span>
         <strong>{formatCost(card.avgCost)}</strong>
       </div>
       <div>
-        <span className="pod-hint">平均耗时</span>
-        <strong>{minutes < 1 ? '不到 1 分钟' : `${minutes} 分钟`}</strong>
+        <span className="pod-hint">{t('平均耗时')}</span>
+        <strong>{minutes < 1 ? t('不到 1 分钟') : t('{minutes} 分钟', { minutes })}</strong>
       </div>
       <div>
-        <span className="pod-hint">找你 / 绕过 / 被改</span>
+        <span className="pod-hint">{t('找你 / 绕过 / 被改')}</span>
         <strong>
           {card.asksPerTask} / {card.bypassPerTask} / {card.editsPerTask}
         </strong>
@@ -66,7 +66,7 @@ export function ScorecardsPanel() {
         <article key={item.botId} className="pod-card">
           <div className="pod-row">
             <strong>{item.name}</strong>
-            {item.temporary ? <Badge>临时</Badge> : null}
+            {item.temporary ? <Badge>{t('临时')}</Badge> : null}
           </div>
           <ScorecardStrip card={item.card} />
         </article>
@@ -82,7 +82,7 @@ function SkillEditor(props: { readonly skill?: SkillView; readonly botId?: strin
   const [title, setTitle] = useState(props.skill?.title ?? '')
   const [name, setName] = useState(props.skill?.name ?? '')
   const [description, setDescription] = useState(props.skill?.description ?? '')
-  const [content, setContent] = useState(props.skill?.content ?? '## 步骤\n1. \n\n## 容易出错的地方\n- \n\n## 输出模板\n')
+  const [content, setContent] = useState(props.skill?.content ?? t('## 步骤\n1. \n\n## 容易出错的地方\n- \n\n## 输出模板\n'))
   const [scope, setScope] = useState(props.skill === undefined ? `bot:${props.botId ?? bots?.[0]?.id ?? ''}` : `${props.skill.scopeKind}:${props.skill.scopeId}`)
   const [problem, setProblem] = useState<string | undefined>(undefined)
   const save = (): void => {
@@ -94,16 +94,16 @@ function SkillEditor(props: { readonly skill?: SkillView; readonly botId?: strin
   }
   return (
     <div className="pod-stack">
-      <Field label="标题">
+      <Field label={t('标题')}>
         <input className="pod-input" value={title} onChange={(event) => setTitle(event.target.value)} />
       </Field>
-      <Field label="技能名" hint="英文小写加连字符，bot 用它加载技能">
+      <Field label={t('技能名')} hint={t('英文小写加连字符，bot 用它加载技能')}>
         <input className="pod-input" value={name} placeholder="pricing-research" disabled={props.skill !== undefined} onChange={(event) => setName(event.target.value)} />
       </Field>
-      <Field label="什么时候用">
+      <Field label={t('什么时候用')}>
         <input className="pod-input" value={description} onChange={(event) => setDescription(event.target.value)} />
       </Field>
-      <Field label="给谁用">
+      <Field label={t('给谁用')}>
         <select className="pod-input" value={scope} disabled={props.skill !== undefined} onChange={(event) => setScope(event.target.value)}>
           {(bots ?? []).filter((bot) => bot.archivedAt === null).map((bot) => (
             <option key={bot.id} value={`bot:${bot.id}`}>
@@ -112,17 +112,17 @@ function SkillEditor(props: { readonly skill?: SkillView; readonly botId?: strin
           ))}
           {(teams ?? []).filter((team) => team.archivedAt === null).map((team) => (
             <option key={team.id} value={`team:${team.id}`}>
-              团队：{team.name}
+              {t('团队：{name}', { name: team.name })}
             </option>
           ))}
         </select>
       </Field>
-      <Field label="内容" hint="步骤、容易出错的地方、输出模板（Markdown）；你写的技能 bot 不会改">
+      <Field label={t('内容')} hint={t('步骤、容易出错的地方、输出模板（Markdown）；你写的技能 bot 不会改')}>
         <textarea className="pod-textarea" rows={14} value={content} onChange={(event) => setContent(event.target.value)} />
       </Field>
       {problem === undefined ? null : <p className="pod-form-error">{problem}</p>}
       <Button kind="primary" onClick={save}>
-        保存
+        {t('保存')}
       </Button>
     </div>
   )
@@ -132,20 +132,20 @@ function SkillVersions(props: { readonly skill: SkillView; readonly onClose: () 
   const app = useApp()
   const { data } = useResource(app.cache, `skill-versions:${props.skill.id}`, () => api.skillVersions(props.skill.id))
   return (
-    <Drawer title={`「${props.skill.title}」的版本`} onClose={props.onClose} wide>
+    <Drawer title={t('「{title}」的版本', { title: props.skill.title })} onClose={props.onClose} wide>
       <ol className="pod-versions">
         {(data ?? []).map((version) => (
           <li key={version.version}>
             <div className="pod-row">
-              <strong>第 {version.version} 版</strong>
-              {version.version === props.skill.version ? <Badge tone="ok">当前</Badge> : null}
+              <strong>{t('第 {version} 版', { version: version.version })}</strong>
+              {version.version === props.skill.version ? <Badge tone="ok">{t('当前')}</Badge> : null}
               <span className="pod-muted-inline">
                 <RelativeTime time={version.createdAt} />
               </span>
               <span className="pod-muted-inline">{version.reason}</span>
             </div>
             <details>
-              <summary>内容</summary>
+              <summary>{t('内容')}</summary>
               <Markdown text={version.content} />
             </details>
             {version.version === props.skill.version ? null : (
@@ -163,7 +163,7 @@ function SkillVersions(props: { readonly skill: SkillView; readonly onClose: () 
                     .catch((reason: unknown) => window.alert(errorText(reason)))
                 }}
               >
-                回到这一版
+                {t('回到这一版')}
               </Button>
             )}
           </li>
@@ -193,37 +193,36 @@ export function SkillsPanel(props: { readonly botId?: string }) {
     <div className="pod-stack">
       <div>
         <Button icon="plus" onClick={() => setEditing('new')}>
-          写一个技能
+          {t('写一个技能')}
         </Button>
       </div>
-      {data !== undefined && data.length === 0 ? <Empty title="还没有技能">任务做成功、流程能复用时，bot 会自己沉淀技能，复盘时也会提出。</Empty> : null}
+      {data !== undefined && data.length === 0 ? <Empty title={t('还没有技能')}>{t('任务做成功、流程能复用时，bot 会自己沉淀技能，复盘时也会提出。')}</Empty> : null}
       <div className="pod-grid">
         {(data ?? []).map((skill) => (
           <article key={skill.id} className={`pod-card${skill.status === 'archived' ? ' pod-card-muted' : ''}`}>
             <div className="pod-row">
               <strong>{skill.title}</strong>
-              <Badge tone={skill.status === 'active' ? 'ok' : skill.status === 'pending' ? 'warn' : 'muted'}>{STATUS_LABELS[skill.status]}</Badge>
-              {skill.hasScript ? <Badge tone="warn">带脚本</Badge> : null}
+              <Badge tone={skill.status === 'active' ? 'ok' : skill.status === 'pending' ? 'warn' : 'muted'}>{tc(STATUS_LABELS[skill.status], '状态')}</Badge>
+              {skill.hasScript ? <Badge tone="warn">{t('带脚本')}</Badge> : null}
             </div>
             <div className="pod-hint">
-              {skill.name} · {skill.scopeKind === 'team' ? '团队：' : ''}
-              {skill.scopeName} · 第 {skill.version} 版 · {skill.source === 'owner' ? '你写的' : skill.source === 'retro' ? '复盘沉淀' : 'bot 沉淀'}
+              {t('{name} · {value}{scopeName} · 第 {version} 版 · {value2}', { name: skill.name, value: skill.scopeKind === 'team' ? t('团队：') : '', scopeName: skill.scopeName, version: skill.version, value2: skill.source === 'owner' ? t('你写的') : skill.source === 'retro' ? t('复盘沉淀') : t('bot 沉淀') })}
             </div>
             <p className="pod-persona">{skill.description}</p>
             <div className="pod-card-actions">
               <Button small onClick={() => setEditing(skill)}>
-                编辑
+                {t('编辑')}
               </Button>
               <Button small kind="quiet" icon="history" onClick={() => setVersions(skill)}>
-                版本
+                {t('版本')}
               </Button>
               {skill.status === 'active' ? (
                 <Button small kind="quiet" onClick={() => status(skill, 'archived')}>
-                  停用
+                  {t('停用')}
                 </Button>
               ) : (
                 <Button small kind="quiet" onClick={() => status(skill, 'active')}>
-                  {skill.status === 'pending' ? '批准并启用' : '启用'}
+                  {skill.status === 'pending' ? t('批准并启用') : t('启用')}
                 </Button>
               )}
             </div>
@@ -231,7 +230,7 @@ export function SkillsPanel(props: { readonly botId?: string }) {
         ))}
       </div>
       {editing === undefined ? null : (
-        <Drawer title={editing === 'new' ? '写一个技能' : `编辑「${editing.title}」`} onClose={() => setEditing(undefined)} wide>
+        <Drawer title={editing === 'new' ? t('写一个技能') : t('编辑「{title}」', { title: editing.title })} onClose={() => setEditing(undefined)} wide>
           <SkillEditor
             skill={editing === 'new' ? undefined : editing}
             botId={props.botId}
@@ -255,18 +254,18 @@ export function EvolutionPanel(props: { readonly botId?: string }) {
   const entries = (data ?? []).filter((entry) => (kind === '' || entry.kind === kind) && (props.botId === undefined || entry.botId === props.botId))
   return (
     <div className="pod-stack">
-      <p className="pod-muted">自我优化默认自治：改动直接生效、记在这里；改后的任务明显变差会自动退回。只有带脚本的技能要你批准。</p>
+      <p className="pod-muted">{t('自我优化默认自治：改动直接生效、记在这里；改后的任务明显变差会自动退回。只有带脚本的技能要你批准。')}</p>
       <div className="pod-tabs">
         <button type="button" className={`pod-chip${kind === '' ? ' pod-chip-active' : ''}`} onClick={() => setKind('')}>
-          全部
+          {t('全部')}
         </button>
         {(Object.keys(EVOLUTION_LABELS) as EvolutionKind[]).map((item) => (
           <button key={item} type="button" className={`pod-chip${kind === item ? ' pod-chip-active' : ''}`} onClick={() => setKind(item)}>
-            {EVOLUTION_LABELS[item]}
+            {t(EVOLUTION_LABELS[item])}
           </button>
         ))}
       </div>
-      {data !== undefined && entries.length === 0 ? <Empty title="还没有改动" /> : null}
+      {data !== undefined && entries.length === 0 ? <Empty title={t('还没有改动')} /> : null}
       <ul className="pod-evolution-list">
         {entries.map((entry) => (
           <EvolutionRow key={entry.id} entry={entry} />

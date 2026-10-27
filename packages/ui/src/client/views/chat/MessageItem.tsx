@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { OWNER, POD, readRunSummary, type Bot, type RoomMessage } from 'pod-domain'
+import { OWNER, POD, isUploadNote, readRunSummary, t, type Bot, type RoomMessage } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { BrowserCard } from '../../components/BrowserCard.tsx'
@@ -38,9 +38,9 @@ export interface MessageProps {
 }
 
 function authorName(author: string, bots: ReadonlyMap<string, Bot>): string {
-  if (author === OWNER) return '你'
+  if (author === OWNER) return t('你')
   if (author === POD) return 'dsh-bot'
-  return bots.get(author)?.name ?? '已删除的 bot'
+  return bots.get(author)?.name ?? t('已删除的 bot')
 }
 
 /** 开工说明上的操作：谨慎档等你点“开始”；开工以后可以随时停止。 */
@@ -56,10 +56,10 @@ function KickoffActions(props: { readonly taskId: string }) {
     return (
       <div className="pod-kickoff-actions">
         <Button small kind="primary" icon="play" onClick={() => act(() => api.approvePlan(task.id))}>
-          开始
+          {t('开始')}
         </Button>
         <Button small kind="quiet" onClick={() => act(() => api.controlTask(task.id, 'cancel'))}>
-          取消
+          {t('取消')}
         </Button>
       </div>
     )
@@ -68,7 +68,7 @@ function KickoffActions(props: { readonly taskId: string }) {
   return (
     <div className="pod-kickoff-actions">
       <Button small kind="quiet" icon="stop" onClick={() => act(() => api.controlTask(task.id, 'stop'))}>
-        停止
+        {t('停止')}
       </Button>
     </div>
   )
@@ -77,10 +77,10 @@ function KickoffActions(props: { readonly taskId: string }) {
 /** 提到一个群的提示（比如“拉了群「监控播报」”）：群名画成链接，点一下进那个群。 */
 function RoomNotice(props: { readonly body: string; readonly roomId: string }) {
   const app = useApp()
-  const match = /「([^」]+)」/.exec(props.body)
+  const match = /「[^」]+」|“[^”]+”/.exec(props.body)
   const link = (
-    <button type="button" className="pod-notice-link" onClick={() => app.openRoom(props.roomId)} title="打开这个群聊">
-      {match === null ? props.body : `「${match[1] ?? ''}」`}
+    <button type="button" className="pod-notice-link" onClick={() => app.openRoom(props.roomId)} title={t('打开这个群聊')}>
+      {match === null ? props.body : match[0]}
     </button>
   )
   if (match === null) return link
@@ -98,7 +98,7 @@ function Folded(props: { readonly message: RoomMessage }) {
   return (
     <div className="pod-folded">
       <button type="button" className="pod-link" onClick={() => setOpen((value) => !value)}>
-        {open ? '收起' : '展开'} · {String(props.message.data.label ?? '讨论原文')}
+        {open ? t('收起') : t('展开')} · {String(props.message.data.label ?? t('讨论原文'))}
       </button>
       {open ? <Markdown text={props.message.body} /> : null}
     </div>
@@ -114,7 +114,7 @@ export function MessageItem(props: MessageProps) {
       if (message.data.segment === true) {
         return (
           <div className="pod-divider" role="separator">
-            <span>新的对话 · {clock(message.createdAt)}</span>
+            <span>{t('新的对话 · {clock}', { clock: clock(message.createdAt) })}</span>
           </div>
         )
       }
@@ -145,7 +145,7 @@ export function MessageItem(props: MessageProps) {
           <TaskCard taskId={String(message.data.taskId ?? '')} />
           {typeof message.data.roomId === 'string' && message.data.roomId !== message.roomId ? (
             <button type="button" className="pod-link" onClick={() => app.openRoom(message.data.roomId as string)}>
-              打开群聊
+              {t('打开群聊')}
             </button>
           ) : null}
         </div>
@@ -190,7 +190,7 @@ export function MessageItem(props: MessageProps) {
   const quote =
     quoted === undefined ? null : (
       <div className="pod-quote">
-        {quoted.author === OWNER || quoted.author === POD ? authorName(quoted.author, bots) : <BotName bot={bots.get(quoted.author)} size={14} />}：{quoted.body.slice(0, 120)}
+        {quoted.author === OWNER || quoted.author === POD ? authorName(quoted.author, bots) : <BotName bot={bots.get(quoted.author)} size={14} />}{t('：{body}', { body: quoted.body.slice(0, 120) })}
       </div>
     )
   if (owner) {
@@ -199,9 +199,9 @@ export function MessageItem(props: MessageProps) {
         <div className="pod-bubble">
           {pageId === undefined ? null : <PageChip pageId={pageId} />}
           {quote}
-          {attachment !== undefined && message.body.startsWith('上传了文件「') ? null : <Markdown text={message.body} mentions={calledMentions(message, props.mentions, true)} />}
+          {attachment !== undefined && isUploadNote(message.body, String(attachment.name ?? '')) ? null : <Markdown text={message.body} mentions={calledMentions(message, props.mentions, true)} />}
           {attachment === undefined ? null : <Attachment attachment={attachment} />}
-          {message.data.via === 'dsh' ? <div className="pod-muted-inline">来自 dsh 会话视图</div> : null}
+          {message.data.via === 'dsh' ? <div className="pod-muted-inline">{t('来自 dsh 会话视图')}</div> : null}
         </div>
         {props.hideTime === true ? null : <time className="pod-msg-time">{clock(message.createdAt)}</time>}
       </MessageFrame>
@@ -212,7 +212,7 @@ export function MessageItem(props: MessageProps) {
   }
   return (
     <MessageFrame {...props} owner={false} className={`pod-msg${message.kind === 'kickoff' ? ' pod-msg-kickoff' : ''}`}>
-      <button type="button" className="pod-msg-avatar" onClick={openBot} aria-label={`${authorName(message.author, bots)} 的详情`}>
+      <button type="button" className="pod-msg-avatar" onClick={openBot} aria-label={t('{authorName} 的详情', { authorName: authorName(message.author, bots) })}>
         <Avatar bot={bot} size={28} />
       </button>
       <div className="pod-msg-main">
@@ -220,8 +220,8 @@ export function MessageItem(props: MessageProps) {
           <button type="button" className={`pod-msg-author${bot === undefined ? '' : ' pod-bot-name'}`} style={nameColor(bot)} onClick={openBot}>
             {authorName(message.author, bots)}
           </button>
-          {message.kind === 'kickoff' ? <span className="pod-badge pod-badge-info">开工说明</span> : null}
-          {message.pinned ? <span className="pod-badge pod-badge-muted">已置顶</span> : null}
+          {message.kind === 'kickoff' ? <span className="pod-badge pod-badge-info">{t('开工说明')}</span> : null}
+          {message.pinned ? <span className="pod-badge pod-badge-muted">{t('已置顶')}</span> : null}
           {pageId === undefined ? null : <PageChip pageId={pageId} />}
           <time>{clock(message.createdAt)}</time>
         </div>
@@ -257,7 +257,7 @@ function MessageFrame(props: MessageProps & { readonly owner: boolean; readonly 
         <MessageActions {...props} />
       )}
       {selecting ? (
-        <Modal title="选择文字" onClose={() => setSelecting(false)}>
+        <Modal title={t('选择文字')} onClose={() => setSelecting(false)}>
           <div className="pod-select-text">{props.message.body}</div>
         </Modal>
       ) : null}
@@ -277,22 +277,22 @@ function MessageActions(props: MessageProps & { readonly owner: boolean }) {
   const sessionId = message.sessionId
   const reply = answerable(message, props.owner)
   return (
-    <div className={`pod-msg-actions${props.owner ? ' pod-msg-actions-owner' : ''}${menu.open ? ' pod-msg-actions-open' : ''}`} role="toolbar" aria-label="消息操作">
-      <IconButton icon="copy" label="复制" onClick={() => void copyText(message.body)} />
-      <IconButton icon="reply" label="引用回复" onClick={() => props.onReply(message)} />
+    <div className={`pod-msg-actions${props.owner ? ' pod-msg-actions-owner' : ''}${menu.open ? ' pod-msg-actions-open' : ''}`} role="toolbar" aria-label={t('消息操作')}>
+      <IconButton icon="copy" label={t('复制')} onClick={() => void copyText(message.body)} />
+      <IconButton icon="reply" label={t('引用回复')} onClick={() => props.onReply(message)} />
       {reply ? (
         <>
-          <IconButton icon="refresh" label="重新回答" onClick={() => void api.regenerate(message.id).catch((reason: unknown) => window.alert(errorText(reason)))} />
+          <IconButton icon="refresh" label={t('重新回答')} onClick={() => void api.regenerate(message.id).catch((reason: unknown) => window.alert(errorText(reason)))} />
           <RateButtons roomId={message.roomId} messageId={message.id} />
         </>
       ) : null}
-      <button ref={menu.anchor} type="button" className="pod-icon-button" aria-label="更多" title="更多" aria-expanded={menu.open} onClick={menu.toggle}>
+      <button ref={menu.anchor} type="button" className="pod-icon-button" aria-label={t('更多')} title={t('更多')} aria-expanded={menu.open} onClick={menu.toggle}>
         <Icon name="more" size={15} />
       </button>
-      <MenuPanel control={menu} label="这条消息的更多操作">
+      <MenuPanel control={menu} label={t('这条消息的更多操作')}>
         <MenuItem
           icon={message.pinned ? 'unpin' : 'pin'}
-          label={message.pinned ? '取消置顶' : '置顶这条消息'}
+          label={message.pinned ? t('取消置顶') : t('置顶这条消息')}
           onClick={() => {
             menu.close()
             void api.pinMessage(message.id, !message.pinned).then(props.onPinned)
@@ -301,7 +301,7 @@ function MessageActions(props: MessageProps & { readonly owner: boolean }) {
         {sessionId === null ? null : (
           <MenuItem
             icon="open"
-            label="在 dsh 里查看过程"
+            label={t('在 dsh 里查看过程')}
             onClick={() => {
               menu.close()
               app.host.openSession(sessionId)

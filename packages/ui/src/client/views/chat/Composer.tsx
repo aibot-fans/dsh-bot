@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
-import { OWNER, QUICK_COMMANDS, parseQuickCommand, type Bot, type Room, type RoomMessage } from 'pod-domain'
+import { OWNER, parseQuickCommand, quickCommands, t, type Bot, type Room, type RoomMessage } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { Avatar, IconButton } from '../../components/common.tsx'
@@ -43,7 +43,7 @@ function readBase64(file: File): Promise<string> {
       const result = String(reader.result ?? '')
       resolve(result.slice(result.indexOf(',') + 1))
     }
-    reader.onerror = () => reject(reader.error ?? new Error('读不了这个文件'))
+    reader.onerror = () => reject(reader.error ?? new Error(t('读不了这个文件')))
     reader.readAsDataURL(file)
   })
 }
@@ -52,7 +52,7 @@ function readBase64(file: File): Promise<string> {
 function nameOf(file: File): string {
   if (file.name !== '' && file.name !== 'image.png') return file.name
   const stamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '')
-  return `截图-${stamp}.${file.type.split('/')[1] ?? 'png'}`
+  return t('截图-{stamp}.{value}', { stamp, value: file.type.split('/')[1] ?? 'png' })
 }
 
 /**
@@ -60,10 +60,10 @@ function nameOf(file: File): string {
  * bot 正在回答时也能说话：单聊里它下一步就看到；群里没点名会按分工交给别人，所以提示 @ 它。
  */
 function placeholderOf(name: string, group: boolean, replying: boolean, narrow: boolean): string {
-  if (replying && group) return narrow ? '要补充或纠正，@ 它直接说' : '成员正在回答：要补充或纠正，@ 它直接说'
-  if (replying) return narrow ? `${name} 正在回答，可以直接补充` : `${name} 正在回答：可以直接补充或纠正，它下一步就会看到`
-  if (group) return narrow ? '说点什么，@ 点名成员' : '在群里说点什么，输入 @ 点名成员'
-  return `给 ${name} 发消息`
+  if (replying && group) return narrow ? t('要补充或纠正，@ 它直接说') : t('成员正在回答：要补充或纠正，@ 它直接说')
+  if (replying) return narrow ? t('{name} 正在回答，可以直接补充', { name }) : t('{name} 正在回答：可以直接补充或纠正，它下一步就会看到', { name })
+  if (group) return narrow ? t('说点什么，@ 点名成员') : t('在群里说点什么，输入 @ 点名成员')
+  return t('给 {name} 发消息', { name })
 }
 
 /**
@@ -91,9 +91,9 @@ export function Composer(props: ComposerProps) {
   const name = props.responder?.name ?? 'bot'
   const group = props.room.kind !== 'direct'
   const archived = props.room.archivedAt !== null
-  const placeholder = archived ? '这个对话已经删除' : placeholderOf(name, group, props.replying, narrow)
+  const placeholder = archived ? t('这个对话已经删除') : placeholderOf(name, group, props.replying, narrow)
   const showCommands = text.startsWith('/') && !text.includes(' ') && !text.includes('\n')
-  const commands = showCommands ? QUICK_COMMANDS.filter((command) => `/${command.name}`.startsWith(text.trim()) || text.trim() === '/') : []
+  const commands = showCommands ? quickCommands().filter((command) => `/${command.name}`.startsWith(text.trim()) || text.trim() === '/') : []
   const candidates = mention === undefined ? [] : props.members.filter((bot) => bot.name.toLowerCase().includes(mention.query.toLowerCase())).slice(0, 8)
 
   useEffect(() => {
@@ -151,7 +151,7 @@ export function Composer(props: ComposerProps) {
     const value = (editor.current?.value() ?? text).trim()
     if (busy || (value === '' && pending.length === 0)) return
     // /停止 直接停掉这个对话里的任务和回答，不用经过 bot。
-    if (pending.length === 0 && parseQuickCommand(value)?.name === '停止') {
+    if (pending.length === 0 && parseQuickCommand(value)?.id === 'stop') {
       const work = props.room.taskId === null ? api.stopReply(props.room.id) : api.controlTask(props.room.taskId, 'stop')
       work.then(() => editor.current?.reset('')).catch((reason: unknown) => setError(errorText(reason)))
       return
@@ -221,19 +221,19 @@ export function Composer(props: ComposerProps) {
         <div className="pod-composer-reply">
           <Icon name="reply" size={13} />
           <span className="pod-ellipsis">
-            引用 {quoted.author === OWNER ? '你' : <BotName bot={props.bots.get(quoted.author)} size={14} />}：{quoted.body.slice(0, 80)}
+            {t('引用')} {quoted.author === OWNER ? t('你') : <BotName bot={props.bots.get(quoted.author)} size={14} />}{t('：{body}', { body: quoted.body.slice(0, 80) })}
           </span>
-          <IconButton icon="close" label="取消引用" onClick={props.onClearReply} />
+          <IconButton icon="close" label={t('取消引用')} onClick={props.onClearReply} />
         </div>
       )}
       {commands.length === 0 ? null : (
         <ul className="pod-commands">
           {commands.map((command) => (
-            <li key={command.name}>
+            <li key={command.id}>
               <button
                 type="button"
                 onClick={() => {
-                  editor.current?.reset(command.name === '停止' || command.name === '总结' ? `/${command.name}` : `/${command.name} `)
+                  editor.current?.reset(command.bare ? `/${command.name}` : `/${command.name} `)
                   editor.current?.focus()
                 }}
               >
@@ -245,7 +245,7 @@ export function Composer(props: ComposerProps) {
         </ul>
       )}
       {candidates.length === 0 || mention === undefined ? null : (
-        <ul className="pod-mentions" role="listbox" aria-label="选一个成员">
+        <ul className="pod-mentions" role="listbox" aria-label={t('选一个成员')}>
           {candidates.map((bot, index) => (
             <li key={bot.id}>
               <button type="button" role="option" aria-selected={index === mention.index} className={index === mention.index ? 'pod-mention-active' : undefined} onMouseDown={(event) => event.preventDefault()} onClick={() => pick(bot)}>
@@ -264,7 +264,7 @@ export function Composer(props: ComposerProps) {
               <span key={item.id} className="pod-pending-item">
                 {item.preview === undefined ? <Icon name="file" size={16} /> : <img src={item.preview} alt="" />}
                 <span className="pod-ellipsis">{nameOf(item.file)}</span>
-                <button type="button" className="pod-pending-remove" aria-label={`去掉 ${nameOf(item.file)}`} onClick={() => removePending(item.id)}>
+                <button type="button" className="pod-pending-remove" aria-label={t('去掉 {nameOf}', { nameOf: nameOf(item.file) })} onClick={() => removePending(item.id)}>
                   <Icon name="close" size={12} />
                 </button>
               </span>
@@ -273,7 +273,7 @@ export function Composer(props: ComposerProps) {
         )}
         <div className="pod-composer-row">
           <input ref={fileInput} type="file" multiple hidden onChange={(event) => addFiles([...(event.target.files ?? [])])} />
-          <IconButton icon="plus" label="添加图片或文件" disabled={busy || archived} onClick={() => fileInput.current?.click()} />
+          <IconButton icon="plus" label={t('添加图片或文件')} disabled={busy || archived} onClick={() => fileInput.current?.click()} />
           <div className="pod-composer-field">
             <RichInput
               ref={editor}
@@ -292,11 +292,11 @@ export function Composer(props: ComposerProps) {
             />
           </div>
           {props.replying && empty ? (
-            <button type="button" className="pod-send pod-send-stop" onClick={stop} aria-label="停止回答" title="停止回答">
+            <button type="button" className="pod-send pod-send-stop" onClick={stop} aria-label={t('停止回答')} title={t('停止回答')}>
               <Icon name="stop" size={14} />
             </button>
           ) : (
-            <button type="button" className="pod-send" onClick={send} disabled={busy || empty} aria-label="发送">
+            <button type="button" className="pod-send" onClick={send} disabled={busy || empty} aria-label={t('发送')}>
               <Icon name="send" size={16} />
             </button>
           )}
