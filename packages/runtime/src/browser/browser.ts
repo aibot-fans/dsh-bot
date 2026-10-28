@@ -96,6 +96,17 @@ export class SharedBrowser {
     return this.open({ id: record.id, url: record.url, owner: record.owner })
   }
 
+  /**
+   * 共用浏览器里某个网站的一个 cookie 的值，没有就是 undefined；浏览器没启动时先启动。
+   * 只用来判断登录了没有、登录的是谁，值不要记日志也不要存。
+   */
+  async cookie(domain: string, name: string): Promise<string | undefined> {
+    const chrome = await this.ensure()
+    const { cookies } = await chrome.connection.send<{ readonly cookies: readonly { readonly name: string; readonly value: string; readonly domain: string }[] }>('Storage.getCookies', {})
+    const host = domain.replace(/^\./, '')
+    return cookies.find((cookie) => cookie.name === name && cookie.domain.replace(/^\./, '') === host)?.value
+  }
+
   private async ensure(): Promise<LaunchedChrome> {
     if (this.chrome !== undefined) return this.chrome
     if (this.disposed) throw new Error(t('共用浏览器已关闭'))
@@ -329,7 +340,8 @@ export class SharedBrowser {
       .filter((tab) => now - tab.lastUsedAt > (needSlot ? 2 * 60_000 : TAB_IDLE_MS))
       .sort((left, right) => left.lastUsedAt - right.lastUsedAt)
     for (const tab of needSlot ? idle.slice(0, 1) : idle) {
-      await this.beforeClose(tab).catch(() => undefined)
+      // Pod 自己的标签页（X 账号、导出页面）不存快照：里面是你的时间线之类，不该进浏览记录。
+      if (tab.owner.kind !== 'pod') await this.beforeClose(tab).catch(() => undefined)
       await this.close(tab.id)
     }
   }

@@ -280,6 +280,24 @@ export class BrowserTab {
     return this.evaluate<T>(invoke(script, ...args), true)
   }
 
+  /**
+   * 以后每次进新页面，先在网页自己的环境里跑这段脚本，比网页的脚本早。
+   * 只给 X 账号的隐藏标签页用（x/account.ts）：X 的接口客户端只能在网页自己的环境里拿到。
+   */
+  async addInitScript(source: string): Promise<void> {
+    await this.send('Page.addScriptToEvaluateOnNewDocument', { source })
+  }
+
+  /**
+   * 在网页自己的环境里求值，不是 Pod 的隔离环境：网页的脚本看得到也改得了这里的东西。
+   * 只给 X 账号的隐藏标签页用，其他地方一律用 evaluate。
+   */
+  async evaluateMain<T>(expression: string, timeoutMs = 45_000): Promise<T> {
+    const result = await this.send<EvaluateResult>('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, timeoutMs)
+    if (result.exceptionDetails !== undefined) throw new Error(`页面脚本出错：${result.exceptionDetails.exception?.description ?? result.exceptionDetails.text ?? ''}`.slice(0, 300))
+    return result.result?.value as T
+  }
+
   async objectId(expression: string): Promise<string | undefined> {
     const result = await this.inWorld(expression, { returnByValue: false })
     return result.result?.objectId
