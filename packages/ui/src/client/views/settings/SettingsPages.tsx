@@ -10,6 +10,7 @@ import { MemoryChanges } from '../memory/MemoryView.tsx'
 import { UpdateRow } from '../update/UpdateRow.tsx'
 import { BrowserSettings } from './BrowserSettings.tsx'
 import { Row, type Update } from './Row.tsx'
+import { XAccountRows } from './XAccountRows.tsx'
 
 function modelValue(model: ModelChoice | null): string {
   return model === null ? '' : `${model.provider}::${model.model}`
@@ -44,7 +45,7 @@ function Time(props: { readonly value: string; readonly onChange: (value: string
   return <input className="pod-input pod-input-time" type="time" aria-label={props.label} value={props.value} onChange={(event) => props.onChange(event.target.value)} />
 }
 
-/** 通用：放手程度、通知、勿扰、自动记住要点、X 数据和监控（aibot）。 */
+/** 通用：放手程度、通知、勿扰、自动记住要点、X 数据和监控（aibot）、发推用的 X 账号。 */
 export function GeneralPage(props: { readonly settings: PodSettings; readonly update: Update }) {
   const app = useApp()
   const { settings, update } = props
@@ -93,6 +94,7 @@ export function GeneralPage(props: { readonly settings: PodSettings; readonly up
         <Switch checked={settings.memoryExtraction} label={t('自动记住要点')} onChange={(memoryExtraction) => update({ memoryExtraction })} />
       </Row>
       <AibotRows settings={settings} update={update} />
+      <XAccountRows settings={settings} update={update} />
       <Row label={t('首次引导')}>
         <Button
           small
