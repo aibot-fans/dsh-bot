@@ -45,28 +45,55 @@ const OLD_PERSONAS: ReadonlyMap<string, string> = new Map([
     xPersona('Pod 自带的 twitter_ 工具只能读数据和管理监控。会话里有别的 X 写工具（发推、点赞、转推、关注）时，用户明确要求就直接用它们做；没有的话，说明发推要用共用浏览器。'),
     '人设里的名字改成 dsh-bot',
   ],
+  [
+    xPersona('dsh-bot 自带的 twitter_ 工具只能读数据和管理监控。会话里有别的 X 写工具（发推、点赞、转推、关注）时，用户明确要求就直接用它们做；没有的话，说明发推要用共用浏览器。'),
+    '写操作改用 x_ 工具（dsh-bot 浏览器里登录的 X 账号）',
+  ],
+  [
+    xPersonaEn(
+      "dsh-bot's built-in twitter_ tools can only read data and manage monitoring. If the session has other X write tools (post, like, repost, follow), use them when the user explicitly asks; otherwise explain that posting needs the shared browser.",
+    ),
+    '写操作改用 x_ 工具（dsh-bot 浏览器里登录的 X 账号）',
+  ],
 ])
 
-/** 英文界面下的 X 情报员人设。 */
-function xPersonaEn(): string {
+/** 以前的默认角色卡：人设换新版时，角色卡还是这些的也一起换。 */
+const OLD_CARDS: readonly BotCard[] = [
+  { duties: '查 X（推特）上的用户、推文、话题和趋势；管理账号监控', strengths: '搜推文、看时间线、整理某个账号或话题的动态', notResponsible: '发推、点赞这类写操作', askWho: '拿不准时问主管' },
+  {
+    duties: 'Looks up users, posts, topics and trends on X (Twitter); manages account monitoring',
+    strengths: 'Searching posts, reading timelines, summarizing activity for an account or topic',
+    notResponsible: 'Write actions like posting and liking',
+    askWho: 'Ask the Lead when unsure',
+  },
+]
+
+/** 英文界面下的 X 情报员人设，中间那行讲写操作。 */
+function xPersonaEn(writeLine: string): string {
   return [
     'You are the X Analyst, in charge of data lookups and account monitoring on X (Twitter).',
     'Use the tools whose names start with twitter_ to look up users, posts, timelines, searches and trends. When the user wants to watch an account, add it with twitter_monitor_add (unless told otherwise, monitor original posts, replies and quotes); new activity is posted to the “X Monitor” group automatically.',
     'There is a free daily quota (each read counts once; monitoring is free). Think about what you need before looking things up and do not query the same thing twice. When the quota runs out, tell the user plainly that it resets at 8:00 tomorrow morning (Beijing time).',
-    "dsh-bot's built-in twitter_ tools can only read data and manage monitoring. If the session has other X write tools (post, like, repost, follow), use them when the user explicitly asks; otherwise explain that posting needs the shared browser.",
+    writeLine,
     'Reply in English, and include links when quoting posts.',
   ].join('\n')
 }
 
+/** 现在这版人设里讲写操作的那行。 */
+const WRITE_LINE =
+  '要发推、回复、引用、删推、点赞、转推或关注时，用 x_ 开头的工具做，用的是用户在 dsh-bot 浏览器里登录的 X 账号；只在用户明确要求时做，按设置可能要用户先批准。没登录时请用户在 设置 → 通用 → X 账号 里登录。twitter_ 开头的工具只读数据和管理监控。'
+const WRITE_LINE_EN =
+  "To post, reply, quote, delete a post, like, repost or follow, use the tools whose names start with x_; they act as the X account the user signed in to in dsh-bot's browser. Do it only when the user explicitly asks; depending on settings the user may need to approve first. If no account is signed in, ask the user to sign in under Settings → General → X account. The twitter_ tools only read data and manage monitoring."
+
 const X_BOT_EN: BotDraft = {
   name: 'X Analyst',
   title: 'X (Twitter) data and monitoring',
-  persona: xPersonaEn(),
+  persona: xPersonaEn(WRITE_LINE_EN),
   capabilities: ['X', 'Twitter', 'Social listening'],
   card: {
-    duties: 'Looks up users, posts, topics and trends on X (Twitter); manages account monitoring',
+    duties: 'Looks up users, posts, topics and trends on X (Twitter); manages account monitoring; posts, likes, reposts and follows when asked',
     strengths: 'Searching posts, reading timelines, summarizing activity for an account or topic',
-    notResponsible: 'Write actions like posting and liking',
+    notResponsible: 'Write actions the user did not ask for',
     askWho: 'Ask the Lead when unsure',
   },
   toolProfile: 'research',
@@ -75,14 +102,12 @@ const X_BOT_EN: BotDraft = {
 const X_BOT: BotDraft = {
   name: 'X 情报员',
   title: 'X（推特）数据和监控',
-  persona: xPersona(
-    'dsh-bot 自带的 twitter_ 工具只能读数据和管理监控。会话里有别的 X 写工具（发推、点赞、转推、关注）时，用户明确要求就直接用它们做；没有的话，说明发推要用共用浏览器。',
-  ),
+  persona: xPersona(WRITE_LINE),
   capabilities: ['X', '推特', '舆情监控'],
   card: {
-    duties: '查 X（推特）上的用户、推文、话题和趋势；管理账号监控',
+    duties: '查 X（推特）上的用户、推文、话题和趋势；管理账号监控；按要求发推、点赞、转推、关注',
     strengths: '搜推文、看时间线、整理某个账号或话题的动态',
-    notResponsible: '发推、点赞这类写操作',
+    notResponsible: '用户没要求的写操作',
     askWho: '拿不准时问主管',
   },
   toolProfile: 'research',
@@ -113,11 +138,13 @@ export function seedX(db: DatabaseSync, bots: BotService, rooms: RoomService): X
   return { bot, room }
 }
 
-/** 之前建的 X 情报员，人设还是以前哪一版原样的换成现在的（记一版配置，能回滚）；改过的不动。 */
+/** 之前建的 X 情报员，人设还是以前哪一版原样的换成现在这个语言的（记一版配置，能回滚），角色卡还是旧默认的一起换；改过的不动。 */
 function upgradePersona(bots: BotService, bot: Bot | undefined): Bot | undefined {
   const reason = bot === undefined ? undefined : OLD_PERSONAS.get(bot.persona)
   if (bot === undefined || reason === undefined) return bot
-  const result = bots.applyPatch(bot.id, { persona: X_BOT.persona }, { source: 'seed', actor: POD, reason })
+  const wanted = xBotDraft()
+  const card = OLD_CARDS.some((old) => sameCard(bot.card, old)) ? { card: wanted.card ?? EMPTY_CARD } : {}
+  const result = bots.applyPatch(bot.id, { persona: wanted.persona, ...card }, { source: 'seed', actor: POD, reason })
   return result.ok ? result.value : bot
 }
 
