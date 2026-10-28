@@ -124,8 +124,8 @@ export class BrowserActions {
     return privateFragments(this.deps.privateTexts())
   }
 
-  /** 外传检查：受污染的会话要把内容带到网页上时，查有没有夹带私有信息。 */
-  private exfiltration(session: PodSession, key: string, candidate: string, title: string): string | undefined {
+  /** 外传检查：受污染的会话要把内容带到网页上时，查有没有夹带私有信息。X 写操作（x/writes.ts）也用它。 */
+  exfiltration(session: PodSession, key: string, candidate: string, title: string): string | undefined {
     if (!(this.deps.registry.get(session.id)?.tainted ?? session.tainted)) return undefined
     const hits = exfiltrationHits(candidate, this.fragments())
     if (hits.length === 0 || this.deps.approvals.allowOnce(session.id, key)) return undefined

@@ -62,7 +62,8 @@ export interface WriteApprovalDeps {
 }
 
 const INFLIGHT_KEY = 'browser.inflight'
-const APPROVE = /^(approve|approved|allow|yes|ok|批准|同意|允许|放行|可以|好|行|确认)/i
+/** 你的答复算不算批准；X 写操作的审批（x/writes.ts）也按它。 */
+export const APPROVE = /^(approve|approved|allow|yes|ok|批准|同意|允许|放行|可以|好|行|确认)/i
 
 export function fingerprint(url: string, html: string): string {
   return fnv1a(`${url}\n${html}`)

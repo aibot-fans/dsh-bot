@@ -54,8 +54,9 @@ export function startRuntime(pod: PodRuntime): () => void {
   pod.rooms.ensureLeadRoom()
   const stopAibot = pod.aibot.start()
   void pod.dispatcher.pump()
-  // 上次 dsh web 退出时正在执行的浏览器写操作：标为状态未知，先问你。
+  // 上次 dsh web 退出时正在执行的浏览器写操作和 X 写操作：标为状态未知，先问你。
   pod.browser.approvals.markUnknown()
+  pod.x.writes.markUnknown()
   const timeouts = [
     later(20_000, () => recoverAfterRestart(pod)),
     later(30_000, () => void pod.routines.catchUp().catch(warn('例程补跑出错'))),

@@ -43,6 +43,7 @@ import { UsageMeter } from './usage/meter.ts'
 import { WaitService } from './waits/service.ts'
 import { ReadRefused } from './browser/actions.ts'
 import { createBrowserKit, type BrowserKit } from './browser/index.ts'
+import { createXKit, type XKit } from './x/index.ts'
 import { createEvolutionKit, type EvolutionKit } from './evolution/index.ts'
 import { ModelResolver } from './core/models.ts'
 import { resolveConfig } from './config.ts'
@@ -131,6 +132,8 @@ export class PodRuntime {
   readonly pages: PageService
   readonly pageLibrary: PageLibrary
   readonly aibot: AibotService
+  /** 用 dsh-bot 浏览器里登录的 X 账号发推、点赞、转推、关注（x_ 工具）。 */
+  readonly x: XKit
   readonly updates: UpdateService
   readonly now: () => number
   private exposureState: Exposure = detectExposure()
@@ -508,6 +511,20 @@ export class PodRuntime {
         this.rooms.post(roomId, { author: session.botId, kind: 'browser', body: t('打开了 {host}', { host }), data: { tabId: tab.id, url: tab.url }, sessionId: session.id })
       },
     })
+    this.x = createXKit({
+      db,
+      browser: this.browser.browser,
+      waits: this.waits,
+      registry: this.registry,
+      dispatcher: this.dispatcher,
+      audit: this.audit,
+      settings: () => this.settings.get(),
+      now,
+      exposed: () => (this.exposureState.exposed ? this.exposureState.reasons.join('；') : undefined),
+      exfiltration: (session, key, candidate, title) => this.browser.actions.exfiltration(session, key, candidate, title),
+    })
+    // 写操作审批有两种：浏览器里的点击和 X 写操作（data.channel 是 x），批准后各自执行。
+    this.waits.setResolver('write', (wait, answer) => (wait.data.channel === 'x' ? this.x.writes.resolve(wait, answer) : this.browser.approvals.resolveWrite(wait, answer)))
     this.evolutionKit = createEvolutionKit({
       db,
       bus: this.bus,

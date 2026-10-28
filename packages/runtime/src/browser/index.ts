@@ -128,6 +128,7 @@ export function createBrowserKit(deps: BrowserKitDeps): BrowserKit {
   })
 
   const written = approvals
+  // pod.ts 会重设这个：X 写操作（data.channel 是 x）的审批交给 x/writes.ts。
   deps.waits.setResolver('write', (wait, answer) => written.resolveWrite(wait, answer))
   deps.waits.setResolver('security', (wait, answer) => written.resolveSecurity(wait, answer))
   deps.waits.setResolver('login', (wait) => {

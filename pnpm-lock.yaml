@@ -34,6 +34,9 @@ importers:
 
   packages/runtime:
     devDependencies:
+      aibot-x-post:
+        specifier: 0.1.0
+        version: 0.1.0
       pod-domain:
         specifier: workspace:*
         version: link:../domain
@@ -264,6 +267,10 @@ packages:
 
   '@yuku-toolchain/types@0.19.0':
     resolution: {integrity: sha512-tFkNbsP4WXX9UMUC5syJGdK9dPMLK0PPaIuXCcCYH75sZ8MrebfBZ2XvCILRTw8AgLivSSCfDa4R67iYBDa4Kg==}
+
+  aibot-x-post@0.1.0:
+    resolution: {integrity: sha512-b9JAuf7aDAm5F5GNLz6xIy1Kq6rjpvLBJjuW3yNwZbe4Jh+Zkk1r+aGmi/hYC4VRE+ehexuZfgk1j4FlbXu02A==}
+    engines: {node: '>=18'}
 
   cac@7.1.0:
     resolution: {integrity: sha512-LMDU/U2yA4IPIY8KT0NsNPWEYZvAMkbgyspxJ6btJaYV+WMDOHAZCmB0lsTObiHaRS1V/ztKAl7+TSkTqXyeoA==}
@@ -565,6 +572,8 @@ snapshots:
     optional: true
 
   '@yuku-toolchain/types@0.19.0': {}
+
+  aibot-x-post@0.1.0: {}
 
   cac@7.1.0: {}
 

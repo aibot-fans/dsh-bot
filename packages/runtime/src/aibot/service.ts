@@ -322,12 +322,16 @@ export class AibotService {
   /** 哪些会话装 X 工具：X 情报员、主管、标签里提到 X 或推特的 bot，以及「X 监控」群里的会话。 */
   toolsFor(session: PodSession): readonly ToolDefinition[] {
     if (this.definitions.length === 0 || this.state === 'disabled' || !this.enabled) return []
-    if (session.kind !== 'chat' && session.kind !== 'task' && session.kind !== 'coord') return []
+    return this.coversX(session) ? this.definitions : []
+  }
+
+  /** 会话在不在用 X 的范围里（不管 aibot 开没开）：发推的 x_ 工具也按它装。 */
+  coversX(session: PodSession): boolean {
+    if (session.kind !== 'chat' && session.kind !== 'task' && session.kind !== 'coord') return false
     const bot = this.deps.bots.get(session.botId)
-    if (bot === undefined) return []
-    const seed = xBot(this.deps.db, this.deps.bots)
+    if (bot === undefined) return false
     const inRoom = session.roomId !== null && session.roomId === this.roomId()
-    return bot.role === 'lead' || bot.id === seed?.id || wantsX(bot) || inRoom ? this.definitions : []
+    return bot.role === 'lead' || bot.id === xBot(this.deps.db, this.deps.bots)?.id || wantsX(bot) || inRoom
   }
 
   /** 会不会装 X 工具：toolsFor 的简化版，给重新装工具时挑会话用。 */

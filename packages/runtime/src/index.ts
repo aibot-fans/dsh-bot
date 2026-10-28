@@ -12,6 +12,7 @@ import { sidebarRoutes } from './api/sidebar.ts'
 import { eventStreamRoute } from './api/stream.ts'
 import { avatarRoute, v2Routes } from './api/v2.ts'
 import { aibotRoutes } from './api/aibot.ts'
+import { xRoutes } from './api/x.ts'
 import { updateRoutes } from './api/update.ts'
 import { checkCompat } from './core/compat.ts'
 import { every } from './core/timers.ts'
@@ -48,7 +49,7 @@ export function apply(ctx: HostContext, rawConfig: unknown): void {
   ctx.effect(() => pod.updates.start(), 'pod: update check')
 
   const gate = { readOnly: () => pod.readOnlyReason }
-  const routes: readonly RouteSpec[] = [...baseRoutes(pod), ...workRoutes(pod), ...browserRoutes(pod), ...evolutionRoutes(pod), ...v2Routes(pod), ...sidebarRoutes(pod), ...pageRoutes(pod), ...aibotRoutes(pod), ...updateRoutes(pod)]
+  const routes: readonly RouteSpec[] = [...baseRoutes(pod), ...workRoutes(pod), ...browserRoutes(pod), ...evolutionRoutes(pod), ...v2Routes(pod), ...sidebarRoutes(pod), ...pageRoutes(pod), ...aibotRoutes(pod), ...xRoutes(pod), ...updateRoutes(pod)]
   for (const route of toFetchRoutes(routes, ctx.logger, gate)) {
     ctx.effect(() => ctx.connection.fetch.register(route), `pod: route ${route.path}`)
   }
