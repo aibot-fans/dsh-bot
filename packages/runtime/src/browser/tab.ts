@@ -37,14 +37,6 @@ const RECENT_ACTIONS = 20
 /** 导航报 ERR_ABORTED 后再等这么久，看是不是开始下载了、或者别的跳转接手了。 */
 const ABORT_SETTLE_MS = 400
 
-/** 标签页对网站自称的身份：换掉无头 Chrome 的 UA 和 Client Hints（见 chrome.ts 的 browserIdentity）。 */
-export interface TabIdentity {
-  readonly userAgent: string
-  readonly acceptLanguage: string
-  readonly platform: string
-  readonly userAgentMetadata: Readonly<Record<string, unknown>>
-}
-
 /** 一个标签页：一个 CDP page 目标加上 Pod 的归属、控制权和原生控件状态。 */
 export class BrowserTab {
   readonly id: string
@@ -111,12 +103,11 @@ export class BrowserTab {
 
   /**
    * 不开 Runtime 域：Pod 只用 Runtime.evaluate，用不着它的事件，开了反而能被网页的检测脚本察觉。
-   * 给了 identity 就换掉无头 Chrome 的 UA 和 Client Hints。
+   * UA 不在这里改：启动 Chrome 时已经统一换掉了（见 chrome.ts 的 startChrome）。
    */
-  async init(identity?: TabIdentity): Promise<void> {
+  async init(): Promise<void> {
     await Promise.all([
       this.send('Page.enable'),
-      ...(identity === undefined ? [] : [this.send('Emulation.setUserAgentOverride', { ...identity })]),
       this.send('Page.setLifecycleEventsEnabled', { enabled: true }),
       this.send('Page.setInterceptFileChooserDialog', { enabled: true }),
       // 标签页都在后台创建：不模拟焦点的话，无头 Chrome 不处理鼠标事件，接管和 bot 的点击都会卡住。

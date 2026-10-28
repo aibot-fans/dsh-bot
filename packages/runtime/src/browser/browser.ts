@@ -3,7 +3,7 @@ import { TAB_IDLE_MS, newId, sameUrl, t, type PodSettings, type TabInfo, type Ta
 import { readState, writeState } from 'pod-store'
 import type { PodBus } from '../core/bus.ts'
 import type { CdpEvent } from './cdp.ts'
-import { findChrome, launchChrome, type LaunchedChrome } from './chrome.ts'
+import { findChrome, startChrome, type LaunchedChrome, type RememberedAgent } from './chrome.ts'
 import { SiteThrottle, enableGuard, handlePaused } from './guard.ts'
 import { BrowserTab, type ScreencastFrame } from './tab.ts'
 
@@ -34,6 +34,8 @@ export interface FrameSubscriber {
 }
 
 const RECORDS_KEY = 'browser.tabs'
+/** 上次启动用的 UA，下次同一个浏览器同一个版本直接用。 */
+const AGENT_KEY = 'browser.agent'
 const MAX_RESTARTS = 3
 const RESTART_WINDOW_MS = 10 * 60_000
 
@@ -108,7 +110,8 @@ export class SharedBrowser {
 
   private async launch(executable: string): Promise<LaunchedChrome> {
     try {
-      const chrome = await launchChrome(executable, this.deps.profileDir)
+      const chrome = await startChrome(executable, this.deps.profileDir, readState<RememberedAgent | undefined>(this.deps.db, AGENT_KEY, undefined))
+      writeState(this.deps.db, AGENT_KEY, { executable, version: chrome.version, userAgent: chrome.userAgent } satisfies RememberedAgent)
       this.lastError = ''
       chrome.connection.on((event) => this.route(event))
       chrome.child.once('exit', () => this.onExit(chrome))
@@ -247,7 +250,7 @@ export class SharedBrowser {
     const { sessionId } = await chrome.connection.send<{ readonly sessionId: string }>('Target.attachToTarget', { targetId, flatten: true })
     const tab = new BrowserTab({ id, targetId, sessionId, browserContextId, owner, cdp: chrome.connection, now: this.deps.now })
     this.tabs = new Map([...this.tabs, [id, tab]])
-    await tab.init(chrome.identity)
+    await tab.init()
     await enableGuard(tab)
     return tab
   }

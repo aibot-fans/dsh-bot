@@ -1,12 +1,12 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
-import { arch, homedir, release } from 'node:os'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { Readable, Writable } from 'node:stream'
 import { t } from 'pod-domain'
 import { CdpConnection } from './cdp.ts'
-import type { TabIdentity } from './tab.ts'
+import { readScreen, screenInfoArg } from './screen.ts'
 
 /** 按平台找本机的 Chrome 系浏览器；都用 Pod 自己的 profile，不碰你日常 Chrome 的数据。 */
 function candidates(): readonly string[] {
@@ -31,8 +31,15 @@ export interface LaunchedChrome {
   readonly connection: CdpConnection
   readonly executable: string
   readonly version: string
-  /** 每个标签页对网站自称的身份：同版本的普通 Chrome。 */
-  readonly identity: TabIdentity
+  /** 对网站自称的 UA：启动时统一去掉了“无头”字样，标签页、iframe、Service Worker 和弹窗都一样。 */
+  readonly userAgent: string
+}
+
+/** 上次启动用的 UA：同一个浏览器、同一个版本就直接用它启动，不用先读一遍。 */
+export interface RememberedAgent {
+  readonly executable: string
+  readonly version: string
+  readonly userAgent: string
 }
 
 const ARGS = [
@@ -50,67 +57,53 @@ const ARGS = [
   '--mute-audio',
   '--window-size=1280,800',
   '--lang=zh-CN',
+  // 只写语言，权重（q=0.9 这些）由 Chrome 自己加；写了会变成 zh;q=0.9;q=0.9，一看就不是正常浏览器。
+  '--accept-lang=zh-CN,zh,en',
   // 不让 navigator.webdriver 变成 true：网站靠它一眼认出“这是自动化浏览器”。
   '--disable-blink-features=AutomationControlled',
 ]
 
-// 只写语言，权重（q=0.9 这些）由 Chrome 自己加；写了会变成 zh;q=0.9;q=0.9，一看就不是正常浏览器。
-const ACCEPT_LANGUAGE = 'zh-CN,zh,en'
-
-/** Client Hints 里的系统版本：macOS 按 Darwin 内核版本推（Darwin 20 是 macOS 11，25 起是 macOS 26），推不出来留空。 */
-function platformVersion(): string {
-  const major = Number(release().split('.')[0])
-  if (process.platform === 'darwin' && Number.isFinite(major)) return major >= 25 ? `${major + 1}.0.0` : major >= 20 ? `${major - 9}.0.0` : '10.15.7'
-  if (process.platform === 'win32') return '10.0.0'
-  return ''
-}
-
-function brandOf(executable: string): string | undefined {
-  if (executable.includes('Edge') || executable.includes('msedge')) return 'Microsoft Edge'
-  if (executable.includes('Brave')) return 'Brave'
-  if (executable.toLowerCase().includes('chromium')) return undefined
-  return 'Google Chrome'
-}
+const STARTUP_TIMEOUT_MS = 20_000
+const CLOSE_TIMEOUT_MS = 3000
 
 /**
- * 无头 Chrome 的 UA 和 Client Hints 里写着 HeadlessChrome，很多网站（X、各种风控）一看就拦。
- * 换成同一版本的普通 Chrome：版本号、系统、架构都照实填，只去掉“无头”的字样。
+ * 启动共用浏览器。无头 Chrome 的 UA 写着 HeadlessChrome，很多网站（X、各种风控）一看就拦；
+ * 只改标签页的 UA 盖不住跨站 iframe、Service Worker 和页面弹出的窗口，所以用 --user-agent 在启动时统一换掉，
+ * 版本号、品牌和系统这些 Client Hints 都用 Chrome 自己的，不手写。
+ * 记过这个浏览器这个版本的 UA 就直接用它启动；没记过或者 Chrome 升级了，先读出 Chrome 自己的 UA，去掉“无头”字样再重启一次。
  */
-export function browserIdentity(executable: string, product: string, userAgent: string): TabIdentity {
-  const fullVersion = product.split('/')[1] ?? ''
-  const major = fullVersion.split('.')[0] ?? ''
-  const brand = brandOf(executable)
-  const brands = (version: (full: string) => string) => [
-    { brand: 'Not)A;Brand', version: version('8.0.0.0') },
-    { brand: 'Chromium', version: version(fullVersion) },
-    ...(brand === undefined ? [] : [{ brand, version: version(fullVersion) }]),
-  ]
-  const platform = process.platform === 'darwin' ? 'macOS' : process.platform === 'win32' ? 'Windows' : 'Linux'
-  return {
-    userAgent: userAgent.replace(/HeadlessChrome/g, 'Chrome'),
-    acceptLanguage: ACCEPT_LANGUAGE,
-    platform: process.platform === 'darwin' ? 'MacIntel' : process.platform === 'win32' ? 'Win32' : 'Linux x86_64',
-    userAgentMetadata: {
-      brands: brands((full) => full.split('.')[0] ?? major),
-      fullVersionList: brands((full) => full),
-      fullVersion,
-      platform,
-      platformVersion: platformVersion(),
-      architecture: arch().startsWith('arm') ? 'arm' : 'x86',
-      bitness: '64',
-      model: '',
-      mobile: false,
-      wow64: false,
-    },
+export async function startChrome(executable: string, profileDir: string, remembered: RememberedAgent | undefined): Promise<LaunchedChrome> {
+  const screen = screenInfoArg(await readScreen())
+  const known = remembered?.executable === executable ? remembered : undefined
+  if (known !== undefined) {
+    const chrome = await launchChrome(executable, profileDir, [screen, `--user-agent=${known.userAgent}`])
+    if (chrome.version === known.version) return chrome
+    await closeChrome(chrome)
   }
+  const plain = await launchChrome(executable, profileDir, [screen])
+  const userAgent = plain.userAgent.replace(/HeadlessChrome/g, 'Chrome')
+  if (userAgent === plain.userAgent) return plain
+  await closeChrome(plain)
+  return launchChrome(executable, profileDir, [screen, `--user-agent=${userAgent}`])
 }
 
-const STARTUP_TIMEOUT_MS = 20_000
+/** 关掉 Chrome 并等进程真的退出：同一个 profile 同时只能有一个 Chrome 在用，没退干净就重启会被它接走。 */
+async function closeChrome(chrome: LaunchedChrome): Promise<void> {
+  const exited = new Promise<void>((resolve) => {
+    if (chrome.child.exitCode !== null || chrome.child.signalCode !== null) resolve()
+    else chrome.child.once('exit', () => resolve())
+  })
+  await chrome.connection.send('Browser.close', {}, undefined, CLOSE_TIMEOUT_MS).catch(() => undefined)
+  chrome.connection.close()
+  const timer = setTimeout(() => chrome.child.kill(), CLOSE_TIMEOUT_MS)
+  await exited
+  clearTimeout(timer)
+}
 
 /** 启动无头 Chrome，等它能响应 CDP 再返回；启动失败时带上 Chrome 最后的输出。 */
-export async function launchChrome(executable: string, profileDir: string): Promise<LaunchedChrome> {
+async function launchChrome(executable: string, profileDir: string, extra: readonly string[]): Promise<LaunchedChrome> {
   await mkdir(profileDir, { recursive: true })
-  const child = spawn(executable, [...ARGS, `--user-data-dir=${profileDir}`, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'] })
+  const child = spawn(executable, [...ARGS, ...extra, `--user-data-dir=${profileDir}`, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'] })
   let stderr = ''
   child.stderr?.setEncoding('utf8')
   child.stderr?.on('data', (chunk: string) => {
@@ -124,8 +117,7 @@ export async function launchChrome(executable: string, profileDir: string): Prom
   exited.catch(() => undefined)
   try {
     const info = await Promise.race([connection.send<{ product?: string; userAgent?: string }>('Browser.getVersion', {}, undefined, STARTUP_TIMEOUT_MS), exited])
-    const version = info.product ?? ''
-    return { child, connection, executable, version, identity: browserIdentity(executable, version, info.userAgent ?? '') }
+    return { child, connection, executable, version: info.product ?? '', userAgent: info.userAgent ?? '' }
   } catch (error) {
     connection.close()
     child.kill()
