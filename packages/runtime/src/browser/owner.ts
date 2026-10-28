@@ -175,7 +175,7 @@ export class OwnerBrowser {
     const tab = this.tab(input)
     if (tab === undefined) return fail('not-found', t('标签页已经关了'))
     if (tab.controller !== 'owner') return fail('conflict', t('先接管这个标签页'))
-    const result = await tab.call<{ readonly error?: string }>(SELECT, readString(input, 'ref'), readString(input, 'value'))
+    const result = await tab.act<{ readonly error?: string }>(SELECT, readString(input, 'ref'), readString(input, 'value'))
     return result.error === undefined ? ok(null) : fail('invalid-input', t('这一项选不了'))
   }
 

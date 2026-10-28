@@ -230,7 +230,7 @@ export class WriteApprovals {
       tab.touch()
       if (action === 'dialog') await tab.handleDialog(true, typeof wait.data.promptText === 'string' ? wait.data.promptText : undefined)
       if (action === 'enter') {
-        await tab.call(FOCUS, ref, false)
+        await tab.act(FOCUS, ref, false)
         await tab.press('Enter')
       }
       if (action === 'click') {

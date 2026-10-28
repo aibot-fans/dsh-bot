@@ -239,7 +239,7 @@ export class BrowserActions {
     if (blocked !== undefined) return no(`${blocked.reason}。用 request_takeover 请用户来填。`)
     const leaked = this.exfiltration(session, `type:${tab.url}:${fnv1a(value)}`, value, `在 ${siteKey(tab.url)} 填写可能夹带私有信息的内容`)
     if (leaked !== undefined) return no(leaked)
-    await tab.call(FOCUS, ref, options.clear)
+    await tab.act(FOCUS, ref, options.clear)
     await tab.insertText(value)
     tab.record(t('在「{value}」里输入', { value: probe.info.name || probe.info.tag }))
     if (!options.submit) return ok(`已输入。${probe.info.formMethod === 'post' ? '这是 POST 表单，提交时需要用户批准。' : ''}`, { tab: tab.id })
@@ -276,7 +276,7 @@ export class BrowserActions {
   async select(session: PodSession, ref: string, value: string): Promise<BrowserOutcome> {
     const tab = await this.operable(session, '')
     if (typeof tab === 'string') return no(tab)
-    const result = await tab.call<{ readonly selected?: string; readonly error?: string; readonly options?: readonly string[] }>(SELECT, ref, value)
+    const result = await tab.act<{ readonly selected?: string; readonly error?: string; readonly options?: readonly string[] }>(SELECT, ref, value)
     if (result.error === 'no-option') return no(`没有“${value}”这一项。可选：${(result.options ?? []).join('、')}`)
     if (result.error !== undefined) return no(`引用 ${ref} 不是下拉框，或者已经失效`)
     tab.record(t('选择「{value}」', { value: result.selected ?? value }))

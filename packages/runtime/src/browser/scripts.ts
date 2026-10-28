@@ -1,6 +1,7 @@
 /**
  * 注入页面执行的脚本。写成普通 JS 字符串（不用打包后的函数源码），用 String.raw 保住正则里的反斜杠。
- * 元素引用存在页面的 window.__pod 里：同一个元素在同一个文档里引用不变，页面跳转后失效。
+ * 脚本在 Pod 自己的隔离环境里跑（见 tab.ts 的 inWorld），元素引用存在那里的 window.__pod 上，网页自己的脚本看不到：
+ * 同一个元素在同一个文档里引用不变，页面跳转后失效。
  */
 
 import { SECRET_AUTOCOMPLETE, SECRET_FIELD_PATTERNS } from 'pod-domain'

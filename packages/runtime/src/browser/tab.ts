@@ -32,6 +32,20 @@ const KEYS: Readonly<Record<string, { readonly code: string; readonly keyCode: n
 
 export const KEY_NAMES: readonly string[] = Object.keys(KEYS)
 
+/** Pod 自己的隔离环境：和网页共用 DOM，但变量互不相通。 */
+const WORLD_NAME = 'pod'
+/**
+ * 隔离环境里的标记。上下文编号换了进程会被重用，换页以后旧编号可能指到网页自己的环境；
+ * 每次执行先看标记，不在自己的环境里就只返回 STALE_WORLD，什么都不做。
+ */
+const WORLD_MARK = '__podWorld'
+const STALE_WORLD = '\u0000pod:stale-world'
+
+interface EvaluateResult {
+  readonly result?: { readonly value?: unknown; readonly objectId?: string }
+  readonly exceptionDetails?: { readonly text?: string; readonly exception?: { readonly description?: string } }
+}
+
 const NAVIGATION_TIMEOUT_MS = 30_000
 const RECENT_ACTIONS = 20
 /** 导航报 ERR_ABORTED 后再等这么久，看是不是开始下载了、或者别的跳转接手了。 */
@@ -65,6 +79,8 @@ export class BrowserTab {
   /** 主框架最近一次换了网页的时间。 */
   private committedAt = 0
   private frameListener: ((frame: ScreencastFrame) => void) | undefined
+  /** 当前网页里 Pod 的隔离环境，第一次执行脚本时建，换了页面重建。 */
+  private world: Promise<number> | undefined
   private readonly now: () => number
 
   constructor(spec: { readonly id: string; readonly targetId: string; readonly sessionId: string; readonly browserContextId: string | undefined; readonly owner: TabOwner; readonly cdp: CdpConnection; readonly now: () => number }) {
@@ -248,11 +264,9 @@ export class BrowserTab {
     if (this.loading) await this.waitForLoad(15_000)
   }
 
-  async evaluate<T>(expression: string): Promise<T> {
-    const result = await this.send<{ readonly result?: { readonly value?: unknown }; readonly exceptionDetails?: { readonly text?: string; readonly exception?: { readonly description?: string } } }>(
-      'Runtime.evaluate',
-      { expression, returnByValue: true, awaitPromise: true, userGesture: true },
-    )
+  /** 读页面：不算用户操作过，不然网页一加载完就显示“有人操作过”。 */
+  async evaluate<T>(expression: string, gesture = false): Promise<T> {
+    const result = await this.inWorld(expression, { returnByValue: true, userGesture: gesture })
     if (result.exceptionDetails !== undefined) throw new Error(`页面脚本出错：${result.exceptionDetails.exception?.description ?? result.exceptionDetails.text ?? ''}`.slice(0, 300))
     return result.result?.value as T
   }
@@ -261,9 +275,47 @@ export class BrowserTab {
     return this.evaluate<T>(invoke(script, ...args))
   }
 
+  /** 代替一次点击的动作（聚焦输入框、选下拉项）：和真的点一下一样，算用户操作过。 */
+  act<T>(script: string, ...args: readonly unknown[]): Promise<T> {
+    return this.evaluate<T>(invoke(script, ...args), true)
+  }
+
   async objectId(expression: string): Promise<string | undefined> {
-    const result = await this.send<{ readonly result?: { readonly objectId?: string } }>('Runtime.evaluate', { expression, returnByValue: false })
+    const result = await this.inWorld(expression, { returnByValue: false })
     return result.result?.objectId
+  }
+
+  /**
+   * 在 Pod 自己的隔离环境里执行：网页的脚本看不到 Pod 存的元素引用（window.__pod），也改不了 Pod 用的内置函数。
+   * 换了页面旧环境就没了，或者编号被重用到了别的环境：重建一次再试。
+   */
+  private async inWorld(expression: string, options: { readonly returnByValue: boolean; readonly userGesture?: boolean }): Promise<EvaluateResult> {
+    const guarded = `(globalThis.${WORLD_MARK} === true ? (${expression}) : ${JSON.stringify(STALE_WORLD)})`
+    for (let attempt = 0; ; attempt += 1) {
+      const world = this.isolatedWorld()
+      const result = await world
+        .then((contextId) => this.send<EvaluateResult>('Runtime.evaluate', { expression: guarded, contextId, awaitPromise: true, ...options }))
+        .catch((error: unknown) => {
+          if (error instanceof Error && error.message.includes('Cannot find context')) return undefined
+          throw error
+        })
+      if (result !== undefined && result.result?.value !== STALE_WORLD) return result
+      if (this.world === world) this.world = undefined
+      if (attempt > 0) throw new Error(t('页面正在跳转，稍后再试'))
+    }
+  }
+
+  private isolatedWorld(): Promise<number> {
+    if (this.world !== undefined) return this.world
+    const created = this.send<{ readonly executionContextId: number }>('Page.createIsolatedWorld', { frameId: this.targetId, worldName: WORLD_NAME }).then(async ({ executionContextId }) => {
+      await this.send('Runtime.evaluate', { expression: `globalThis.${WORLD_MARK} = true`, contextId: executionContextId })
+      return executionContextId
+    })
+    this.world = created
+    created.catch(() => {
+      if (this.world === created) this.world = undefined
+    })
+    return created
   }
 
   async click(x: number, y: number, clickCount = 1): Promise<void> {

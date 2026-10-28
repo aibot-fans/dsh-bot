@@ -194,6 +194,7 @@ export const RUNTIME_EN_MESSAGES: Readonly<Record<string, string>> = {
   '等了 30 秒网站还没响应：网络慢或者网站打不开，过一会儿刷新试试': "The site hasn't responded after 30 seconds. The network is slow or the site is down; try reloading in a while",
   '{reason}（{code}）': '{reason} ({code})',
   '页面没有要选择文件的地方': "There's nowhere on the page to choose a file",
+  '页面正在跳转，稍后再试': 'The page is still loading; try again in a moment',
   '只能重新生成 bot 的回复': 'Only bot replies can be regenerated',
   '找不到这条回复对应的问题': "Couldn't find the question this reply answers",
   '已请{name}重新回答': 'Asked {name} to answer again',
