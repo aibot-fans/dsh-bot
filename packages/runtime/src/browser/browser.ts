@@ -281,7 +281,8 @@ export class SharedBrowser {
       browserContextId = created.browserContextId
       await chrome.connection.send('Browser.setDownloadBehavior', { behavior: 'allowAndName', downloadPath: this.deps.downloadDir, eventsEnabled: true, browserContextId })
     }
-    const { targetId } = await chrome.connection.send<{ readonly targetId: string }>('Target.createTarget', { url: 'about:blank', background: true, ...(browserContextId === undefined ? {} : { browserContextId }) })
+    // 每个标签页单独开一个后台窗口：后台标签页在无头 Chrome 里没有窗口外框，位置还在屏幕外面，网页一量就知道。
+    const { targetId } = await chrome.connection.send<{ readonly targetId: string }>('Target.createTarget', { url: 'about:blank', newWindow: true, background: true, ...(browserContextId === undefined ? {} : { browserContextId }) })
     const tab = await this.attach(targetId, spec.owner, browserContextId, spec.id ?? newId('tab'))
     this.emit(tab.id)
     if (spec.url !== '' && spec.url !== 'about:blank') await this.navigate(tab, spec.url, spec.signal)
