@@ -19,6 +19,12 @@ dsh-bot
     Copyright (C) 2016 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
   - rope-sequence：
     Copyright (C) 2016 by Marijn Haverbeke <marijn@haverbeke.berlin>
+- 宿主插件（packages/runtime 打出的 lib/index.js）里打包了 aibot-x-post
+  （https://github.com/aibot-fans/x-post），用来借 X 网页自己的接口发推，
+  改编自 fa0311/twitter_api_safe_relay（https://github.com/fa0311/twitter_api_safe_relay），
+  按 MIT License 授权，许可全文附在下面：
+    Copyright (c) 2026 yuki (https://yuki0311.com/)
+    Copyright (c) 2026 aibot-fans
 
 MIT License
 

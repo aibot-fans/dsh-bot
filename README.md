@@ -52,6 +52,7 @@ dsh-bot 是一个基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepse
 - 能监控账号：免费 40 个，监控不扣次数。新动态实时发进「X 监控」群聊并发通知，断线后自动补拉。想盯谁，在群里跟 X 情报员说“监控 @账号名”。
 - 设置「通用」页能看今天还剩几次、监控了几个账号，也能整个关掉。额度用完、风控、设备停用都有中文说明。
 - 次数和[规则](https://aibot.fans/x-api/rest)以 [aibot](https://aibot.fans/) 为准。
+- 还能用你自己的 X 账号发推：在 dsh-bot 的浏览器里登录 X 以后，bot 能发推、回复、引用、删推、点赞、转推、关注，请求借 X 网页自己的接口发（[aibot-x-post](https://github.com/aibot-fans/x-post)），不扣次数。默认每次你在审批卡上批准了才发，设置「通用」页能改成免审批或不做；暂时只支持文字。
 
 <p>
 <img src="docs/images/x-onboarding.png" width="49%" alt="第一次打开的引导：已开通 X 数据和监控">
@@ -173,6 +174,7 @@ dsh plugin --profile web remove @aibot_fans/dsh-bot
 ## 隐私
 
 - 都在本机：dsh-bot 跑在 dsh web 的进程里，数据只在上面这些目录；模型请求走 dsh 里配置的模型服务。
+- X 账号：bot 用你在 dsh-bot 浏览器里登录的 X 账号发推时，dsh-bot 在共用浏览器里开一个不在面板里显示的 x.com 标签页，10 分钟没用就关掉；登录状态和别的网站一样存在 `~/.dsh/pod/browser/`。
 - 查新版本：启动一分钟后查一次，之后每 6 小时一次，问 npm 官方源（`registry.npmjs.org`，连不上时问国内镜像 `registry.npmmirror.com`）`@aibot_fans/dsh-bot` 发过哪些版本，请求里只有包名。不想查就在设置的「高级」页关掉「自动检查新版本」。
 
 ## 开发
@@ -184,6 +186,7 @@ dsh plugin --profile web remove @aibot_fans/dsh-bot
 - [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)：dsh-bot 是 dsh 的插件，bot 跑在 dsh 的会话上，用 dsh 的模型和工具。
 - 内置图标是鲸鱼娘图，形象出自 [lmy414/ai-chan-sheets](https://github.com/lmy414/ai-chan-sheets)，原作者 ZipZipPipe。
 - X 数据和监控由 [aibot](https://aibot.fans/) 提供。
+- 用 X 账号发推的思路和注入脚本来自 [fa0311/twitter_api_safe_relay](https://github.com/fa0311/twitter_api_safe_relay)（MIT），整理成了 [aibot-x-post](https://github.com/aibot-fans/x-post)。
 
 ## 许可
 
@@ -195,5 +198,6 @@ dsh plugin --profile web remove @aibot_fans/dsh-bot
 
 - dsh-bot 由社区独立开发，**不是 DeepSeek 官方产品**，也没有得到 DeepSeek 的认可或赞助。DeepSeek、DeepSeek Harness、X、Twitter、Grok、Chrome 等是各自所有者的名称或商标，文中提到它们只为说明 dsh-bot 能和什么一起用。
 - 使用 X 数据和监控时，请遵守 [aibot](https://aibot.fans/) 的[规则](https://aibot.fans/x-api/rest)、X 的规则和当地法律，不要用来骚扰或跟踪他人。
+- bot 用你的 X 账号发推、点赞、转推、关注，内容和后果由你负责。X 不喜欢频繁的自动操作，批准前看清正文，别刷屏。
 - 共用浏览器在你的电脑上替你操作网页，bot 在网站上做的事由你负责。请遵守各网站的使用条款，批准写操作前看清审批卡。
 - bot 用你在 dsh 里配置的模型，花你自己的额度；会按你的要求读写工作区里的文件、运行命令。它的回答和交付由模型生成，可能出错，重要的事请自己核实。
