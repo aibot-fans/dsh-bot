@@ -201,4 +201,6 @@ export const UI_EN_PANELS: Readonly<Record<string, string>> = {
   '主管在每个群里，负责分派、组织和验收；群里具体的活交给对口的成员。': 'The Lead is in every group and handles assigning, organizing and checking work; the actual work goes to the members whose roles fit.',
   '完整资料': 'Full profile',
   '设定、记忆、资料库、自动化、浏览器': 'Settings, memory, library, automations, browser',
+  '其他对话': 'Other chats',
+  '正在打开上次开着的 {count} 个网页…': 'Reopening the {count} pages you had open…',
 }

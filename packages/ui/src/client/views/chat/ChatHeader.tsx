@@ -8,7 +8,7 @@ import { Icon } from '../../components/Icon.tsx'
 import { useNarrow } from '../../components/media.ts'
 import { MenuPanel, useMenu } from '../../components/Menu.tsx'
 import { RenameInput } from '../../components/RenameInput.tsx'
-import { useApp } from '../../state/app.ts'
+import { useApp, useNav } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 
 /** 顶部用量算谁的：单聊算这个 bot 今天做事用的（在哪儿做的都算），群聊和临时对话算这个对话里的。 */
@@ -229,8 +229,27 @@ function GroupTitle(props: { readonly room: RoomSummary; readonly members: reado
   )
 }
 
+/** 这个对话的浏览器：右侧打开，这个 bot（群里是这个群）开的网页排前面，默认选最近用过的；再点一下关上。 */
+function BrowserButton(props: { readonly room: RoomSummary; readonly botId: string | null }) {
+  const app = useApp()
+  const nav = useNav()
+  const open = nav.panel?.kind === 'browser' && nav.panel.roomId === props.room.id
+  return (
+    <button
+      type="button"
+      className={`pod-head-button${open ? ' pod-head-button-on' : ''}`}
+      aria-pressed={open}
+      aria-label={t('浏览器')}
+      title={t('浏览器')}
+      onClick={() => (open ? app.closePanel() : app.openBrowserTab(null, props.botId, props.room.id))}
+    >
+      <Icon name="browser" size={17} />
+    </button>
+  )
+}
+
 /**
- * 对话顶部：左边是 bot 或群（点开详情）；单聊右边是对话记录和新对话，不挂任务的群聊右边是新对话，最右是这个 bot 或群聊今天的用量。页面在 bot 和群聊的详情里。
+ * 对话顶部：左边是 bot 或群（点开详情）；右边是浏览器，单聊还有对话记录和新对话，不挂任务的群聊还有新对话，最右是这个 bot 或群聊今天的用量。页面在 bot 和群聊的详情里。
  * 手机上最左边是回到列表，名字后面带个箭头表示点开是详情，用量不显示。
  */
 export function ChatHeader(props: { readonly room: RoomSummary; readonly bots: ReadonlyMap<string, Bot>; readonly memberIds: readonly string[] }) {
@@ -269,6 +288,7 @@ export function ChatHeader(props: { readonly room: RoomSummary; readonly bots: R
         <span className="pod-badge pod-badge-muted">{narrow ? t('无痕') : t('无痕：不提取记忆')}</span>
       ) : null}
       <span className="pod-convo-head-gap" />
+      <BrowserButton room={room} botId={bot?.id ?? null} />
       {room.kind !== 'direct' || temporary || bot === undefined ? null : (
         <>
           <HistoryButton room={room} bot={bot} />

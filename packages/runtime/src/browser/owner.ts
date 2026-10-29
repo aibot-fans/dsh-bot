@@ -81,6 +81,11 @@ export class OwnerBrowser {
     return ok(tab.info())
   }
 
+  /** 打开浏览器视图时：上次你自己开着的网页重新打开。 */
+  async restore(): Promise<PodResult<{ readonly restored: number }>> {
+    return ok({ restored: await this.deps.browser.restoreOwnerTabs() })
+  }
+
   async navigate(input: unknown): Promise<PodResult<TabInfo>> {
     const tab = this.tab(input)
     if (tab === undefined) return fail('not-found', t('标签页已经关了'))

@@ -6,6 +6,8 @@ export const BROWSER_CSS = `
 .pod-tabchip-active { border-color: var(--dsw-alias-label-primary); background: var(--pod-soft); }
 .pod-tabchip-text { display: flex; flex-direction: column; min-width: 0; flex: 1; font-size: 12px; }
 .pod-tabchip-meta { color: var(--dsw-alias-label-tertiary); font-size: 11px; }
+.pod-tabstrip-sep { flex: none; width: 1px; align-self: stretch; margin: 4px 2px; background: var(--pod-line); }
+.pod-tabstrip-label { flex: none; align-self: center; font-size: 11px; color: var(--dsw-alias-label-tertiary); white-space: nowrap; }
 .pod-tabchip-loading { width: 8px; height: 8px; border-radius: 50%; background: var(--pod-info); animation: pod-blink 1s infinite; }
 @keyframes pod-blink { 50% { opacity: .2; } }
 .pod-browser-main { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 14px; align-items: start; }

@@ -43,8 +43,8 @@ function AddressBar(props: { readonly tab: TabView; readonly onError: (message: 
   )
 }
 
-/** 底部的控制区：AI 操作时可以接管或关掉这个标签页；你在操作时留一句话交还。 */
-function Control(props: { readonly tab: TabView; readonly onError: (message: string) => void }) {
+/** 底部的控制区：AI 操作时可以接管或关掉这个标签页；你在操作时留一句话交还。关掉以后 onClosed 换到别的标签页。 */
+function Control(props: { readonly tab: TabView; readonly onError: (message: string) => void; readonly onClosed: () => void }) {
   const { tab } = props
   const app = useApp()
   const [note, setNote] = useState('')
@@ -76,7 +76,7 @@ function Control(props: { readonly tab: TabView; readonly onError: (message: str
             <Button
               kind="quiet"
               onClick={() => {
-                if (window.confirm(t('关掉这个标签页？'))) run(api.closeTab(tab.id), () => app.openBrowserTab(null))
+                if (window.confirm(t('关掉这个标签页？'))) run(api.closeTab(tab.id), props.onClosed)
               }}
             >
               {t('关闭标签页')}
@@ -99,7 +99,7 @@ function Control(props: { readonly tab: TabView; readonly onError: (message: str
         <Button
           kind="quiet"
           onClick={() => {
-            if (window.confirm(t('停止这个标签页？{ownerName}要重新打开才能继续用。', { ownerName: tab.ownerName }))) run(api.closeTab(tab.id), () => app.openBrowserTab(null, props.tab.botId))
+            if (window.confirm(t('停止这个标签页？{ownerName}要重新打开才能继续用。', { ownerName: tab.ownerName }))) run(api.closeTab(tab.id), props.onClosed)
           }}
         >
           {t('停止这个标签页')}
@@ -109,9 +109,35 @@ function Control(props: { readonly tab: TabView; readonly onError: (message: str
   )
 }
 
+/** 标签页算不算这个对话的：在这个对话里开的，或者是这个 bot 的。没给对话也没给 bot 时全都算。 */
+function inScope(tab: TabView, botId: string | null, roomId: string | undefined): boolean {
+  if (botId === null && roomId === undefined) return true
+  return (roomId !== undefined && tab.roomId === roomId) || (botId !== null && tab.botId === botId)
+}
+
+function latest(tabs: readonly TabView[]): TabView | undefined {
+  return tabs.reduce<TabView | undefined>((best, tab) => (best === undefined || tab.lastUsedAt > best.lastUsedAt ? tab : best), undefined)
+}
+
+/** 标签条上的一个标签页：标题，下面一行是在做的任务或谁开的。 */
+function TabChip(props: { readonly tab: TabView; readonly active: boolean; readonly onSelect: () => void }) {
+  const { tab } = props
+  return (
+    <button type="button" role="tab" aria-selected={props.active} className={`pod-tabchip${props.active ? ' pod-tabchip-active' : ''}`} onClick={props.onSelect}>
+      <span className="pod-tabchip-text">
+        <span className="pod-ellipsis">{tab.title || tab.url || t('新标签页')}</span>
+        <span className="pod-tabchip-meta pod-ellipsis">{tab.taskTitle !== '' ? tab.taskTitle : tab.ownerName}</span>
+      </span>
+      {tab.waitId !== null ? <Badge tone="warn">{t('等你接管')}</Badge> : null}
+      {tab.loading ? <span className="pod-tabchip-loading" aria-label={t('加载中')} /> : null}
+    </button>
+  )
+}
+
 /**
  * 浏览器：从右侧滑出，有地址栏和实时画面；默认 AI 操作，你可以接管，操作完留一句话交还。
- * 从 bot 打开时只列它的标签页，从群聊打开时只列这个群的；右上角的 + 开新网页。
+ * 从对话顶部打开时列出全部标签页，这个对话（这个 bot）的排前面，默认选其中最近用过的，没有就选别处最近用过的；
+ * 右上角的 + 在这个对话里开新网页。上次（dsh web 重启前）你自己开着的网页，打开时按原网址恢复。
  */
 export function BrowserPanel(props: { readonly tabId: string | null; readonly botId: string | null; readonly roomId?: string }) {
   const app = useApp()
@@ -122,22 +148,34 @@ export function BrowserPanel(props: { readonly tabId: string | null; readonly bo
   const [pointer, setPointer] = useState<Pointer | null>(null)
   const [problem, setProblem] = useState<string | undefined>(undefined)
   const [adding, setAdding] = useState(false)
+  const [restoring, setRestoring] = useState(false)
   const all = data?.tabs ?? []
+  const saved = data?.status.available === true ? data.status.saved : 0
   const pinned = all.find((tab) => tab.id === props.tabId)
   const room = props.roomId === undefined ? undefined : rooms?.find((item) => item.id === props.roomId)
-  const owner = props.roomId === undefined ? (props.botId ?? pinned?.botId ?? null) : null
-  const tabs = props.roomId !== undefined ? all.filter((tab) => tab.roomId === props.roomId) : owner === null ? all : all.filter((tab) => tab.botId === owner)
-  const selected = pinned ?? tabs[0]
-  const bot = owner === null ? undefined : bots?.find((item) => item.id === owner)
-  const title = room !== undefined ? t('「{title}」的浏览器', { title: room.title }) : bot === undefined ? t('浏览器') : t('{name}的浏览器', { name: bot.name })
+  const scoped = all.filter((tab) => inScope(tab, props.botId, props.roomId))
+  const others = all.filter((tab) => !inScope(tab, props.botId, props.roomId))
+  const selected = pinned ?? latest(scoped) ?? latest(others)
+  const bot = props.botId === null ? undefined : bots?.find((item) => item.id === props.botId)
+  const title = bot !== undefined ? t('{name}的浏览器', { name: bot.name }) : room !== undefined ? t('「{title}」的浏览器', { title: room.title }) : t('浏览器')
 
   useEffect(() => app.onPointer((tabId, point) => (tabId === selected?.id ? setPointer({ ...point, at: Date.now() }) : undefined)), [app, selected?.id])
   useEffect(() => setOverlay(null), [selected?.id])
+  useEffect(() => {
+    if (saved === 0) return
+    setRestoring(true)
+    api
+      .restoreTabs()
+      .then(() => app.cache.invalidate('browser'))
+      .catch((reason: unknown) => setProblem(errorText(reason)))
+      .finally(() => setRestoring(false))
+  }, [app, saved > 0])
 
+  const show = (tabId: string | null): void => app.openBrowserTab(tabId, props.botId, props.roomId)
   const opened = (tab: { readonly id: string }): void => {
     setAdding(false)
     app.cache.invalidate('browser')
-    app.openBrowserTab(tab.id, null, props.roomId)
+    show(tab.id)
   }
 
   return (
@@ -157,25 +195,31 @@ export function BrowserPanel(props: { readonly tabId: string | null; readonly bo
         ) : null}
         {data?.status.error ? <p className="pod-form-error">{t('浏览器上次出错：{error}', { error: data.status.error })}</p> : null}
         {adding && selected !== undefined ? <OpenUrl roomId={props.roomId} onOpened={opened} /> : null}
-        {tabs.length > 1 ? (
+        {all.length > 1 || others.length > 0 ? (
           <div className="pod-tabstrip" role="tablist">
-            {tabs.map((tab) => (
-              <button key={tab.id} type="button" role="tab" aria-selected={tab.id === selected?.id} className={`pod-tabchip${tab.id === selected?.id ? ' pod-tabchip-active' : ''}`} onClick={() => app.openBrowserTab(tab.id, owner, props.roomId)}>
-                <span className="pod-tabchip-text">
-                  <span className="pod-ellipsis">{tab.title || tab.url || t('新标签页')}</span>
-                  <span className="pod-tabchip-meta pod-ellipsis">{tab.taskTitle !== '' ? tab.taskTitle : tab.ownerName}</span>
-                </span>
-                {tab.waitId !== null ? <Badge tone="warn">{t('等你接管')}</Badge> : null}
-                {tab.loading ? <span className="pod-tabchip-loading" aria-label={t('加载中')} /> : null}
-              </button>
+            {scoped.map((tab) => (
+              <TabChip key={tab.id} tab={tab} active={tab.id === selected?.id} onSelect={() => show(tab.id)} />
+            ))}
+            {others.length === 0 ? null : (
+              <>
+                {scoped.length === 0 ? null : <span className="pod-tabstrip-sep" role="separator" />}
+                <span className="pod-tabstrip-label">{t('其他对话')}</span>
+              </>
+            )}
+            {others.map((tab) => (
+              <TabChip key={tab.id} tab={tab} active={tab.id === selected?.id} onSelect={() => show(tab.id)} />
             ))}
           </div>
         ) : null}
         {selected === undefined ? (
-          <div className="pod-stack">
-            <Empty title={bot === undefined ? t('还没有打开的网页') : t('{name}现在没有打开网页', { name: bot.name })}>{t('bot 用浏览器时，画面会出现在这里。你也可以先自己开一个网页登录好，所有 bot 共用登录状态。')}</Empty>
-            <OpenUrl roomId={props.roomId} onOpened={opened} />
-          </div>
+          restoring ? (
+            <p className="pod-hint">{t('正在打开上次开着的 {count} 个网页…', { count: saved })}</p>
+          ) : (
+            <div className="pod-stack">
+              <Empty title={t('还没有打开的网页')}>{t('bot 用浏览器时，画面会出现在这里。你也可以先自己开一个网页登录好，所有 bot 共用登录状态。')}</Empty>
+              <OpenUrl roomId={props.roomId} onOpened={opened} />
+            </div>
+          )
         ) : (
           <div className="pod-stack">
             <AddressBar tab={selected} onError={setProblem} />
@@ -185,7 +229,7 @@ export function BrowserPanel(props: { readonly tabId: string | null; readonly bo
               {selected.dialog === null ? null : <DialogOverlay key={selected.dialog.message} tabId={selected.id} dialog={selected.dialog} controlled={selected.controller === 'owner'} />}
               {selected.fileChooser && selected.controller === 'owner' ? <FileOverlay tabId={selected.id} /> : null}
             </div>
-            <Control tab={selected} onError={setProblem} />
+            <Control tab={selected} onError={setProblem} onClosed={() => show(null)} />
             {selected.waitId === null ? null : <p className="pod-hint">{t('{ownerName}请你接管：登录或验证完点“交还”，可以附一句话。', { ownerName: selected.ownerName })}</p>}
             {selected.actions.length === 0 ? null : (
               <details className="pod-browser-log">

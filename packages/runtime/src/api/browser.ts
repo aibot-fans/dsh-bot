@@ -58,6 +58,7 @@ export function browserRoutes(pod: PodRuntime): readonly RouteSpec[] {
   return [
     get('/browser/tabs', () => ok({ status: pod.browser.browser.status(), tabs: pod.browser.browser.list().filter((info) => !(info.owner.kind === 'pod' && info.owner.hidden === true)).map((info) => view(pod, info)) })),
     post('/browser/open', (body) => guarded(() => owner.open(body))),
+    post('/browser/restore', () => guarded(() => owner.restore())),
     post('/browser/navigate', (body) => guarded(() => owner.navigate(body))),
     post('/browser/history', (body) => guarded(() => owner.history(body))),
     post('/browser/close', (body) => guarded(() => owner.close(body))),

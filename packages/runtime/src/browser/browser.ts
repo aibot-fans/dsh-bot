@@ -53,6 +53,9 @@ export class SharedBrowser {
   private crashes: readonly number[] = []
   private disposed = false
   private lastError = ''
+  /** 上次（dsh web 重启前）你自己开着的网页恢复过没有；没恢复前存记录时留着它们。 */
+  private ownersRestored = false
+  private restoring: Promise<number> | undefined
   private readonly emitTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private readonly throttle = new SiteThrottle()
   private readonly deps: SharedBrowserDeps
@@ -67,8 +70,9 @@ export class SharedBrowser {
     return findChrome(this.deps.settings().chromePath)
   }
 
-  status(): { readonly available: boolean; readonly running: boolean; readonly version: string; readonly tabs: number; readonly error: string } {
-    return { available: this.executable !== undefined, running: this.chrome !== undefined, version: this.chrome?.version ?? '', tabs: this.tabs.size, error: this.lastError }
+  /** saved：上次你自己开着、还没恢复的网页有几个。 */
+  status(): { readonly available: boolean; readonly running: boolean; readonly version: string; readonly tabs: number; readonly saved: number; readonly error: string } {
+    return { available: this.executable !== undefined, running: this.chrome !== undefined, version: this.chrome?.version ?? '', tabs: this.tabs.size, saved: this.pendingOwners().length, error: this.lastError }
   }
 
   list(): readonly TabInfo[] {
@@ -94,6 +98,43 @@ export class SharedBrowser {
     const record = this.records().find((item) => item.id === id)
     if (record === undefined) return undefined
     return this.open({ id: record.id, url: record.url, owner: record.owner })
+  }
+
+  /**
+   * 把上次（dsh web 重启前）你自己开着的网页按原网址重新打开，还是你在操作；返回恢复了几个。
+   * 你打开浏览器视图时调用；bot 的标签页不恢复，它们要用时按记录自己重开。只恢复一次。
+   */
+  restoreOwnerTabs(): Promise<number> {
+    if (this.restoring !== undefined) return this.restoring
+    this.restoring = this.reopenOwners().finally(() => {
+      this.restoring = undefined
+    })
+    return this.restoring
+  }
+
+  private async reopenOwners(): Promise<number> {
+    // 只用空着的位置，不为了恢复去挤掉 bot 正在用的标签页；放不下的就不恢复了。
+    const free = Math.max(0, this.deps.settings().browserTabs - this.tabs.size)
+    const pending = this.pendingOwners().slice(0, free)
+    let restored = 0
+    for (const record of pending) {
+      try {
+        const tab = await this.open({ id: record.id, url: record.url, owner: record.owner })
+        tab.controller = 'owner'
+        tab.note('dsh web 重启过，这个标签页按原网址恢复了')
+        this.emit(tab.id)
+        restored += 1
+      } catch (error) {
+        this.deps.warn(`恢复标签页 ${record.url} 失败`, error)
+      }
+    }
+    this.ownersRestored = true
+    this.saveRecords()
+    return restored
+  }
+
+  private pendingOwners(): readonly TabRecord[] {
+    return this.ownersRestored ? [] : this.records().filter((record) => record.owner.kind === 'owner' && !this.tabs.has(record.id))
   }
 
   /**
@@ -354,6 +395,8 @@ export class SharedBrowser {
       subscriber.closed()
       return () => {}
     }
+    // 你看过也算用过：再打开浏览器时默认选最近用过的那个。
+    tab.touch()
     const current = this.subscribers.get(id) ?? new Set<FrameSubscriber>()
     this.subscribers = new Map([...this.subscribers, [id, new Set([...current, subscriber])]])
     if (current.size === 0) {
@@ -381,11 +424,12 @@ export class SharedBrowser {
     return readState<readonly TabRecord[]>(this.deps.db, RECORDS_KEY, [])
   }
 
+  /** 记下开着的标签页；上次你自己开着、这次还没恢复的也留着，不被新开的标签页冲掉。 */
   private saveRecords(): void {
     const live = [...this.tabs.values()]
       .filter((tab) => tab.owner.kind !== 'pod' && tab.browserContextId === undefined && tab.url.startsWith('http'))
       .map((tab) => ({ id: tab.id, url: tab.url, owner: tab.owner }))
-    writeState(this.deps.db, RECORDS_KEY, live)
+    writeState(this.deps.db, RECORDS_KEY, [...live, ...this.pendingOwners()])
   }
 
   /** bot 正要点击的位置：浏览器视图里在画面上标出来。 */

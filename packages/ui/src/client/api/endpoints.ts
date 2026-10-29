@@ -129,7 +129,8 @@ export interface TabView extends TabInfo {
 }
 
 export interface BrowserState {
-  readonly status: { readonly available: boolean; readonly running: boolean; readonly version: string; readonly tabs: number; readonly error: string }
+  /** saved：上次（dsh web 重启前）你自己开着、还没恢复的网页有几个。 */
+  readonly status: { readonly available: boolean; readonly running: boolean; readonly version: string; readonly tabs: number; readonly saved: number; readonly error: string }
   readonly tabs: readonly TabView[]
 }
 
@@ -284,6 +285,7 @@ export const api = {
   browser: () => apiGet<BrowserState>('/browser/tabs'),
   /** 你开一个标签页；roomId 是在哪个群里开的（那个群的浏览器页里也列出来）。 */
   openTab: (url: string, options: { readonly incognito?: boolean; readonly roomId?: string } = {}) => apiPost<TabInfo>('/browser/open', { url, incognito: options.incognito === true, ...(options.roomId === undefined ? {} : { roomId: options.roomId }) }),
+  restoreTabs: () => apiPost<{ readonly restored: number }>('/browser/restore', {}),
   navigateTab: (tabId: string, url: string) => apiPost<TabInfo>('/browser/navigate', { tabId, url }),
   tabHistory: (tabId: string, action: 'back' | 'forward' | 'reload') => apiPost<TabInfo>('/browser/history', { tabId, action }),
   closeTab: (tabId: string) => apiPost<null>('/browser/close', { tabId }),
