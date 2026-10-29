@@ -475,7 +475,26 @@ function sleep(ms, signal) {
 /** 群聊分派和交接笔记照真模型的样子慢一点（毫秒，默认不慢）：开发时看得到“正在找合适的成员来接”“正在整理之前的对话”。 */
 const LITE_DELAY_MS = Number(process.env.POD_MOCK_LITE_DELAY ?? 0)
 
+/** 模拟模型服务出错：dsh 认 Error 自己带的 failure 和 code（和 LlmError 一样）。 */
+function providerError(message, code, status) {
+  return Object.assign(new Error(message), { code, failure: { message, code, status } })
+}
+
+/** 你的话里写“模拟模型出错”时报认证失败（不重试），写“模拟限流”时报限流（重试两次以后还是失败）。 */
+function simulatedFailure(options) {
+  const messages = Array.isArray(options.messages) ? options.messages : []
+  const own = ownText(textOf(lastOf(messages, 'user')?.content))
+  if (own.includes('模拟模型出错')) return providerError('Incorrect API key provided: sk-test-********abcd', 'AUTH', 401)
+  if (own.includes('模拟限流')) return providerError('Rate limit reached for requests', 'RATE_LIMIT', 429)
+  return undefined
+}
+
 async function* stream(options) {
+  const failure = simulatedFailure(options)
+  if (failure !== undefined) {
+    await sleep(800, options.signal)
+    throw failure
+  }
   const decision = decide(options)
   const system = systemOf(options, Array.isArray(options.messages) ? options.messages : [])
   if (LITE_DELAY_MS > 0 && (system.includes('你是群聊里的分派器') || system.includes('你负责写交接笔记'))) await sleep(LITE_DELAY_MS, options.signal)
@@ -526,7 +545,9 @@ const adapter = {
   listModels: async (provider) => [{ provider, id: MODEL, name: '脚本化测试模型', inputModalities: ['text'] }],
   resolveModel: async (provider, model) => ({ provider, id: model, name: model, context: { contextWindow: 128000 }, inputModalities: ['text'] }),
   async prepareCall(provider, model, signal) {
-    return { model: await this.resolveModel(provider, model, signal), stream: (options) => stream(options) }
+    // 限流照真服务的样子重试两次（间隔很短），看得到“正在等模型服务恢复”。
+    const retryPolicy = { mode: 'normal', maxRetries: 2, retryableCodes: ['RATE_LIMIT'], initialDelayMs: 1500, maxDelayMs: 3000, jitterRatio: 0 }
+    return { model: await this.resolveModel(provider, model, signal), stream: (options) => stream(options), retryPolicy }
   },
   stream: (options) => stream(options),
 }

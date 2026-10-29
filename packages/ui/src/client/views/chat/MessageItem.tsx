@@ -22,6 +22,7 @@ import { Attachment } from './Attachment.tsx'
 import { calledMentions } from './Calls.tsx'
 import { MessageSheet, answerable, type SheetView } from './MessageSheet.tsx'
 import { RateButtons } from './Rating.tsx'
+import { readTurnError, TurnErrorLine } from './TurnErrorLine.tsx'
 import { WeeklyCard } from './WeeklyCard.tsx'
 import { readXEvent, XEventCard } from './XEventCard.tsx'
 
@@ -110,7 +111,7 @@ export function MessageItem(props: MessageProps) {
   const app = useApp()
   const { message, bots } = props
   switch (message.kind) {
-    case 'notice':
+    case 'notice': {
       if (message.data.segment === true) {
         return (
           <div className="pod-divider" role="separator">
@@ -118,6 +119,8 @@ export function MessageItem(props: MessageProps) {
           </div>
         )
       }
+      const failure = readTurnError(message.data.turnError)
+      if (failure !== undefined) return <TurnErrorLine message={message} error={failure} />
       return (
         <div className="pod-line pod-line-notice">
           <span className="pod-line-text">
@@ -126,6 +129,7 @@ export function MessageItem(props: MessageProps) {
           </span>
         </div>
       )
+    }
     case 'milestone':
     case 'receipt': {
       const subject = typeof message.data.botId === 'string' ? bots.get(message.data.botId) : bots.get(message.author)

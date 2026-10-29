@@ -276,6 +276,7 @@ export const api = {
   setSkillStatus: (id: string, status: 'active' | 'archived') => apiPost<Skill>('/skill/status', { id, status }),
   rollbackSkill: (id: string, version: number) => apiPost<Skill>('/skill/rollback', { id, version }),
   regenerate: (messageId: string) => apiPost<null>('/message/regenerate', { messageId }),
+  retryTurn: (messageId: string) => apiPost<null>('/message/retry', { messageId }),
   uploadFile: (roomId: string, name: string, data: string, note = '') => apiPost<RoomMessage>('/room/upload', { roomId, name, data, note }),
   rateMessage: (messageId: string, value: number, reason = '') => apiPost<{ readonly messageId: string; readonly value: number }>('/message/rate', { messageId, value, reason }),
   ratings: (roomId: string) => apiGet<Readonly<Record<string, number>>>('/ratings', { roomId }),

@@ -22,6 +22,7 @@ import { SessionRegistry } from './agents/registry.ts'
 import { Watchdog } from './agents/watchdog.ts'
 import { BotService } from './bots/service.ts'
 import { ChatExtras } from './chat/extras.ts'
+import { TurnErrors } from './chat/turn-errors.ts'
 import { RoomService, type PreparingState } from './chat/rooms.ts'
 import { liteRoute } from './chat/router.ts'
 import { TextConverter } from './convert/index.ts'
@@ -337,6 +338,11 @@ export class PodRuntime {
         this.evolutionKit.feedback.onWait(wait)
       },
     })
+    const turnErrors = new TurnErrors({
+      post: (roomId, message) => this.rooms.post(roomId, message),
+      botName: (botId) => this.bots.get(botId)?.name ?? 'bot',
+      now,
+    })
     this.observer = new SessionObserver(
       ctx,
       this.registry,
@@ -357,6 +363,10 @@ export class PodRuntime {
           this.consults.onText(session, text)
         },
         onOwnerTyped: (session, text) => this.rooms.mirrorOwner(session, text),
+        onTurnError: (session, failure) => {
+          turnErrors.report(session, failure)
+          ctx.logger.warn(`dsh-bot：${this.bots.get(session.botId)?.name ?? session.botId} 这一轮出错结束（${failure.code}${failure.status === undefined ? '' : ` ${failure.status}`}）`)
+        },
         onTurnEnd: (session, reason) => {
           this.dispatcher.setRunning(session.id, false)
           this.pages.onTurnEnd(session.id)

@@ -96,6 +96,25 @@ export class ChatExtras {
   }
 
   /**
+   * 模型服务出错、这一轮没回成后点“重试”：请出错的那个 bot 接着回答（你的话已经在它的会话里了，不用再发一遍）。
+   * 提示上记下已经重试过，按钮就不再出现。
+   */
+  async retry(input: unknown): Promise<PodResult<null>> {
+    const id = readId(input, 'messageId')
+    const message = id === undefined ? undefined : getMessage(this.deps.db, id)
+    const failure = message === undefined ? undefined : message.data.turnError
+    if (message === undefined || message.author !== POD || typeof failure !== 'object' || failure === null) return fail('not-found', t('找不到这条出错提示'))
+    const room = this.deps.rooms.get(message.roomId)
+    if (room === undefined || room.archivedAt !== null) return fail('not-found', t('找不到这个房间'))
+    const botId = (failure as Readonly<Record<string, unknown>>).botId
+    const bot = room.kind === 'direct' || typeof botId !== 'string' ? undefined : this.deps.rooms.memberBots(room).find((item) => item.id === botId)
+    const delivered = await this.deps.rooms.deliverText(room, '[用户要求重试] 刚才模型服务出错，你这一轮没回成。接着回答用户最近的那条消息，不用提出错的事。', bot)
+    if (!delivered.ok) return delivered
+    this.deps.rooms.patchMessage(message.id, { data: { ...message.data, turnError: { ...failure, retry: false, retried: true } } })
+    return ok(null)
+  }
+
+  /**
    * 上传文件：存进对应任务或单聊的文件夹，告诉 bot 路径；bot 不能自己去读你电脑上别的文件。
    * PDF、Word、Excel、PPT 先转一份文字版，bot 直接读文字版。
    */

@@ -6,6 +6,7 @@ import {
   startProgress,
   stopThinking,
   summarizeRun,
+  t,
   withCall,
   withPlan,
   withResult,
@@ -38,12 +39,21 @@ export interface UsageReport {
   readonly model: string
 }
 
+/** 一轮因为出错结束：dsh 记下的原因（模型服务的错大多带 code，比如 AUTH、RATE_LIMIT）。 */
+export interface TurnFailure {
+  readonly code: string
+  readonly message: string
+  readonly status?: number
+}
+
 export interface ObserverHooks {
   /** 这一步模型说了话（不含工具调用）。 */
   readonly onAssistantText: (session: PodSession, text: string, turn: number) => void
   /** 你在 dsh 的会话视图里直接打的字（不是 Pod 投进去的）。 */
   readonly onOwnerTyped: (session: PodSession, text: string, messageId: string) => void
   readonly onTurnEnd: (session: PodSession, reason: string) => void
+  /** 这一轮出错结束了（多半是模型服务的错，dsh 自己的重试也没救回来）：在 onTurnEnd 之前调。 */
+  readonly onTurnError?: (session: PodSession, failure: TurnFailure) => void
   readonly onToolCall: (session: PodSession, name: string, action: string, args: string) => void
   readonly onUsage: (session: PodSession, usage: UsageReport) => void
   readonly onStream: (session: PodSession, text: string, done: boolean) => void
@@ -70,6 +80,14 @@ function record(value: unknown): Readonly<Record<string, unknown>> {
 
 function num(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+/** turn/end 里的 reason.error：LlmError 的 failure（message、code、可能有 status），别的错只有 message 和 UNKNOWN。 */
+function failureOf(value: unknown): TurnFailure {
+  const error = record(value)
+  const code = typeof error.code === 'string' && error.code !== '' ? error.code : 'UNKNOWN'
+  const message = typeof error.message === 'string' ? error.message : ''
+  return typeof error.status === 'number' ? { code, message, status: error.status } : { code, message }
 }
 
 function parsed(raw: string): unknown {
@@ -249,6 +267,15 @@ export class SessionObserver {
       case 'assistant/message':
         this.assistant(session, data)
         return
+      // 模型服务出错、dsh 等一会儿再试：页面上写“正在等模型服务恢复”，不然看着像卡住了。
+      case 'llm/retry': {
+        const failure = failureOf(data.failure)
+        this.update(session, { current: t('等模型服务恢复，第 {retry} 次重试（{code}）', { retry: num(data.retry), code: failure.code }), stalled: false })
+        return
+      }
+      case 'llm/retry-started':
+        this.update(session, { current: null })
+        return
       case 'user/message': {
         const id = typeof data.id === 'string' ? data.id : ''
         if (id !== '') this.hooks.onDelivered?.(session, id)
@@ -266,6 +293,7 @@ export class SessionObserver {
         this.update(session, { running: false, current: null, ...(progress === null ? {} : { progress: stopThinking(progress, at) }) })
         this.hooks.onStream(session, '', true)
         if (progress !== null) this.hooks.onRunEnd?.(session, summarizeRun(progress, at))
+        if (reason === 'error') this.hooks.onTurnError?.(session, failureOf(record(data.reason).error))
         this.hooks.onTurnEnd(session, reason)
         return
       }

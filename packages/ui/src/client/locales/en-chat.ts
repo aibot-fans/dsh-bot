@@ -209,4 +209,6 @@ export const UI_EN_CHAT: Readonly<Record<string, string>> = {
   '取消私密': 'Unmark private',
   '设为私密': 'Mark private',
   '删除这条记忆？之后可以在变更日志里撤销。': 'Delete this memory? You can undo it later in the change log.',
+  '已重试': 'Retried',
+  '模型设置': 'Model settings',
 }

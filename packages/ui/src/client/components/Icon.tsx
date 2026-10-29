@@ -51,6 +51,7 @@ const PATHS: Readonly<Record<string, string>> = {
   compose: 'M12 5H6a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-6M17.5 3.5l3 3L13 14h-3v-3z',
   incognito: 'M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.4 5.2A9.8 9.8 0 0 1 12 5c5 0 9 5 9 7a10.6 10.6 0 0 1-2.4 3.4M6.2 6.3C4.2 7.7 3 9.6 3 12c0 2 4 7 9 7a9.6 9.6 0 0 0 4.3-1',
   expand: 'M6 9l6 6 6-6',
+  alert: 'M12 4l9 16H3zM12 10v4M12 17h.01',
   'arrow-down': 'M12 5v14M6 13l6 6 6-6',
   'add-member': 'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 19a6 6 0 0 1 12 0M19 8v6M16 11h6',
   page: 'M4 4h16v16H4zM4 9h16M10 9v11',

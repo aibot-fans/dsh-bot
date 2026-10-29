@@ -64,6 +64,7 @@ export function evolutionRoutes(pod: PodRuntime): readonly RouteSpec[] {
     }),
     post('/message/rate', (body) => kit.feedback.rate(body)),
     post('/message/regenerate', (body) => pod.chat.regenerate(body)),
+    post('/message/retry', (body) => pod.chat.retry(body)),
     post('/room/upload', (body) => pod.chat.attach(body)),
     get('/ratings', (query) => {
       const roomId = readId(query, 'roomId')
