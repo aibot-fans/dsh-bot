@@ -76,12 +76,17 @@ export interface RoomSummary extends Room {
 
 export const ROOM_TITLE_MAX = 40
 
-/** 群名最多几个字：侧栏里一眼能看完。 */
-export const GROUP_NAME_MAX = 8
+/** 群名建议不超过几个字：侧栏里一眼能看完。只是建议，起好的名字不截断，侧栏里放不下时悬停看全名。 */
+export const GROUP_NAME_MAX = 12
 
-/** 按语言的群名上限：英文单词长，放宽到 24 个字符。 */
+/** 按语言的建议长度：英文单词长，放宽到 32 个字符。 */
 export function groupNameMax(language: Language = currentLanguage()): number {
-  return language === 'en' ? 24 : GROUP_NAME_MAX
+  return language === 'en' ? 32 : GROUP_NAME_MAX
+}
+
+/** 从目标里取群名时，第一个分句在这个长度以内就整句用，不把词截成半截。 */
+function clauseMax(language: Language = currentLanguage()): number {
+  return language === 'en' ? 48 : 20
 }
 
 const GROUP_NAME_LEAD = /^(请你?|帮我|帮忙|麻烦|给我|我想|我要|需要|一起)+/
@@ -96,17 +101,18 @@ function clipName(text: string, max: number): string {
   return space >= max / 2 ? cut.slice(0, space) : cut
 }
 
-/** 从任务目标里取一个短群名：第一个分句，去掉“帮我”这类开头，截到 8 个字。 */
+/** 从任务目标里取一个短群名：第一个分句，去掉“帮我”这类开头；分句不太长就整句用，太长才截到建议长度。 */
 export function shortGroupName(text: string): string {
   const first = text.trim().split(/[，。,.;；:：！!？?\n、]/)[0] ?? ''
   const latin = /[A-Za-z]/.test(first)
   const spaces = (value: string): string => (latin ? value.replace(/\s+/g, ' ').trim() : value.replace(/\s+/g, ''))
   const cleaned = spaces(first.replace(GROUP_NAME_LEAD, '').replace(GROUP_NAME_LEAD_EN, ''))
-  const name = clipName(cleaned === '' ? spaces(text) : cleaned, groupNameMax())
+  const source = cleaned === '' ? spaces(text) : cleaned
+  const name = [...source].length <= clauseMax() ? source : clipName(source, groupNameMax())
   return name === '' ? t('新群聊') : latin ? `${name.charAt(0).toUpperCase()}${name.slice(1)}` : name
 }
 
-/** 没起群名时按成员起一个：名字连起来不超过 8 个字就直接用，否则写成「第一个成员等 N 位」。 */
+/** 没起群名时按成员起一个：名字连起来不超过建议长度就直接用，否则写成「第一个成员等 N 位」。 */
 export function autoGroupName(names: readonly string[]): string {
   const clean = names.map((name) => name.trim()).filter((name) => name !== '')
   if (clean.length === 0) return t('新群聊')

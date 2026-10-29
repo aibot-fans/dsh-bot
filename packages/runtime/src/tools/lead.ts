@@ -283,11 +283,11 @@ export function leadTools(pod: PodRuntime, session: PodSession): readonly ToolDe
     name: 'create_group',
     description: [
       '拉群：把几个 bot 拉进一个新群聊，用户可以在群里 @ 它们分别说话；没点名的话，dsh-bot 按分工交给对口的成员来接。',
-      `群名用不超过 ${groupNameMax()} 个字的主题词，例如“博客小组”；已经有同名的群就直接用那个群，不重复建。`,
+      `群名用简短的主题词（最好不超过 ${groupNameMax()} 个字），例如“博客小组”；已经有同名的群就直接用那个群，不重复建。`,
       '用户说“拉个群”“把写手和程序员叫到一起”时用它；要正式分工、按计划干活用 create_task，那会自己建群。',
     ].join(''),
     properties: {
-      name: str(`群名，不超过 ${groupNameMax()} 个字`),
+      name: str(`群名，最好不超过 ${groupNameMax()} 个字`),
       members: strList('拉谁进群：bot 的名字或 id；你会自动在群里'),
       intro: str('开场白：这个群是干什么的，作为群里的第一条消息'),
     },
@@ -297,7 +297,7 @@ export function leadTools(pod: PodRuntime, session: PodSession): readonly ToolDe
       const resolved = members.map((item) => ({ item, bot: pod.bots.resolve(item) }))
       const missing = resolved.filter((entry) => entry.bot === undefined || entry.bot.archivedAt !== null).map((entry) => entry.item)
       if (missing.length > 0) return failure(`找不到这些 bot：${missing.join('、')}。先用 find_bots 查，或用 create_bot 新建`)
-      const created = pod.rooms.createGroup({ name, memberIds: resolved.map((entry) => entry.bot?.id ?? ''), max: groupNameMax() }, session.botId)
+      const created = pod.rooms.createGroup({ name, memberIds: resolved.map((entry) => entry.bot?.id ?? '') }, session.botId)
       if (!created.ok) return failure(created.error.message)
       const room = created.value
       if (intro !== '') pod.rooms.post(room.id, { author: session.botId, kind: 'text', body: intro, sessionId: session.id })

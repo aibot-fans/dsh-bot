@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { BOT_NAME_MAX, ROOM_TITLE_MAX, addSidebarFolder, archiveSidebarItem, inputLimit, moveSidebarItem, t, type Bot, type SidebarItem } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
+import { useClipped } from '../../components/clipped.ts'
 import { Avatar, Badge, listTime, nameColor } from '../../components/common.tsx'
 import { GroupMark } from '../../components/GroupMark.tsx'
 import { useLongPress } from '../../components/longPress.ts'
@@ -60,6 +61,8 @@ export function SideItem(props: SideItemProps) {
   const room = item.room
   const bot = item.bot
   const title = bot?.name ?? room?.title ?? ''
+  // 长群名在侧栏里放不下时是省略号，悬停看全名。
+  const [titleRef, clipped] = useClipped<HTMLSpanElement>(title)
   // bot 和你可以有好几段对话：在其中哪一段都算“正在看”，未读和等你处理的按每一段加起来。
   const active = item.rooms.some((thread) => thread.id === nav.roomId)
   const archived = store.prefs.archived.includes(item.key)
@@ -174,7 +177,7 @@ export function SideItem(props: SideItemProps) {
         <button type="button" className="pod-side-row" onClick={open} title={props.collapsed ? title : undefined} aria-current={active ? 'true' : undefined}>
           {icon}
           {props.collapsed ? null : (
-            <span className={`pod-side-row-title${bot === undefined ? '' : ' pod-bot-name'}`} style={nameColor(bot)}>
+            <span ref={titleRef} className={`pod-side-row-title${bot === undefined ? '' : ' pod-bot-name'}`} style={nameColor(bot)} title={clipped ? title : undefined}>
               {title}
             </span>
           )}

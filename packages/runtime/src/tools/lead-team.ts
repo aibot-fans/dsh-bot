@@ -1,4 +1,4 @@
-import { MIN_GOOD_SCORE, scoreAssignment, type PodSession } from 'pod-domain'
+import { MIN_GOOD_SCORE, groupNameMax, scoreAssignment, type PodSession } from 'pod-domain'
 import type { ToolDefinition } from '../dsh.ts'
 import type { PodRuntime } from '../pod.ts'
 import { bool, failure, flag, oneOf, podTool, str, strList, success, text, texts } from './define.ts'
@@ -61,7 +61,7 @@ export function leadTeamTools(pod: PodRuntime, session: PodSession): readonly To
     ].join(''),
     properties: {
       goal: str('目标'),
-      group_name: str('群名：不超过 8 个字的主题词，例如“竞品定价”；不填就从目标里取'),
+      group_name: str(`群名：简短的主题词（最好不超过 ${groupNameMax()} 个字），例如“竞品定价”；不填就从目标里取`),
       level: oneOf('L2 临时小组 / L3 正式团队', ['L2', 'L3']),
       team: str('L3 时交给哪个团队（名字或 id）'),
       deliverables: strList('最终交付物'),

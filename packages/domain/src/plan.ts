@@ -64,7 +64,7 @@ export interface TeamPlan {
   /** 需要新建的临时 bot。 */
   readonly drafts: readonly BotDraftSpec[]
   readonly revision: Revision | null
-  /** 群名：主管起的不超过 8 个字的主题词；没起时从目标里取。 */
+  /** 群名：主管起的简短主题词，照原样用；没起时从目标里取。 */
   readonly name?: string
 }
 

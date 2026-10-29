@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import {
-  groupNameMax,
+  ROOM_TITLE_MAX,
   shortGroupName,
   PRIORITY,
   childTaskFolder,
@@ -224,7 +224,8 @@ export class Orchestrator {
       return { root, subtasks }
     })
     const members = [leader.id, requesterBot.id, ...tree.subtasks.map((task) => task.ownerBotId).filter((id): id is string => id !== null)]
-    const groupName = plan.name !== undefined && plan.name !== '' ? truncate(plan.name, groupNameMax()) : shortGroupName(plan.goal)
+    // 组长起的群名照原样用（只防极端长的）；没起才从目标里取。
+    const groupName = plan.name !== undefined && plan.name.trim() !== '' ? truncate(plan.name.trim(), ROOM_TITLE_MAX) : shortGroupName(plan.goal)
     const room = this.deps.rooms.createTaskRoom(groupName, rootId, members, team?.id ?? null)
     const root = updateTask(this.db, rootId, { roomId: room.id }, now) ?? tree.root
     for (const task of tree.subtasks) updateTask(this.db, task.id, { roomId: room.id }, now)
