@@ -203,4 +203,6 @@ export const UI_EN_PANELS: Readonly<Record<string, string>> = {
   '设定、记忆、资料库、自动化、浏览器': 'Settings, memory, library, automations, browser',
   '其他对话': 'Other chats',
   '正在打开上次开着的 {count} 个网页…': 'Reopening the {count} pages you had open…',
+  '窗口内全屏': 'Fill the window',
+  '退出全屏（Esc）': 'Exit full window (Esc)',
 }

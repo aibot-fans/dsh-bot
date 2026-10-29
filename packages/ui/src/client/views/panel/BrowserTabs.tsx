@@ -80,12 +80,12 @@ export function TabList(props: { readonly tabs: readonly TabView[]; readonly onO
   )
 }
 
-/** 群聊详情的“浏览器”页：群里的 bot 打开的网页、你在这里开的网页；也能在这里开一个新的。 */
+/** 群聊详情的“浏览器”页：群里的 bot 打开的网页、你在这里开的网页；也能在这里开一个新的。放大看的浏览器左上角能回到这里。 */
 export function GroupBrowser(props: { readonly room: RoomSummary }) {
   const app = useApp()
   const { data, error } = useResource(app.cache, 'browser', () => api.browser())
   const tabs = (data?.tabs ?? []).filter((tab) => tab.roomId === props.room.id)
-  const show = (tabId: string): void => app.openBrowserTab(tabId, null, props.room.id)
+  const show = (tabId: string): void => app.openBrowserTab(tabId, null, props.room.id, { kind: 'group', roomId: props.room.id, tab: 'browser' })
   if (error !== undefined) return <p className="pod-form-error">{error}</p>
   if (data !== undefined && !data.status.available) return <Empty title={t('没找到本机的 Chrome')}>{t('共用浏览器用本机的 Chrome。请安装 Chrome，或者在设置的浏览器页填 Chrome 的位置。')}</Empty>
   return (

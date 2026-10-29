@@ -12,11 +12,12 @@ export type SettingsTab = 'general' | 'usage' | 'automations' | 'models' | 'brow
  * 右侧面板：bot 详情、群聊详情、bot 的浏览器、页面库，同一时间只开一个。
  * 在群里点成员时 bot 详情带着 from（群的 id）：显示成员卡片，可以返回群聊详情；
  * 从成员卡片点“完整资料”时带着 back（群的 id）：完整资料左上角能返回那张成员卡片。
+ * 从群聊或 bot 详情的浏览器页放大看一个网页时，浏览器带着 back（来的那个面板）：左上角和 Esc 回到那里。
  */
 export type PanelState =
   | { readonly kind: 'bot'; readonly botId: string; readonly tab: BotTab; readonly from?: string; readonly back?: string }
   | { readonly kind: 'group'; readonly roomId: string; readonly tab: GroupTab }
-  | { readonly kind: 'browser'; readonly tabId: string | null; readonly botId: string | null; readonly roomId?: string }
+  | { readonly kind: 'browser'; readonly tabId: string | null; readonly botId: string | null; readonly roomId?: string; readonly back?: PanelState }
   | { readonly kind: 'pages' }
   | null
 
@@ -239,9 +240,9 @@ export class AppState {
     this.navigate({ panel: { kind: 'group', roomId, tab } })
   }
 
-  /** 打开浏览器：右侧滑出实时画面。给了 botId 只看那个 bot 的标签页，给了 roomId 只看那个群的。 */
-  openBrowserTab(tabId: string | null, botId: string | null = null, roomId?: string): void {
-    this.navigate({ panel: roomId === undefined ? { kind: 'browser', tabId, botId } : { kind: 'browser', tabId, botId, roomId } })
+  /** 打开浏览器：右侧滑出实时画面。给了 botId、roomId 时这个 bot、这个对话的标签页排前面；back 是返回时回到的面板。 */
+  openBrowserTab(tabId: string | null, botId: string | null = null, roomId?: string, back?: PanelState): void {
+    this.navigate({ panel: { kind: 'browser', tabId, botId, ...(roomId === undefined ? {} : { roomId }), ...(back === undefined || back === null ? {} : { back }) } })
   }
 
   closePanel(): void {

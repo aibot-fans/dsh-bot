@@ -6,7 +6,8 @@ import { Avatar, Badge, Button, Empty, ErrorBanner, IconButton, clock } from '..
 import { Icon } from '../../components/Icon.tsx'
 import { PanelClose } from '../../components/PanelClose.tsx'
 import { copyText } from '../../components/clipboard.ts'
-import { useApp } from '../../state/app.ts'
+import { useNarrow } from '../../components/media.ts'
+import { useApp, type PanelState } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 import { LiveView, type Pointer } from '../browser/LiveView.tsx'
 import { DialogOverlay, FileOverlay, SelectOverlay } from '../browser/Overlays.tsx'
@@ -137,10 +138,13 @@ function TabChip(props: { readonly tab: TabView; readonly active: boolean; reado
 /**
  * 浏览器：从右侧滑出，有地址栏和实时画面；默认 AI 操作，你可以接管，操作完留一句话交还。
  * 从对话顶部打开时列出全部标签页，这个对话（这个 bot）的排前面，默认选其中最近用过的，没有就选别处最近用过的；
- * 右上角的 + 在这个对话里开新网页。上次（dsh web 重启前）你自己开着的网页，打开时按原网址恢复。
+ * 右上角的 + 在这个对话里开新网页，旁边是窗口内全屏（盖住整个窗口，画面按窗口放大；Esc 退出）。
+ * 上次（dsh web 重启前）你自己开着的网页，打开时按原网址恢复。从详情里放大看进来的（带 back），左上角能返回。
  */
-export function BrowserPanel(props: { readonly tabId: string | null; readonly botId: string | null; readonly roomId?: string }) {
+export function BrowserPanel(props: { readonly tabId: string | null; readonly botId: string | null; readonly roomId?: string; readonly back?: PanelState }) {
   const app = useApp()
+  const narrow = useNarrow()
+  const [full, setFull] = useState(false)
   const { data, error } = useResource(app.cache, 'browser', () => api.browser())
   const { data: bots } = useResource(app.cache, 'bots', () => api.bots())
   const { data: rooms } = useResource(app.cache, 'rooms', () => api.rooms())
@@ -171,7 +175,21 @@ export function BrowserPanel(props: { readonly tabId: string | null; readonly bo
       .finally(() => setRestoring(false))
   }, [app, saved > 0])
 
-  const show = (tabId: string | null): void => app.openBrowserTab(tabId, props.botId, props.roomId)
+  // 全屏时 Esc 先退出全屏（比关面板、回详情先一步）；你接管时在画面里按的 Esc 留给网页。
+  useEffect(() => {
+    if (!full) return
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      if (event.target instanceof Element && event.target.closest('.pod-live, .pod-modal, .pod-menu') !== null) return
+      event.preventDefault()
+      setFull(false)
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [full])
+
+  const back = props.back ?? null
+  const show = (tabId: string | null): void => app.openBrowserTab(tabId, props.botId, props.roomId, props.back)
   const opened = (tab: { readonly id: string }): void => {
     setAdding(false)
     app.cache.invalidate('browser')
@@ -179,13 +197,20 @@ export function BrowserPanel(props: { readonly tabId: string | null; readonly bo
   }
 
   return (
-    <aside className="pod-panel pod-panel-wide" aria-label={t('浏览器')}>
+    <aside className={`pod-panel pod-panel-wide${full && !narrow ? ' pod-panel-full' : ''}`} aria-label={t('浏览器')}>
       <div className="pod-panel-top pod-panel-top-row">
+        {back === null ? null : (
+          <button type="button" className="pod-back pod-browser-back" onClick={() => app.navigate({ panel: back })}>
+            <Icon name="back" size={16} />
+            <span>{t('返回')}</span>
+          </button>
+        )}
         {bot === undefined ? <Icon name="browser" size={18} /> : <Avatar bot={bot} size={28} />}
         <strong className="pod-ellipsis">{title}</strong>
         <span className="pod-grow" />
         {selected === undefined ? null : <IconButton icon="plus" label={t('打开新网页')} onClick={() => setAdding((value) => !value)} />}
-        <PanelClose label={t('关闭浏览器')} onClose={() => app.closePanel()} />
+        {narrow || selected === undefined ? null : <IconButton icon={full ? 'exit-fullscreen' : 'fullscreen'} label={full ? t('退出全屏（Esc）') : t('窗口内全屏')} onClick={() => setFull((value) => !value)} />}
+        <PanelClose label={t('关闭浏览器')} onClose={() => app.closePanel()} stacked={back !== null} />
       </div>
       <div className="pod-panel-scroll">
         {error === undefined ? null : <ErrorBanner message={error} />}

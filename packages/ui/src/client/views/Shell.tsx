@@ -79,7 +79,9 @@ function useEscapeClosesPanel(): void {
       const current = app.getNav()
       if (current.drawer !== null || current.settings !== null || current.search !== null || current.taskId !== null) return
       if (document.querySelector('.pod-modal, .pod-menu') !== null) return
-      app.closePanel()
+      // 从详情里放大看的浏览器：Esc 先回到详情。
+      if (current.panel?.kind === 'browser' && current.panel.back !== undefined && current.panel.back !== null) app.navigate({ panel: current.panel.back })
+      else app.closePanel()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)

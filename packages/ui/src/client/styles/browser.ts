@@ -6,6 +6,14 @@ export const BROWSER_CSS = `
 .pod-tabchip-active { border-color: var(--dsw-alias-label-primary); background: var(--pod-soft); }
 .pod-tabchip-text { display: flex; flex-direction: column; min-width: 0; flex: 1; font-size: 12px; }
 .pod-tabchip-meta { color: var(--dsw-alias-label-tertiary); font-size: 11px; }
+/* 窗口内全屏：盖住整个窗口（模态框、菜单还在上面），画面在剩下的地方里按比例放到最大。 */
+.pod-panel.pod-panel-full { position: fixed; inset: 0; z-index: 55; width: auto; max-width: none; border-left: 0; box-shadow: none; padding-top: var(--dsh-frame-top-clearance, 0px); }
+.pod-panel-full .pod-panel-scroll { padding: 12px 20px 16px; }
+.pod-panel-full .pod-panel-scroll > .pod-stack:last-child { flex: 1; min-height: 0; }
+.pod-panel-full .pod-live-wrap { flex: 1; min-height: 160px; container-type: size; }
+.pod-panel-full .pod-live { width: fit-content; margin: 0 auto; }
+.pod-panel-full .pod-live canvas { width: min(100cqw - 2px, (100cqh - 2px) * var(--pod-live-ratio, 1.6)); }
+.pod-browser-back { flex: none; }
 .pod-tabstrip-sep { flex: none; width: 1px; align-self: stretch; margin: 4px 2px; background: var(--pod-line); }
 .pod-tabstrip-label { flex: none; align-self: center; font-size: 11px; color: var(--dsw-alias-label-tertiary); white-space: nowrap; }
 .pod-tabchip-loading { width: 8px; height: 8px; border-radius: 50%; background: var(--pod-info); animation: pod-blink 1s infinite; }
@@ -16,7 +24,7 @@ export const BROWSER_CSS = `
 .pod-browser-bar .pod-browser-note { flex: 0 1 220px; }
 .pod-live-wrap { position: relative; }
 .pod-live { position: relative; border-radius: 10px; overflow: hidden; background: #1b1b1f; border: 1px solid var(--pod-line); }
-.pod-live canvas { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: contain; }
+.pod-live canvas { display: block; width: 100%; height: auto; }
 .pod-live-controlled { outline: 2px solid var(--pod-warn); }
 .pod-live-controlled canvas { cursor: default; }
 .pod-live-ime { position: absolute; left: 0; top: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; resize: none; border: 0; padding: 0; }

@@ -45,8 +45,12 @@ export function LiveView(props: { readonly tabId: string; readonly controlled: b
       drawing = true
       const image = new Image()
       image.onload = () => {
-        if (canvas.width !== image.naturalWidth) canvas.width = image.naturalWidth
-        if (canvas.height !== image.naturalHeight) canvas.height = image.naturalHeight
+        if (canvas.width !== image.naturalWidth || canvas.height !== image.naturalHeight) {
+          canvas.width = image.naturalWidth
+          canvas.height = image.naturalHeight
+          // 画面按网页实际的宽高比显示（点的位置才对得上）；全屏时按这个比例放到最大。
+          canvas.style.setProperty('--pod-live-ratio', String(image.naturalWidth / image.naturalHeight))
+        }
         canvas.getContext('2d')?.drawImage(image, 0, 0)
         viewport.current = frame.w > 0 ? { width: frame.w, height: frame.h } : viewport.current.width > 0 ? viewport.current : { width: image.naturalWidth, height: image.naturalHeight }
         drawing = false

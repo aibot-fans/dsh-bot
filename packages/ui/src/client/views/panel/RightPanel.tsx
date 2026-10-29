@@ -14,7 +14,7 @@ export function RightPanel() {
     case 'group':
       return <GroupPanel roomId={panel.roomId} tab={panel.tab} />
     case 'browser':
-      return <BrowserPanel tabId={panel.tabId} botId={panel.botId} roomId={panel.roomId} />
+      return <BrowserPanel tabId={panel.tabId} botId={panel.botId} roomId={panel.roomId} back={panel.back} />
     case 'pages':
       return <PageLibraryPanel />
   }

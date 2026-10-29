@@ -215,7 +215,7 @@ function BotBrowser(props: { readonly bot: Bot }) {
   if (error !== undefined) return <p className="pod-form-error">{error}</p>
   if (data !== undefined && !data.status.available) return <Empty title={t('没找到本机的 Chrome')}>{t('共用浏览器用本机的 Chrome。请安装 Chrome，或者在设置的浏览器页填 Chrome 的位置。')}</Empty>
   if (tabs.length === 0) return <Empty title={t('{name}现在没有打开网页', { name: props.bot.name })}>{t('它用浏览器时，画面会出现在这里，也会在对话里放一张卡片。')}</Empty>
-  return <TabList tabs={tabs} onOpen={(tab) => app.openBrowserTab(tab.id, props.bot.id)} />
+  return <TabList tabs={tabs} onOpen={(tab) => app.openBrowserTab(tab.id, props.bot.id, undefined, { kind: 'bot', botId: props.bot.id, tab: 'browser' })} />
 }
 
 /** 每一页顶上一句话，说清这一页放的是什么。 */
