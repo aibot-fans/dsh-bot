@@ -161,8 +161,11 @@ export class AppState {
 
   /** 打开一个对话；换了对话，右侧的详情就关掉。开着的页面查看器也关掉。 */
   openRoom(roomId: string): void {
-    const panel = this.nav.roomId === roomId ? this.nav.panel : null
+    const same = this.nav.roomId === roomId
+    const panel = same ? this.nav.panel : null
     this.navigate({ roomId, focus: null, search: null, settings: null, panel, page: null })
+    // 点的就是开着的这个对话：输入框没换，叫它拿焦点；换了对话，新的输入框装上时自己拿。
+    if (same) for (const listener of this.focusListeners) listener(roomId)
   }
 
   /** 手机上回到列表：不在任何对话里（临时对话就此删掉），列表上的未读照常算。宽屏上中间会回到主管的单聊。 */
@@ -465,6 +468,17 @@ export class AppState {
     this.insertListeners.add(listener)
     return () => {
       this.insertListeners.delete(listener)
+    }
+  }
+
+  // ---------- 叫输入框拿焦点（侧栏里点正开着的那个对话） ----------
+
+  private readonly focusListeners = new Set<(roomId: string) => void>()
+
+  onFocusComposer(listener: (roomId: string) => void): () => void {
+    this.focusListeners.add(listener)
+    return () => {
+      this.focusListeners.delete(listener)
     }
   }
 

@@ -5,10 +5,10 @@ import { errorText } from '../../api/http.ts'
 import { Avatar, IconButton } from '../../components/common.tsx'
 import { BotName } from '../../components/GroupMark.tsx'
 import { Icon } from '../../components/Icon.tsx'
-import { useNarrow } from '../../components/media.ts'
+import { useNarrow, useTouch } from '../../components/media.ts'
 import { buildMentions } from '../../components/mentions.tsx'
 import { RichInput, type MentionQuery, type RichInputHandle } from '../../editor/RichInput.tsx'
-import { useApp } from '../../state/app.ts'
+import { useApp, useNav } from '../../state/app.ts'
 import { readDraft, readDraftFiles, saveDraftFiles, saveDraftText } from '../../state/drafts.ts'
 
 export interface ComposerProps {
@@ -74,7 +74,10 @@ function placeholderOf(name: string, group: boolean, replying: boolean, narrow: 
  */
 export function Composer(props: ComposerProps) {
   const app = useApp()
+  const nav = useNav()
   const narrow = useNarrow()
+  const touch = useTouch()
+  const covered = nav.settings !== null || nav.search !== null || nav.drawer !== null || nav.taskId !== null || nav.update
   const roomId = props.room.id
   const [text, setText] = useState(() => readDraft(roomId).text)
   const initial = useRef(text).current
@@ -120,6 +123,17 @@ export function Composer(props: ComposerProps) {
         if (target === props.room.id) editor.current?.append(inserted)
       }),
     [app, props.room.id],
+  )
+  // 换到这个对话、关掉盖在上面的设置搜索这些回来、在侧栏里再点一下它：光标直接进输入框。触屏上不抢，免得一进对话就弹出键盘。
+  useEffect(() => {
+    if (!covered && !touch) editor.current?.focus()
+  }, [covered, touch])
+  useEffect(
+    () =>
+      app.onFocusComposer((target) => {
+        if (target === props.room.id && !touch) editor.current?.focus()
+      }),
+    [app, props.room.id, touch],
   )
 
   const addFiles = (files: readonly File[]): void => {
