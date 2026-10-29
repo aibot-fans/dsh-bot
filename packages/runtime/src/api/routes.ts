@@ -101,6 +101,7 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
     post('/room/read', (body) => pod.rooms.markRead(body)),
     post('/room/update', (body) => pod.rooms.update(body)),
     post('/message/pin', (body) => pod.rooms.pin(body)),
+    get('/room/pins', (query) => pod.rooms.pins(query)),
     get('/message', (query) => {
       const id = readId(query, 'id')
       const message = id === undefined ? undefined : getMessage(pod.db, id)

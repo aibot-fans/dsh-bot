@@ -232,6 +232,7 @@ export const api = {
   markRead: (roomId: string, seq: number) => apiPost<null>('/room/read', { roomId, seq }),
   updateRoom: (roomId: string, patch: unknown) => apiPost<Room>('/room/update', { roomId, patch }),
   pinMessage: (messageId: string, pinned: boolean) => apiPost<RoomMessage>('/message/pin', { messageId, pinned }),
+  pinnedMessages: (roomId: string) => apiGet<readonly RoomMessage[]>('/room/pins', { roomId }),
 
   tasks: (status?: string) => apiGet<readonly TaskSnapshot[]>('/tasks', { status }),
   taskSnapshot: (id: string) => apiGet<TaskSnapshot>('/task/snapshot', { id }),

@@ -385,6 +385,7 @@ export class AppState {
         return
       case 'message':
         cache.invalidate(`messages:${event.roomId}`)
+        cache.invalidate(`pins:${event.roomId}`)
         cache.invalidate(`ratings:${event.roomId}`)
         cache.invalidate((key) => key.startsWith('page-thread:'))
         return

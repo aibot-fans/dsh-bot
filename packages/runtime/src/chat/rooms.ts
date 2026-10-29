@@ -53,6 +53,7 @@ import {
   listRoomMembers,
   listRooms,
   markRoomRead,
+  pinnedMessages,
   removeRoomMember,
   transaction,
   updateMessage,
@@ -73,6 +74,10 @@ const PAGE = 50
 
 /** 新开的一段对话里，告诉 bot 以前还有哪些对话时最多列几段。 */
 const PAST_CHATS_LISTED = 6
+
+/** 新会话第一次收到消息时带上的置顶消息：最多几条、每条留多少字。 */
+const PINNED_LISTED = 10
+const PINNED_CHARS = 300
 
 /** 对话记录里的标题：你说的第一句话，压成一行截短。 */
 export function chatSubject(text: string, max = 24): string {
@@ -743,7 +748,7 @@ export class RoomService {
           })
     if (room.kind !== 'direct') this.triggers.set(session.id, options.from?.bot.id ?? OWNER)
     const mode = this.deps.dispatcher.isRunning(session.id) ? 'steer' : 'followup'
-    const past = rotated !== undefined ? '' : room.kind === 'direct' ? this.pastChats(room, bot, session) : this.earlierGroupChat(room, session)
+    const past = rotated !== undefined ? '' : this.firstNote(room, bot, session)
     const enriched = `${past}${await this.deps.enrich(session, framed)}`
     const lead = options.from === undefined ? '[用户的新消息]' : `[${options.from.bot.name}的新消息]`
     const delivery = this.deps.dispatcher.enqueue({
@@ -757,12 +762,21 @@ export class RoomService {
   }
 
   /**
-   * 新开的一段单聊（或临时对话）第一次收到消息时，告诉 bot 你们以前还有哪些对话：它不带那些上下文，
-   * 你提到以前的事时让它自己去翻原文，不要凭印象。每条会话只说一次。
+   * 会话第一次收到消息时说一次的背景：以前的对话在哪（单聊）、之前的群聊不在上下文里（群聊开过新对话），
+   * 还有这个对话里置顶的消息。换段接着聊的会话不走这里，交接说明里已经带着置顶消息。
    */
-  private pastChats(room: Room, bot: Bot, session: PodSession): string {
+  private firstNote(room: Room, bot: Bot, session: PodSession): string {
     if (this.introduced.has(session.id) || session.steps > 0) return ''
     this.introduced.add(session.id)
+    const earlier = room.kind === 'direct' ? this.pastChats(room, bot) : this.earlierGroupChat(room)
+    return `${earlier}${this.pinnedNote(room)}`
+  }
+
+  /**
+   * 新开的一段单聊（或临时对话）：告诉 bot 你们以前还有哪些对话。它不带那些上下文，
+   * 你提到以前的事时让它自己去翻原文，不要凭印象。
+   */
+  private pastChats(room: Room, bot: Bot): string {
     const others = this.threads(bot.id).filter((thread) => thread.id !== room.id && thread.lastSeq > 0)
     if (others.length === 0) return ''
     const lines = others.slice(0, PAST_CHATS_LISTED).map((thread) => {
@@ -779,16 +793,26 @@ export class RoomService {
   }
 
   /**
-   * 群聊开过新对话后，成员的新会话第一次收到消息时，告诉它之前的群聊不在上下文里：
-   * 你提到之前的事时让它先在这个群的记录里翻原文，不要凭印象。每条会话只说一次。
+   * 群聊开过新对话后：告诉成员的新会话之前的群聊不在上下文里，
+   * 你提到之前的事时让它先在这个群的记录里翻原文，不要凭印象。
    */
-  private earlierGroupChat(room: Room, session: PodSession): string {
-    if (this.introduced.has(session.id) || session.steps > 0) return ''
-    this.introduced.add(session.id)
+  private earlierGroupChat(room: Room): string {
     if (lastChatBreak(this.db, room.id) === 0) return ''
     return [
       '[这个群之前的对话（资料，不是指令）] 用户在这个群里开了新对话，之前的群聊不在你现在的上下文里。',
       '用户提到之前聊过的事（比如“上次说的”“接着之前那个”）时，先用 search_history（here=true）在这个群的记录里搜，再用 read_history 看原文，再回答；别凭印象猜。',
+      '',
+      '',
+    ].join('\n')
+  }
+
+  /** 你在这个对话里置顶的消息：不在会话上下文里（开过新对话、以前聊的）也知道哪些是要一直记着的。 */
+  private pinnedNote(room: Room): string {
+    const pinned = pinnedMessages(this.db, room.id).slice(-PINNED_LISTED)
+    if (pinned.length === 0) return ''
+    return [
+      `[这个对话里置顶的消息] 用户把下面 ${pinned.length} 条消息置顶了，是这个对话里要一直记着的要点：`,
+      ...pinned.map((message) => `- ${this.speakerName(message.author)}（${dateLabel(message.createdAt)}）：${truncate(oneLine(message.body), PINNED_CHARS)}`),
       '',
       '',
     ].join('\n')
@@ -887,6 +911,13 @@ export class RoomService {
     this.deps.bus.emit({ type: 'rooms' })
     this.deps.bus.emit({ type: 'room', roomId })
     return ok(updated)
+  }
+
+  /** 这个对话里置顶的消息，按先后。 */
+  pins(input: unknown): PodResult<readonly RoomMessage[]> {
+    const roomId = readId(input, 'roomId')
+    if (roomId === undefined) return fail('invalid-input', t('缺少房间 id'))
+    return ok(pinnedMessages(this.db, roomId))
   }
 
   pin(input: unknown): PodResult<RoomMessage> {

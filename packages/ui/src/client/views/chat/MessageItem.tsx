@@ -207,6 +207,7 @@ export function MessageItem(props: MessageProps) {
           {attachment === undefined ? null : <Attachment attachment={attachment} />}
           {message.data.via === 'dsh' ? <div className="pod-muted-inline">{t('来自 dsh 会话视图')}</div> : null}
         </div>
+        {message.pinned ? <span className="pod-badge pod-badge-muted pod-msg-pinned">{t('已置顶')}</span> : null}
         {props.hideTime === true ? null : <time className="pod-msg-time">{clock(message.createdAt)}</time>}
       </MessageFrame>
     )

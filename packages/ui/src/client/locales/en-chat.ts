@@ -211,4 +211,9 @@ export const UI_EN_CHAT: Readonly<Record<string, string>> = {
   '删除这条记忆？之后可以在变更日志里撤销。': 'Delete this memory? You can undo it later in the change log.',
   '已重试': 'Retried',
   '模型设置': 'Model settings',
+  '跳到这条消息': 'Jump to this message',
+  '全部置顶消息': 'All pinned messages',
+  '置顶消息': 'Pinned messages',
+  '{count} 条': '{count}',
+  '置顶消息 · {count} 条': 'Pinned messages · {count}',
 }
