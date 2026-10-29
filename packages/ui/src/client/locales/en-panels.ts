@@ -205,4 +205,7 @@ export const UI_EN_PANELS: Readonly<Record<string, string>> = {
   '正在打开上次开着的 {count} 个网页…': 'Reopening the {count} pages you had open…',
   '窗口内全屏': 'Fill the window',
   '退出全屏（Esc）': 'Exit full window (Esc)',
+  '切换网页': 'Switch page',
+  '交还': 'Hand back',
+  '动作记录': 'Action log',
 }

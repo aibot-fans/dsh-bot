@@ -69,14 +69,10 @@ export const PANEL_CSS = `
 .pod-computer { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid var(--pod-line); border-radius: 14px; background: var(--dsw-alias-bg-layer-1, #fff); }
 .pod-computer-shot { appearance: none; overflow: hidden; aspect-ratio: 16 / 10; padding: 0; border: 0; border-radius: 10px; background: #1b1b1f; cursor: zoom-in; }
 .pod-computer-shot img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.pod-browser-control { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--pod-line); border-radius: 12px; background: var(--dsw-alias-bg-layer-1, #fff); }
-.pod-browser-control .pod-row { flex-wrap: wrap; }
-.pod-browser-control .pod-input { flex: 1; min-width: 160px; }
 .pod-browser-card { display: grid; grid-template-columns: 168px minmax(0, 1fr); gap: 12px; max-width: 560px; padding: 10px; border: 1px solid var(--pod-line); border-radius: 14px; background: var(--dsw-alias-bg-layer-1, #fff); }
 .pod-browser-card-shot { appearance: none; overflow: hidden; aspect-ratio: 16 / 10; padding: 0; border: 0; border-radius: 8px; background: #1b1b1f; cursor: zoom-in; }
 .pod-browser-card-shot img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .pod-browser-card-main { display: flex; flex-direction: column; justify-content: center; gap: 6px; min-width: 0; font-size: 13.5px; }
-.pod-browser-log summary { font-size: 13px; color: var(--dsw-alias-label-secondary); cursor: pointer; }
 .pod-pick-list { display: flex; flex-direction: column; gap: 2px; }
 .pod-pick { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 8px; font-size: 14px; cursor: pointer; }
 .pod-pick:hover { background: var(--pod-soft); }

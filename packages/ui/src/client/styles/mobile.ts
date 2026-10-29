@@ -72,6 +72,12 @@ export const MOBILE_CSS = `
   .pod-panel-top .pod-round, .pod-panel-top .pod-icon-button { width: 44px; height: 44px; }
   .pod-panel-top .pod-back { min-height: 44px; }
   .pod-panel-scroll { padding: 4px 14px calc(24px + env(safe-area-inset-bottom, 0px)); }
+  .pod-browser-head { padding: 6px 8px; }
+  .pod-browser-head .pod-round, .pod-browser-head .pod-icon-button { width: 40px; height: 40px; }
+  .pod-browser-switch { height: 40px; }
+  .pod-browser-url { height: 36px; }
+  .pod-browser-state > span { display: none; }
+  .pod-browser-stage { padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px)); }
   .pod-panel-tabs button { min-height: 40px; font-size: 15px; }
 
   .pod-drawer, .pod-drawer-wide { width: 100%; border-left: 0; }

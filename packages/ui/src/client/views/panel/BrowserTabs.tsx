@@ -6,8 +6,8 @@ import { Badge, Button, Empty } from '../../components/common.tsx'
 import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 
-/** 打开网址：输网址或搜索词（没写 https:// 的会补上，搜索词用必应搜），回车或点“打开”。 */
-export function OpenUrl(props: { readonly roomId?: string; readonly onOpened: (tab: TabInfo) => void }) {
+/** 打开网址：输网址或搜索词（没写 https:// 的会补上，搜索词用必应搜），回车或点“打开”。autoFocus：一出来就能打字。 */
+export function OpenUrl(props: { readonly roomId?: string; readonly onOpened: (tab: TabInfo) => void; readonly autoFocus?: boolean }) {
   const [url, setUrl] = useState('')
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | undefined>(undefined)
@@ -29,6 +29,7 @@ export function OpenUrl(props: { readonly roomId?: string; readonly onOpened: (t
       <div className="pod-row">
         <input
           className="pod-input"
+          autoFocus={props.autoFocus}
           placeholder={t('输网址或要搜的词，例如 example.com')}
           aria-label={t('打开网址')}
           value={url}

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { t, type TabDialog } from 'pod-domain'
-import { api, type BrowserOverlay } from '../../api/endpoints.ts'
+import { api, type BrowserOverlay, type TabView } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
-import { Button } from '../../components/common.tsx'
+import { Button, IconButton, clock } from '../../components/common.tsx'
+import { Icon } from '../../components/Icon.tsx'
 
 /** 下拉框：无头浏览器不画弹出层，Pod 用自己的列表显示选项。 */
 export function SelectOverlay(props: { readonly tabId: string; readonly overlay: Extract<BrowserOverlay, { readonly kind: 'select' }>; readonly onClose: () => void }) {
@@ -100,5 +101,37 @@ export function FileOverlay(props: { readonly tabId: string }) {
         {problem === undefined ? null : <p className="pod-form-error">{problem}</p>}
       </div>
     </div>
+  )
+}
+
+/** bot 请你接管时浮在画面上方的一句话：登录、验证这类它做不了的事。你接管以后就收起来。 */
+export function WaitNotice(props: { readonly ownerName: string; readonly onTakeover: () => void }) {
+  return (
+    <div className="pod-browser-wait" role="status">
+      <Icon name="alert" size={15} />
+      <span>{t('{ownerName}请你接管：登录或验证完点“交还”，可以附一句话。', { ownerName: props.ownerName })}</span>
+      <Button small kind="primary" onClick={props.onTakeover}>
+        {t('接管')}
+      </Button>
+    </div>
+  )
+}
+
+/** 动作记录：从“更多”里打开，浮在画面右上角，新的在上面。 */
+export function ActionLog(props: { readonly actions: TabView['actions']; readonly onClose: () => void }) {
+  return (
+    <section className="pod-browser-log" aria-label={t('动作记录')}>
+      <div className="pod-browser-log-head">
+        <strong>{t('动作记录')}</strong>
+        <IconButton icon="close" label={t('关闭')} onClick={props.onClose} />
+      </div>
+      <ol className="pod-browser-actions">
+        {[...props.actions].reverse().map((action) => (
+          <li key={`${action.at}-${action.text}`}>
+            <span className="pod-muted-inline">{clock(action.at)}</span> {action.text}
+          </li>
+        ))}
+      </ol>
+    </section>
   )
 }
