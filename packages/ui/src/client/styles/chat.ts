@@ -7,7 +7,10 @@ export const CHAT_CSS = `
 .pod-jump-latest:focus-visible { outline: 2px solid var(--pod-info); outline-offset: 2px; }
 .pod-jump-count { position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 9px; corner-shape: round; background: var(--pod-danger); color: #fff; font-size: 11px; line-height: 18px; text-align: center; box-shadow: 0 0 0 2px var(--dsw-alias-bg-layer-1, #fff); }
 @keyframes pod-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-.pod-timeline-inner { display: flex; flex-direction: column; gap: 4px; max-width: 780px; margin: 0 auto; padding: 8px 24px 24px; }
+.pod-convo { --pod-chat-max: 780px; --pod-card-max: 640px; }
+.pod-width-wide { --pod-chat-max: 1080px; --pod-card-max: 860px; }
+.pod-width-full { --pod-chat-max: 100%; --pod-card-max: 960px; }
+.pod-timeline-inner { display: flex; flex-direction: column; gap: 4px; max-width: var(--pod-chat-max); margin: 0 auto; padding: 8px 24px 24px; }
 .pod-load-older { align-self: center; margin-bottom: 8px; }
 .pod-msg { position: relative; display: flex; gap: 10px; padding: 6px 0; }
 .pod-msg-avatar { appearance: none; flex: none; height: fit-content; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
@@ -36,7 +39,7 @@ export const CHAT_CSS = `
 @keyframes pod-flash { 0%, 40% { background: color-mix(in srgb, var(--pod-warn) 22%, transparent); } 100% { background: transparent; } }
 .pod-kickoff-actions { display: flex; gap: 6px; margin-top: 6px; }
 .pod-msg-card { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 4px 0 4px 38px; }
-.pod-msg-card > * { width: 100%; max-width: 640px; }
+.pod-msg-card > * { width: 100%; max-width: var(--pod-card-max); }
 .pod-msg-card > .pod-link { width: auto; }
 .pod-quote { margin: 2px 0 4px; padding: 2px 8px; border-left: 2px solid var(--pod-line); font-size: 12px; color: var(--dsw-alias-label-tertiary); }
 .pod-line { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 2px 0 2px 38px; font-size: 12px; color: var(--dsw-alias-label-tertiary); }
@@ -55,7 +58,7 @@ export const CHAT_CSS = `
 .pod-unread-summary ul { margin: 0; padding-left: 18px; color: var(--dsw-alias-label-secondary); }
 .pod-attachment-image { appearance: none; display: block; margin-top: 6px; padding: 0; border: 0; background: none; cursor: zoom-in; }
 .pod-attachment-image img { display: block; max-width: 280px; max-height: 220px; border: 1px solid var(--pod-line); border-radius: 12px; }
-.pod-composer { position: relative; display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 828px; margin: 0 auto; padding: 0 24px 16px; }
+.pod-composer { position: relative; display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: calc(var(--pod-chat-max) + 48px); margin: 0 auto; padding: 0 24px 16px; }
 .pod-composer-reply { display: flex; align-items: center; gap: 6px; padding: 0 8px; font-size: 12px; color: var(--dsw-alias-label-tertiary); }
 .pod-composer-box { display: flex; flex-direction: column; gap: 6px; padding: 8px 8px 8px 8px; border: 1px solid var(--pod-line); border-radius: 24px; background: var(--dsw-alias-bg-layer-1, #fff); box-shadow: 0 2px 10px color-mix(in srgb, #000 4%, transparent); }
 .pod-composer-box:focus-within { border-color: color-mix(in srgb, var(--pod-info) 55%, var(--pod-line)); }

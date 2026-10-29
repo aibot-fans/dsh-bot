@@ -3,6 +3,7 @@ import { t, type Bot, type RoomMessage } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { Empty } from '../../components/common.tsx'
 import { isPreparing, useApp, useLive, useNav } from '../../state/app.ts'
+import { useChatWidth } from '../../state/chatWidth.ts'
 import { readDraft, saveDraftReply } from '../../state/drafts.ts'
 import { useResource } from '../../state/resource.ts'
 import { ChatHeader } from './ChatHeader.tsx'
@@ -10,10 +11,11 @@ import { Composer } from './Composer.tsx'
 import { PinnedBar } from './PinnedBar.tsx'
 import { Timeline } from './Timeline.tsx'
 
-/** 中间的对话：顶部是对象和用量（有置顶消息时下面一条置顶条），中间是时间线，底部是输入框。默认打开和主管的单聊。 */
+/** 中间的对话：顶部是对象和用量（有置顶消息时下面一条置顶条），中间是时间线，底部是输入框；宽窄按设置里的“聊天区宽度”。默认打开和主管的单聊。 */
 export function Conversation() {
   const app = useApp()
   const nav = useNav()
+  const width = useChatWidth()
   const { data: rooms, loading: roomsLoading } = useResource(app.cache, 'rooms', () => api.rooms())
   const { data: botList } = useResource(app.cache, 'bots', () => api.bots())
   const bots = useMemo(() => new Map((botList ?? []).map((bot) => [bot.id, bot])), [botList])
@@ -50,7 +52,7 @@ export function Conversation() {
 
   if (room === undefined) {
     return (
-      <main className="pod-convo">
+      <main className={`pod-convo pod-width-${width}`}>
         <Empty title={t('正在打开和主管的对话…')} />
       </main>
     )
@@ -59,7 +61,7 @@ export function Conversation() {
   const memberBots = memberIds.map((id) => bots.get(id)).filter((bot): bot is Bot => bot !== undefined)
   const responder = room.kind === 'direct' ? bots.get(room.botId ?? '') : lead
   return (
-    <main className="pod-convo">
+    <main className={`pod-convo pod-width-${width}`}>
       <ChatHeader room={room} bots={bots} memberIds={memberIds} />
       <PinnedBar room={room} bots={authors} />
       <Timeline room={room} bots={authors} members={memberBots} onReply={chooseReply} readSeqAtOpen={readAtOpen?.roomId === room.id ? readAtOpen.seq : room.readSeq} followAt={sentAt} />

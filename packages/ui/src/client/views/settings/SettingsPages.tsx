@@ -4,6 +4,7 @@ import { api, type ModelCatalog } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { Badge, Button, RelativeTime, Segmented, Switch } from '../../components/common.tsx'
 import { useApp } from '../../state/app.ts'
+import { setChatWidth, useChatWidth } from '../../state/chatWidth.ts'
 import { useResource } from '../../state/resource.ts'
 import { AibotRows } from '../aibot/AibotSettings.tsx'
 import { MemoryChanges } from '../memory/MemoryView.tsx'
@@ -45,9 +46,10 @@ function Time(props: { readonly value: string; readonly onChange: (value: string
   return <input className="pod-input pod-input-time" type="time" aria-label={props.label} value={props.value} onChange={(event) => props.onChange(event.target.value)} />
 }
 
-/** 通用：放手程度、通知、勿扰、自动记住要点、X 数据和监控（aibot）、发推用的 X 账号。 */
+/** 通用：语言、聊天区宽度、放手程度、通知、勿扰、自动记住要点、X 数据和监控（aibot）、发推用的 X 账号。 */
 export function GeneralPage(props: { readonly settings: PodSettings; readonly update: Update }) {
   const app = useApp()
+  const width = useChatWidth()
   const { settings, update } = props
   return (
     <div className="pod-settings-body">
@@ -61,6 +63,18 @@ export function GeneralPage(props: { readonly settings: PodSettings; readonly up
           ]}
           onChange={(language) => update({ language })}
           label={t('语言')}
+        />
+      </Row>
+      <Row label={t('聊天区宽度')} hint={t('宽屏上中间对话区多宽；只存在这台设备上，手机上总是铺满')}>
+        <Segmented
+          value={width}
+          options={[
+            ['narrow', t('窄')],
+            ['wide', t('宽')],
+            ['full', t('铺满')],
+          ]}
+          onChange={setChatWidth}
+          label={t('聊天区宽度')}
         />
       </Row>
       <Row label={t('放手程度')} hint={t('谨慎：bot 组队开工前，先把计划发给你看')}>

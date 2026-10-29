@@ -265,4 +265,9 @@ export const UI_EN_SETTINGS: Readonly<Record<string, string>> = {
   '（已换段）': ' (rolled over)',
   '{steps} 步': '{steps} {steps:step|steps}',
   '决策链': 'Decision chain',
+  '聊天区宽度': 'Chat width',
+  '窄': 'Narrow',
+  '宽': 'Wide',
+  '铺满': 'Full',
+  '宽屏上中间对话区多宽；只存在这台设备上，手机上总是铺满': 'How wide the chat area is on large screens. Saved on this device only; phones always use the full width',
 }
