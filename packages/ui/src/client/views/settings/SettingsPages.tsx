@@ -46,7 +46,7 @@ function Time(props: { readonly value: string; readonly onChange: (value: string
   return <input className="pod-input pod-input-time" type="time" aria-label={props.label} value={props.value} onChange={(event) => props.onChange(event.target.value)} />
 }
 
-/** 通用：语言、聊天区宽度、放手程度、通知、勿扰、自动记住要点、X 数据和监控（aibot）、发推用的 X 账号。 */
+/** 通用：语言、聊天区宽度、放手程度、通知、勿扰、自动记住要点、X 数据和监控（aibot）、x_ 工具用的 X 账号。 */
 export function GeneralPage(props: { readonly settings: PodSettings; readonly update: Update }) {
   const app = useApp()
   const width = useChatWidth()

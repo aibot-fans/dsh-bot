@@ -28,14 +28,14 @@ function badgeOf(status: XAccountStatus) {
 function hintOf(status: XAccountStatus): string {
   switch (status.state) {
     case 'ready':
-      return t('bot 用这个账号发推、点赞、转推、关注{name}', { name: status.name === '' ? '' : t('（{name}）', { name: status.name }) })
+      return t('bot 用这个账号读写 X、读私信和加密聊天{name}', { name: status.name === '' ? '' : t('（{name}）', { name: status.name }) })
     case 'signed-out':
       return t('dsh-bot 的浏览器里没登录 X：点“登录”在浏览器里登录，登录好回来点“检查”')
     case 'locked':
     case 'error':
       return status.message
     default:
-      return t('bot 发推、点赞、转推、关注用 dsh-bot 浏览器里登录的 X 账号；点“检查”看看登录的是谁')
+      return t('bot 读写 X、读私信和加密聊天用 dsh-bot 浏览器里登录的 X 账号；点“检查”看看登录的是谁')
   }
 }
 
@@ -88,7 +88,7 @@ export function XAccountRows(props: { readonly settings: PodSettings; readonly u
           {busy ? t('正在检查…') : t('检查')}
         </Button>
       </Row>
-      <Row label={t('X 写操作')} hint={t('bot 用 X 账号发推、删推、点赞、转推、关注时；和浏览器站点规则里的 x.com 是同一条。dsh web 对外开放时一律不做')}>
+      <Row label={t('X 写操作')} hint={t('bot 用 X 账号做改东西的事时（发推、删推、点赞、关注……）；和浏览器站点规则里的 x.com 是同一条。免审批只管发推、点赞、关注这类常用操作，别的照样先给你看；dsh web 对外开放时一律不做')}>
         <Segmented value={mode} options={modes.map((item) => [item, t(SITE_MODE_LABELS[item])] as const)} onChange={(next) => props.update({ siteRules: withXWriteMode(props.settings.siteRules, next) })} label={t('X 写操作')} />
       </Row>
     </>
