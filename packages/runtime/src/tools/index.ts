@@ -13,7 +13,7 @@ import { routineTools } from './routines.ts'
 import { skillTools } from './skills.ts'
 import { askOwnerTool, taskTools } from './task.ts'
 import { teamTools } from './team.ts'
-import { xPostTools } from './x.ts'
+import { xTools } from './x.ts'
 
 /** 其他插件通过 ctx.pod.registerTool() 加的工具：只出现在 bot 会话里，可以按会话决定给不给。 */
 export interface ExtraTool {
@@ -30,7 +30,7 @@ export interface ExtraTool {
  * - 组长的协调会话：任务板、验收、改计划、改派、发说明、交付、要人、找用户；
  * - 咨询会话不给协作工具（咨询不能嵌套），也不做页面；
  * - aibot 的 X 工具：X 情报员、主管、标签里提到 X 或推特的 bot，以及「X 监控」群里的会话；
- * - 发推的 x_ 工具（用 dsh-bot 浏览器里登录的 X 账号）：范围同上，不管 aibot 开没开；
+ * - x_ 工具（用 dsh-bot 浏览器里登录的 X 账号读写 X、读加密聊天）：范围同上，不管 aibot 开没开；
  * - 其他插件注册的工具（浏览器、记忆、检索……）按各自的条件加上。
  */
 export function equipSession(pod: PodRuntime, extras: readonly ExtraTool[], session: PodSession, _agent: LiveAgent): Equipment {
@@ -45,7 +45,7 @@ export function equipSession(pod: PodRuntime, extras: readonly ExtraTool[], sess
   if (sessionMakesPages(session)) base.push(...pageTools(pod, session))
   if (session.kind === 'chat' || session.kind === 'task' || session.kind === 'coord') base.push(...skillTools(pod, session))
   base.push(...pod.aibot.toolsFor(session))
-  if (pod.aibot.coversX(session)) base.push(...xPostTools(pod, session))
+  if (pod.aibot.coversX(session)) base.push(...xTools(pod, session))
   const added = extras.filter((extra) => extra.applies(session)).map((extra) => extra.create(session))
   const names = new Set<string>()
   const tools = [...base, ...added].filter((tool) => {

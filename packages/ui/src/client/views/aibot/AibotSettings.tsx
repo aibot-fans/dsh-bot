@@ -19,7 +19,7 @@ function detailOf(status: AibotStatus): string {
       return t('不会自动重新开通；aibot 那边恢复以后，点“重试”就能接着用')
     case 'ready': {
       if (status.message !== '') return status.message
-      const free = status.dailyFree === null ? '' : t('每天免费 {limit} 次，读一次算一次，监控不扣', { limit: status.dailyFree.limit })
+      const free = status.dailyFree === null ? '' : t('每天免费 {limit} 次，读一次算一次，用你的 X 账号写一次算 4 次，监控不扣', { limit: status.dailyFree.limit })
       const key = status.keyTail === '' ? '' : t('Key 尾号 {keyTail}', { keyTail: status.keyTail })
       return [free, key].filter((part) => part !== '').join(' · ')
     }

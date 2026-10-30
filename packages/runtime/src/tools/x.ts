@@ -1,56 +1,96 @@
-import { tweetId, userHandle } from 'aibot-x-post'
+import { buildRequest, credentialProblem, endpointLines, examples, isWrite, loadCatalog, pathProblem, readChatMessages, readChats, readErrors, type XRequest } from 'aibot-x-post'
 import { SITE_MODE_LABELS, xWriteMode, type PodSession } from 'pod-domain'
-import type { ToolDefinition } from '../dsh.ts'
+import type { ContentBlock, JsonSchema, ToolDefinition } from '../dsh.ts'
 import type { PodRuntime } from '../pod.ts'
-import type { XWrite } from '../x/actions.ts'
+import { acceptsMedia } from '../x/actions.ts'
+import { xErrorText } from '../x/errors.ts'
+import { X_GUIDE } from '../x/guide.ts'
+import { MEDIA_LIMIT, loadMedia } from '../x/media.ts'
+import { nothingRead, refundReason, type XCharge } from '../x/meter.ts'
 import type { XWriteOutcome } from '../x/writes.ts'
-import { bool, failure, flag, podTool, str, success, text, type ToolValue } from './define.ts'
+import { failure, int, oneOf, podTool, str, strList, success, text, texts, type ToolValue } from './define.ts'
 
-/** 免审批时要现开 x.com 再发请求，给足时间。 */
+/** 要现开 x.com 再发请求，给足时间。 */
 const TIMEOUT_MS = 120_000
+/** 带文件时要传完、等 X 处理完（视频最多 10 分钟）。 */
+const UPLOAD_TIMEOUT_MS = 15 * 60_000
 
-const ASK_FIRST = '只在用户明确要求时做；默认要用户先批准，批准后结果会发给你。'
+const object = (description: string): JsonSchema => ({ type: 'object', description })
+
+/** 接口列表、例子和过滤结果是成段的文字，原样交给模型，不包成 JSON。 */
+function plain(value: ToolValue): ContentBlock[] {
+  return [{ type: 'text', text: value.ok ? value.message : JSON.stringify(value) }]
+}
 
 function outcome(result: XWriteOutcome): ToolValue {
   return result.ok ? success(result.message, result.data ?? {}) : failure(result.message)
 }
 
-function validTweet(value: string): boolean {
-  try {
-    tweetId(value)
-    return true
-  } catch {
-    return false
-  }
+function objectArg(args: Readonly<Record<string, unknown>>, key: string): Readonly<Record<string, unknown>> | undefined {
+  const value = args[key]
+  return value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Readonly<Record<string, unknown>>) : undefined
 }
 
-function validUser(value: string): boolean {
-  if (/^\d{1,25}$/.test(value)) return true
-  try {
-    userHandle(value)
-    return true
-  } catch {
-    return false
-  }
+function headersArg(args: Readonly<Record<string, unknown>>): Readonly<Record<string, string>> {
+  return Object.fromEntries(Object.entries(objectArg(args, 'headers') ?? {}).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
 }
 
-/** 推文参数：必填，id 或链接。 */
-function tweetArg(args: Readonly<Record<string, unknown>>): { readonly tweet: string; readonly undo: boolean } | string {
-  const tweet = text(args, 'tweet')
-  if (tweet === '') return '缺少 tweet'
-  if (!validTweet(tweet)) return 'tweet 要填推文 id 或推文链接'
-  return { tweet, undo: flag(args, 'undo') === true }
+/** 按位置对应的文字列表：空的留成空字符串，不把后面的挤上来。 */
+function positional(args: Readonly<Record<string, unknown>>, key: string): readonly string[] {
+  const value = args[key]
+  return Array.isArray(value) ? value.map((item) => (typeof item === 'string' ? item.trim() : '')) : []
+}
+
+function limitArg(args: Readonly<Record<string, unknown>>, fallback: number, max: number): number {
+  const value = args.limit
+  return typeof value === 'number' && Number.isInteger(value) ? Math.min(Math.max(value, 1), max) : fallback
+}
+
+/** 读加密聊天的错：还没输聊天密码时说清楚怎么解锁。 */
+function chatErrorText(error: unknown): string {
+  const text = xErrorText(error)
+  return text.startsWith('XChat is locked') ? '加密聊天还没解锁：请用户在 dsh-bot 的浏览器里打开 https://x.com/i/chat，输一次聊天密码，再来读。' : text
+}
+
+interface RequestArgs {
+  readonly method: 'GET' | 'POST'
+  readonly path: string
+  readonly params: Readonly<Record<string, unknown>>
+  readonly data: Readonly<Record<string, unknown>> | undefined
+  readonly headers: Readonly<Record<string, string>>
+  readonly files: readonly string[]
+  readonly alts: readonly string[]
 }
 
 /**
- * 用 dsh-bot 浏览器里登录的 X 账号发推、删推、点赞、转推、关注（x_ 开头）。
- * 写操作按 x.com 的站点规则：默认交给用户批准，免审批的直接做，只读和禁止的不做；dsh web 对外开放时一律不做。
+ * 用 dsh-bot 浏览器里登录的 X 账号读写 X（x_ 开头）：列出接口、看录下的例子、发请求（响应存起来）、
+ * 用 jq 过滤着读；另外能读加密聊天。
+ * 改东西的请求按 x.com 的站点规则：默认交给用户批准，免审批的直接做，只读和禁止的不做；dsh web 对外开放时一律不做。
  */
-export function xPostTools(pod: PodRuntime, session: PodSession): readonly ToolDefinition[] {
+export function xTools(pod: PodRuntime, session: PodSession): readonly ToolDefinition[] {
   const current = (): PodSession => pod.registry.get(session.id) ?? session
-  const write = async (input: XWrite): Promise<ToolValue> => outcome(await pod.x.writes.request(current(), input))
-  const tweet = str('推文 id 或推文链接')
-  const undo = (what: string) => bool(`true 表示取消${what}`)
+
+  /** 读 X 先扣 aibot 的次数（用完了就不读），出错时退回，错误按 errorText 说。 */
+  const metered = async (tool: string, errorText: (error: unknown) => string, work: (charge: XCharge) => Promise<ToolValue>): Promise<ToolValue> => {
+    const charge = await pod.x.meter.charge({ tool, kind: 'read', files: 0 })
+    if (charge.blocked !== undefined) return failure(charge.blocked)
+    try {
+      return await work(charge)
+    } catch (error) {
+      pod.x.meter.refund(charge, refundReason(error))
+      return failure(errorText(error))
+    }
+  }
+
+  const read = (request: XRequest): Promise<ToolValue> =>
+    metered('x_api_request', xErrorText, async (charge) => {
+      const response = await pod.x.account.use((client) => client.dispatch(request))
+      const id = pod.x.responses.add(session.id, response)
+      const errors = readErrors(response)
+      if (errors.length === 0) return success(`响应存为 ${id}，用 x_filter_response 读`, { id })
+      if (nothingRead(response)) pod.x.meter.refund(charge, 'x_errors')
+      return success(`响应存为 ${id}，里面有 errors（X 没做成或部分没做成），先用 x_filter_response 看 .errors`, { id, errors: errors.slice(0, 3) })
+    })
 
   const account = podTool<Record<string, never>>({
     name: 'x_account',
@@ -68,68 +108,120 @@ export function xPostTools(pod: PodRuntime, session: PodSession): readonly ToolD
     },
   })
 
-  const post = podTool<{ readonly text: string; readonly replyTo: string; readonly quote: string }>({
-    name: 'x_post',
-    description: `用 dsh-bot 浏览器里登录的 X 账号发一条推文（只支持文字）；回复别人填 reply_to，引用填 quote。正文按用户的意思写好再发。${ASK_FIRST}`,
-    properties: { text: str('推文正文'), reply_to: str('回复哪条推文：推文 id 或链接'), quote: str('引用哪条推文：推文 id 或链接') },
-    required: ['text'],
+  const listEndpoints = podTool<Record<string, never>>({
+    name: 'x_list_endpoints',
+    description: 'All callable endpoints, one per line: GraphQL as "/graphql/<queryId>/<operationName>", REST as "METHOD <path>". Use a line verbatim as `path` in x_get_operation and x_api_request.',
+    properties: {},
+    parse: () => ({}),
+    concurrent: true,
+    render: plain,
+    run: async () => success(endpointLines(await loadCatalog()).join('\n')),
+  })
+
+  const getOperation = podTool<{ readonly path: string }>({
+    name: 'x_get_operation',
+    description: 'Recorded real example for an endpoint, in the exact shape x_api_request accepts. Multiple lines are multiple recorded variants.',
+    properties: { path: str('A line from x_list_endpoints, verbatim') },
+    required: ['path'],
+    parse: (args) => {
+      const path = text(args, 'path')
+      return path === '' ? '缺少 path' : { path }
+    },
+    concurrent: true,
+    render: plain,
+    run: async (args) => {
+      const found = examples(await loadCatalog(), args.path)
+      if (found.length === 0) return success(`Not in catalog: ${args.path}. Pick a line from x_list_endpoints.`)
+      return success(found.map((item) => JSON.stringify(item)).join('\n'))
+    },
+  })
+
+  const request = podTool<RequestArgs>({
+    name: 'x_api_request',
+    description: `Call an endpoint and return a response id (never the body - read it with x_filter_response). GraphQL: send {variables: {...}} in params (GET) or data (POST). REST: copy params/data from x_get_operation. Paths not in the catalog are sent as-is.\n\n${X_GUIDE}`,
+    properties: {
+      method: oneOf('Only used when `path` is not in the catalog (default GET)', ['GET', 'POST']),
+      path: str('A line from x_list_endpoints, verbatim; or a raw path relative to https://x.com/i/api'),
+      params: object('Query parameters; object values are JSON-encoded automatically'),
+      data: object('JSON body (POST)'),
+      headers: object('Extra headers; rarely needed'),
+      files: strList(`要带的图片、GIF 或视频：工作区里的路径（相对你的工作目录或绝对路径），最多 ${MEDIA_LIMIT} 个，每个不超过 1 GB；收 JPEG、PNG、WebP、GIF、MP4、MOV。只用在 CreateTweet 这类 variables 里有 media.media_entities 的请求上`),
+      alt_texts: strList('每个文件的说明文字（替代文字，读给看不到图的人听），按 files 的顺序一一对应，可以不填'),
+    },
+    required: ['path'],
+    timeoutMs: UPLOAD_TIMEOUT_MS,
+    parse: (args) => {
+      const path = text(args, 'path')
+      const files = texts(args, 'files')
+      const alts = positional(args, 'alt_texts')
+      if (path === '') return '缺少 path'
+      if (files.length > MEDIA_LIMIT) return `files 最多 ${MEDIA_LIMIT} 个`
+      if (alts.length > files.length) return 'alt_texts 比 files 多，要按 files 的顺序一一对应'
+      const method = typeof args.method === 'string' && args.method.toUpperCase() === 'POST' ? 'POST' : 'GET'
+      return { method, path, params: objectArg(args, 'params') ?? {}, data: objectArg(args, 'data'), headers: headersArg(args), files, alts }
+    },
+    run: async (args) => {
+      const built = buildRequest(await loadCatalog(), { method: args.method, path: args.path, params: args.params, headers: args.headers, ...(args.data === undefined ? {} : { data: args.data }) })
+      const problem = pathProblem(built.path) ?? credentialProblem(built)
+      if (problem !== undefined) return failure(problem)
+      if (args.files.length > 0 && !acceptsMedia(built)) return failure('files 只能用在 CreateTweet 这类 variables 里有 media.media_entities 的请求上')
+      if (!isWrite(built)) return read(built)
+      const me = current()
+      const media = args.files.length === 0 ? [] : await loadMedia(args.files, args.alts, (path) => pod.browser.owner.resolveWorkspaceFile(path, pod.folderOf(me)), pod.workspaceRoot)
+      if (typeof media === 'string') return failure(media)
+      return outcome(await pod.x.writes.request(me, { request: built, ...(media.length === 0 ? {} : { media }) }))
+    },
+  })
+
+  const filterResponse = podTool<{ readonly id: string; readonly jq: string }>({
+    name: 'x_filter_response',
+    description: 'Apply a jq filter to a stored response and return the result - the only way to read an x_api_request response. Re-call freely with different filters on the same id.',
+    properties: { id: str('A response id returned by x_api_request'), jq: str('jq filter applied to the stored raw response') },
+    required: ['id', 'jq'],
+    parse: (args) => {
+      const id = text(args, 'id')
+      const jq = typeof args.jq === 'string' ? args.jq : ''
+      if (id === '') return '缺少 id'
+      return jq.trim() === '' ? '缺少 jq' : { id, jq }
+    },
+    concurrent: true,
+    render: plain,
+    run: async (args) => {
+      const result = await pod.x.responses.filter(session.id, args.id, args.jq)
+      return result.ok ? success(result.text) : failure(result.text)
+    },
+  })
+
+  const chats = podTool<{ readonly limit: number }>({
+    name: 'x_chats',
+    description:
+      '读登录的 X 账号的加密聊天（XChat，x.com/i/chat）会话列表，最近的在前：会话 id、对方名字、最后一条的预览和时间（照 X 网页显示的）。',
+    properties: { limit: int('最多读多少个会话，默认 20，最多 100') },
+    timeoutMs: TIMEOUT_MS,
+    parse: (args) => ({ limit: limitArg(args, 20, 100) }),
+    run: (args) =>
+      metered('x_chats', chatErrorText, async () => {
+        const conversations = await pod.x.account.use((client) => readChats(client, { limit: args.limit }))
+        return success(`${conversations.length} 个会话`, { conversations })
+      }),
+  })
+
+  const chat = podTool<{ readonly conversation: string; readonly limit: number }>({
+    name: 'x_chat',
+    description: '读加密聊天里一个会话最近的消息，按时间从早到晚：发送人、是不是自己发的（mine）、日期、时间、正文和发送状态（照 X 网页显示的）。',
+    properties: { conversation: str('x_chats 给的会话 id，或 https://x.com/i/chat/… 链接'), limit: int('最多读多少条，默认 50，最多 300') },
+    required: ['conversation'],
     timeoutMs: TIMEOUT_MS,
     parse: (args) => {
-      const body = typeof args.text === 'string' ? args.text.trim() : ''
-      const replyTo = text(args, 'reply_to')
-      const quote = text(args, 'quote')
-      if (body === '') return '缺少 text'
-      if (replyTo !== '' && !validTweet(replyTo)) return 'reply_to 要填推文 id 或推文链接'
-      if (quote !== '' && !validTweet(quote)) return 'quote 要填推文 id 或推文链接'
-      return { text: body, replyTo, quote }
+      const conversation = text(args, 'conversation')
+      return conversation === '' ? '缺少 conversation' : { conversation, limit: limitArg(args, 50, 300) }
     },
-    run: (args) => write({ action: 'post', text: args.text, ...(args.replyTo === '' ? {} : { replyTo: args.replyTo }), ...(args.quote === '' ? {} : { quote: args.quote }) }),
+    run: (args) =>
+      metered('x_chat', chatErrorText, async () => {
+        const result = await pod.x.account.use((client) => readChatMessages(client, args.conversation, { limit: args.limit }))
+        return success(`${result.name === '' ? result.id : result.name}：${result.messages.length} 条`, { id: result.id, name: result.name, messages: result.messages })
+      }),
   })
 
-  const remove = podTool<{ readonly tweet: string }>({
-    name: 'x_delete',
-    description: `删掉登录账号自己的一条推文。${ASK_FIRST}`,
-    properties: { tweet },
-    required: ['tweet'],
-    timeoutMs: TIMEOUT_MS,
-    parse: tweetArg,
-    run: (args) => write({ action: 'delete', tweet: args.tweet }),
-  })
-
-  const like = podTool<{ readonly tweet: string; readonly undo: boolean }>({
-    name: 'x_like',
-    description: `用登录的 X 账号给推文点赞，undo=true 取消点赞。${ASK_FIRST}`,
-    properties: { tweet, undo: undo('点赞') },
-    required: ['tweet'],
-    timeoutMs: TIMEOUT_MS,
-    parse: tweetArg,
-    run: (args) => write({ action: args.undo ? 'unlike' : 'like', tweet: args.tweet }),
-  })
-
-  const repost = podTool<{ readonly tweet: string; readonly undo: boolean }>({
-    name: 'x_repost',
-    description: `用登录的 X 账号转推（不加评论；要加评论用 x_post 的 quote），undo=true 取消转推。${ASK_FIRST}`,
-    properties: { tweet, undo: undo('转推') },
-    required: ['tweet'],
-    timeoutMs: TIMEOUT_MS,
-    parse: tweetArg,
-    run: (args) => write({ action: args.undo ? 'unrepost' : 'repost', tweet: args.tweet }),
-  })
-
-  const follow = podTool<{ readonly user: string; readonly undo: boolean }>({
-    name: 'x_follow',
-    description: `用登录的 X 账号关注用户，undo=true 取消关注。${ASK_FIRST}`,
-    properties: { user: str('@用户名、用户名或主页链接'), undo: undo('关注') },
-    required: ['user'],
-    timeoutMs: TIMEOUT_MS,
-    parse: (args) => {
-      const user = text(args, 'user')
-      if (user === '') return '缺少 user'
-      if (!validUser(user)) return 'user 要填 @用户名、用户名或主页链接'
-      return { user, undo: flag(args, 'undo') === true }
-    },
-    run: (args) => write({ action: args.undo ? 'unfollow' : 'follow', user: args.user }),
-  })
-
-  return [account, post, remove, like, repost, follow]
+  return [account, listEndpoints, getOperation, request, filterResponse, chats, chat]
 }

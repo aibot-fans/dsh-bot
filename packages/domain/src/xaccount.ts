@@ -1,4 +1,4 @@
-/** dsh-bot 浏览器里登录的 X 账号：x_ 工具（发推、删推、点赞、转推、关注）用它。 */
+/** dsh-bot 浏览器里登录的 X 账号：x_ 工具（读写 X、读加密聊天）用它。 */
 
 import { siteModeFor, type SiteMode, type SiteRule } from './policy.ts'
 

@@ -23,7 +23,7 @@ export function AibotUsage() {
     <section className="pod-card pod-aibot-usage">
       <div className="pod-row pod-wrap">
         <strong>{t('X 数据（aibot）')}</strong>
-        <span className="pod-muted-inline">{t('每天免费 {limit} 次，读一次算一次，监控不扣', { limit: daily.limit })}</span>
+        <span className="pod-muted-inline">{t('每天免费 {limit} 次，读一次算一次，用你的 X 账号写一次算 4 次，监控不扣', { limit: daily.limit })}</span>
       </div>
       <div className="pod-aibot-numbers">
         <span>

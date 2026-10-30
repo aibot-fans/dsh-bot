@@ -68,6 +68,7 @@ export const RUNTIME_EN_MESSAGES: Readonly<Record<string, string>> = {
   'aibot 开通成功但没有返回 Key': 'aibot signup succeeded but returned no key',
   '请求太频繁，稍后自动再试': 'Too many requests; will retry automatically',
   '开通失败：{message}': 'Signup failed: {message}',
+  '{quota}。x_ 工具读写 X 也从这份免费次数里扣，今天别再重试，把情况告诉用户。': "{quota}. Reading and writing X with the x_ tools uses the same free calls, so don't retry today; tell the user.",
   '{quota}。今天别再重试这个请求，把情况告诉用户；监控照常能用。': "{quota}. Don't retry this request today; tell the user. Monitoring still works.",
   '{DISABLED_TEXT}，X 工具暂时不能用，告诉用户去设置里看看。': '{DISABLED_TEXT}. X tools are unavailable for now; tell the user to check Settings.',
   '这把 Key 没有这个工具的权限（dsh-bot 专用 Key 只能读数据和管理监控，不能发推）。要发推、点赞，用会话里别的 X 写工具；没有的话用共用浏览器。': "This key doesn't have permission for this tool (the dsh-bot key can only read data and manage monitors, not post). To post or like, use another X write tool in this session; if there isn't one, use the shared browser.",

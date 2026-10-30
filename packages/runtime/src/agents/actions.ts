@@ -110,4 +110,8 @@ export const TAINTING_TOOLS: ReadonlySet<string> = new Set([
   'browser_snapshot',
   'browser_extract',
   'browser_screenshot',
+  // X 上读回来的推文、私信也是外部内容
+  'x_filter_response',
+  'x_chats',
+  'x_chat',
 ])

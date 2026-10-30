@@ -18,7 +18,8 @@
     "build": "tsdown"
   },
   "devDependencies": {
-    "aibot-x-post": "0.1.0",
+    "aibot-x-post": "0.2.0",
+    "jq-wasm": "3.0.0-jq-1.8.2",
     "pod-domain": "workspace:*",
     "pod-store": "workspace:*"
   }

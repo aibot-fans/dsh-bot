@@ -133,7 +133,7 @@ export class PodRuntime {
   readonly pages: PageService
   readonly pageLibrary: PageLibrary
   readonly aibot: AibotService
-  /** 用 dsh-bot 浏览器里登录的 X 账号发推、点赞、转推、关注（x_ 工具）。 */
+  /** 用 dsh-bot 浏览器里登录的 X 账号读写 X、读加密聊天（x_ 工具）。 */
   readonly x: XKit
   readonly updates: UpdateService
   readonly now: () => number
@@ -532,6 +532,12 @@ export class PodRuntime {
       now,
       exposed: () => (this.exposureState.exposed ? this.exposureState.reasons.join('；') : undefined),
       exfiltration: (session, key, candidate, title) => this.browser.actions.exfiltration(session, key, candidate, title),
+      // 读写 X 也扣 aibot 的次数；aibot 在后面才建，用到时再取。
+      meter: {
+        charge: (usage) => this.aibot.chargeLocal(usage),
+        refund: (charge, reason) => this.aibot.refundLocal(charge.receipt, reason),
+        blocked: () => this.aibot.localBlocked(),
+      },
     })
     // 写操作审批有两种：浏览器里的点击和 X 写操作（data.channel 是 x），批准后各自执行。
     this.waits.setResolver('write', (wait, answer) => (wait.data.channel === 'x' ? this.x.writes.resolve(wait, answer) : this.browser.approvals.resolveWrite(wait, answer)))

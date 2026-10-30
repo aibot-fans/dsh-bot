@@ -10,17 +10,19 @@ export interface DeviceInfo {
   readonly bindAvailable: boolean
 }
 
+/** 每天的免费额度；没给就是 null。 */
+export function parseDaily(value: unknown): AibotDailyFree | null {
+  if (!isJson(value)) return null
+  return { limit: count(value.limit), used: count(value.used), remaining: count(value.remaining), resetAt: toTime(value.resetAt), pausedReason: text(value.pausedReason) || null }
+}
+
 export function parseInfo(data: Json): DeviceInfo {
-  const daily = isJson(data.dailyFree) ? data.dailyFree : undefined
   const monitor = isJson(data.monitor) ? data.monitor : undefined
   const account = isJson(data.account) ? data.account : {}
   const bind = isJson(data.bind) ? data.bind : {}
   const kind = text(account.kind)
   return {
-    dailyFree:
-      daily === undefined
-        ? null
-        : { limit: count(daily.limit), used: count(daily.used), remaining: count(daily.remaining), resetAt: toTime(daily.resetAt), pausedReason: text(daily.pausedReason) || null },
+    dailyFree: parseDaily(data.dailyFree),
     monitor: monitor === undefined ? null : { accountLimit: count(monitor.accountLimit), activeSubscriptionCount: count(monitor.activeSubscriptionCount), pausedBySystem: monitor.pausedBySystem === true },
     accountKind: kind === 'device' || kind === 'account' ? kind : null,
     accountDisplay: text(account.display) || null,

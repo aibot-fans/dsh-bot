@@ -35,8 +35,11 @@ importers:
   packages/runtime:
     devDependencies:
       aibot-x-post:
-        specifier: 0.1.0
-        version: 0.1.0
+        specifier: 0.2.0
+        version: 0.2.0
+      jq-wasm:
+        specifier: 3.0.0-jq-1.8.2
+        version: 3.0.0-jq-1.8.2
       pod-domain:
         specifier: workspace:*
         version: link:../domain
@@ -268,9 +271,9 @@ packages:
   '@yuku-toolchain/types@0.19.0':
     resolution: {integrity: sha512-tFkNbsP4WXX9UMUC5syJGdK9dPMLK0PPaIuXCcCYH75sZ8MrebfBZ2XvCILRTw8AgLivSSCfDa4R67iYBDa4Kg==}
 
-  aibot-x-post@0.1.0:
-    resolution: {integrity: sha512-b9JAuf7aDAm5F5GNLz6xIy1Kq6rjpvLBJjuW3yNwZbe4Jh+Zkk1r+aGmi/hYC4VRE+ehexuZfgk1j4FlbXu02A==}
-    engines: {node: '>=18'}
+  aibot-x-post@0.2.0:
+    resolution: {integrity: sha512-gdUMLVNX7Fs8j/l71h8TOwfCObLJ4gDkiNFyeZDFe0CkoYRMxH5ISuJ3asdHxL8zAJmNNuFyT9qDxFeN/1Wmkg==}
+    engines: {node: '>=24'}
 
   cac@7.1.0:
     resolution: {integrity: sha512-LMDU/U2yA4IPIY8KT0NsNPWEYZvAMkbgyspxJ6btJaYV+WMDOHAZCmB0lsTObiHaRS1V/ztKAl7+TSkTqXyeoA==}
@@ -314,6 +317,10 @@ packages:
   import-without-cache@0.4.1:
     resolution: {integrity: sha512-vXoV9PjKHEednCUu01e98TkImxy67e3BJXbTIOmIq4Hyzw3IAwYRcuPkfeTzJzwyyts4kjuA73x+pWJLc4f86A==}
     engines: {node: ^22.18.0 || >=24.0.0}
+
+  jq-wasm@3.0.0-jq-1.8.2:
+    resolution: {integrity: sha512-jgWSEBJSd0lYR4Q5Fw8333MxQS5jCRI+g9KwAGL7yK1spwzTJy8C5uOS08wbpKE0Gz8oQYLlRpNLE/W70Ksp2g==}
+    engines: {node: '>=20'}
 
   obug@3.0.0:
     resolution: {integrity: sha512-5vvB5+W7ePv+p3uqxi+RcW1XAzLW0/hxt3/4X4Lc4qHudzOhmBiBwOY6DRob4WnanAEGvNcLjF+KNOufrUoEQw==}
@@ -573,7 +580,7 @@ snapshots:
 
   '@yuku-toolchain/types@0.19.0': {}
 
-  aibot-x-post@0.1.0: {}
+  aibot-x-post@0.2.0: {}
 
   cac@7.1.0: {}
 
@@ -596,6 +603,8 @@ snapshots:
   hookable@6.1.2: {}
 
   import-without-cache@0.4.1: {}
+
+  jq-wasm@3.0.0-jq-1.8.2: {}
 
   obug@3.0.0: {}
 

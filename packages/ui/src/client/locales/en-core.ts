@@ -130,7 +130,7 @@ export const UI_EN_CORE: Readonly<Record<string, string>> = {
   '关掉后不调 aibot、不收监控动态；开通信息保留，再打开接着用': "When off, dsh-bot doesn't call aibot or receive monitoring updates. Your setup is kept, so you can turn it back on anytime",
   '第一次用自动开通，不用注册登录': 'Set up automatically on first use, no sign-up needed',
   '不会自动重新开通；aibot 那边恢复以后，点“重试”就能接着用': "It won't set up again on its own. Once aibot recovers, click “Retry” to continue",
-  '每天免费 {limit} 次，读一次算一次，监控不扣': '{limit} free calls a day; each read counts once, monitoring is free',
+  '每天免费 {limit} 次，读一次算一次，用你的 X 账号写一次算 4 次，监控不扣': '{limit} free calls a day; each read counts once, each write with your X account counts 4, monitoring is free',
   'Key 尾号 {keyTail}': 'Key ending in {keyTail}',
   'X 数据和监控': 'X data and monitoring',
   '正在读取 aibot 的状态…': 'Loading aibot status…',

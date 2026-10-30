@@ -59,6 +59,11 @@ export function isQuotaCode(code: string): boolean {
   return QUOTA[code] !== undefined
 }
 
+/** 用登录的 X 账号读写 X 时额度用完，告诉 bot 的话。 */
+export function localQuotaText(code: string): string {
+  return t('{quota}。x_ 工具读写 X 也从这份免费次数里扣，今天别再重试，把情况告诉用户。', { quota: quotaText(code) ?? code })
+}
+
 /** 调 X 工具出错时告诉 bot 的话：额度、停用、频率、X 临时失败各说各的，其余用 aibot 的原话。 */
 export function toolErrorText(code: string, message: string): string {
   const quota = quotaText(code)

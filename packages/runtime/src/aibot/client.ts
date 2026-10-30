@@ -1,4 +1,5 @@
 import { t } from 'pod-domain'
+import type { XUsage } from '../x/meter.ts'
 import { AibotError, AibotNetworkError } from './errors.ts'
 
 /** aibot 的地址；开发时可以用 POD_AIBOT_URL 指到别的环境。 */
@@ -7,6 +8,8 @@ export const AIBOT_URL = process.env.POD_AIBOT_URL ?? 'https://api.aibot.fans'
 export const AIBOT_SITE = 'https://aibot.fans'
 
 const REQUEST_TIMEOUT_MS = 20_000
+/** 用登录的 X 账号读写 X 前扣次数最多等多久：等不到就照常做、不扣，不让读写 X 卡太久。 */
+const LOCAL_USAGE_TIMEOUT_MS = 8_000
 
 export type Json = Readonly<Record<string, unknown>>
 
@@ -75,7 +78,7 @@ export interface AibotPage {
 }
 
 /**
- * aibot 的 REST 接口：开通、设备状态、补拉事件、绑定账号。
+ * aibot 的 REST 接口：开通、设备状态、补拉事件、绑定账号，用登录的 X 账号读写 X 时扣次数。
  * Key 只放在请求头里，不进日志；出错抛 AibotError（带错误码）或 AibotNetworkError（网络问题）。
  */
 export class AibotClient {
@@ -89,8 +92,13 @@ export class AibotClient {
     return new URL(path, this.baseUrl)
   }
 
-  async request(method: 'GET' | 'POST', path: string, options: { readonly key?: string; readonly body?: unknown; readonly query?: Readonly<Record<string, string | number | undefined>> } = {}): Promise<AibotPage> {
+  async request(
+    method: 'GET' | 'POST',
+    path: string,
+    options: { readonly key?: string; readonly body?: unknown; readonly query?: Readonly<Record<string, string | number | undefined>>; readonly timeoutMs?: number } = {},
+  ): Promise<AibotPage> {
     const url = this.url(path)
+    const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS
     for (const [name, value] of Object.entries(options.query ?? {})) {
       if (value !== undefined) url.searchParams.set(name, String(value))
     }
@@ -99,9 +107,9 @@ export class AibotClient {
     if (options.body !== undefined) headers['content-type'] = 'application/json'
     let response: Response
     try {
-      response = await fetch(url, { method, headers, body: options.body === undefined ? undefined : JSON.stringify(options.body), signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
+      response = await fetch(url, { method, headers, body: options.body === undefined ? undefined : JSON.stringify(options.body), signal: AbortSignal.timeout(timeoutMs) })
     } catch (error) {
-      throw unreachable(error, REQUEST_TIMEOUT_MS)
+      throw unreachable(error, timeoutMs)
     }
     const body = parseJson(await response.text().catch(() => ''))
     if (!response.ok) throw errorFrom(response, body)
@@ -139,6 +147,18 @@ export class AibotClient {
 
   async bindPoll(key: string, id: string): Promise<Json> {
     const { data } = await this.request('GET', `/pod/bind/${encodeURIComponent(id)}`, { key })
+    return isJson(data) ? data : {}
+  }
+
+  /** 用登录的 X 账号访问 X 前扣次数：只发工具名、读还是写、带几个文件，不发请求的内容。 */
+  async chargeLocal(key: string, usage: XUsage): Promise<Json> {
+    const { data } = await this.request('POST', '/pod/local-usage', { key, body: usage, timeoutMs: LOCAL_USAGE_TIMEOUT_MS })
+    return isJson(data) ? data : {}
+  }
+
+  /** X 那边没做成：凭扣的时候给的回执把次数退回去。 */
+  async refundLocal(key: string, receipt: string, reason: string): Promise<Json> {
+    const { data } = await this.request('POST', '/pod/local-usage/refund', { key, body: { receipt, reason } })
     return isJson(data) ? data : {}
   }
 }

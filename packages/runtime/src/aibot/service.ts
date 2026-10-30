@@ -7,9 +7,10 @@ import type { RoomService } from '../chat/rooms.ts'
 import type { PodBus } from '../core/bus.ts'
 import type { ToolDefinition } from '../dsh.ts'
 import type { NotificationService } from '../notify/service.ts'
-import { AIBOT_SITE, AibotClient, count, isJson, networkText, reasonOf, text, toTime } from './client.ts'
-import { parseInfo, type DeviceInfo } from './device.ts'
-import { AibotError, DEVICE_DISABLED, DISABLED_TEXT, INVALID_KEY, isQuotaCode, quotaText, signupText, toolErrorText } from './errors.ts'
+import type { XCharge, XUsage } from '../x/meter.ts'
+import { AIBOT_SITE, AibotClient, count, isJson, networkText, reasonOf, text, toTime, type Json } from './client.ts'
+import { parseDaily, parseInfo, type DeviceInfo } from './device.ts'
+import { AibotError, DEVICE_DISABLED, DISABLED_TEXT, INVALID_KEY, isQuotaCode, localQuotaText, quotaText, signupText, toolErrorText } from './errors.ts'
 import { XInbox } from './inbox.ts'
 import { McpClient, type McpTool } from './mcp.ts'
 import { localizeX, seedX, xBot } from './seed.ts'
@@ -325,7 +326,7 @@ export class AibotService {
     return this.coversX(session) ? this.definitions : []
   }
 
-  /** 会话在不在用 X 的范围里（不管 aibot 开没开）：发推的 x_ 工具也按它装。 */
+  /** 会话在不在用 X 的范围里（不管 aibot 开没开）：x_ 工具也按它装。 */
   coversX(session: PodSession): boolean {
     if (session.kind !== 'chat' && session.kind !== 'task' && session.kind !== 'coord') return false
     const bot = this.deps.bots.get(session.botId)
@@ -382,6 +383,51 @@ export class AibotService {
       this.info = { ...this.info, dailyFree: { ...this.info.dailyFree, remaining: 0, resetAt: until } }
     }
     this.setState('ready', quotaText(error.code) ?? '')
+  }
+
+  // ---------- 用登录的 X 账号读写 X ----------
+
+  /**
+   * 访问 X 前扣次数（读 1 次，写 4 次，每个文件另加 2 次）：额度用完时返回给 bot 的话；
+   * aibot 没开、还没开通好、停用了、连不上或还不支持时照常做、不扣。
+   */
+  async chargeLocal(usage: XUsage): Promise<XCharge> {
+    const blocked = this.localBlocked()
+    if (blocked !== undefined) return { blocked }
+    if (!this.enabled || this.state !== 'ready') return {}
+    try {
+      const data = await this.authed((key) => this.client.chargeLocal(key, usage))
+      this.updateDaily(data)
+      const receipt = text(data.receipt)
+      return receipt === '' ? {} : { receipt }
+    } catch (error) {
+      if (!(error instanceof AibotError) || !isQuotaCode(error.code)) return {}
+      this.quotaHit(error)
+      return { blocked: localQuotaText(error.code) }
+    }
+  }
+
+  /** X 那边没做成：把扣的次数退回去。不等结果，退不成就算了。 */
+  refundLocal(receipt: string | undefined, reason: string): void {
+    if (receipt === undefined || !this.enabled) return
+    void this.authed((key) => this.client.refundLocal(key, receipt, reason))
+      .then((data) => this.updateDaily(data))
+      .catch((error: unknown) => this.deps.warn(`退回读写 X 扣的次数失败：${error instanceof AibotError ? error.message : reasonOf(error)}`))
+  }
+
+  /** 今天的额度已经用完（看记下的，不发请求）时给 bot 的话。 */
+  localBlocked(): string | undefined {
+    const blocked = this.quotaBlock
+    if (!this.enabled || this.state !== 'ready' || blocked === undefined || this.deps.now() >= blocked.until) return undefined
+    return localQuotaText(blocked.code)
+  }
+
+  /** 扣次数、退次数的回复里带着现在每天的免费额度：设置页和用量页跟着变。 */
+  private updateDaily(data: Json): void {
+    const dailyFree = parseDaily(data.dailyFree)
+    if (dailyFree === null || this.info === undefined) return
+    this.info = { ...this.info, dailyFree }
+    this.emit()
   }
 
   /** 事件流连接被拒。 */

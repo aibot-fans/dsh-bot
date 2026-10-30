@@ -282,7 +282,7 @@ export class BrowserTab {
 
   /**
    * 以后每次进新页面，先在网页自己的环境里跑这段脚本，比网页的脚本早。
-   * 只给 X 账号的隐藏标签页用（x/account.ts）：X 的接口客户端只能在网页自己的环境里拿到。
+   * 只给 X 账号的隐藏标签页用（x/account.ts）。
    */
   async addInitScript(source: string): Promise<void> {
     await this.send('Page.addScriptToEvaluateOnNewDocument', { source })
