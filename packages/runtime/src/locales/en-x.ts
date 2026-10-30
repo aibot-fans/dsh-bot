@@ -6,7 +6,8 @@ export const RUNTIME_EN_X: Readonly<Record<string, string>> = {
   'X 停用了这个账号': 'X has suspended this account',
   'X 觉得这次操作像自动发的，拒绝了：先别重试，过一阵再做': 'X thinks this looks automated and refused it: do not retry right away; try again later',
   '和最近发过的一条重复了，X 不让发': 'X refused it as a duplicate of a recent post',
-  '推文太长了：普通账号最多 280 个字符，中文一个字算两个': 'The post is too long: standard accounts get 280 characters, and each Chinese character counts as two',
+  '推文太长了：普通账号最多 280 个字符，中文一个字算两个；有 Premium 的账号可以改发长帖（CreateNoteTweet）':
+    'The post is too long: standard accounts get 280 characters, and each Chinese character counts as two; accounts with Premium can send it as a long post (CreateNoteTweet)',
   'X 说操作太频繁了，先停一会儿再试': 'X says this is too frequent; wait a while and try again',
   '没找到这条推文或这个用户': 'That post or user was not found',
   '本来就是这个状态': 'It was already that way',
@@ -19,6 +20,7 @@ export const RUNTIME_EN_X: Readonly<Record<string, string>> = {
   // 审批卡
   '{label}：{target}': '{label}: {target}',
   '发推': 'Post',
+  '发长帖': 'Long post',
   '回复推文': 'Reply',
   '引用推文': 'Quote',
   '删推': 'Delete post',

@@ -8,7 +8,7 @@ const TEXTS: Readonly<Record<XErrorCode, string>> = {
   suspended: 'X 停用了这个账号',
   automated: 'X 觉得这次操作像自动发的，拒绝了：先别重试，过一阵再做',
   duplicate: '和最近发过的一条重复了，X 不让发',
-  'too-long': '推文太长了：普通账号最多 280 个字符，中文一个字算两个',
+  'too-long': '推文太长了：普通账号最多 280 个字符，中文一个字算两个；有 Premium 的账号可以改发长帖（CreateNoteTweet）',
   'rate-limited': 'X 说操作太频繁了，先停一会儿再试',
   'not-found': '没找到这条推文或这个用户',
   already: '本来就是这个状态',

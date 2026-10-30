@@ -18,6 +18,7 @@ export interface XField {
 /** 常用写操作的叫法；别的就用接口名。 */
 const LABELS: Readonly<Record<string, string>> = {
   CreateTweet: '发推',
+  CreateNoteTweet: '发长帖',
   DeleteTweet: '删推',
   FavoriteTweet: '点赞',
   UnfavoriteTweet: '取消点赞',
@@ -52,7 +53,7 @@ function tweetText(write: XWrite): string {
 
 function labelOf(write: XWrite): string {
   const name = endpointName(write.request)
-  if (name === 'CreateTweet') {
+  if (name === 'CreateTweet' || name === 'CreateNoteTweet') {
     const args = argumentsOf(write.request)
     if (isId(dig(args, 'reply', 'in_reply_to_tweet_id'))) return t('回复推文')
     if (textAt(args, 'attachment_url') !== '') return t('引用推文')
@@ -61,7 +62,7 @@ function labelOf(write: XWrite): string {
   return known === undefined ? name : t(known)
 }
 
-/** 常用的写操作（上面 LABELS 里的：发推、删推、点赞、转推、书签、置顶、关注、拉黑、静音）：x.com 免审批时只直接做这些。 */
+/** 常用的写操作（上面 LABELS 里的：发推和长帖、删推、点赞、转推、书签、置顶、关注、拉黑、静音）：x.com 免审批时只直接做这些。 */
 export function isRoutine(write: XWrite): boolean {
   return LABELS[endpointName(write.request)] !== undefined
 }

@@ -1,4 +1,4 @@
 packages:
   - packages/*
 minimumReleaseAgeExclude:
-  - aibot-x-post@0.2.0
+  - aibot-x-post@0.2.1
