@@ -52,7 +52,7 @@ dsh-bot 是一个基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepse
 - 能监控账号：免费 40 个，监控不扣次数。新动态实时发进「X 监控」群聊并发通知，断线后自动补拉。想盯谁，在群里跟 X 情报员说“监控 @账号名”。
 - 设置「通用」页能看今天还剩几次、监控了几个账号，也能整个关掉。额度用完、风控、设备停用都有中文说明。
 - 次数和[规则](https://aibot.fans/x-api/rest)以 [aibot](https://aibot.fans/) 为准。
-- 还能用你自己的 X 账号发推：在 dsh-bot 的浏览器里登录 X 以后，bot 能发推、回复、引用、删推、点赞、转推、关注，请求借 X 网页自己的接口发（[aibot-x-post](https://github.com/aibot-fans/x-post)），不扣次数。默认每次你在审批卡上批准了才发，设置「通用」页能改成免审批或不做；暂时只支持文字。
+- 还能用你自己的 X 账号读写 X：在 dsh-bot 的浏览器里登录 X 以后，bot 能用这个账号查推文、用户、时间线、搜索、关注列表、通知、书签和私信，读加密聊天，也能发推、回复、引用、删推、点赞、转推、加书签、置顶、关注、拉黑、静音。发推能带图片、GIF 和视频（工作区里的文件，最多 4 个）。改东西的请求默认每次你在审批卡上看过接口、参数和附件、批准了才发；设置「通用」页能改成免审批（只管发推、点赞、关注这类常用操作）或不做。
 
 <p>
 <img src="docs/images/x-onboarding.png" width="49%" alt="第一次打开的引导：已开通 X 数据和监控">
@@ -174,7 +174,7 @@ dsh plugin --profile web remove @aibot_fans/dsh-bot
 ## 隐私
 
 - 都在本机：dsh-bot 跑在 dsh web 的进程里，数据只在上面这些目录；模型请求走 dsh 里配置的模型服务。
-- X 账号：bot 用你在 dsh-bot 浏览器里登录的 X 账号发推时，dsh-bot 在共用浏览器里开一个不在面板里显示的 x.com 标签页，10 分钟没用就关掉；登录状态和别的网站一样存在 `~/.dsh/pod/browser/`。
+- X 账号：bot 用你在 dsh-bot 浏览器里登录的 X 账号读写 X 时，dsh-bot 在共用浏览器里开一个不在面板里显示的 x.com 标签页，10 分钟没用就关掉；登录状态和别的网站一样存在 `~/.dsh/pod/browser/`。
 - 查新版本：启动一分钟后查一次，之后每 6 小时一次，问 npm 官方源（`registry.npmjs.org`，连不上时问国内镜像 `registry.npmmirror.com`）`@aibot_fans/dsh-bot` 发过哪些版本，请求里只有包名。不想查就在设置的「高级」页关掉「自动检查新版本」。
 
 ## 开发
@@ -186,18 +186,19 @@ dsh plugin --profile web remove @aibot_fans/dsh-bot
 - [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)：dsh-bot 是 dsh 的插件，bot 跑在 dsh 的会话上，用 dsh 的模型和工具。
 - 内置图标是鲸鱼娘图，形象出自 [lmy414/ai-chan-sheets](https://github.com/lmy414/ai-chan-sheets)，原作者 ZipZipPipe。
 - X 数据和监控由 [aibot](https://aibot.fans/) 提供。
-- 用 X 账号发推的思路和注入脚本来自 [fa0311/twitter_api_safe_relay](https://github.com/fa0311/twitter_api_safe_relay)（MIT），整理成了 [aibot-x-post](https://github.com/aibot-fans/x-post)。
+- 读写 X 用的 [aibot-x-post](https://www.npmjs.com/package/aibot-x-post) 里有改编自 [fa0311/twitter_api_safe_relay](https://github.com/fa0311/twitter_api_safe_relay)（MIT）的代码。X 返回的响应用 [jq-wasm](https://github.com/owenthereal/jq-wasm)（MIT）里的 [jq](https://github.com/jqlang/jq) 挑。
 
 ## 许可
 
 - 代码按 [Apache License 2.0](LICENSE) 开源，按“原样”提供，不附带任何担保。
 - 鲸鱼娘图标（`packages/runtime/assets/bot-icons/`）改编自 [lmy414/ai-chan-sheets](https://github.com/lmy414/ai-chan-sheets)，按 [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh-hans) 授权，不适用 Apache License 2.0：只能非商用，用的时候要署名，改编后要按同样的协议分享。`docs/images/` 里的截图带有这些图标，也按这个协议。
+- 宿主插件里打包的 [aibot-x-post](https://www.npmjs.com/package/aibot-x-post)（读写 X 用）不开源，也不适用 Apache License 2.0，只能作为 dsh-bot 的一部分使用。
 - 要把 dsh-bot 用于商业用途，请先换掉这些图标。第三方素材的说明见 [NOTICE](NOTICE)。
 
 ## 声明
 
 - dsh-bot 由社区独立开发，**不是 DeepSeek 官方产品**，也没有得到 DeepSeek 的认可或赞助。DeepSeek、DeepSeek Harness、X、Twitter、Grok、Chrome 等是各自所有者的名称或商标，文中提到它们只为说明 dsh-bot 能和什么一起用。
 - 使用 X 数据和监控时，请遵守 [aibot](https://aibot.fans/) 的[规则](https://aibot.fans/x-api/rest)、X 的规则和当地法律，不要用来骚扰或跟踪他人。
-- bot 用你的 X 账号发推、点赞、转推、关注，内容和后果由你负责。X 不喜欢频繁的自动操作，批准前看清正文，别刷屏。
+- bot 用你的 X 账号读写 X（发推、点赞、关注、读私信……），内容和后果由你负责。X 不喜欢频繁的自动操作，批准前看清接口和参数，别刷屏。
 - 共用浏览器在你的电脑上替你操作网页，bot 在网站上做的事由你负责。请遵守各网站的使用条款，批准写操作前看清审批卡。
 - bot 用你在 dsh 里配置的模型，花你自己的额度；会按你的要求读写工作区里的文件、运行命令。它的回答和交付由模型生成，可能出错，重要的事请自己核实。

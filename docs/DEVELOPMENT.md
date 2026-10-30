@@ -124,6 +124,7 @@ dsh-bot 以 `ctx.pod` 提供服务：
 - **bot 会话**：`ctx.sessionController.create` 在 dsh-bot 登记的工作区（`~/Pod`）里建会话；`agent/created` 时按会话装人设、工具、拒绝规则和技能（技能用 dsh 技能注册表在 agent 作用域注册）。
 - **不安装 dsh 的包**：用到的 dsh 接口写成最小的结构类型，在 `packages/runtime/src/dsh.ts` 和 `packages/ui/src/client/dsh.ts`；dsh 升级时先核对这两个文件。启动时检查接口，缺了就进只读模式。
 - **共用浏览器**：直接用 CDP 驱动本机 Chrome，走 `--remote-debugging-pipe`，不开调试端口。
+- **读写 X**（`packages/runtime/src/x/`）：接口目录、发请求、传文件和读加密聊天用 npm 上的 aibot-x-post（不开源），tsdown 把它和 jq-wasm 打进 lib/index.js，jq.wasm 拷到 lib/x/。dsh-bot 这边是接入的部分：账号和不在面板里显示的标签页（`account.ts`，aibot-x-post 要的 addInitScript、evaluate、goto 用共用浏览器的标签页实现）、写操作审批（`writes.ts`、`actions.ts`）、附件（`media.ts`）、存响应和 jq 过滤（`responses.ts`）；x_ 工具在 `tools/x.ts`，给 bot 的说明是 `guide.ts` 的补充加上 aibot-x-post 带的用法。
 - **名字颜色**：存 `#rrggbb`，在 OKLCH 里随机取（`packages/domain/src/bot-colors.ts`）：色相随便，明暗限在 0.56 到 0.64、饱和度限在 0.09 到 0.16；界面上再按 3:1 和文字颜色调一调，任何色相在白底和深色底上的对比度都在 4.7 以上。接口传进来的颜色也会拉回看得清的范围。换配法时改 `BOT_COLOR_SCHEME`，启动时老 bot 全部重新随机一次。
 - **页面**：bot 交的是组件数据（JSON），dsh-bot 在服务端画成 HTML 和 SVG，由 `/api/pod/page/view` 提供；响应头的 CSP 只放行内联样式和按哈希认的组件脚本，不许任何网络请求，页面放在 `sandbox="allow-scripts"`（不同源）的 iframe 里，深浅色用 postMessage 告诉它。PDF 和长图用共用浏览器的隐藏标签页生成（`/api/pod/page/export`）。
 - **浏览器端打包**：tsdown 输出 CommonJS，外面包一层 `window.__ModuleLoader__.load({ id: 'pod-ui', factory })`；react 由外壳提供。
