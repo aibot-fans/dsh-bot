@@ -15,7 +15,7 @@ scripts/dev-home.mjs        在隔离的 DSH_HOME 里装上并启动 dsh-bot
 scripts/pack-npm.mjs        打 npm 包 @aibot_fans/dsh-bot：把 runtime、ui、bundle 合成一个包，输出到 dist/
 scripts/set-version.mjs     改版本号：POD_VERSION 和各包 package.json 一起改
 scripts/github-release.mjs  给还没有 Release 的版本标签建 GitHub Release（推送标签后由 .github/workflows/release.yml 运行）
-scripts/release-notes.mjs   从提交生成一个版本的更新说明：GitHub Release 的正文和 npm 包里的更新说明都用它
+scripts/release-notes.mjs   一个版本的更新说明（发版提交的正文）：GitHub Release 的正文和 npm 包里的更新说明都用它；直接运行打印按提交标题列的草稿
 scripts/version.mjs         上面几个脚本共用的仓库路径和版本号读法
 docs/                       使用说明、开发说明；images/ 是 README 的截图
 ```
@@ -102,9 +102,9 @@ dsh plugin --profile web add link:/仓库的绝对路径/packages/bundle
 
 一个版本的 git 标签 `v<版本>`、npm 包和 GitHub Release 都指向同一个提交。
 
-更新说明不另写，从提交生成（`scripts/release-notes.mjs`）：上一个版本标签到这个标签之间 `feat`、`fix`、`perf` 提交的标题，分成新功能、修复、性能三节，最后附两个标签的对比链接；别的类型不列。GitHub Release 的正文和 npm 包里的更新说明都是它，所以这几类提交的标题写用户看得懂的结果。
+更新说明写在发版提交 `release(dsh-bot): <版本>` 的正文里，不另放文件。`node scripts/release-notes.mjs` 打印上一个正式版以来 `feat`、`fix`、`perf` 提交的标题，当草稿改成用户看得懂的说明。GitHub Release 的正文和 npm 包里的更新说明都取这段正文，末尾自动加两个标签的对比链接；发版提交没写正文时，就直接用按提交标题列的那份。
 
-1. `pnpm version:set <版本>`，提交 `release(dsh-bot): <版本>`，再打标签：`git tag -a v<版本> -m "v<版本>"`。
+1. `pnpm version:set <版本>`，把写好的更新说明作正文提交：标题是 `release(dsh-bot): <版本>`，正文从第三行起（`git commit -F <文件>`，正文里的 `###` 标题不会被当成注释去掉）。再打标签：`git tag -a v<版本> -m "v<版本>"`。
 2. `pnpm release:pack`：构建并打包，输出 `dist/aibot_fans-dsh-bot-<版本>.tgz`。工作区有没提交的改动、当前提交没有 `v<版本>` 标签或者版本号对不上，都会停下。想先看更新说明，本机跑 `node scripts/github-release.mjs --dry`，打印会建哪些 Release 和正文。
 3. 推送提交和标签：`git push origin main --follow-tags`。推上去以后 GitHub Actions（`.github/workflows/release.yml`）给新标签建 Release：标题是 `v<版本>`，正文是生成的更新说明，版本号最大的正式版标成 Latest。已有的 Release 不改；要补充说明（比如升级时要注意的），在 Release 页面上直接改。
 4. 发到 npm：先 `npm login`，再 `npm publish ./dist/aibot_fans-dsh-bot-<版本>.tgz --access public`（路径前面的 `./` 不能省，不然 npm 会把它当成 GitHub 仓库的简写；带作用域的包默认是私有的，要 `--access public`，包里的 package.json 也写了 `publishConfig`）。npm 要求发包的账号开两步验证：登录、发布和 `npm deprecate` 时命令行会给一个网址，在浏览器里确认，几分钟内不确认就失效，要重跑。

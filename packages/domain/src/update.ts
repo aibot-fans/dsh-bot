@@ -3,7 +3,7 @@
 /** 发到 npm 上的包名；一键更新就是让 dsh 的插件管理重装这个包。 */
 export const PACKAGE_NAME = '@aibot_fans/dsh-bot'
 
-/** 每个版本的更新说明，和 npm 包里带的一样，都是从上一个版本以来的提交生成的。 */
+/** 每个版本的更新说明，和 npm 包里带的一样，都取自发版提交的正文。 */
 export const RELEASES_URL = 'https://github.com/aibot-fans/dsh-bot/releases'
 
 /** 比当前新的一个版本。 */

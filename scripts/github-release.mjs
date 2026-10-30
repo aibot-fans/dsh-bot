@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 给还没有 GitHub Release 的版本标签（v<版本>）建一个：标题就是标签，正文是 release-notes.mjs 从提交生成的更新说明，
+ * 给还没有 GitHub Release 的版本标签（v<版本>）建一个：标题就是标签，正文是 release-notes.mjs 给的更新说明（发版提交的正文，没写就按提交标题列），
  * 版本号最大的正式版标成 Latest。已有的 Release 不动，在网页上改过的正文也留着。重复跑也没事。
  * 推送标签后由 .github/workflows/release.yml 运行，用工作流自带的令牌（GH_TOKEN）。
  * 本机加 --dry 只打印要建哪些和正文，打好标签、推送前用来预览。

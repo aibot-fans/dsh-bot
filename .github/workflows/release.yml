@@ -1,4 +1,4 @@
-# 推送版本标签以后，给还没有 GitHub Release 的标签建一个，正文从提交生成（见 scripts/github-release.mjs）。
+# 推送版本标签以后，给还没有 GitHub Release 的标签建一个，正文是发版提交写的更新说明（见 scripts/github-release.mjs）。
 name: release
 
 on:

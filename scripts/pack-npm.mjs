@@ -3,7 +3,7 @@
  * 打 npm 包：把构建好的宿主插件、浏览器插件和组合包拼成一个包 @aibot_fans/dsh-bot，输出 dist/aibot_fans-dsh-bot-<版本>.tgz。
  * 先跑 pnpm build（pnpm pack:npm 会先构建）。打包前核对各包 package.json 的版本号和 POD_VERSION 一样；
  * 发版用 --release（pnpm release:pack），还要求工作区干净、当前提交打了 v<版本> 标签。
- * 有这个版本的标签时，release-notes.mjs 从提交生成的更新说明写进 package.json 的 releaseNotes：dsh-bot 查新版本时从 npm 读它，在更新弹窗里显示更新了什么。
+ * 有这个版本的标签时，release-notes.mjs 给的更新说明（发版提交的正文，没写就按提交标题列）写进 package.json 的 releaseNotes：dsh-bot 查新版本时从 npm 读它，在更新弹窗里显示更新了什么。
  *
  * 开发时是三个包（pod-runtime、pod-ui、pod-bundle），发出去合成一个，不带任何依赖：
  *   @aibot_fans/dsh-bot          浏览器插件那一行：dsh 只按精确的包名找 ./client，宿主半边什么都不做
