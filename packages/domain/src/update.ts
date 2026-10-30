@@ -3,7 +3,7 @@
 /** 发到 npm 上的包名；一键更新就是让 dsh 的插件管理重装这个包。 */
 export const PACKAGE_NAME = '@aibot_fans/dsh-bot'
 
-/** 每个版本的更新说明，和 GitHub Release 的正文一样都来自 CHANGELOG。 */
+/** 每个版本的更新说明，和 npm 包里带的一样，都是从上一个版本以来的提交生成的。 */
 export const RELEASES_URL = 'https://github.com/aibot-fans/dsh-bot/releases'
 
 /** 比当前新的一个版本。 */
@@ -11,7 +11,7 @@ export interface ReleaseNote {
   readonly version: string
   /** 发布时间（毫秒）；注册表没给就是 null。 */
   readonly publishedAt: number | null
-  /** CHANGELOG 里这一版的说明（Markdown）；早期版本发包时没带，是 null。 */
+  /** 这一版的更新说明（Markdown）；早期版本发包时没带，是 null。 */
   readonly notes: string | null
 }
 

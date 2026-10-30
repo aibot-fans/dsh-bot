@@ -33,7 +33,7 @@ function reason(error: unknown): string {
   return t('连不上（{value}）', { value: error instanceof Error ? error.message : String(error) })
 }
 
-/** 读注册表给的整份包信息（packument）。发包时 releaseNotes 字段带上 CHANGELOG 里那一版的说明。 */
+/** 读注册表给的整份包信息（packument）。发包时 releaseNotes 字段带上这一版的更新说明。 */
 export function parsePackument(raw: unknown): Published {
   const doc = isRecord(raw) ? raw : {}
   const tags = isRecord(doc['dist-tags']) ? doc['dist-tags'] : {}

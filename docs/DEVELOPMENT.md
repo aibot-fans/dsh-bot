@@ -14,8 +14,8 @@ dev/demo-oa.mjs             浏览器截图用的示例 OA（一个会议室预�
 scripts/dev-home.mjs        在隔离的 DSH_HOME 里装上并启动 dsh-bot
 scripts/pack-npm.mjs        打 npm 包 @aibot_fans/dsh-bot：把 runtime、ui、bundle 合成一个包，输出到 dist/
 scripts/set-version.mjs     改版本号：POD_VERSION 和各包 package.json 一起改
-scripts/github-release.mjs  按 CHANGELOG 建和更新 GitHub Release（推送后由 .github/workflows/release.yml 运行）
-scripts/changelog.mjs       取 CHANGELOG 里一个版本的说明：GitHub Release 的正文和 npm 包里的更新说明都用它
+scripts/github-release.mjs  给还没有 Release 的版本标签建 GitHub Release（推送标签后由 .github/workflows/release.yml 运行）
+scripts/release-notes.mjs   从提交生成一个版本的更新说明：GitHub Release 的正文和 npm 包里的更新说明都用它
 scripts/version.mjs         上面几个脚本共用的仓库路径和版本号读法
 docs/                       使用说明、开发说明；images/ 是 README 的截图
 ```
@@ -95,18 +95,19 @@ dsh plugin --profile web add link:/仓库的绝对路径/packages/bundle
 - 版本号的源头是 `packages/domain/src/version.ts` 的 `POD_VERSION`，宿主和页面各打包一份，npm 包的版本号也取它；各包 package.json 的版本号跟着它，用 `pnpm version:set <版本>` 一起改。页面发现宿主报的版本和自己不一样，就在顶部提示刷新：dsh web 重启以后，之前打开的标签页还是旧页面，旧页面调的接口可能已经换了。
 - 改了表结构就在 `packages/store/src/migrations.ts` 里加一版迁移，启动时自动迁移。
 - 改完 `pnpm build`，重启 dsh web。宿主和页面的代码都是启动时读进内存的，不重启不生效。
-- 打 npm 包用 `pnpm pack:npm`：先构建，再把 runtime、ui、bundle 合成一个包 `@aibot_fans/dsh-bot`，输出 `dist/aibot_fans-dsh-bot-<版本>.tgz`。包里浏览器插件那一行就叫 `@aibot_fans/dsh-bot`（dsh 只按精确的包名找 `./client`），宿主插件和 agent 是 `@aibot_fans/dsh-bot/runtime`、`@aibot_fans/dsh-bot/agent`；各行的 id 和源码装的一样。各包的版本号和 `POD_VERSION` 对不上时会停下。包里的 package.json 带上 CHANGELOG 里这个版本的一节（`releaseNotes` 字段），dsh-bot 的更新弹窗显示的就是它，所以要先写好 CHANGELOG 再打包；没有这一节就不带，弹窗里让去 GitHub 上看。
+- 打 npm 包用 `pnpm pack:npm`：先构建，再把 runtime、ui、bundle 合成一个包 `@aibot_fans/dsh-bot`，输出 `dist/aibot_fans-dsh-bot-<版本>.tgz`。包里浏览器插件那一行就叫 `@aibot_fans/dsh-bot`（dsh 只按精确的包名找 `./client`），宿主插件和 agent 是 `@aibot_fans/dsh-bot/runtime`、`@aibot_fans/dsh-bot/agent`；各行的 id 和源码装的一样。各包的版本号和 `POD_VERSION` 对不上时会停下。打了 `v<版本>` 标签时，包里的 package.json 带上这个版本的更新说明（`releaseNotes` 字段），dsh-bot 的更新弹窗显示的就是它；没打标签就不带，弹窗里让去 GitHub 上看。
 - 发布前可以在隔离环境里装这个 tgz 试一遍：`DSH_HOME=<临时目录> dsh plugin --profile web add <tgz 的绝对路径>`，启动时记得用 `--patch` 把 `workspaceRoot` 也指到临时目录，不然 bot 的工作区会用 `~/Pod`。
 
 ### 发布步骤
 
 一个版本的 git 标签 `v<版本>`、npm 包和 GitHub Release 都指向同一个提交。
 
-1. 在 `CHANGELOG.md` 最上面加这个版本的一节，标题写成 `## <版本> - <日期>`：新功能、修复、升级时要注意的。平时的改动先记在最上面的「## 未发布」一节里，发版时把这个标题改成版本号和日期。
-2. `pnpm version:set <版本>`，提交 `chore(release): v<版本>`，再打标签：`git tag -a v<版本> -m "v<版本>"`。
-3. `pnpm release:pack`：构建并打包，输出 `dist/aibot_fans-dsh-bot-<版本>.tgz`。工作区有没提交的改动、当前提交没有 `v<版本>` 标签、版本号对不上，或者 CHANGELOG 里没有这一节，都会停下。
-4. 推送提交和标签：`git push origin main --follow-tags`。推上去以后 GitHub Actions（`.github/workflows/release.yml`）自动给新标签建 Release：标题是 `v<版本>`，正文取 main 上 CHANGELOG 里这一节，版本号最大的标成 Latest。之后改了 CHANGELOG 里哪个版本的说明，推送后那个 Release 的正文也跟着改（在 Release 页面上手改的会被覆盖），标题和 Latest 不动。推送前想先看会建、会改什么，本机跑 `node scripts/github-release.mjs --dry`（按工作区里的 CHANGELOG）。
-5. 发到 npm：先 `npm login`，再 `npm publish ./dist/aibot_fans-dsh-bot-<版本>.tgz --access public`（路径前面的 `./` 不能省，不然 npm 会把它当成 GitHub 仓库的简写；带作用域的包默认是私有的，要 `--access public`，包里的 package.json 也写了 `publishConfig`）。npm 要求发包的账号开两步验证：登录、发布和 `npm deprecate` 时命令行会给一个网址，在浏览器里确认，几分钟内不确认就失效，要重跑。
+更新说明不另写，从提交生成（`scripts/release-notes.mjs`）：上一个版本标签到这个标签之间 `feat`、`fix`、`perf` 提交的标题，分成新功能、修复、性能三节，最后附两个标签的对比链接；别的类型不列。GitHub Release 的正文和 npm 包里的更新说明都是它，所以这几类提交的标题写用户看得懂的结果。
+
+1. `pnpm version:set <版本>`，提交 `release(dsh-bot): <版本>`，再打标签：`git tag -a v<版本> -m "v<版本>"`。
+2. `pnpm release:pack`：构建并打包，输出 `dist/aibot_fans-dsh-bot-<版本>.tgz`。工作区有没提交的改动、当前提交没有 `v<版本>` 标签或者版本号对不上，都会停下。想先看更新说明，本机跑 `node scripts/github-release.mjs --dry`，打印会建哪些 Release 和正文。
+3. 推送提交和标签：`git push origin main --follow-tags`。推上去以后 GitHub Actions（`.github/workflows/release.yml`）给新标签建 Release：标题是 `v<版本>`，正文是生成的更新说明，版本号最大的正式版标成 Latest。已有的 Release 不改；要补充说明（比如升级时要注意的），在 Release 页面上直接改。
+4. 发到 npm：先 `npm login`，再 `npm publish ./dist/aibot_fans-dsh-bot-<版本>.tgz --access public`（路径前面的 `./` 不能省，不然 npm 会把它当成 GitHub 仓库的简写；带作用域的包默认是私有的，要 `--access public`，包里的 package.json 也写了 `publishConfig`）。npm 要求发包的账号开两步验证：登录、发布和 `npm deprecate` 时命令行会给一个网址，在浏览器里确认，几分钟内不确认就失效，要重跑。
 
 ## 给其他插件的接口
 
