@@ -55,6 +55,13 @@ const OLD_PERSONAS: ReadonlyMap<string, string> = new Map([
     ),
     '写操作改用 x_ 工具（dsh-bot 浏览器里登录的 X 账号）',
   ],
+  [xPersona('要发推、回复、引用、删推、点赞、转推或关注时，用 x_ 开头的工具做，用的是用户在 dsh-bot 浏览器里登录的 X 账号；只在用户明确要求时做，按设置可能要用户先批准。没登录时请用户在 设置 → 通用 → X 账号 里登录。twitter_ 开头的工具只读数据和管理监控。'), '加上用 x_ 工具读私信和加密聊天，公开数据照旧用 twitter_ 工具'],
+  [
+    xPersonaEn(
+      "To post, reply, quote, delete a post, like, repost or follow, use the tools whose names start with x_; they act as the X account the user signed in to in dsh-bot's browser. Do it only when the user explicitly asks; depending on settings the user may need to approve first. If no account is signed in, ask the user to sign in under Settings → General → X account. The twitter_ tools only read data and manage monitoring.",
+    ),
+    '加上用 x_ 工具读私信和加密聊天，公开数据照旧用 twitter_ 工具',
+  ],
 ])
 
 /** 以前的默认角色卡：人设换新版时，角色卡还是这些的也一起换。 */
@@ -64,6 +71,13 @@ const OLD_CARDS: readonly BotCard[] = [
     duties: 'Looks up users, posts, topics and trends on X (Twitter); manages account monitoring',
     strengths: 'Searching posts, reading timelines, summarizing activity for an account or topic',
     notResponsible: 'Write actions like posting and liking',
+    askWho: 'Ask the Lead when unsure',
+  },
+  { duties: '查 X（推特）上的用户、推文、话题和趋势；管理账号监控；按要求发推、点赞、转推、关注', strengths: '搜推文、看时间线、整理某个账号或话题的动态', notResponsible: '用户没要求的写操作', askWho: '拿不准时问主管' },
+  {
+    duties: 'Looks up users, posts, topics and trends on X (Twitter); manages account monitoring; posts, likes, reposts and follows when asked',
+    strengths: 'Searching posts, reading timelines, summarizing activity for an account or topic',
+    notResponsible: 'Write actions the user did not ask for',
     askWho: 'Ask the Lead when unsure',
   },
 ]
@@ -81,9 +95,9 @@ function xPersonaEn(writeLine: string): string {
 
 /** 现在这版人设里讲写操作的那行。 */
 const WRITE_LINE =
-  '要发推、回复、引用、删推、点赞、转推或关注时，用 x_ 开头的工具做，用的是用户在 dsh-bot 浏览器里登录的 X 账号；只在用户明确要求时做，按设置可能要用户先批准。没登录时请用户在 设置 → 通用 → X 账号 里登录。twitter_ 开头的工具只读数据和管理监控。'
+  '要发推、回复、引用、删推、点赞、转推、关注这类改东西的事，或者要读私信、加密聊天、书签这类只有登录账号才看得到的内容，用 x_ 开头的工具，用的是用户在 dsh-bot 浏览器里登录的 X 账号；改东西只在用户明确要求时做，按设置可能要用户先批准。没登录时请用户在 设置 → 通用 → X 账号 里登录。公开的数据照旧用 twitter_ 开头的工具查，别拿用户的账号大量读。'
 const WRITE_LINE_EN =
-  "To post, reply, quote, delete a post, like, repost or follow, use the tools whose names start with x_; they act as the X account the user signed in to in dsh-bot's browser. Do it only when the user explicitly asks; depending on settings the user may need to approve first. If no account is signed in, ask the user to sign in under Settings → General → X account. The twitter_ tools only read data and manage monitoring."
+  "To change things on X (post, reply, quote, delete a post, like, repost, follow) or to read what only the signed-in account can see (DMs, encrypted chats, bookmarks), use the tools whose names start with x_; they act as the X account the user signed in to in dsh-bot's browser. Change things only when the user explicitly asks; depending on settings the user may need to approve first. If no account is signed in, ask the user to sign in under Settings → General → X account. Keep using the twitter_ tools for public data, and don't do heavy reading with the user's account."
 
 const X_BOT_EN: BotDraft = {
   name: 'X Analyst',
@@ -91,7 +105,7 @@ const X_BOT_EN: BotDraft = {
   persona: xPersonaEn(WRITE_LINE_EN),
   capabilities: ['X', 'Twitter', 'Social listening'],
   card: {
-    duties: 'Looks up users, posts, topics and trends on X (Twitter); manages account monitoring; posts, likes, reposts and follows when asked',
+    duties: 'Looks up users, posts, topics and trends on X (Twitter); manages account monitoring; posts, likes, reposts and follows, and reads DMs and encrypted chats, when asked',
     strengths: 'Searching posts, reading timelines, summarizing activity for an account or topic',
     notResponsible: 'Write actions the user did not ask for',
     askWho: 'Ask the Lead when unsure',
@@ -105,7 +119,7 @@ const X_BOT: BotDraft = {
   persona: xPersona(WRITE_LINE),
   capabilities: ['X', '推特', '舆情监控'],
   card: {
-    duties: '查 X（推特）上的用户、推文、话题和趋势；管理账号监控；按要求发推、点赞、转推、关注',
+    duties: '查 X（推特）上的用户、推文、话题和趋势；管理账号监控；按要求发推、点赞、转推、关注，读私信和加密聊天',
     strengths: '搜推文、看时间线、整理某个账号或话题的动态',
     notResponsible: '用户没要求的写操作',
     askWho: '拿不准时问主管',
