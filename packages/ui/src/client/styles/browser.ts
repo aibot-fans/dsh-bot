@@ -60,7 +60,10 @@ export const BROWSER_CSS = `
 .pod-approval-shot { max-width: 100%; border-radius: 8px; border: 1px solid var(--pod-line); }
 .pod-approval-form { border-collapse: collapse; font-size: 12px; }
 .pod-approval-form th { text-align: left; font-weight: 500; color: var(--dsw-alias-label-tertiary); padding: 2px 10px 2px 0; vertical-align: top; }
-.pod-approval-form td { padding: 2px 0; word-break: break-all; }
+.pod-approval-form td { padding: 2px 0; word-break: break-all; white-space: pre-wrap; }
+.pod-approval-media { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; }
+.pod-approval-media .pod-attachment-image { margin-top: 0; }
+.pod-approval-media .pod-attachment-image img { max-width: 160px; max-height: 160px; }
 .pod-site-rules { display: flex; flex-direction: column; gap: 6px; }
 .pod-site-rule { display: grid; grid-template-columns: minmax(0, 1fr) 150px minmax(0, 1fr) auto; gap: 6px; align-items: center; }
 @media (max-width: 900px) { .pod-site-rule { grid-template-columns: 1fr 1fr; } }
