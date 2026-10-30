@@ -62,6 +62,18 @@ const OLD_PERSONAS: ReadonlyMap<string, string> = new Map([
     ),
     '加上用 x_ 工具读私信和加密聊天，公开数据照旧用 twitter_ 工具',
   ],
+  [
+    xPersona(
+      '要发推、回复、引用、删推、点赞、转推、关注这类改东西的事，或者要读私信、加密聊天、书签这类只有登录账号才看得到的内容，用 x_ 开头的工具，用的是用户在 dsh-bot 浏览器里登录的 X 账号；改东西只在用户明确要求时做，按设置可能要用户先批准。没登录时请用户在 设置 → 通用 → X 账号 里登录。公开的数据照旧用 twitter_ 开头的工具查，别拿用户的账号大量读。',
+    ),
+    'twitter_ 和 x_ 怎么分写进了会话的系统说明，人设里这行改短',
+  ],
+  [
+    xPersonaEn(
+      "To change things on X (post, reply, quote, delete a post, like, repost, follow) or to read what only the signed-in account can see (DMs, encrypted chats, bookmarks), use the tools whose names start with x_; they act as the X account the user signed in to in dsh-bot's browser. Change things only when the user explicitly asks; depending on settings the user may need to approve first. If no account is signed in, ask the user to sign in under Settings → General → X account. Keep using the twitter_ tools for public data, and don't do heavy reading with the user's account.",
+    ),
+    'twitter_ 和 x_ 怎么分写进了会话的系统说明，人设里这行改短',
+  ],
 ])
 
 /** 以前的默认角色卡：人设换新版时，角色卡还是这些的也一起换。 */
@@ -95,9 +107,9 @@ function xPersonaEn(writeLine: string): string {
 
 /** 现在这版人设里讲写操作的那行。 */
 const WRITE_LINE =
-  '要发推、回复、引用、删推、点赞、转推、关注这类改东西的事，或者要读私信、加密聊天、书签这类只有登录账号才看得到的内容，用 x_ 开头的工具，用的是用户在 dsh-bot 浏览器里登录的 X 账号；改东西只在用户明确要求时做，按设置可能要用户先批准。没登录时请用户在 设置 → 通用 → X 账号 里登录。公开的数据照旧用 twitter_ 开头的工具查，别拿用户的账号大量读。'
+  '发推、回复、点赞、转推、关注这类改东西的事只在用户明确要求时做，按设置可能要用户先批准。x_ 开头的工具用的是用户在 dsh-bot 浏览器里登录的 X 账号，没登录时请用户在 设置 → 通用 → X 账号 里登录。'
 const WRITE_LINE_EN =
-  "To change things on X (post, reply, quote, delete a post, like, repost, follow) or to read what only the signed-in account can see (DMs, encrypted chats, bookmarks), use the tools whose names start with x_; they act as the X account the user signed in to in dsh-bot's browser. Change things only when the user explicitly asks; depending on settings the user may need to approve first. If no account is signed in, ask the user to sign in under Settings → General → X account. Keep using the twitter_ tools for public data, and don't do heavy reading with the user's account."
+  "Change things on X (post, reply, like, repost, follow) only when the user explicitly asks; depending on settings the user may need to approve first. The x_ tools act as the X account the user signed in to in dsh-bot's browser; if no account is signed in, ask the user to sign in under Settings → General → X account."
 
 const X_BOT_EN: BotDraft = {
   name: 'X Analyst',

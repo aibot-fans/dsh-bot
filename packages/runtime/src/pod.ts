@@ -751,6 +751,7 @@ export class PodRuntime {
       ...(room === undefined || room.kind === 'direct' || session.kind !== 'chat' ? {} : { group: { title: room.title, members: this.rooms.memberBots(room) } }),
       memory: this.memory.coreBlocks(session),
       browser: sessionBrowses(session),
+      x: this.aibot.coversX(session),
       pages: sessionMakesPages(session),
       tuning: this.evolutionKit.tuner.personaFor(bot.id),
     })
