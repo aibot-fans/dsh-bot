@@ -1,6 +1,6 @@
 {
   "name": "pod-runtime",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "description": "dsh-bot 的宿主插件：数据库、/api/pod 接口和 bot 会话的人设注入",
   "type": "module",
