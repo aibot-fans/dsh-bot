@@ -1,10 +1,11 @@
 /**
  * 一个版本的更新说明，GitHub Release 的正文和 npm 包里的更新说明（package.json 的 releaseNotes）都用它。
  * 这个版本标签上的发版提交（release(...): <版本>）写了正文就用正文；没写就把上一个版本标签到这个标签之间
- * feat、fix、perf 提交的标题列成新功能、修复、性能三节，别的类型（docs、test、refactor、ci、chore、release 这些）不列。
- * 末尾都附上两个标签在 GitHub 上的对比。正式版从上一个正式版算起，预发布版从上一个标签算起。还没有这个版本的标签时返回 undefined。
+ * feat、fix、perf 提交的标题列成新增功能、问题修复、体验优化三节，别的类型（docs、test、refactor、ci、chore、release 这些）不列。
+ * 末尾都附上两个标签在 GitHub 上的对比（Full Changelog）。正式版从上一个正式版算起，预发布版从上一个标签算起。还没有这个版本的标签时返回 undefined。
  *
  * 直接运行（node scripts/release-notes.mjs）打印最新的正式版标签以来按提交标题列的草稿，改好后写进发版提交的正文。
+ * 正文的写法参考 deepseek-harness 的发版说明：先中文后英文，按新增功能、体验优化、问题修复、其他变更分类，每条一句。
  */
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
@@ -16,9 +17,9 @@ const TAG = /^v(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/
 const SUBJECT = /^([a-z]+)(?:\([^)]*\))?!?:\s*(.+)$/
 const RELEASE = /^release(?:\([^)]*\))?!?:/
 const SECTIONS = [
-  ['feat', '新功能'],
-  ['fix', '修复'],
-  ['perf', '性能'],
+  ['feat', '新增功能'],
+  ['fix', '问题修复'],
+  ['perf', '体验优化'],
 ]
 
 const git = (...args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim()
@@ -82,7 +83,7 @@ export function releaseNotes(version) {
     .filter((item) => tag.prerelease || !item.prerelease)
     .at(-1)
   const body = written(tag.name) || fromCommits(previous === undefined ? tag.name : `${previous.name}..${tag.name}`)
-  const compare = previous === undefined ? [] : [`完整改动：[${previous.name}...${tag.name}](${repositoryUrl()}/compare/${previous.name}...${tag.name})`]
+  const compare = previous === undefined ? [] : [`Full Changelog: [${previous.name}...${tag.name}](${repositoryUrl()}/compare/${previous.name}...${tag.name})`]
   return [body, ...compare].filter((part) => part !== '').join('\n\n')
 }
 
