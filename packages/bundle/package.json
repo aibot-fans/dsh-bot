@@ -1,6 +1,6 @@
 {
   "name": "pod-bundle",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "description": "dsh-bot：本地多 bot 协作。主管、bot 管理和单聊，bot 都跑在 dsh 的会话上",
   "type": "module",
