@@ -59,21 +59,30 @@ const fenceToCode: Command = (state, dispatch) => {
   return true
 }
 
+function inListItem(state: EditorState): boolean {
+  const { $from } = state.selection
+  return $from.depth >= 2 && $from.node(-1).type === listItem
+}
+
+/** 拆出下一项，空的一项上再按就退出列表（嵌套的退一层）。 */
+const nextItem = chainCommands(splitListItem(listItem), liftListItem(listItem))
+
 /**
  * Enter：在列表里拆出下一项（空的一项上再按就退出列表），在代码块里换行，其他时候发送。
  * 输入法正在组字时编辑器不会走到这里。
  */
 function enterKey(send: () => void): Command {
-  const nextItem = chainCommands(splitListItem(listItem), liftListItem(listItem))
   return (state, dispatch, view) => {
-    const { $from } = state.selection
-    if ($from.parent.type.spec.code) return chainCommands(leaveCodeOnTripleEnter, newlineInCode)(state, dispatch, view)
+    if (state.selection.$from.parent.type.spec.code) return chainCommands(leaveCodeOnTripleEnter, newlineInCode)(state, dispatch, view)
     if (fenceToCode(state, dispatch, view)) return true
-    if ($from.depth >= 2 && $from.node(-1).type === listItem) return nextItem(state, dispatch, view)
+    if (inListItem(state)) return nextItem(state, dispatch, view)
     if (dispatch !== undefined) send()
     return true
   }
 }
+
+/** Shift+Enter：代码块里换行，列表里和 Enter 一样接下一项，其他时候在这一段里换行。 */
+const shiftEnterKey: Command = chainCommands(newlineInCode, (state, dispatch, view) => inListItem(state) && nextItem(state, dispatch, view), insertBreak)
 
 /** 列表开关：不在列表里就变成列表，在同样的列表里就退出来，在另一种列表里就换成这种。 */
 function toggleList(type: NodeType): Command {
@@ -120,7 +129,7 @@ const shiftTabKey: Command = (state, dispatch) => {
 
 /**
  * 输入框的按键。快捷键和 Slack 一样：Cmd/Ctrl+B 粗体、+I 斜体、+Shift+X 删除线、+E 行内代码、
- * +Shift+7 有序列表、+Shift+8 无序列表、+Shift+9 引用、+Alt+C 代码块；Shift+Enter 换行，Cmd/Ctrl+Enter 总是发送。
+ * +Shift+7 有序列表、+Shift+8 无序列表、+Shift+9 引用、+Alt+C 代码块；Shift+Enter 换行（列表里接下一项），Cmd/Ctrl+Enter 总是发送。
  */
 export function composerKeys(send: () => void): readonly Plugin[] {
   return [
@@ -130,7 +139,7 @@ export function composerKeys(send: () => void): readonly Plugin[] {
         if (dispatch !== undefined) send()
         return true
       },
-      'Shift-Enter': chainCommands(newlineInCode, insertBreak),
+      'Shift-Enter': shiftEnterKey,
       'Mod-b': toggleMark(strong),
       'Mod-i': toggleMark(em),
       'Mod-e': toggleMark(code),

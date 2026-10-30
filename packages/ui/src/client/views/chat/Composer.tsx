@@ -68,7 +68,7 @@ function placeholderOf(name: string, group: boolean, replying: boolean, narrow: 
 
 /**
  * 输入框：可以写列表、引用、代码块和粗体这些格式（见 editor/），发出去是 Markdown。
- * Enter 发送（列表、代码块里是换行），Shift+Enter 换行，中文输入法组字时不会误发；群聊里输入 @ 选成员，@ 到的成员标成彩色。
+ * Enter 发送（列表里接下一项，代码块里换行），Shift+Enter 换行（列表里也是接下一项），中文输入法组字时不会误发；群聊里输入 @ 选成员，@ 到的成员标成彩色。
  * 可以直接粘贴或拖入图片和文件；以 / 开头是快捷指令；bot 回答时可以停止。
  * 没发出去的字和附件按对话存成草稿（换对话时外面用 key 换一个新的输入框），回来接着写。
  */
