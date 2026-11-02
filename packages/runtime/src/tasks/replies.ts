@@ -12,11 +12,17 @@ export interface TaskRepliesDeps {
   readonly cardOf: (taskId: string) => RoomMessage | undefined
 }
 
-/** 结果消息：汇报的摘要，产出文件附在后面；不挂在任务卡下时带上任务标题，等你验收时说一句怎么收下。 */
-export function resultText(task: Task, result: TaskResult, onCard: boolean, completed: boolean): string {
+/** 结果消息怎么收尾：做完了（交付或交给组长）、等你验收、常开任务这一次的结果。 */
+export type ResultEnding = 'done' | 'review' | 'standing'
+
+/**
+ * 结果消息：汇报的摘要，产出文件附在后面；不挂在任务卡下时带上任务标题，等你验收时说一句怎么收下。
+ * 常开任务每次到点都发，只发摘要，产出文件在任务页里看。
+ */
+export function resultText(task: Task, result: TaskResult, onCard: boolean, ending: ResultEnding): string {
   const head = onCard ? result.summary : t('「{title}」做完了：{summary}', { title: task.title, summary: result.summary })
-  const files = result.files.length === 0 ? '' : `\n\n${t('文件：{files}', { files: result.files.map((file) => `\`${file}\``).join(t('、')) })}`
-  const accept = completed ? '' : `\n\n${t('有没核实的地方，看过后在任务卡上点“收下”。')}`
+  const files = result.files.length === 0 || ending === 'standing' ? '' : `\n\n${t('文件：{files}', { files: result.files.map((file) => `\`${file}\``).join(t('、')) })}`
+  const accept = ending === 'review' ? `\n\n${t('有没核实的地方，看过后在任务卡上点“收下”。')}` : ''
   return `${head}${files}${accept}`
 }
 

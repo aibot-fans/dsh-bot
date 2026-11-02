@@ -143,8 +143,9 @@ export class TaskReporting {
         const bypassed = this.deps.onRootStateChange(task.rootId, 'delivered')
         const result = this.result(args, bypassed)
         const delivered = engine.tickets.patch(outcome.task, { result })
-        // 结果回在每一处还没得到答复的提问下面；单聊里任务卡那一行原地变成结果。常开任务每次的结果直接发，不用验收。
-        replies.result(delivered, session.botId, session.id, (onCard) => resultText(delivered, result, onCard, outcome.completed || outcome.standing))
+        // 结果回在每一处还没得到答复的提问下面；单聊里任务卡那一行原地变成结果。常开任务每次的结果直接发，不用验收，也不列文件。
+        const ending = outcome.standing ? 'standing' : outcome.completed ? 'done' : 'review'
+        replies.result(delivered, session.botId, session.id, (onCard) => resultText(delivered, result, onCard, ending))
         if (args.lessons !== '') this.deps.learn(session, delivered, args.lessons)
         if (outcome.standing) return ok({ task: delivered, message: t('已发出这次的结果，等下次到点。') })
         tasks.tellRequester(delivered, `[任务交付] 「${delivered.title}」已完成，任务卡已经变成交付卡发给用户。摘要：${args.summary}`)
@@ -187,7 +188,7 @@ export class TaskReporting {
       case 'ready': {
         const result = this.result(args)
         const delivered = engine.tickets.patch(outcome.task, { result })
-        replies.result(delivered, session.botId, session.id, (onCard) => resultText(delivered, result, onCard, true))
+        replies.result(delivered, session.botId, session.id, (onCard) => resultText(delivered, result, onCard, 'done'))
         if (args.lessons !== '') this.deps.learn(session, delivered, args.lessons)
         told(false)
         return ok({ task: delivered, message: t('已交给组长验收。') })
