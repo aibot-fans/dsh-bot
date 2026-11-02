@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import {
+  NO_CHANGE,
   PAGE_KIND_LABELS,
   PRIORITY,
   WATCH_MAX_INTERVAL,
@@ -300,7 +301,7 @@ export class RoutineService {
     if (pageId === null) return ''
     const page = this.deps.describePage(pageId)
     if (page === undefined || page.deleted) return '\n\n（这个例程原来要更新的页面已经删除，这次按普通例程完成，结果直接写在回复里。）'
-    return `\n\n这个例程要更新页面「${page.title}」（id：${pageId}，${page.kind}，现在是第 ${page.version} 版）：先用 get_page 读出当前内容，按上面的要求更新数据和文字，再用 save_page 带上这个 id 保存成新的一版，note 写这次更新了什么。回复里简短说一句更新了什么。`
+    return `\n\n这个例程要更新页面「${page.title}」（id：${pageId}，${page.kind}，现在是第 ${page.version} 版）：先用 get_page 读出当前内容，按上面的要求更新数据和文字，再用 save_page 带上这个 id 保存成新的一版，note 写这次更新了什么。回复只说数据里值得注意的变化；跟上次比没有，就只回复 ${NO_CHANGE}。`
   }
 
   /** 盯网页：内容没变就不调用模型。 */
@@ -323,7 +324,7 @@ export class RoutineService {
         `要关注的：${routine.prompt}`,
         `[之前]\n${before}`,
         `[现在]\n${after}`,
-        '请分析变化，写一段简短的汇报；没有值得注意的变化就说一句“没有重要变化”。',
+        `请分析变化：有值得注意的，第一句说最重要的那条，只写变了什么；没有值得注意的变化，只回复 ${NO_CHANGE}。`,
       ].join('\n\n'),
     )
     return '内容变了，已交给 bot 分析'

@@ -470,6 +470,8 @@ function decide(options) {
     return { text: `收到：${userText.slice(0, 200)}\n\n这是**测试模型**的回复，支持 Markdown：\n\n- 第一条\n- 第二条` }
   }
 
+  // 例程指令里写“没有变化”：照提示词只回 NO_CHANGE，dsh-bot 不发出去。
+  if (userText.startsWith('[例程「') && userText.includes('没有变化')) return { text: 'NO_CHANGE' }
   if (userText.startsWith('[例程「')) return { text: `例程结果（测试模型）：${userText.split('\n')[1] ?? ''}` }
   if (userText.startsWith('[盯网页「')) return { text: '页面有变化（测试模型）：正文改了一处。' }
   return { text: `（测试模型）收到：${userText.slice(0, 200)}` }

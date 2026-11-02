@@ -6,6 +6,7 @@
 import { iconAvatar } from './avatars.ts'
 import { botLabel, type Bot, type BotDraft, type BotPatch } from './bots.ts'
 import { currentLanguage, t, type Language } from './i18n.ts'
+import { NO_CHANGE } from './routines.ts'
 import type { Autonomy } from './settings.ts'
 
 /** 主管的默认人设；用户可以像改其他 bot 一样改它。 */
@@ -197,8 +198,10 @@ const CONSULT_PROTOCOL = [
 ].join('\n')
 
 const ROUTINE_PROTOCOL = [
-  '这是一条定时例程会话。每次收到例程触发的消息，就按指令完成一次，把结果写成简洁的汇报。',
-  '结果会发到指定的房间；不要和用户闲聊。',
+  '这是一条定时例程会话。每次收到例程触发的消息，就按指令完成一次。你写的话会发到指定的房间，用户扫一眼就要知道结果。',
+  `- 跟上次比没有新东西（数据没变，或者变化不值得说），只回复 ${NO_CHANGE} 这一个词，dsh-bot 不会发出去；要更新的页面照常更新。`,
+  '- 有新东西只说变了什么，第一句就是最重要的那条；不写“已更新”“巡检完成”，不复述没变的部分，不讲做了哪些步骤。',
+  '- 干活的过程中不说话（不写“我先读一下页面”），最后写一次结果。不要和用户闲聊。',
 ].join('\n')
 
 function identity(bot: Bot): string {

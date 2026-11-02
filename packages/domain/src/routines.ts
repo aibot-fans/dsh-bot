@@ -73,3 +73,12 @@ export function isWaitNotification(kind: NotificationKind): boolean {
 
 export const WATCH_MIN_INTERVAL = 5
 export const WATCH_MAX_INTERVAL = 7 * 24 * 60
+
+/** 例程跑完没有新东西时 bot 只回这个词：dsh-bot 不往对话里发，也不发通知。 */
+export const NO_CHANGE = 'NO_CHANGE'
+
+/** bot 回的是不是“没有新东西”：第一行去掉首尾的标点和强调记号后只剩 NO_CHANGE。 */
+export function isNoChange(text: string): boolean {
+  const first = text.trim().split('\n')[0] ?? ''
+  return first.replace(/^[\s`*_"'“”]+|[\s`*_"'“”.,，。:：!！]+$/g, '') === NO_CHANGE
+}

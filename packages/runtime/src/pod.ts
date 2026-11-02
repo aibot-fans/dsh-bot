@@ -13,6 +13,7 @@ import { SleepGuard } from './core/sleep.ts'
 import { NotificationService } from './notify/service.ts'
 import { DailyBrief, type BriefData } from './routines/brief.ts'
 import { readPageOverHttp } from './routines/page.ts'
+import { RoutineReplies } from './routines/replies.ts'
 import { RoutineService, type PageContent } from './routines/service.ts'
 import { AgentBinder } from './agents/binder.ts'
 import { Dispatcher } from './agents/dispatcher.ts'
@@ -344,6 +345,18 @@ export class PodRuntime {
       botName: (botId) => this.bots.get(botId)?.name ?? 'bot',
       now,
     })
+    const routineReplies = new RoutineReplies({
+      post: (session, text, pageId) => this.rooms.postBotText(session, text, pageId === undefined ? undefined : { pageId }),
+      notify: (session, text) => {
+        if (session.roomId === null) return
+        this.notifications.notify({ kind: 'routine', title: t('例程结果：{value}', { value: this.rooms.get(session.roomId)?.title ?? '' }), body: text.slice(0, 200), roomId: session.roomId })
+      },
+    })
+    // 例程这一轮攒着的话发出去，执行摘要记在最后一条上。
+    const flushRoutine = (session: PodSession): void => {
+      const posted = session.kind === 'routine' ? routineReplies.flush(session) : undefined
+      if (posted !== undefined) this.lastReplies.set(session.id, { id: posted.id, at: posted.createdAt })
+    }
     this.observer = new SessionObserver(
       ctx,
       this.registry,
@@ -351,15 +364,14 @@ export class PodRuntime {
         onAssistantText: (session, text) => {
           // 在回页面修改要求的这一轮，说的话归到那个页面下面（页面旁边的修改对话里看得到）。
           const pageId = this.pages.threadOf(session.id)
-          if (session.kind === 'chat' || session.kind === 'routine') {
+          // 例程的话这一轮结束再发：跟上次比没有新东西（回了 NO_CHANGE）就整轮都不发。
+          if (session.kind === 'routine') routineReplies.hold(session.id, text, pageId)
+          if (session.kind === 'chat') {
             const posted = this.rooms.postBotText(session, text, pageId === undefined ? undefined : { pageId })
             if (posted !== undefined) this.lastReplies.set(session.id, { id: posted.id, at: posted.createdAt })
           }
           if (session.kind === 'chat' && session.roomId !== null) {
             this.bus.emit({ type: 'stream', roomId: session.roomId, botId: session.botId, sessionId: session.id, text: '', done: true })
-          }
-          if (session.kind === 'routine' && session.roomId !== null) {
-            this.notifications.notify({ kind: 'routine', title: t('例程结果：{value}', { value: this.rooms.get(session.roomId)?.title ?? '' }), body: text.slice(0, 200), roomId: session.roomId })
           }
           this.consults.onText(session, text)
         },
@@ -369,6 +381,7 @@ export class PodRuntime {
           ctx.logger.warn(`dsh-bot：${this.bots.get(session.botId)?.name ?? session.botId} 这一轮出错结束（${failure.code}${failure.status === undefined ? '' : ` ${failure.status}`}）`)
         },
         onTurnEnd: (session, reason, failure) => {
+          flushRoutine(session)
           this.dispatcher.setRunning(session.id, false)
           this.pages.onTurnEnd(session.id)
           this.tasks.onTurnEnd(session, reason, failure)
@@ -380,6 +393,7 @@ export class PodRuntime {
         },
         onUsage: (session, usage) => this.meter.recordAgent(session, usage),
         onRunEnd: (session, run) => {
+          flushRoutine(session)
           const reply = this.lastReplies.get(session.id)
           this.lastReplies.delete(session.id)
           if (reply !== undefined && reply.at >= run.startedAt && worthSummary(run)) this.rooms.attachRun(reply.id, run)
