@@ -16,6 +16,8 @@ export class PodBus {
   private evictedThrough = 0
   private readonly listeners = new Set<Listener>()
   private readonly now: () => number
+  /** 事务里发的事件等提交后再推，回滚的不推；返回 true 表示这次先不发。 */
+  private hold: (fire: () => void) => boolean = () => false
 
   constructor(now: () => number = Date.now) {
     this.now = now
@@ -25,7 +27,17 @@ export class PodBus {
     return this.seq
   }
 
+  /** 接上事务：引擎的命令在事务里改了库，页面要等提交后才知道。 */
+  deferWith(hold: (fire: () => void) => boolean): void {
+    this.hold = hold
+  }
+
   emit(event: PodEvent): void {
+    if (this.hold(() => this.publish(event))) return
+    this.publish(event)
+  }
+
+  private publish(event: PodEvent): void {
     this.seq += 1
     const envelope: PodEventEnvelope = { seq: this.seq, time: this.now(), event }
     // 画面帧只给在线的人，不进缓冲，避免把补发队列挤满。

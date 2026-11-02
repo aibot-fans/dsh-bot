@@ -40,7 +40,7 @@ import {
   type MemoryLogEntry,
   type MemoryPatch,
 } from 'pod-store'
-import type { Dispatcher } from '../agents/dispatcher.ts'
+import type { Dispatcher } from '../effects/delivery.ts'
 import { noticeSource } from '../agents/messages.ts'
 import type { SessionRegistry } from '../agents/registry.ts'
 import type { Auditor } from '../core/audit.ts'

@@ -28,6 +28,12 @@ export interface Delivery {
   readonly error: string | null
   readonly createdAt: number
   readonly sentAt: number | null
+  /** 交给会话、而且 dsh 已经落盘。 */
+  readonly handedAt: number | null
+  /** 会话把它收进了历史（看到带这个 id 的 user/message）。 */
+  readonly takenAt: number | null
+  /** 收进历史后这条会话第一次结束一轮。 */
+  readonly readAt: number | null
 }
 
 interface DeliveryRow {
@@ -42,6 +48,9 @@ interface DeliveryRow {
   readonly error: string | null
   readonly created_at: number
   readonly sent_at: number | null
+  readonly handed_at: number | null
+  readonly taken_at: number | null
+  readonly read_at: number | null
 }
 
 function toDelivery(row: DeliveryRow): Delivery {
@@ -57,46 +66,101 @@ function toDelivery(row: DeliveryRow): Delivery {
     error: row.error,
     createdAt: row.created_at,
     sentAt: row.sent_at,
+    handedAt: row.handed_at,
+    takenAt: row.taken_at,
+    readAt: row.read_at,
   }
 }
 
-export function insertDelivery(db: DatabaseSync, delivery: Omit<Delivery, 'status' | 'attempts' | 'error' | 'sentAt'>): Delivery {
+export function insertDelivery(db: DatabaseSync, delivery: Omit<Delivery, 'status' | 'attempts' | 'error' | 'sentAt' | 'handedAt' | 'takenAt' | 'readAt'>): Delivery {
   db.prepare(
-    `INSERT INTO deliveries (id, session_id, mode, lane, priority, message, status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)`,
-  ).run(delivery.id, delivery.sessionId, delivery.mode, delivery.lane, delivery.priority, writeJson(delivery.message), delivery.createdAt)
-  return { ...delivery, status: 'pending', attempts: 0, error: null, sentAt: null }
+    `INSERT INTO deliveries (id, session_id, mode, lane, priority, message, message_id, status, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+  ).run(delivery.id, delivery.sessionId, delivery.mode, delivery.lane, delivery.priority, writeJson(delivery.message), delivery.message.id, delivery.createdAt)
+  return { ...delivery, status: 'pending', attempts: 0, error: null, sentAt: null, handedAt: null, takenAt: null, readAt: null }
 }
 
-export function pendingDeliveries(db: DatabaseSync): readonly Delivery[] {
+/** 某条会话还没交出去的消息，按优先级和先后。 */
+export function pendingFor(db: DatabaseSync, sessionId: string): readonly Delivery[] {
   const rows = db
-    .prepare("SELECT * FROM deliveries WHERE status = 'pending' ORDER BY priority ASC, created_at ASC")
-    .all() as unknown as readonly DeliveryRow[]
+    .prepare("SELECT * FROM deliveries WHERE session_id = ? AND status = 'pending' ORDER BY priority ASC, created_at ASC")
+    .all(sessionId) as unknown as readonly DeliveryRow[]
   return rows.map(toDelivery)
 }
 
-export function markDelivery(db: DatabaseSync, id: string, status: DeliveryStatus, now: number, error: string | null = null): void {
-  db.prepare('UPDATE deliveries SET status = ?, attempts = attempts + 1, error = ?, sent_at = CASE WHEN ? = \'sent\' THEN ? ELSE sent_at END WHERE id = ?').run(
-    status,
-    error,
-    status,
-    now,
-    id,
-  )
+/** 有消息等着交出的会话。 */
+export function sessionsWithPending(db: DatabaseSync): readonly string[] {
+  const rows = db.prepare("SELECT DISTINCT session_id FROM deliveries WHERE status = 'pending'").all() as unknown as readonly { readonly session_id: string }[]
+  return rows.map((row) => row.session_id)
+}
+
+/** 交出去了，dsh 也落了盘。 */
+export function markHanded(db: DatabaseSync, id: string, now: number): void {
+  db.prepare("UPDATE deliveries SET status = 'sent', sent_at = ?, handed_at = ?, error = NULL WHERE id = ?").run(now, now, id)
+}
+
+/** 会话把这条消息收进了历史；返回是不是 Pod 投的。 */
+export function markTaken(db: DatabaseSync, sessionId: string, messageId: string, now: number): boolean {
+  const result = db.prepare('UPDATE deliveries SET taken_at = ? WHERE session_id = ? AND message_id = ? AND taken_at IS NULL').run(now, sessionId, messageId)
+  return Number(result.changes) > 0
+}
+
+/** 一轮结束：这条会话里收进了还没读的，都算读过。 */
+export function markReadFor(db: DatabaseSync, sessionId: string, now: number): number {
+  const result = db.prepare('UPDATE deliveries SET read_at = ? WHERE session_id = ? AND taken_at IS NOT NULL AND read_at IS NULL').run(now, sessionId)
+  return Number(result.changes)
+}
+
+/**
+ * 重启后：交出去了却没收进历史的，改回待投，由投递时查历史和收件箱决定要不要重交（不丢，也不重复）。
+ * 只管还在用的会话；返回涉及的会话。
+ */
+export function requeueUntaken(db: DatabaseSync, sessionIds: readonly string[]): readonly string[] {
+  const touched: string[] = []
+  const statement = db.prepare("UPDATE deliveries SET status = 'pending' WHERE session_id = ? AND status = 'sent' AND taken_at IS NULL AND handed_at IS NOT NULL")
+  for (const id of sessionIds) if (Number(statement.run(id).changes) > 0) touched.push(id)
+  return touched
+}
+
+/** 停掉一条会话：没交出的撤回，交出了还没收进历史的也算没读、不再重交。 */
+export function dropUndelivered(db: DatabaseSync, sessionId: string, reason: string): number {
+  const result = db
+    .prepare("UPDATE deliveries SET status = 'cancelled', error = ? WHERE session_id = ? AND (status = 'pending' OR (status = 'sent' AND taken_at IS NULL))")
+    .run(reason, sessionId)
+  return Number(result.changes)
+}
+
+/** 连续送不到的消息（排在最前、失败到门槛的那条），任务上显示“消息没送到”。 */
+export function stuckDelivery(db: DatabaseSync, sessionId: string, threshold: number): Delivery | undefined {
+  const row = db
+    .prepare("SELECT * FROM deliveries WHERE session_id = ? AND status = 'pending' AND attempts >= ? ORDER BY priority ASC, created_at ASC LIMIT 1")
+    .get(sessionId, threshold) as DeliveryRow | undefined
+  return row === undefined ? undefined : toDelivery(row)
+}
+
+/** 某条会话里你的话（来源是用户）的投递，新的在前：任务页显示“你的补充：已读 / 未读”。 */
+export function ownerDeliveries(db: DatabaseSync, sessionIds: readonly string[], limit: number): readonly Delivery[] {
+  if (sessionIds.length === 0) return []
+  const rows = db
+    .prepare(
+      `SELECT * FROM deliveries WHERE session_id IN (${sessionIds.map(() => '?').join(', ')}) AND json_extract(message, '$.source.kind') = 'user'
+       ORDER BY created_at DESC LIMIT ?`,
+    )
+    .all(...sessionIds, limit) as unknown as readonly DeliveryRow[]
+  return rows.map(toDelivery)
+}
+
+export function getDelivery(db: DatabaseSync, id: string): Delivery | undefined {
+  const row = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(id) as DeliveryRow | undefined
+  return row === undefined ? undefined : toDelivery(row)
 }
 
 export function bumpDeliveryAttempt(db: DatabaseSync, id: string, error: string): void {
   db.prepare('UPDATE deliveries SET attempts = attempts + 1, error = ? WHERE id = ?').run(error, id)
 }
 
-/** 某条会话里还没投出去的消息全部撤回（任务停止或取消时）。 */
-export function cancelPendingFor(db: DatabaseSync, sessionId: string): number {
-  const result = db.prepare("UPDATE deliveries SET status = 'cancelled' WHERE session_id = ? AND status = 'pending'").run(sessionId)
-  return Number(result.changes)
-}
-
 /** 按消息 id 查投递记录：区分“Pod 投进去的消息”和“你在 dsh 会话视图里直接打的字”。 */
 export function deliveryByMessageId(db: DatabaseSync, messageId: string): Delivery | undefined {
-  const row = db.prepare("SELECT * FROM deliveries WHERE json_extract(message, '$.id') = ?").get(messageId) as DeliveryRow | undefined
+  const row = db.prepare('SELECT * FROM deliveries WHERE message_id = ?').get(messageId) as DeliveryRow | undefined
   return row === undefined ? undefined : toDelivery(row)
 }

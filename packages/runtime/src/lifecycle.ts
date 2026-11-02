@@ -1,5 +1,5 @@
 import { PRIORITY, t, type PodSession } from 'pod-domain'
-import { pendingDeliveries } from 'pod-store'
+import { sessionsWithPending } from 'pod-store'
 import { noticeSource } from './agents/messages.ts'
 import type { PreStepDecision } from './dsh.ts'
 import type { PodRuntime } from './pod.ts'
@@ -9,7 +9,7 @@ import type { PodRuntime } from './pod.ts'
  * 组长那边有待验收的子任务时，也提醒它看一下任务板。已经有待投消息的会话不重复提醒。
  */
 export function recoverAfterRestart(pod: PodRuntime): void {
-  const pending = new Set(pendingDeliveries(pod.db).map((delivery) => delivery.sessionId))
+  const pending = new Set(sessionsWithPending(pod.db))
   const remind = (session: PodSession, text: string, summary: string): void => {
     pod.dispatcher.enqueue({ sessionId: session.id, mode: 'followup', priority: PRIORITY.task, text, source: noticeSource(summary) })
   }
@@ -57,7 +57,9 @@ export function startRuntime(pod: PodRuntime): () => void {
   })
   pod.rooms.ensureLeadRoom()
   const stopAibot = pod.aibot.start()
-  void pod.dispatcher.pump()
+  // 上次没交出的接着交，交了没收进历史的查过再重交；然后副作用队列开始干活。
+  pod.dispatcher.recover()
+  pod.effects.start()
   // 上次 dsh web 退出时正在执行的浏览器写操作和 X 写操作：标为状态未知，先问你。
   pod.browser.approvals.markUnknown()
   pod.x.writes.markUnknown()
@@ -93,6 +95,7 @@ export function startRuntime(pod: PodRuntime): () => void {
     .then((count) => (count === 0 ? pod.search.rebuild() : 0))
     .catch(warn('重建搜索索引失败'))
   return () => {
+    pod.effects.stop()
     pod.dispatcher.stop()
     pod.tasks.dispose()
     for (const timer of timeouts) clearTimeout(timer)

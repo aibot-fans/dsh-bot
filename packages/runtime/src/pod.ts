@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { join } from 'node:path'
 import { OWNER, POD, POD_VERSION, PRIORITY, botFolder, composePersona, roomFolder, fail, sessionBrowses, sessionMakesPages, t, withLanguage, worthSummary, type Bot, type BotStats, type Language, type PodEvent, type PodResult, type PodSession, type Room, type Task, type TeamTemplate } from 'pod-domain'
-import { deliveryByMessageId, pinnedMessages, teamsOfBot } from 'pod-store'
+import { afterCommit, deliveryByMessageId, inTransaction, onAfterCommitError, pinnedMessages, teamsOfBot } from 'pod-store'
 import { SegmentManager } from './agents/segments.ts'
 import { AibotService } from './aibot/service.ts'
 import { MemoryExtractor } from './memory/extract.ts'
@@ -16,7 +16,7 @@ import { readPageOverHttp } from './routines/page.ts'
 import { RoutineReplies } from './routines/replies.ts'
 import { RoutineService, type PageContent } from './routines/service.ts'
 import { AgentBinder } from './agents/binder.ts'
-import { Dispatcher } from './agents/dispatcher.ts'
+import { Dispatcher } from './effects/delivery.ts'
 import { noticeSource } from './agents/messages.ts'
 import { SessionObserver } from './agents/observer.ts'
 import { SessionRegistry } from './agents/registry.ts'
@@ -34,7 +34,10 @@ import { LiteLlm } from './core/lite.ts'
 import { Maintenance } from './core/maintenance.ts'
 import { LanguageService } from './core/language.ts'
 import { SettingsService } from './core/settings.ts'
-import type { HostContext, LlmService } from './dsh.ts'
+import type { HostContext, LlmService, SessionPersistenceLike } from './dsh.ts'
+import { healthReport, type HealthReport } from './effects/health.ts'
+import { DeliveryLedger } from './effects/ledger.ts'
+import { Effects } from './effects/queue.ts'
 import { SessionFactory } from './sessions/factory.ts'
 import { TaskService } from './tasks/service.ts'
 import { equipSession, type ExtraTool } from './tools/index.ts'
@@ -105,6 +108,9 @@ export class PodRuntime {
   readonly bots: BotService
   readonly sessions: SessionFactory
   readonly registry: SessionRegistry
+  /** 副作用队列：开工、送达、通知……命令提交后才对外做。 */
+  readonly effects: Effects
+  readonly ledger: DeliveryLedger
   readonly dispatcher: Dispatcher
   readonly observer: SessionObserver
   readonly watchdog: Watchdog
@@ -160,6 +166,15 @@ export class PodRuntime {
       if (process.env.POD_DEBUG === '1') console.error(`[pod] ${message}`)
     }
     this.bus = new PodBus(now)
+    // 事务里发的页面事件等提交后再推；提交后回调出错只记一行，不能再抛（事务已经提交了）。
+    this.bus.deferWith((fire) => {
+      if (!inTransaction(db)) return false
+      afterCommit(db, fire)
+      return true
+    })
+    onAfterCommitError((error) => ctx.logger.warn('dsh-bot 提交后的处理出错', error))
+    this.effects = new Effects({ db, now, onHealth: () => this.bus.emit({ type: 'health' }), warn: (message, error) => ctx.logger.warn(message, error) })
+    this.ledger = new DeliveryLedger(() => ctx.get('sessionPersistence') as SessionPersistenceLike | undefined)
     this.audit = new Auditor(db, now, warn)
     this.settings = new SettingsService(db, this.bus, now)
     this.language = new LanguageService(db, () => this.settings.get())
@@ -186,9 +201,10 @@ export class PodRuntime {
       agents: ctx.agents,
       sessions: ctx.sessionController,
       registry: this.registry,
+      effects: this.effects,
+      ledger: this.ledger,
       settings: () => this.settings.get(),
       now,
-      warn,
     })
     this.meter = new UsageMeter(db, this.registry, (taskId) => this.tasks.rootOf(taskId), now)
     this.lite = new LiteLlm({
@@ -382,6 +398,7 @@ export class PodRuntime {
         },
         onTurnEnd: (session, reason, failure) => {
           flushRoutine(session)
+          this.dispatcher.turnEnded(session.id)
           this.dispatcher.setRunning(session.id, false)
           this.pages.onTurnEnd(session.id)
           this.tasks.onTurnEnd(session, reason, failure)
@@ -419,7 +436,10 @@ export class PodRuntime {
           this.emitActivity(session)
         },
         isPodDelivery: (messageId) => deliveryByMessageId(db, messageId) !== undefined,
-        onDelivered: (session, messageId) => this.pages.onDelivered(session, messageId),
+        onDelivered: (session, messageId) => {
+          this.dispatcher.taken(session.id, messageId)
+          this.pages.onDelivered(session, messageId)
+        },
       },
       now,
     )
@@ -726,6 +746,11 @@ export class PodRuntime {
   get readOnlyReason(): string | undefined {
     const { compat } = this.options
     return compat.readOnly ? t('当前 dsh（{version}）缺少 dsh-bot 需要的接口：{problems}。dsh-bot 进入只读模式。', { version: compat.dshVersion, problems: compat.problems.join(t('、')) }) : undefined
+  }
+
+  /** 系统好不好：还没恢复的系统问题、副作用队列排着的和失败的。 */
+  health(): HealthReport {
+    return healthReport(this.db, this.ledger.available, this.now())
   }
 
   status(): PodStatus {

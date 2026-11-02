@@ -40,6 +40,8 @@ export type PodEvent =
       readonly progress?: TurnProgress | null
     }
   | { readonly type: 'waits' }
+  /** 系统问题出现或恢复（副作用连续失败、模型服务出错……）。 */
+  | { readonly type: 'health' }
   | { readonly type: 'notifications' }
   /** 要弹出来的一条通知（勿扰和房间通知级别已经过滤过）。 */
   | { readonly type: 'notify'; readonly notification: PodNotification }

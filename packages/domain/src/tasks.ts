@@ -163,4 +163,6 @@ export interface TaskSnapshot {
   readonly cost: number
   readonly tokens: number
   readonly waits: number
+  /** 给任务会话的消息连着几次交不出去：任务卡上显示“消息没送到”，可以点重试。 */
+  readonly undelivered: { readonly error: string; readonly attempts: number; readonly since: number } | null
 }

@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { PRIORITY, TASK_STATUS_LABELS, formatCost, nextDailyAt, t, type PodSettings, type Task, type Wait } from 'pod-domain'
 import { readState, writeState } from 'pod-store'
-import type { Dispatcher } from '../agents/dispatcher.ts'
+import type { Dispatcher } from '../effects/delivery.ts'
 import { noticeSource } from '../agents/messages.ts'
 
 export interface BriefData {

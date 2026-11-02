@@ -20,7 +20,7 @@ import {
   type WaitKind,
 } from 'pod-domain'
 import { getWait, insertWait, listWaits, setRootWaitStatus, setWaitStatus, waitsForRoot } from 'pod-store'
-import type { Dispatcher } from '../agents/dispatcher.ts'
+import type { Dispatcher } from '../effects/delivery.ts'
 import type { RoomService } from '../chat/rooms.ts'
 import type { Auditor } from '../core/audit.ts'
 import type { PodBus } from '../core/bus.ts'

@@ -1,6 +1,6 @@
 import { PRIORITY, acceptanceProgress, t, type PodSession, type Task } from 'pod-domain'
 import type { AgentRegistry } from '../dsh.ts'
-import type { Dispatcher } from './dispatcher.ts'
+import type { Dispatcher } from '../effects/delivery.ts'
 import { noticeSource } from './messages.ts'
 import type { SessionObserver } from './observer.ts'
 import type { SessionRegistry } from './registry.ts'

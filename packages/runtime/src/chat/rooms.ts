@@ -62,7 +62,7 @@ import {
   type RoomPatch,
 } from 'pod-store'
 import { ownerSource, relaySource } from '../agents/messages.ts'
-import type { Dispatcher } from '../agents/dispatcher.ts'
+import type { Dispatcher } from '../effects/delivery.ts'
 import type { SessionRegistry } from '../agents/registry.ts'
 import type { BotService } from '../bots/service.ts'
 import type { Auditor } from '../core/audit.ts'

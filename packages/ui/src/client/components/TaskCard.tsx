@@ -217,6 +217,12 @@ export function TaskCard(props: { readonly taskId: string; readonly compact?: bo
             ))}
           {task.note === '' ? null : <div className="pod-task-note">{t('进度说明：{note}', { note: task.note })}</div>}
           {snapshot.waits > 0 ? <div className="pod-task-wait">{t('等你处理：{waits} 件', { waits: snapshot.waits })}</div> : null}
+          {snapshot.undelivered === null || snapshot.undelivered === undefined ? null : (
+            <div className="pod-task-wait">
+              {t('消息没送到：{error}', { error: snapshot.undelivered.error })}{' '}
+              <Button onClick={() => void api.redeliverTask(task.id)}>{t('重试')}</Button>
+            </div>
+          )}
         </>
       )}
       <div className="pod-task-actions">

@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import type { PodSession, PodSettings } from 'pod-domain'
-import type { Dispatcher } from '../agents/dispatcher.ts'
+import type { Dispatcher } from '../effects/delivery.ts'
 import type { SessionRegistry } from '../agents/registry.ts'
 import type { SharedBrowser } from '../browser/browser.ts'
 import type { Auditor } from '../core/audit.ts'

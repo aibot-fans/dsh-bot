@@ -536,6 +536,145 @@ const MIGRATIONS: readonly string[] = [
   `
   ALTER TABLE routines ADD COLUMN run_at INTEGER;
   `,
+  // v11：V3 的地基。副作用队列、系统问题、操作 id；任务的执行、汇报、话题、跟进、触发器和每条消息的去向；
+  // 投递跟踪到收进历史、读过为止（加列前已投出的当作读过）；催促次数入库。
+  `
+  CREATE TABLE effects (
+    kind TEXT NOT NULL,
+    key TEXT NOT NULL,
+    payload TEXT NOT NULL DEFAULT '{}',
+    seq INTEGER NOT NULL,
+    generation INTEGER NOT NULL DEFAULT 0,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    error TEXT NOT NULL DEFAULT '',
+    due INTEGER NOT NULL,
+    since INTEGER NOT NULL,
+    PRIMARY KEY (kind, key)
+  );
+  CREATE INDEX effects_by_due ON effects (kind, due, seq);
+
+  CREATE TABLE problems (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL,
+    detail TEXT NOT NULL DEFAULT '',
+    failures INTEGER NOT NULL DEFAULT 0,
+    started_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    resolved_at INTEGER
+  );
+  CREATE INDEX problems_open ON problems (kind, resolved_at);
+
+  CREATE TABLE ops (
+    id TEXT PRIMARY KEY,
+    command TEXT NOT NULL,
+    result TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE task_runs (
+    id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL,
+    session_id TEXT,
+    status TEXT NOT NULL,
+    reason TEXT NOT NULL DEFAULT '',
+    outcome TEXT,
+    error TEXT,
+    queued_at INTEGER NOT NULL,
+    started_at INTEGER,
+    ended_at INTEGER
+  );
+  CREATE INDEX task_runs_by_task ON task_runs (task_id, queued_at);
+
+  CREATE TABLE task_reports (
+    id TEXT PRIMARY KEY,
+    run_id TEXT,
+    task_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    summary TEXT NOT NULL DEFAULT '',
+    report TEXT NOT NULL DEFAULT '',
+    question TEXT,
+    about_message TEXT,
+    reply_message TEXT,
+    checks TEXT NOT NULL DEFAULT '[]',
+    data TEXT NOT NULL DEFAULT '{}',
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX task_reports_by_task ON task_reports (task_id, created_at);
+
+  CREATE TABLE message_routes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id TEXT NOT NULL,
+    route TEXT NOT NULL,
+    task_id TEXT,
+    decided_by TEXT NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX message_routes_by_message ON message_routes (message_id);
+  CREATE INDEX message_routes_by_task ON message_routes (task_id);
+
+  CREATE TABLE topics (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL,
+    room_id TEXT,
+    root_message TEXT,
+    task_id TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX topics_by_root ON topics (root_message);
+  CREATE INDEX topics_by_task ON topics (task_id);
+
+  CREATE TABLE topic_follows (
+    topic_id TEXT NOT NULL,
+    task_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    started_at INTEGER NOT NULL,
+    ended_at INTEGER,
+    PRIMARY KEY (topic_id, task_id)
+  );
+  CREATE INDEX topic_follows_by_task ON topic_follows (task_id);
+
+  CREATE TABLE triggers (
+    id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL,
+    spec TEXT NOT NULL,
+    timezone TEXT NOT NULL DEFAULT '',
+    note TEXT NOT NULL DEFAULT '',
+    next_at INTEGER,
+    last_at INTEGER,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX triggers_by_task ON triggers (task_id);
+  CREATE INDEX triggers_due ON triggers (enabled, next_at);
+
+  ALTER TABLE deliveries ADD COLUMN message_id TEXT;
+  ALTER TABLE deliveries ADD COLUMN handed_at INTEGER;
+  ALTER TABLE deliveries ADD COLUMN taken_at INTEGER;
+  ALTER TABLE deliveries ADD COLUMN read_at INTEGER;
+  UPDATE deliveries SET message_id = json_extract(message, '$.id');
+  UPDATE deliveries SET handed_at = sent_at, taken_at = sent_at, read_at = sent_at WHERE status = 'sent';
+  CREATE INDEX deliveries_by_message ON deliveries (message_id);
+  CREATE INDEX deliveries_by_session ON deliveries (session_id, status);
+
+  ALTER TABLE tasks ADD COLUMN origin TEXT;
+  ALTER TABLE tasks ADD COLUMN reply_to TEXT NOT NULL DEFAULT '[]';
+  ALTER TABLE tasks ADD COLUMN ended_at INTEGER;
+  ALTER TABLE tasks ADD COLUMN end_reason TEXT;
+  ALTER TABLE tasks ADD COLUMN stage_cache TEXT;
+  ALTER TABLE tasks ADD COLUMN nudges INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE tasks ADD COLUMN nudge_mark TEXT NOT NULL DEFAULT '';
+
+  ALTER TABLE sessions ADD COLUMN role TEXT NOT NULL DEFAULT '';
+  UPDATE sessions SET role = CASE kind WHEN 'chat' THEN 'chat' ELSE 'task' END;
+
+  ALTER TABLE messages ADD COLUMN source TEXT NOT NULL DEFAULT 'chat';
+  ALTER TABLE messages ADD COLUMN topic_id TEXT;
+  ALTER TABLE messages ADD COLUMN topic_via TEXT;
+
+  ALTER TABLE waits ADD COLUMN report_id TEXT;
+  `,
 ]
 
 function readVersion(db: DatabaseSync): number {

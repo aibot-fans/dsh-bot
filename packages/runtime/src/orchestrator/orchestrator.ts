@@ -24,7 +24,7 @@ import {
   type TeamPlan,
 } from 'pod-domain'
 import { insertTask, planKeys, readTaskPlan, setTaskPlanKey, transaction, updateTask, writeTaskPlan } from 'pod-store'
-import type { Dispatcher } from '../agents/dispatcher.ts'
+import type { Dispatcher } from '../effects/delivery.ts'
 import { noticeSource, relaySource } from '../agents/messages.ts'
 import type { SessionRegistry } from '../agents/registry.ts'
 import type { BotService } from '../bots/service.ts'

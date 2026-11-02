@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { PRIORITY, botFolder, fail, newId, ok, t, truncate, type Bot, type PodResult, type PodSession, type Task } from 'pod-domain'
 import { answerConsult, insertConsult, oldestPendingConsult } from 'pod-store'
-import type { Dispatcher } from '../agents/dispatcher.ts'
+import type { Dispatcher } from '../effects/delivery.ts'
 import { relaySource } from '../agents/messages.ts'
 import type { SessionRegistry } from '../agents/registry.ts'
 import type { BotService } from '../bots/service.ts'

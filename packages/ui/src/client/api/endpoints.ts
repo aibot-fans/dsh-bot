@@ -240,6 +240,7 @@ export const api = {
   taskDetail: (id: string) => apiGet<TaskDetail>('/task/detail', { id }),
   controlTask: (taskId: string, action: 'pause' | 'resume' | 'stop' | 'cancel') => apiPost('/task/control', { taskId, action }),
   talkToTask: (taskId: string, text: string) => apiPost('/task/talk', { taskId, text }),
+  redeliverTask: (taskId: string) => apiPost('/task/redeliver', { taskId }),
   approvePlan: (taskId: string) => apiPost('/task/approve', { taskId }),
   taskPlan: (id: string) => apiGet<{ readonly plan: TeamPlan; readonly keys: Readonly<Record<string, string>> }>('/task/plan', { id }),
   stopAll: () => apiPost<{ readonly stopped: number }>('/tasks/stop-all'),

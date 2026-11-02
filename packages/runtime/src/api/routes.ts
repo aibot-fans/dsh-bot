@@ -24,6 +24,7 @@ import { get, post, type RouteSpec } from './router.ts'
 export function baseRoutes(pod: PodRuntime): readonly RouteSpec[] {
   return [
     get('/status', () => ok(pod.status())),
+    get('/health', () => ok(pod.health())),
     get('/settings', () => ok(pod.settings.get())),
     post('/settings/update', (body) => pod.settings.update(body)),
     // 页面上报 dsh 的界面语言：设置是“跟随 dsh”时宿主照它说话。
@@ -136,6 +137,10 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
       const action = readString(body, 'action')
       if (taskId === undefined || !['pause', 'resume', 'stop', 'cancel'].includes(action)) return fail('invalid-input', t('要写明任务和操作'))
       return pod.tasks.control(taskId, action as 'pause' | 'resume' | 'stop' | 'cancel', 'owner')
+    }),
+    post('/task/redeliver', (body) => {
+      const taskId = readId(body, 'taskId')
+      return taskId === undefined ? fail('invalid-input', t('缺少任务 id')) : pod.tasks.redeliver(taskId)
     }),
     post('/task/approve', async (body) => {
       const taskId = readId(body, 'taskId')

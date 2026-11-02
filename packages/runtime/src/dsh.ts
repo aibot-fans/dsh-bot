@@ -137,11 +137,18 @@ export type CancelCause =
   | { readonly kind: 'user' }
   | { readonly kind: 'hook'; readonly reason: string }
 
+/** agent 的收件箱：还没进历史的消息，下一轮的和下一步的两串。dsh 0.2.1-rc.2 起有，旧版本没有。 */
+export interface AgentInbox {
+  readonly nextTurn: readonly UserMessage[]
+  readonly nextStep: readonly UserMessage[]
+}
+
 /** dsh-agent 的 Agent 句柄里 Pod 用到的部分。 */
 export interface LiveAgent {
   readonly session: { readonly id: string }
   readonly status: AgentStatus
   readonly ctx: AgentScope
+  readonly inbox?: AgentInbox
   followup(message: UserMessage): void
   steer(message: UserMessage): void
   inject(message: UserMessage): void
@@ -237,6 +244,19 @@ export interface LlmService {
     configure?: (controls: Readonly<Record<string, unknown>>, model: ResolvedModelInfo) => Readonly<Record<string, unknown>>,
   ): Promise<PreparedCall>
   resolveModelInfo(provider: string, model: string, signal?: AbortSignal): Promise<ResolvedModelInfo>
+}
+
+// ---------- session 持久化 ----------
+
+/** 只读打开的会话日志；用完要释放（它实现了 Symbol.asyncDispose）。 */
+export interface SessionLogHandle {
+  read(offset?: number, length?: number): Promise<{ readonly events: readonly SessionEvent[] }>
+}
+
+/** dsh-session-persistence（ctx.sessionPersistence）：交消息后等落盘、查会话历史里有没有某条消息。 */
+export interface SessionPersistenceLike {
+  flush(): Promise<void>
+  open(id: string, access: 'read'): Promise<SessionLogHandle>
 }
 
 // ---------- session 事件 ----------

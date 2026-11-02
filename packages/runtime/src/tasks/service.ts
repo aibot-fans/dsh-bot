@@ -22,6 +22,7 @@ import {
   activeTasksForBot,
   appendTaskEvent,
   getTask,
+  stuckDelivery,
   insertTask,
   listRootTasks,
   listTaskEvents,
@@ -30,7 +31,7 @@ import {
   type TaskEvent,
   type TaskPatch,
 } from 'pod-store'
-import type { Dispatcher } from '../agents/dispatcher.ts'
+import type { Dispatcher } from '../effects/delivery.ts'
 import { noticeSource, relaySource } from '../agents/messages.ts'
 import type { TurnFailure } from '../agents/observer.ts'
 import type { SessionRegistry } from '../agents/registry.ts'
@@ -48,6 +49,9 @@ import { snapshotText } from './snapshot.ts'
 
 /** 一轮结束却没提交，最多提醒几次；还没进展就交回给派活的人。 */
 const MAX_NUDGES = 3
+
+/** 给任务的消息连续交不出去几次，任务卡上显示“消息没送到”。 */
+const UNDELIVERED_AFTER = 3
 
 export interface TaskServiceDeps {
   readonly db: DatabaseSync
@@ -584,7 +588,25 @@ export class TaskService {
       cost: usage.cost,
       tokens: usage.tokens,
       waits: this.deps.openWaits(task.rootId),
+      undelivered: this.undelivered(own?.id),
     }
+  }
+
+  /** 交不出去的消息（连续失败到门槛的那条）。 */
+  private undelivered(sessionId: string | undefined): TaskSnapshot['undelivered'] {
+    if (sessionId === undefined) return null
+    const stuck = stuckDelivery(this.db, sessionId, UNDELIVERED_AFTER)
+    return stuck === undefined ? null : { error: stuck.error ?? '', attempts: stuck.attempts, since: stuck.createdAt }
+  }
+
+  /** 你点了“重试”：交不出去的消息马上再交一次。 */
+  redeliver(taskId: string): PodResult<Task> {
+    const task = this.get(taskId)
+    if (task === undefined) return fail('not-found', t('找不到这个任务'))
+    const session = this.deps.registry.activeForTask(task.id, 'task') ?? this.deps.registry.activeForTask(task.id, 'coord')
+    if (session === undefined) return fail('not-found', t('这个任务现在没有在执行的会话'))
+    this.deps.dispatcher.retry(session.id)
+    return ok(task)
   }
 
   snapshotTextFor(taskId: string): string | undefined {
