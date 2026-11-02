@@ -29,8 +29,8 @@ export class Later extends Error {
 /** 同一种动作连续失败几次算系统问题。 */
 export const FAILURES_BEFORE_PROBLEM = 3
 
-/** 开工、送达、转交、通知、回复、判断。 */
-export type EffectKind = 'open' | 'deliver' | 'relay' | 'notify' | 'reply' | 'judge'
+/** 开工、送达、转交、通知、回复、判断、合批送进前台。 */
+export type EffectKind = 'open' | 'deliver' | 'relay' | 'notify' | 'reply' | 'judge' | 'front'
 
 export interface EffectRun {
   readonly key: string
@@ -74,6 +74,7 @@ const PROBLEM_LABELS: Readonly<Record<EffectKind, string>> = {
   notify: '发通知',
   reply: '往聊天室发消息',
   judge: '自动来源的判断',
+  front: '把消息交给前台',
 }
 
 function errorText(error: unknown): string {

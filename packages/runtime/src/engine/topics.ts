@@ -1,7 +1,12 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { newId, type FollowKind, type MessageRoute, type RouteKind, type Topic, type TopicFollow } from 'pod-domain'
 import {
+  awaitingFront,
+  bindFrontRoutes,
   followTopic,
+  frontQueue,
+  frontRefsUndecided,
+  frontsWithQueue,
   followersOf,
   followsOf,
   getMessage,
@@ -14,6 +19,7 @@ import {
   threadRoot,
   topicByRoot,
   transaction,
+  undecidedFront,
   unfollowTopic,
 } from 'pod-store'
 
@@ -86,8 +92,44 @@ export class Topics {
     return followsOf(this.db, taskId)
   }
 
-  route(messageId: string, route: RouteKind, taskId: string | null, decidedBy: string, note = '', ref: string | null = null): void {
-    insertRoute(this.db, { messageId, route, taskId, decidedBy, note, ref, now: this.deps.now() })
+  route(messageId: string, route: RouteKind, taskId: string | null, decidedBy: string, note = '', ref: string | null = null, botId: string | null = null): void {
+    insertRoute(this.db, { messageId, route, taskId, decidedBy, note, ref, botId, now: this.deps.now() })
+  }
+
+  /** 交给这个 bot 的前台：先记下去向（待送），再由前台合批送出。 */
+  toFront(messageId: string, botId: string, note = ''): void {
+    this.route(messageId, 'front', null, 'code', note, null, botId)
+  }
+
+  /** 前台的判断：记在交给它的那个 bot 名下。 */
+  decide(messageId: string, botId: string, route: RouteKind, taskId: string | null = null, note = ''): void {
+    this.route(messageId, route, taskId, botId, note, null, botId)
+  }
+
+  frontQueue(botId: string): readonly MessageRoute[] {
+    return frontQueue(this.db, botId)
+  }
+
+  frontsWithQueue(): readonly string[] {
+    return frontsWithQueue(this.db)
+  }
+
+  bindFront(routeIds: readonly number[], deliveryId: string): void {
+    bindFrontRoutes(this.db, routeIds, deliveryId)
+  }
+
+  undecided(botId: string, refs: readonly string[]): readonly MessageRoute[] {
+    return undecidedFront(this.db, botId, refs)
+  }
+
+  /** 送进去了还没去向的那几批（投递 id）。 */
+  inFlight(botId: string): readonly string[] {
+    return frontRefsUndecided(this.db, botId)
+  }
+
+  /** 这条消息交给了这个前台、还没判断。 */
+  awaiting(messageId: string, botId: string): boolean {
+    return awaitingFront(this.db, messageId, botId)
   }
 
   routes(messageId: string): readonly MessageRoute[] {

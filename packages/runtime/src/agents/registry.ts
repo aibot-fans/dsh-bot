@@ -75,6 +75,13 @@ export class SessionRegistry {
       .sort((left, right) => right.segment - left.segment)[0]
   }
 
+  /** 这个 bot 现在的前台（每个 bot 一条，跨聊天室）。 */
+  activeFront(botId: string): PodSession | undefined {
+    return this.active()
+      .filter((session) => session.kind === 'front' && session.botId === botId)
+      .sort((left, right) => right.segment - left.segment)[0]
+  }
+
   activeForTask(taskId: string, kind: SessionKind): PodSession | undefined {
     return this.active()
       .filter((session) => session.kind === kind && session.taskId === taskId)

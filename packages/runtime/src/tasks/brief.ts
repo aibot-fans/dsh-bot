@@ -68,7 +68,8 @@ export const ROUTED_HOWTO = '这些消息直接送到了你这里：归这个任
 function routedLine(message: RoutedMessage): string {
   const reply = message.replyTo === null ? '' : `（回复 ${message.replyTo}）`
   const note = message.note === undefined || message.note === '' ? '' : `\n转来时的说明：${message.note}`
-  return message.id === null ? `[用户原话] ${message.text}` : `[直通消息 ${message.id}] ${message.author}${reply}：${message.text}${note}`
+  if (message.id !== null) return `[直通消息 ${message.id}] ${message.author}${reply}：${message.text}${note}`
+  return message.author === '用户' ? `[用户原话] ${message.text}` : `[${message.author}补充] ${message.text}`
 }
 
 /** 开工原因里的消息：直通或转来的（带消息 id）和你直接对任务说的、答复的（只有原话）。 */

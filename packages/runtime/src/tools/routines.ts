@@ -29,7 +29,9 @@ export function routineTools(pod: PodRuntime, session: PodSession): readonly Too
   /** 发到哪：「这里」是当前房间，「单聊」是负责的 bot 和用户的单聊，别的按群名或 id 找；成员只能发到自己在的群。 */
   const resolveRoom = (name: string, botId: string): { readonly id: string | null } | string => {
     if (name === '这里' || name === '当前房间') return { id: current().roomId }
-    if (name === '单聊') return { id: null }
+    if (name === '单聊' || name === '') return { id: null }
+    const direct = pod.rooms.get(name)
+    if (direct?.kind === 'direct' && direct.archivedAt === null) return direct.botId === botId || lead ? { id: direct.botId === botId ? null : direct.id } : '只能发到你自己的单聊'
     const rooms = pod.rooms.list({})
     const groups = rooms.ok ? rooms.value.filter((room) => room.kind !== 'direct') : []
     const found = groups.find((room) => room.id === name) ?? groups.find((room) => room.title === name)
@@ -53,19 +55,22 @@ export function routineTools(pod: PodRuntime, session: PodSession): readonly Too
       ...botParam('谁来做'),
       ...SCHEDULE_PROPS,
       page: str('每次运行都更新这个页面（页面 id）：比如每天刷新的看板。先用 save_page 建好页面再填'),
+      ...(session.kind === 'front' ? { room: str('结果发到哪：群名或 room id；不写就发到负责的 bot 和用户的单聊') } : {}),
     },
     required: ['title', 'prompt'],
     parse: (args) => {
       const schedule = readSchedule(args, pod.now())
       if (schedule === undefined) return '要写时间：time、every_minutes、cron、at 或 in_minutes'
       if (typeof schedule === 'string') return schedule
-      return { title: text(args, 'title'), prompt: text(args, 'prompt'), bot: text(args, 'bot'), schedule, page: text(args, 'page') }
+      return { title: text(args, 'title'), prompt: text(args, 'prompt'), bot: text(args, 'bot'), schedule, page: text(args, 'page'), room: text(args, 'room') }
     },
-    run: ({ title, prompt, bot, schedule, page }) => {
+    run: ({ title, prompt, bot, schedule, page, room }) => {
       const me = current()
       const target = owner(bot)
       if (target === undefined) return failure(`找不到 bot「${bot}」`)
-      const result = pod.routines.create({ kind: 'cron', title, prompt, ...schedule, botId: target.id, roomId: me.roomId, ...(page === '' ? {} : { pageId: page }) }, me.botId)
+      const place = me.roomId === null ? resolveRoom(room, target.id) : { id: me.roomId }
+      if (typeof place === 'string') return failure(place)
+      const result = pod.routines.create({ kind: 'cron', title, prompt, ...schedule, botId: target.id, roomId: place.id, ...(page === '' ? {} : { pageId: page }) }, me.botId)
       if (!result.ok) return failure(result.error.message)
       const routine = result.value
       const who = target.id === me.botId ? '' : `，由${target.name}来做`

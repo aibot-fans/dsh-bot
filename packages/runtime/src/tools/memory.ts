@@ -1,5 +1,5 @@
 import { MEMORY_TYPES, OWNER, POD, t, truncate, type MemoryType, type PodSession } from 'pod-domain'
-import { firstOwnerLine, getMessage, listMessages } from 'pod-store'
+import { findOwnerMessage, firstOwnerLine, getMessage, listMessages } from 'pod-store'
 import { chatSubject } from '../chat/rooms.ts'
 import type { ToolDefinition } from '../dsh.ts'
 import type { PodRuntime } from '../pod.ts'
@@ -21,6 +21,7 @@ export function memoryTools(pod: PodRuntime, session: PodSession): readonly Tool
       type: oneOf('类型', MEMORY_TYPES),
       scope: oneOf('写到哪里', ['self', 'owner', 'team', 'room']),
       owner_quote: str('scope=owner 时必填：用户的原话'),
+      ...(session.kind === 'front' ? { room: str('scope=owner 时那句话在哪个聊天室、scope=room 时写哪个聊天室（room id）') } : {}),
       pinned: bool('置顶：每次都放进提示词'),
       valid_days: int('有效天数，例如“这周在出差”写 7；长期有效不填'),
     },
@@ -30,6 +31,7 @@ export function memoryTools(pod: PodRuntime, session: PodSession): readonly Tool
       type: ((MEMORY_TYPES as readonly string[]).includes(text(args, 'type')) ? text(args, 'type') : 'fact') as MemoryType,
       scope: text(args, 'scope') === '' ? 'self' : text(args, 'scope'),
       quote: text(args, 'owner_quote'),
+      room: text(args, 'room'),
       pinned: flag(args, 'pinned') === true,
       validDays: typeof args.valid_days === 'number' && args.valid_days > 0 ? args.valid_days : undefined,
     }),
@@ -39,9 +41,8 @@ export function memoryTools(pod: PodRuntime, session: PodSession): readonly Tool
       const common = { type: args.type, content: args.content, pinned: args.pinned, validUntil }
       if (args.scope === 'owner') {
         if (args.quote === '') return failure('写进用户档案必须原样引用用户的话（owner_quote）')
-        const said = me.roomId === null ? [] : listMessages(pod.db, me.roomId, { limit: 60 }).filter((message) => message.author === OWNER)
-        const found = said.find((message) => message.body.includes(args.quote.slice(0, 30)))
-        if (found === undefined) return failure('在这个房间最近的消息里找不到这句原话；用户的档案只能写用户自己说过的话')
+        const found = findOwnerMessage(pod.db, args.quote.slice(0, 30), me.roomId ?? (args.room === '' ? null : args.room))
+        if (found === undefined) return failure('在聊天记录里找不到这句原话；用户的档案只能写用户自己说过的话')
         const result = pod.memory.add({ scopeKind: 'owner', scopeId: '', ...common, source: 'owner', sourceRef: found.id }, me.botId, t('用户说“记住……”'))
         return result.ok ? success('已写进用户的档案。') : failure(result.error.message)
       }
@@ -52,10 +53,11 @@ export function memoryTools(pod: PodRuntime, session: PodSession): readonly Tool
         return result.ok ? success(`已写进「${team.name}」的团队约定。`) : failure(result.error.message)
       }
       if (args.scope === 'room') {
-        if (pod.bots.get(me.botId)?.role !== 'lead' || me.roomId === null) return failure('只有主管能在房间里写房间要点')
+        const roomId = me.roomId ?? (args.room === '' ? null : args.room)
+        if (pod.bots.get(me.botId)?.role !== 'lead' || roomId === null) return failure('只有主管能写聊天室要点，要写明是哪个聊天室（room）')
         // 单聊分成一段段对话：单聊里定下的事记在主管名下，换一段对话也还在。
-        const direct = pod.rooms.get(me.roomId)?.kind === 'direct'
-        const result = pod.memory.add({ scopeKind: direct ? 'bot' : 'room', scopeId: direct ? me.botId : me.roomId, ...common, source: 'bot' }, me.botId, t('主管写房间要点'))
+        const direct = pod.rooms.get(roomId)?.kind === 'direct'
+        const result = pod.memory.add({ scopeKind: direct ? 'bot' : 'room', scopeId: direct ? me.botId : roomId, ...common, source: 'bot' }, me.botId, t('主管写房间要点'))
         return result.ok ? success('已写进这个房间的要点。') : failure(result.error.message)
       }
       const result = pod.memory.add({ scopeKind: 'bot', scopeId: me.botId, ...common, source: 'bot' }, me.botId, t('自己记下的经验'))
@@ -82,13 +84,18 @@ export function memoryTools(pod: PodRuntime, session: PodSession): readonly Tool
   const searchHistory = podTool({
     name: 'search_history',
     description: '搜聊天记录（单聊和群聊），中文任意长度的词都能搜到。只能搜到你所在的对话。',
-    properties: { query: str('关键词，多个词用空格分开'), here: bool('只搜当前房间'), limit: int('最多几条，默认 10') },
+    properties: {
+      query: str('关键词，多个词用空格分开'),
+      ...(session.kind === 'front' ? { room: str('只搜这个聊天室（room id）') } : { here: bool('只搜当前房间') }),
+      limit: int('最多几条，默认 10'),
+    },
     required: ['query'],
     concurrent: true,
-    parse: (args) => ({ query: text(args, 'query'), here: flag(args, 'here') === true, limit: typeof args.limit === 'number' ? Math.min(30, Math.max(1, args.limit)) : 10 }),
-    run: async ({ query, here, limit }) => {
+    parse: (args) => ({ query: text(args, 'query'), here: flag(args, 'here') === true, room: text(args, 'room'), limit: typeof args.limit === 'number' ? Math.min(30, Math.max(1, args.limit)) : 10 }),
+    run: async ({ query, here, room, limit }) => {
       const me = current()
-      const hits = await pod.search.searchFor(me, query, { kinds: ['message'], limit, ...(here && me.roomId !== null ? { roomId: me.roomId } : {}) })
+      const roomId = room !== '' ? room : here ? me.roomId : null
+      const hits = await pod.search.searchFor(me, query, { kinds: ['message'], limit, ...(roomId === null ? {} : { roomId }) })
       return success(hits.length === 0 ? '没有搜到。' : `搜到 ${hits.length} 条`, {
         hits: hits.map((hit) => ({ messageId: hit.ref.slice('message:'.length), room: hit.title, snippet: hit.snippet, time: new Date(hit.time).toISOString().slice(0, 16) })),
       })

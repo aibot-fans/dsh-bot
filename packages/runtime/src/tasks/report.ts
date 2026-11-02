@@ -8,6 +8,7 @@ import {
   type PodResult,
   type PodSession,
   type ReportStatus,
+  type RoomMessage,
   type Task,
   type TaskResult,
   type Wait,
@@ -54,6 +55,8 @@ export interface ReportingDeps {
   readonly learn: (session: PodSession, task: Task, lessons: string) => void
   /** 汇报时这一轮之前收进历史的消息都算读过（任务结束时没读的才退回前台）。 */
   readonly markRead: (sessionId: string) => void
+  /** 任务的任务卡（结果回复在它下面）。 */
+  readonly cardOf: (taskId: string) => RoomMessage | undefined
 }
 
 /**
@@ -106,36 +109,30 @@ export class TaskReporting {
       }
       case 'blocked': {
         this.deps.ask({ session, kind: args.questionKind, title: args.question, detail: [args.summary, args.report].filter(Boolean).join('\n\n'), reportId: outcome.report.id })
-        tasks.finish(outcome.task)
         return ok({ task: engine.tickets.get(task.id) ?? outcome.task, message: t('已经交给用户处理；用户答复后会开一次新的执行，答复带给你。这一轮到这里结束。') })
       }
       case 'failed':
         rooms.milestone(task.roomId, t('「{title}」没做成：{summary}', { title: task.title, summary: args.summary }), { taskId: task.id })
         this.deps.notify({ ...outcome.task, note: args.summary }, 'failed')
-        tasks.finish(outcome.task)
         tasks.tellRequester(outcome.task, `[任务没做成] 「${task.title}」：${args.summary}`)
         return ok({ task: outcome.task, message: t('已记下失败，等用户决定重试还是结束。这一轮到这里结束。') })
       case 'dismissed':
         rooms.milestone(task.roomId, t('「{title}」无需处理：{summary}', { title: task.title, summary: args.summary }), { taskId: task.id })
-        tasks.finish(outcome.task)
         return ok({ task: outcome.task, message: t('已记下：无需处理，任务结束。') })
       case 'ready': {
         const bypassed = this.deps.onRootStateChange(task.rootId, 'delivered')
         const result = this.result(args, bypassed)
         const delivered = engine.tickets.patch(outcome.task, { result })
         const room = task.roomId === null ? undefined : rooms.get(task.roomId)
-        // 群里交给成员的活：成员自己在群里说做完了什么；单聊里照旧由派活的主管转述。
-        if (room !== undefined && room.kind !== 'direct' && bot !== undefined && bot.role !== 'lead') {
-          rooms.post(room.id, { author: bot.id, kind: 'text', body: doneNote(delivered, result, undefined), sessionId: session.id, data: { taskId: delivered.id } })
-        } else if (outcome.completed) {
-          rooms.milestone(delivered.roomId, t('{value} 交付了「{title}」', { value: name, title: delivered.title }), { taskId: delivered.id })
-        } else {
-          rooms.milestone(delivered.roomId, t('{value} 做完了「{title}」，等你验收', { value: name, title: delivered.title }), { taskId: delivered.id })
+        // 群里：干活的 bot 回复任务卡说结果。单聊里任务卡（那一行“在做”）原地变成结果，不另外说。
+        if (room !== undefined && room.kind !== 'direct' && bot !== undefined) {
+          const card = this.deps.cardOf(delivered.id)
+          rooms.post(room.id, { author: bot.id, kind: 'text', body: doneNote(delivered, result, undefined), sessionId: session.id, replyTo: card?.id ?? null, data: { taskId: delivered.id, ...(typeof card?.data.pageId === 'string' ? { pageId: card.data.pageId } : {}) } })
+        } else if (room === undefined) {
+          rooms.milestone(delivered.roomId, outcome.completed ? t('{value} 交付了「{title}」', { value: name, title: delivered.title }) : t('{value} 做完了「{title}」，等你验收', { value: name, title: delivered.title }), { taskId: delivered.id })
         }
         if (args.lessons !== '') this.deps.learn(session, delivered, args.lessons)
-        const awaited = tasks.hasWaiter(delivered.id)
-        tasks.finish(delivered)
-        if (!awaited) tasks.tellRequester(delivered, `[任务交付] 「${delivered.title}」已完成，任务卡已经变成交付卡发给用户。摘要：${args.summary}`)
+        tasks.tellRequester(delivered, `[任务交付] 「${delivered.title}」已完成，任务卡已经变成交付卡发给用户。摘要：${args.summary}`)
         this.deps.notify(delivered, 'done')
         if (bot !== undefined && bot.temporary && bot.role === 'member' && outcome.completed) tasks.retireTemporary(bot)
         return ok({ task: delivered, message: outcome.completed ? t('已交付。') : t('已交上去，有没核实的地方，等用户验收。') })

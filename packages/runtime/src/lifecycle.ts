@@ -64,6 +64,7 @@ export function startRuntime(pod: PodRuntime): () => void {
   pod.engine.tickets.refreshOpen()
   pod.engine.runs.recoverInterrupted()
   pod.launcher.recover()
+  pod.front.start()
   pod.effects.start()
   // 上次 dsh web 退出时正在执行的浏览器写操作和 X 写操作：标为状态未知，先问你。
   pod.browser.approvals.markUnknown()
@@ -103,6 +104,7 @@ export function startRuntime(pod: PodRuntime): () => void {
     pod.effects.stop()
     pod.dispatcher.stop()
     pod.turns.dispose()
+    pod.front.dispose()
     for (const timer of timeouts) clearTimeout(timer)
     for (const timer of intervals) clearInterval(timer)
     pod.sleep.stop()

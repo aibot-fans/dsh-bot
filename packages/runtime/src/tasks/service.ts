@@ -13,7 +13,9 @@ import {
   type OriginQuote,
   type PodResult,
   type PodSession,
+  type ReplyTarget,
   type RoomMessage,
+  type RoutedMessage,
   type Task,
   type TaskActivity,
   type TaskOrigin,
@@ -94,6 +96,12 @@ export interface DelegateInput {
   readonly reason: string
   /** 来由里的原话；不给就取派活的聊天室里你还没得到回复的话。 */
   readonly quotes?: readonly OriginQuote[]
+  /** 任务卡放在哪个聊天室；不给就是派活的会话所在的聊天室（前台没有聊天室，要写明）。 */
+  readonly roomId?: string | null
+  /** 结果回到哪几条消息下面；不给就是来由里最后一条。 */
+  readonly replyTo?: readonly ReplyTarget[]
+  /** 任务卡上额外的数据：单聊里显示成一行（inline）、关于哪个页面（pageId）。 */
+  readonly card?: Readonly<Record<string, unknown>>
 }
 
 /** 暂停是停下这次执行；继续开一次新的；停止、取消结束任务；重试再做一次；收下是你验收通过。 */
@@ -113,7 +121,6 @@ const CONTROL_NOTES: Readonly<Record<ControlAction, string>> = {
  * 单个 bot 的任务是工单（引擎按执行和汇报管，阶段由事实推出）；团队任务的拆分和调度还在编排器里，状态照旧。
  */
 export class TaskService {
-  private readonly waiters = new Map<string, Set<(task: Task) => void>>()
   private readonly emitTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private readonly deps: TaskServiceDeps
 
@@ -206,12 +213,14 @@ export class TaskService {
   delegate(input: DelegateInput): Promise<PodResult<Task>> {
     const { requester, bot } = input
     const id = newId('task')
+    const roomId = input.roomId === undefined ? requester.roomId : input.roomId
     const quotes = input.quotes ?? this.ownerQuotes(requester)
+    const fromOwner = quotes.some((quote) => quote.author === t('用户'))
     const origin: TaskOrigin = {
-      kind: quotes.length > 0 ? 'owner' : 'bot',
+      kind: fromOwner ? 'owner' : 'bot',
       quotes,
-      requester: quotes.length > 0 ? 'owner' : requester.botId,
-      roomId: requester.roomId,
+      requester: fromOwner ? 'owner' : requester.botId,
+      roomId,
       rule: null,
       title: input.title,
       note: input.brief,
@@ -221,7 +230,7 @@ export class TaskService {
         id,
         rootId: id,
         parentId: null,
-        roomId: requester.roomId,
+        roomId,
         teamId: null,
         title: input.title,
         brief: input.brief,
@@ -238,7 +247,7 @@ export class TaskService {
         createdBy: requester.id,
         requesterSession: requester.id,
         origin,
-        replyTo: requester.roomId === null ? [] : [{ roomId: requester.roomId, messageId: quotes.at(-1)?.messageId ?? null }],
+        replyTo: input.replyTo ?? (roomId === null ? [] : [{ roomId, messageId: quotes.at(-1)?.messageId ?? null }]),
         actor: requester.botId,
       })
       this.event(opened, 'delegated', requester.botId, { to: bot.id, reason: input.reason })
@@ -249,43 +258,11 @@ export class TaskService {
     })
     this.deps.audit.record('task.delegate', requester.botId, id, { to: bot.id, title: input.title, reason: input.reason })
     if (task.roomId !== null) {
-      const card = this.deps.rooms.post(task.roomId, { author: requester.botId, kind: 'task-card', body: input.title, data: { taskId: id, rootId: id } })
+      const card = this.deps.rooms.post(task.roomId, { author: requester.botId, kind: 'task-card', body: input.title, data: { ...input.card, taskId: id, rootId: id } })
       // 任务卡也是自带的话题：回复、引用任务卡的话直接进任务。
       if (card !== undefined) this.engine.topics.followMessage(id, card.id, 'own')
     }
     return Promise.resolve(ok(task))
-  }
-
-  /** 等任务有结果（结束、就绪、受阻、失败），最多等 ms；超时返回 undefined（任务照常在后台进行）。 */
-  awaitResult(taskId: string, ms: number, signal: AbortSignal): Promise<Task | undefined> {
-    const current = this.get(taskId)
-    if (current !== undefined && (current.endedAt !== null || isTerminal(current.status))) return Promise.resolve(current)
-    return new Promise((resolve) => {
-      const listeners = this.waiters.get(taskId) ?? new Set()
-      const done = (task: Task | undefined): void => {
-        clearTimeout(timer)
-        signal.removeEventListener('abort', abort)
-        listeners.delete(onFinish)
-        if (listeners.size === 0) this.waiters.delete(taskId)
-        resolve(task)
-      }
-      const onFinish = (task: Task): void => done(task)
-      const abort = (): void => done(undefined)
-      const timer = setTimeout(() => done(undefined), ms)
-      timer.unref()
-      signal.addEventListener('abort', abort)
-      listeners.add(onFinish)
-      this.waiters.set(taskId, listeners)
-    })
-  }
-
-  hasWaiter(taskId: string): boolean {
-    return (this.waiters.get(taskId)?.size ?? 0) > 0
-  }
-
-  /** 有结果了：叫醒等着它的 delegate。 */
-  finish(task: Task): void {
-    for (const listener of [...(this.waiters.get(task.id) ?? [])]) listener(task)
   }
 
   /** 任务会话所属的任务。 */
@@ -316,9 +293,9 @@ export class TaskService {
     return ok(submitted)
   }
 
-  /** 后台任务有结果后告诉派活的会话：用 inject，不唤醒它，下一轮自然带上。 */
+  /** 后台任务有结果后告诉派活的会话：用 inject，不唤醒它，下一轮自然带上。前台不用告诉，它收到的任务动静里有。 */
   tellRequester(task: Task, text: string): void {
-    if (task.requesterSession === null) return
+    if (task.requesterSession === null || this.deps.registry.get(task.requesterSession)?.kind === 'front') return
     this.deps.dispatcher.enqueue({ sessionId: task.requesterSession, mode: 'inject', priority: PRIORITY.task, text, source: noticeSource(text) })
   }
 
@@ -334,7 +311,7 @@ export class TaskService {
    * 你的话（或转达的话）交给任务：在做就直接送进会话（正在跑插进当前这一轮）；没在做就开一次新的执行；
    * 结束了的重新打开再做，你停掉的除外。团队任务照旧送进在执行的会话。
    */
-  sendToTask(task: Task, text: string, source: MessageSource, quote: string): PodResult<Task> {
+  sendToTask(task: Task, text: string, source: MessageSource, quote: string | RoutedMessage): PodResult<Task> {
     if (isTicket(task)) {
       if (task.endedAt !== null) {
         if (task.endReason === 'stopped') return fail('conflict', t('任务已经停掉了；要接着做，先点继续'))
@@ -380,9 +357,7 @@ export class TaskService {
     this.deps.audit.record(`task.${action}`, actor, root.id, { title: root.title })
     const line = t(CONTROL_NOTES[action], { title: root.title })
     this.deps.rooms.milestone(root.roomId, why === undefined ? line : t('{line}：{why}', { line, why }), { taskId: root.id })
-    const after = this.get(root.id) ?? root
-    if (action === 'stop' || action === 'cancel' || action === 'accept') this.finish(after)
-    return ok(after)
+    return ok(this.get(root.id) ?? root)
   }
 
   private controlTicket(task: Task, action: ControlAction, actor: string): PodResult<Task> {

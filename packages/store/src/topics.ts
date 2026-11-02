@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import type { FollowKind, MessageRoute, RouteKind, Topic, TopicFollow, TopicKind } from 'pod-domain'
+import { FRONT_DECISIONS, type FollowKind, type MessageRoute, type RouteKind, type Topic, type TopicFollow, type TopicKind } from 'pod-domain'
 
 interface TopicRow {
   readonly id: string
@@ -26,6 +26,7 @@ interface RouteRow {
   readonly decided_by: string
   readonly note: string
   readonly ref: string | null
+  readonly bot_id: string | null
   readonly created_at: number
 }
 
@@ -38,7 +39,7 @@ function toFollow(row: FollowRow): TopicFollow {
 }
 
 function toRoute(row: RouteRow): MessageRoute {
-  return { id: row.id, messageId: row.message_id, route: row.route as RouteKind, taskId: row.task_id, decidedBy: row.decided_by, note: row.note, ref: row.ref, createdAt: row.created_at }
+  return { id: row.id, messageId: row.message_id, route: row.route as RouteKind, taskId: row.task_id, decidedBy: row.decided_by, note: row.note, ref: row.ref, botId: row.bot_id, createdAt: row.created_at }
 }
 
 /** 顺着回复、引用往上找这一串最早的那条（最多 50 层）。 */
@@ -139,18 +140,87 @@ export function insertRoute(
     readonly decidedBy: string
     readonly note?: string
     readonly ref?: string | null
+    readonly botId?: string | null
     readonly now: number
   },
 ): void {
-  db.prepare('INSERT INTO message_routes (message_id, route, task_id, decided_by, note, ref, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+  db.prepare('INSERT INTO message_routes (message_id, route, task_id, decided_by, note, ref, bot_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(
     route.messageId,
     route.route,
     route.taskId,
     route.decidedBy,
     route.note ?? '',
     route.ref ?? null,
+    route.botId ?? null,
     route.now,
   )
+}
+
+const DECIDED = FRONT_DECISIONS.map((kind) => `'${kind}'`).join(', ')
+
+/** 交给这个 bot 的前台、还没送出去的消息（前台的待送队列），旧的在前。 */
+export function frontQueue(db: DatabaseSync, botId: string): readonly MessageRoute[] {
+  const rows = db.prepare("SELECT * FROM message_routes WHERE route = 'front' AND bot_id = ? AND ref IS NULL ORDER BY id").all(botId) as unknown as readonly RouteRow[]
+  return rows.map(toRoute)
+}
+
+/** 有待送消息的前台。 */
+export function frontsWithQueue(db: DatabaseSync): readonly string[] {
+  const rows = db.prepare("SELECT DISTINCT bot_id FROM message_routes WHERE route = 'front' AND bot_id IS NOT NULL AND ref IS NULL").all() as unknown as readonly { readonly bot_id: string }[]
+  return rows.map((row) => row.bot_id)
+}
+
+/** 这几条交给前台的去向记成随这一批送出。 */
+export function bindFrontRoutes(db: DatabaseSync, ids: readonly number[], ref: string): void {
+  const statement = db.prepare('UPDATE message_routes SET ref = ? WHERE id = ?')
+  for (const id of ids) statement.run(ref, id)
+}
+
+/** 随这几批送进前台、这个前台还没给判断的消息。 */
+export function undecidedFront(db: DatabaseSync, botId: string, refs: readonly string[]): readonly MessageRoute[] {
+  if (refs.length === 0) return []
+  const rows = db
+    .prepare(
+      `SELECT * FROM message_routes r
+       WHERE r.route = 'front' AND r.bot_id = ? AND r.ref IN (${refs.map(() => '?').join(', ')})
+         AND NOT EXISTS (SELECT 1 FROM message_routes s WHERE s.message_id = r.message_id AND s.bot_id = r.bot_id AND s.route IN (${DECIDED}) AND s.id > r.id)
+       ORDER BY r.id`,
+    )
+    .all(botId, ...refs) as unknown as readonly RouteRow[]
+  return rows.map(toRoute)
+}
+
+/** 交给这个前台、已经送进去但还没去向的那几批（重启后内存里的记录没了，按这个补）。 */
+export function frontRefsUndecided(db: DatabaseSync, botId: string): readonly string[] {
+  const rows = db
+    .prepare(
+      `SELECT DISTINCT r.ref AS ref FROM message_routes r
+       WHERE r.route = 'front' AND r.bot_id = ? AND r.ref IS NOT NULL AND r.ref != 'dropped'
+         AND NOT EXISTS (SELECT 1 FROM message_routes s WHERE s.message_id = r.message_id AND s.bot_id = r.bot_id AND s.route IN (${DECIDED}) AND s.id > r.id)`,
+    )
+    .all(botId) as unknown as readonly { readonly ref: string }[]
+  return rows.map((row) => row.ref)
+}
+
+/** 这条消息交给这个前台以后，前台还没给判断（没交给它返回 false）。 */
+export function awaitingFront(db: DatabaseSync, messageId: string, botId: string): boolean {
+  const row = db
+    .prepare(
+      `SELECT 1 AS hit FROM message_routes r
+       WHERE r.message_id = ? AND r.route = 'front' AND r.bot_id = ?
+         AND NOT EXISTS (SELECT 1 FROM message_routes s WHERE s.message_id = r.message_id AND s.bot_id = r.bot_id AND s.route IN (${DECIDED}) AND s.id > r.id)
+       LIMIT 1`,
+    )
+    .get(messageId, botId) as { readonly hit: number } | undefined
+  return row !== undefined
+}
+
+/** 某个时间以后的去向（前台的任务动静里写“哪条消息直通了哪个任务”）。 */
+export function routesSince(db: DatabaseSync, kinds: readonly RouteKind[], since: number, limit: number): readonly MessageRoute[] {
+  const rows = db
+    .prepare(`SELECT * FROM message_routes WHERE route IN (${kinds.map(() => '?').join(', ')}) AND created_at > ? ORDER BY id LIMIT ?`)
+    .all(...kinds, since, limit) as unknown as readonly RouteRow[]
+  return rows.map(toRoute)
 }
 
 export function routesFor(db: DatabaseSync, messageId: string): readonly MessageRoute[] {

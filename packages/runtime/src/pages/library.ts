@@ -133,9 +133,8 @@ export class PageLibrary {
       '',
       '先用 get_page 读当前内容，按要求改好后用 save_page 带上这个 id 整份保存，note 写这次改了什么；保存后用一两句话告诉用户改了哪里。要求不清楚就先问。',
     ].join('\n')
-    const sent = await this.deps.rooms.sendAbout(room.value, bot, { body: text, text: instruction, data: { pageId: page.id } })
+    const sent = this.deps.rooms.sendAbout(room.value, bot, { body: text, note: instruction, data: { pageId: page.id } })
     if (!sent.ok) return sent
-    this.deps.pages.noteEdit(sent.value.deliveryId, page.id)
-    return ok(sent.value.message)
+    return ok(sent.value)
   }
 }

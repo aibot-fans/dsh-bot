@@ -1,12 +1,7 @@
-import { BOT_PRESETS, TOOL_PROFILES, botLabel, botPreset, groupNameMax, isActive, t, validateDraft, type Bot, type ModelChoice, type PodSession, type ToolProfile } from 'pod-domain'
+import { BOT_PRESETS, TICKET_STAGE_LABELS, TOOL_PROFILES, botLabel, botPreset, groupNameMax, isActive, t, validateDraft, type Bot, type ModelChoice, type PodSession, type ToolProfile } from 'pod-domain'
 import type { ToolDefinition } from '../dsh.ts'
 import type { PodRuntime } from '../pod.ts'
 import { bool, failure, flag, oneOf, podTool, str, strList, success, text, texts } from './define.ts'
-
-/** delegate 先等结果，2 分钟内没完成就自动转成后台任务。 */
-const DELEGATE_WAIT_MS = 120_000
-
-const SELF_NAMES = new Set(['自己', '主管', 'me', 'self', 'lead'])
 
 function card(pod: PodRuntime, bot: Bot): Readonly<Record<string, unknown>> {
   const load = pod.tasks.activeLoad(bot.id)
@@ -51,8 +46,8 @@ function overlap(left: readonly string[], right: readonly string[]): number {
   return right.filter((item) => set.has(item.toLowerCase())).length
 }
 
-/** 主管的组织工具：查人、建 bot、委派、查进度、转达、控制任务、归档。 */
-export function leadTools(pod: PodRuntime, session: PodSession): readonly ToolDefinition[] {
+/** Super-agent 前台的组织工具：查人、建 bot、归档、拉群。 */
+export function orgTools(pod: PodRuntime, session: PodSession): readonly ToolDefinition[] {
   const findBots = podTool({
     name: 'find_bots',
     description: '按能力查找 dsh-bot 里已有的 bot，返回名片（角色、能力、职责、当前手上的任务数）。派活前先用它看看有没有合适的人。',
@@ -133,144 +128,6 @@ export function leadTools(pod: PodRuntime, session: PodSession): readonly ToolDe
     },
   })
 
-  const delegate = podTool({
-    name: 'delegate',
-    description: [
-      '把一件事交给一个 bot（L1），或者交给你自己在后台做（bot 填“主管”）。dsh-bot 会建任务、开任务会话，并在对话里放一张实时刷新的任务卡。',
-      '默认先等结果：2 分钟内完成就直接返回结果；没完成就转成后台任务，完成时任务卡会变成交付卡，并通知你。',
-      '要写清任务说明（目标、范围、约束）、交付物、2–5 条验收项，以及你定下的前提。',
-      '只用于要连续多步的实际工作：不要用它（包括交给你自己）来等待、验证或者轮询；改了设置或例程，工具的返回就是结果；到点看一眼用只跑一次的例程（create_routine 的 in_minutes 或 at）。',
-    ].join(''),
-    properties: {
-      bot: str('交给谁：bot 的名字或 id；交给自己写“主管”'),
-      title: str('任务标题，简短'),
-      brief: str('任务说明：目标、范围、约束、注意事项'),
-      deliverable: str('交付物，例如“shared/纪要.md”'),
-      acceptance: strList('验收项，2–5 条，每条是可检查的标准'),
-      assumptions: strList('你替用户定下的前提'),
-      reason: str('为什么交给它（写进决策记录）'),
-      urgent: bool('用户说了急'),
-      wait: bool('是否先等结果，默认 true'),
-    },
-    required: ['bot', 'title', 'brief', 'acceptance'],
-    parse: (args) => {
-      const acceptance = texts(args, 'acceptance')
-      if (acceptance.length === 0) return '至少写一条验收项'
-      if (acceptance.length > 8) return '验收项最多 8 条，太多就拆成几个任务'
-      if (text(args, 'title') === '' || text(args, 'brief') === '') return '标题和任务说明都要写'
-      return {
-        bot: text(args, 'bot'),
-        title: text(args, 'title'),
-        brief: text(args, 'brief'),
-        deliverable: text(args, 'deliverable'),
-        acceptance,
-        assumptions: texts(args, 'assumptions'),
-        reason: text(args, 'reason'),
-        urgent: flag(args, 'urgent') === true,
-        wait: flag(args, 'wait') !== false,
-      }
-    },
-    run: async (args, exec) => {
-      const target = SELF_NAMES.has(args.bot.toLowerCase()) ? pod.bots.get(session.botId) : pod.bots.resolve(args.bot)
-      if (target === undefined) return failure(`找不到 bot「${args.bot}」，先用 find_bots 查，或用 create_bot 新建`)
-      const requester = pod.registry.get(session.id) ?? session
-      const turnStartedAt = pod.observer.activityOf(session.id)?.progress?.startedAt
-      const repeated = turnStartedAt === undefined ? undefined : pod.tasks.delegatedSince(requester.id, args.title, turnStartedAt)
-      if (repeated !== undefined) return success(`这一轮已经派过「${repeated.title}」了，没有再建一个；任务卡在对话里。`, { taskId: repeated.id, status: repeated.status })
-      const created = await pod.tasks.delegate({
-        requester,
-        bot: target,
-        title: args.title,
-        brief: args.brief,
-        deliverable: args.deliverable,
-        acceptance: args.acceptance,
-        assumptions: args.assumptions,
-        urgent: args.urgent,
-        reason: args.reason,
-      })
-      if (!created.ok) return failure(created.error.message)
-      const task = created.value
-      if (!args.wait) return success('已交出去，任务卡已经放进对话。完成时会通知你。', { taskId: task.id })
-      const finished = await pod.tasks.awaitResult(task.id, DELEGATE_WAIT_MS, exec.signal)
-      if (finished === undefined) {
-        return success('2 分钟内没完成，已转成后台任务；任务卡在对话里实时刷新，完成后会通知你。你现在可以先回复用户。', {
-          taskId: task.id,
-          status: 'background',
-        })
-      }
-      if (finished.ticketStage === 'waiting' || finished.status === 'waiting') {
-        return success('任务在等用户处理一件事（任务卡上有“等你”），用户处理后它会接着做。告诉用户要处理什么就行。', { taskId: finished.id, status: 'waiting' })
-      }
-      if (finished.status !== 'done' && finished.ticketStage !== 'review') return failure(`任务「${finished.title}」${finished.status === 'cancelled' || finished.status === 'stopped' ? '被停掉了' : '没有完成'}：${finished.note}`)
-      const room = requester.roomId === null ? undefined : pod.rooms.get(requester.roomId)
-      if (room !== undefined && room.kind !== 'direct' && target.role !== 'lead') {
-        // 群里成员自己说了做完了什么，主管不再转述一遍。
-        exec.concludeTurn()
-        return success(`任务完成，${target.name}已经在群里说了结果，你不用再转述；这一轮到这里结束。`, { taskId: finished.id, status: 'done' })
-      }
-      return success('任务完成。任务卡已经变成交付卡；你只需用一两句话告诉用户要点，不必重复交付卡上的内容。', {
-        taskId: finished.id,
-        status: 'done',
-        summary: finished.result?.summary ?? '',
-        files: finished.result?.files ?? [],
-        assumptions: finished.result?.assumptions ?? [],
-        unverified: finished.result?.unverified ?? [],
-      })
-    },
-  })
-
-  const taskStatus = podTool({
-    name: 'task_status',
-    description: '查看任务的进度快照（阶段、子任务、验收项、最近动作、等你的事）。回答用户“做到哪了”时用它，不会打断任务。不填 task_id 列出进行中的任务。',
-    properties: { task_id: str('任务 id；留空看全部进行中的任务') },
-    parse: (args) => ({ taskId: text(args, 'task_id') }),
-    concurrent: true,
-    run: ({ taskId }) => {
-      if (taskId !== '') {
-        const snapshot = pod.tasks.snapshotTextFor(taskId)
-        return snapshot === undefined ? failure('找不到这个任务') : success(snapshot)
-      }
-      const active = pod.tasks.roots(30).filter((task) => isActive(task.status) || task.status === 'paused' || task.status === 'stopped')
-      if (active.length === 0) return success('现在没有进行中的任务。')
-      return success(active.map((task) => pod.tasks.snapshotTextFor(task.id) ?? task.title).join('\n\n'))
-    },
-  })
-
-  const relay = podTool({
-    name: 'relay_to_task',
-    description: '把用户的纠正或补充转达给正在进行的任务，下一步生效，不重启任务。必须原样引用用户的话（owner_quote）；不能自己编指令转达。',
-    properties: {
-      task_id: str('任务 id'),
-      owner_quote: str('用户的原话，一字不改'),
-      message: str('你的补充说明（可选）'),
-    },
-    required: ['task_id', 'owner_quote'],
-    parse: (args) => ({ taskId: text(args, 'task_id'), quote: text(args, 'owner_quote'), message: text(args, 'message') }),
-    run: ({ taskId, quote, message }) => {
-      const result = pod.tasks.relay(taskId, quote, message, session)
-      return result.ok ? success(`已转达给「${result.value.title}」，下一步生效。`) : failure(result.error.message)
-    },
-  })
-
-  const control = podTool({
-    name: 'control_task',
-    description: '用户说暂停、继续、停止、取消时直接执行。暂停：下一步前停住；停止：立刻停下，已完成的保留，之后可以继续；取消：放弃，文件留在工作区。',
-    properties: {
-      task_id: str('任务 id'),
-      action: oneOf('pause 暂停 / resume 继续 / stop 停止 / cancel 取消', ['pause', 'resume', 'stop', 'cancel']),
-    },
-    required: ['task_id', 'action'],
-    parse: (args) => {
-      const action = text(args, 'action')
-      if (!['pause', 'resume', 'stop', 'cancel'].includes(action)) return 'action 只能是 pause、resume、stop、cancel'
-      return { taskId: text(args, 'task_id'), action: action as 'pause' | 'resume' | 'stop' | 'cancel' }
-    },
-    run: ({ taskId, action }) => {
-      const result = pod.tasks.control(taskId, action, session.botId)
-      return result.ok ? success(`「${result.value.title}」现在是${result.value.status}`) : failure(result.error.message)
-    },
-  })
-
   const archive = podTool({
     name: 'archive',
     description: '归档临时 bot（进回收站，30 天内可恢复）。主管不能被归档。',
@@ -288,9 +145,9 @@ export function leadTools(pod: PodRuntime, session: PodSession): readonly ToolDe
   const createGroup = podTool({
     name: 'create_group',
     description: [
-      '拉群：把几个 bot 拉进一个新群聊，用户可以在群里 @ 它们分别说话；没点名的话，dsh-bot 按分工交给对口的成员来接。',
+      '拉群：把几个 bot 拉进一个新群聊，用户可以在群里 @ 它们分别说话；没点名的话由你判断交给谁。',
       `群名用简短的主题词（最好不超过 ${groupNameMax()} 个字），例如“博客小组”；已经有同名的群就直接用那个群，不重复建。`,
-      '用户说“拉个群”“把写手和程序员叫到一起”时用它；要正式分工、按计划干活用 create_task，那会自己建群。',
+      '用户说“拉个群”“把写手和程序员叫到一起”时用它；要几个人配合干一件事，开任务交给一个负责的 bot，它会开子任务、建任务群。',
     ].join(''),
     properties: {
       name: str(`群名，最好不超过 ${groupNameMax()} 个字`),
@@ -314,5 +171,46 @@ export function leadTools(pod: PodRuntime, session: PodSession): readonly ToolDe
     },
   })
 
-  return [findBots, createBot, delegate, taskStatus, relay, control, archive, createGroup]
+  return [findBots, createBot, archive, createGroup]
+}
+
+/** 前台看任务、控制任务：查进度、重试、暂停、继续、停止。 */
+export function taskInfoTools(pod: PodRuntime, session: PodSession): readonly ToolDefinition[] {
+  const taskStatus = podTool({
+    name: 'task_status',
+    description: '查看任务的进度快照（阶段、子任务、验收项、最近动作、等你的事）。回答用户“做到哪了”时用它，不会打断任务。不填 task_id 列出进行中的任务。',
+    properties: { task_id: str('任务 id；留空看全部进行中的任务') },
+    parse: (args) => ({ taskId: text(args, 'task_id') }),
+    concurrent: true,
+    run: ({ taskId }) => {
+      if (taskId !== '') {
+        const snapshot = pod.tasks.snapshotTextFor(taskId)
+        return snapshot === undefined ? failure('找不到这个任务') : success(snapshot)
+      }
+      const active = pod.tasks.roots(30).filter((task) => isActive(task.status) || task.status === 'paused' || task.status === 'stopped')
+      if (active.length === 0) return success('现在没有进行中的任务。')
+      return success(active.map((task) => pod.tasks.snapshotTextFor(task.id) ?? task.title).join('\n\n'))
+    },
+  })
+
+  const control = podTool({
+    name: 'control_task',
+    description: '让失败、受阻的任务再做一次（retry），用户说暂停、继续、停止时直接执行。暂停：停下这次执行；继续：接着做；停止：结束任务，之后用户可以点继续。停止只在用户要求时用。',
+    properties: {
+      task_id: str('任务 id'),
+      action: oneOf('retry 再做一次 / pause 暂停 / resume 继续 / stop 停止', ['retry', 'pause', 'resume', 'stop']),
+    },
+    required: ['task_id', 'action'],
+    parse: (args) => {
+      const action = text(args, 'action')
+      if (!['retry', 'pause', 'resume', 'stop'].includes(action)) return 'action 只能是 retry、pause、resume、stop'
+      return { taskId: text(args, 'task_id'), action: action as 'retry' | 'pause' | 'resume' | 'stop' }
+    },
+    run: ({ taskId, action }) => {
+      const result = pod.tasks.control(taskId, action, session.botId)
+      return result.ok ? success(`「${result.value.title}」现在是${result.value.ticketStage === null ? result.value.status : TICKET_STAGE_LABELS[result.value.ticketStage]}`) : failure(result.error.message)
+    },
+  })
+
+  return [taskStatus, control]
 }

@@ -7,6 +7,7 @@
 import { demoDecision } from './demo.js'
 import { newPage, pageDecision, wantedKind } from './pages.js'
 import { progressDecision, routineDecision, turnCalls } from './progress.js'
+import { batchBody, frontDecision, frontOwnText } from './front.js'
 
 export const name = 'pod-dev-mock-llm'
 
@@ -283,6 +284,20 @@ function decide(options) {
 
   if (system.includes('你是群聊里的分派器')) return { text: JSON.stringify({ to: routeTarget(textOf(messages.find((message) => message.role === 'user')?.content)) }) }
 
+  // 前台：消息成批送来，逐条记去向。出错后接着处理时，从最近一批开始数调过的工具。
+  if (tools.has('dispatch')) {
+    const isUser = (message) => message.role === 'user' && MEANINGFUL.has(message.source?.kind)
+    const batchAt = messages.findLastIndex((message) => isUser(message) && batchBody(textOf(message.content)) !== undefined)
+    const retry = userText.startsWith('[dsh-bot] 刚才模型服务出错')
+    const from = retry ? batchAt : messages.findLastIndex(isUser)
+    const made = messages
+      .slice(from + 1)
+      .filter((message) => message.role === 'assistant')
+      .flatMap((message) => (Array.isArray(message.content) ? message.content : []))
+      .filter((block) => block && block.type === 'tool-call').length
+    return frontDecision({ system, userText, tools, calls: made, result: lastToolText(messages), batch: batchAt < 0 ? '' : textOf(messages[batchAt].content), roster: rosterNames(system) })
+  }
+
   const lastTool = messages.filter((message) => message.role === 'tool').at(-1)
   const demo = demoDecision({ system, messages, brief, userText, calls, tools, last, result: lastTool === undefined ? undefined : parsedResult(lastTool), page: lastPage(messages) })
   if (demo !== undefined) return demo
@@ -555,7 +570,8 @@ function providerError(message, code, status) {
 /** 你的话里写“模拟模型出错”时报认证失败（不重试），写“模拟限流”时报限流（重试两次以后还是失败）。 */
 function simulatedFailure(options) {
   const messages = Array.isArray(options.messages) ? options.messages : []
-  const own = ownText(textOf(lastOf(messages, 'user')?.content))
+  const raw = textOf(lastOf(messages, 'user')?.content)
+  const own = frontOwnText(raw) ?? ownText(raw)
   if (own.includes('模拟模型出错')) return providerError('Incorrect API key provided: sk-test-********abcd', 'AUTH', 401)
   if (own.includes('模拟限流')) return providerError('Rate limit reached for requests', 'RATE_LIMIT', 429)
   // 任务说明里写“一直限流”“一直认证失败”：这个任务的每一轮都报这个错，看得到 dsh-bot 隔一会儿重试或者直接暂停。

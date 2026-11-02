@@ -24,7 +24,7 @@ interface SessionRow {
   readonly retired_at: number | null
 }
 
-const KINDS: readonly SessionKind[] = ['chat', 'task', 'coord', 'consult', 'routine']
+const KINDS: readonly SessionKind[] = ['chat', 'front', 'task', 'coord', 'consult', 'routine']
 
 function toSession(row: SessionRow): PodSession {
   return {

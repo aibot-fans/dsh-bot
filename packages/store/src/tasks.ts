@@ -312,17 +312,18 @@ export function appendTaskEvent(db: DatabaseSync, event: Omit<TaskEvent, 'id' | 
   )
 }
 
-export function listTaskEvents(db: DatabaseSync, rootId: string): readonly TaskEvent[] {
-  const rows = db.prepare('SELECT * FROM task_events WHERE root_id = ? ORDER BY id ASC').all(rootId) as unknown as readonly {
-    readonly id: number
-    readonly task_id: string
-    readonly root_id: string
-    readonly kind: string
-    readonly actor: string
-    readonly data: string
-    readonly created_at: number
-  }[]
-  return rows.map((row) => ({
+interface TaskEventRow {
+  readonly id: number
+  readonly task_id: string
+  readonly root_id: string
+  readonly kind: string
+  readonly actor: string
+  readonly data: string
+  readonly created_at: number
+}
+
+function toTaskEvent(row: TaskEventRow): TaskEvent {
+  return {
     id: row.id,
     taskId: row.task_id,
     rootId: row.root_id,
@@ -330,7 +331,37 @@ export function listTaskEvents(db: DatabaseSync, rootId: string): readonly TaskE
     actor: row.actor,
     data: readJson<Readonly<Record<string, unknown>>>(row.data, {}),
     createdAt: row.created_at,
-  }))
+  }
+}
+
+export function listTaskEvents(db: DatabaseSync, rootId: string): readonly TaskEvent[] {
+  const rows = db.prepare('SELECT * FROM task_events WHERE root_id = ? ORDER BY id ASC').all(rootId) as unknown as readonly TaskEventRow[]
+  return rows.map(toTaskEvent)
+}
+
+/** 某个事件 id 之后的几种任务事件（前台攒任务动静用），旧的在前。 */
+export function taskEventsAfter(db: DatabaseSync, afterId: number, kinds: readonly string[], limit: number): readonly TaskEvent[] {
+  const rows = db
+    .prepare(`SELECT * FROM task_events WHERE id > ? AND kind IN (${kinds.map(() => '?').join(', ')}) ORDER BY id LIMIT ?`)
+    .all(afterId, ...kinds, limit) as unknown as readonly TaskEventRow[]
+  return rows.map(toTaskEvent)
+}
+
+export function lastTaskEventId(db: DatabaseSync): number {
+  const row = db.prepare('SELECT MAX(id) AS id FROM task_events').get() as { readonly id: number | null } | undefined
+  return row?.id ?? 0
+}
+
+/** 还开着的根任务（没结束、没删），最近动过的在前；旧的团队任务按状态另外筛。 */
+export function openRootTasks(db: DatabaseSync, limit: number): readonly Task[] {
+  const rows = db.prepare('SELECT * FROM tasks WHERE parent_id IS NULL AND ended_at IS NULL AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT ?').all(limit) as unknown as readonly TaskRow[]
+  return rows.map(toTask)
+}
+
+/** 这个任务的任务卡（最新的那张）。 */
+export function taskCardMessage(db: DatabaseSync, taskId: string): string | undefined {
+  const row = db.prepare("SELECT id FROM messages WHERE kind = 'task-card' AND json_extract(data, '$.taskId') = ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1").get(taskId) as { readonly id: string } | undefined
+  return row?.id
 }
 
 /** 资料库用：某个 bot 负责的、或者在某个群聊里的任务文件夹，最近的在前。 */

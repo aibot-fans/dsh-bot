@@ -49,17 +49,18 @@ export function sessionMakesPages(session: Pick<PodSession, 'kind'>): boolean {
 
 export const SESSION_KIND_LABELS: Readonly<Record<SessionKind, string>> = {
   chat: '聊天',
+  front: '前台',
   task: '任务',
   coord: '协调',
   consult: '咨询',
   routine: '例程',
 }
 
-/** 并发通道：聊天有自己保留的名额；任务和协调走任务通道；咨询、例程、整理走后台。 */
+/** 并发通道：聊天和前台有自己保留的名额；任务和协调走任务通道；咨询、例程、整理走后台。 */
 export type Lane = 'chat' | 'task' | 'background'
 
 export function laneOf(kind: SessionKind): Lane {
-  if (kind === 'chat') return 'chat'
+  if (kind === 'chat' || kind === 'front') return 'chat'
   if (kind === 'task' || kind === 'coord') return 'task'
   return 'background'
 }

@@ -139,7 +139,6 @@ export class TaskTurns {
     })
     this.deps.rooms.milestone(task.roomId, t('「{title}」受阻：{reason}', { title: task.title, reason }), { taskId: task.id })
     this.deps.notify({ ...outcome.task, note: reason }, 'stalled')
-    this.deps.tasks.finish(outcome.task)
   }
 
   /** 催了几次还没汇报：这次执行记成没汇报，替它记一条失败，等你决定重试还是结束。 */
@@ -160,7 +159,6 @@ export class TaskTurns {
       data: {},
     })
     this.deps.rooms.milestone(task.roomId, t('「{title}」多次提醒仍没有汇报，已停下', { title: task.title }), { taskId: task.id })
-    this.deps.tasks.finish(outcome.task)
     this.deps.tasks.tellRequester(outcome.task, `[任务停滞] 「${task.title}」连续 ${MAX_NUDGES} 次提醒都没有汇报，已经停下。可以重试、换人、拆小或者自己来做。`)
     this.deps.notify(outcome.task, 'stalled')
   }

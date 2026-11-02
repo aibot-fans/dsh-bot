@@ -715,6 +715,11 @@ const MIGRATIONS: readonly string[] = [
   CREATE INDEX IF NOT EXISTS message_routes_by_ref ON message_routes (ref);
   CREATE INDEX IF NOT EXISTS messages_by_topic ON messages (topic_id, created_at);
   `,
+  // v14：交给前台和前台的判断记下是哪个 bot 的前台；没送出的就是前台的待送队列。
+  `
+  ALTER TABLE message_routes ADD COLUMN bot_id TEXT;
+  CREATE INDEX IF NOT EXISTS message_routes_by_bot ON message_routes (bot_id, route, ref);
+  `,
 ]
 
 function readVersion(db: DatabaseSync): number {

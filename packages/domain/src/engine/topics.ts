@@ -27,9 +27,12 @@ export interface TopicFollow {
 
 /**
  * 一条消息的去向，每一步记一行：直通了哪个任务、交给前台、前台转给任务、任务确认、任务交还、
- * 任务结束时没读退回前台、被挡掉。
+ * 任务结束时没读退回前台、被挡掉；前台的判断：开了任务、停了任务、不用处理、直接答，一轮结束还没判断的记成漏掉。
  */
-export type RouteKind = 'direct' | 'front' | 'relayed' | 'acked' | 'handed_back' | 'returned' | 'blocked'
+export type RouteKind = 'direct' | 'front' | 'relayed' | 'acked' | 'handed_back' | 'returned' | 'blocked' | 'opened' | 'stopped' | 'ignored' | 'answered' | 'missed'
+
+/** 前台给出的判断：交给前台以后有了其中一条，这条消息在这个前台就算有去向了。 */
+export const FRONT_DECISIONS: readonly RouteKind[] = ['opened', 'relayed', 'stopped', 'ignored', 'answered', 'missed']
 
 export interface MessageRoute {
   readonly id: number
@@ -39,8 +42,10 @@ export interface MessageRoute {
   /** 谁定的：code（代码规则）、bot 的 id、owner。 */
   readonly decidedBy: string
   readonly note: string
-  /** 送进任务时的那次投递或执行（判断读没读过）。 */
+  /** 送进任务时的那次投递或执行（判断读没读过）；交给前台的是送出那一批的投递，还没送出时为空。 */
   readonly ref: string | null
+  /** 交给哪个 bot 的前台（交给前台和前台的判断才有）。 */
+  readonly botId: string | null
   readonly createdAt: number
 }
 
@@ -52,6 +57,11 @@ export const ROUTE_LABELS: Readonly<Record<RouteKind, string>> = {
   handed_back: '任务交还',
   returned: '没读，退回前台',
   blocked: '挡掉',
+  opened: '前台开了任务',
+  stopped: '前台停了任务',
+  ignored: '前台判断不用处理',
+  answered: '前台直接答了',
+  missed: '前台漏掉',
 }
 
 /** 送进任务会话的一条消息（直通或转来的），开工说明和直通提醒里都按这个写。 */

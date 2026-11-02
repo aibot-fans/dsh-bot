@@ -22,4 +22,9 @@ export const DOMAIN_EN_ENGINE: Readonly<Record<string, string>> = {
   '任务交还': 'Handed back by the task',
   '没读，退回前台': 'Unread, returned to the front',
   '挡掉': 'Blocked',
+  '前台开了任务': 'Front desk opened a task',
+  '前台停了任务': 'Front desk stopped the task',
+  '前台判断不用处理': 'Front desk decided no action is needed',
+  '前台直接答了': 'Answered by the front desk',
+  '前台漏掉': 'Missed by the front desk',
 }

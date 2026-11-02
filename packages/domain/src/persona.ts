@@ -5,6 +5,7 @@
 
 import { iconAvatar } from './avatars.ts'
 import { botLabel, type Bot, type BotDraft, type BotPatch } from './bots.ts'
+import { LEAD_FRONT, memberFront } from './front.ts'
 import { currentLanguage, t, type Language } from './i18n.ts'
 import { NO_CHANGE } from './routines.ts'
 import type { Autonomy } from './settings.ts'
@@ -73,8 +74,8 @@ export function quickPersona(name: string, duty: string): string {
     .join('\n')
 }
 
-/** 会话种类：聊天（每个房间一条）、任务（每个子任务一条）、协调（组长每个根任务一条）、咨询（回答 ask_bot）、例程。 */
-export type SessionKind = 'chat' | 'task' | 'coord' | 'consult' | 'routine'
+/** 会话种类：前台（每个 bot 一条，跨聊天室）、任务（每个任务一条）、协调（旧团队的组长）、咨询（回答 ask_bot）、例程；聊天是改成前台以前每个房间一条的会话。 */
+export type SessionKind = 'chat' | 'front' | 'task' | 'coord' | 'consult' | 'routine'
 
 /** 群聊会话的群：群名和现在的成员（主管在内）。 */
 export interface GroupContext {
@@ -253,6 +254,8 @@ function protocol(context: PersonaContext): string {
     case 'chat':
       if (context.group !== undefined) return context.bot.role === 'lead' ? `${LEAD_GROUP}\n\n${groupProtocol(context.bot, context.group)}` : groupProtocol(context.bot, context.group)
       return context.bot.role === 'lead' ? LEAD_CHAT : MEMBER_CHAT
+    case 'front':
+      return context.bot.role === 'lead' ? LEAD_FRONT : memberFront(context.bot.name)
     case 'task':
       return taskProtocol(context.folder)
     case 'coord':
@@ -305,7 +308,7 @@ function environment(context: PersonaContext): string {
  */
 export function composePersona(context: PersonaContext): string {
   const { bot } = context
-  const showRoster = bot.role === 'lead' || context.kind === 'coord' || context.kind === 'task'
+  const showRoster = bot.role === 'lead' || context.kind === 'coord' || context.kind === 'task' || context.kind === 'front'
   const parts = [
     bot.persona,
     identity(bot),

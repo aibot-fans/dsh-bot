@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { join } from 'node:path'
 import { OWNER, POD, POD_VERSION, PRIORITY, botFolder, composePersona, roomFolder, fail, sessionBrowses, sessionMakesPages, t, withLanguage, worthSummary, type Bot, type BotStats, type Language, type PodEvent, type PodResult, type PodSession, type Room, type Task, type TeamTemplate } from 'pod-domain'
-import { afterCommit, deliveryByMessageId, inTransaction, onAfterCommitError, pinnedMessages, teamsOfBot } from 'pod-store'
+import { afterCommit, deliveryByMessageId, getMessage, inTransaction, onAfterCommitError, pinnedMessages, raiseProblem, resolveProblem, taskCardMessage, teamsOfBot } from 'pod-store'
 import { SegmentManager } from './agents/segments.ts'
 import { AibotService } from './aibot/service.ts'
 import { MemoryExtractor } from './memory/extract.ts'
@@ -31,7 +31,7 @@ import { BotService } from './bots/service.ts'
 import { ChatExtras } from './chat/extras.ts'
 import { TurnErrors } from './chat/turn-errors.ts'
 import { RoomService, type PreparingState } from './chat/rooms.ts'
-import { liteRoute } from './chat/router.ts'
+import { FrontDesk } from './front/desk.ts'
 import { TextConverter } from './convert/index.ts'
 import { Auditor } from './core/audit.ts'
 import { PodBus } from './core/bus.ts'
@@ -125,6 +125,8 @@ export class PodRuntime {
   readonly watchdog: Watchdog
   readonly binder: AgentBinder
   readonly rooms: RoomService
+  /** 前台：每个 bot 一个，跨聊天室，交给它的消息成批送进去。 */
+  readonly front: FrontDesk
   readonly teams: TeamService
   readonly tasks: TaskService
   readonly engine: Engine
@@ -262,16 +264,6 @@ export class PodRuntime {
       busy: (room) =>
         this.registry.active().some((session) => (session.roomId === room.id || (room.taskId !== null && session.taskId === room.taskId)) && this.dispatcher.isRunning(session.id)),
       openWaits: (roomId) => this.waits.openCountInRoom(roomId),
-      snapshotFor: (room) => (room.taskId === null ? undefined : this.tasks.snapshotTextFor(room.taskId)),
-      enrich: async (session, text) => {
-        const hints = await this.memory.hintsFor(session, text).catch(() => undefined)
-        return hints === undefined ? text : `${text}\n\n${hints}`
-      },
-      rotate: async (room, bot, session, starting) => {
-        if (!this.segments.needsRotation(session)) return undefined
-        starting()
-        return this.segments.rotateChat(room, bot, session, t('上下文接近软上限或空闲太久'))
-      },
       indexed: (message) => this.search.indexMessage(message),
       leaderFor: (room) => this.leaderForRoom(room),
       onOwnerText: (message) => this.evolutionKit.feedback.observeOwner(message),
@@ -285,8 +277,8 @@ export class PodRuntime {
           .then(() => ctx.workspaceRegistry.archiveSession?.(sessionId, { stopActivity: true }))
           .catch(() => undefined)
       },
-      route: liteRoute(this.lite, warn),
-      preparing: (key, state) => this.setPreparing(key, state),
+      front: (message, bots, note) => this.front.push(message, bots, note),
+      frontOf: (botId) => this.registry.activeFront(botId),
     })
     this.pages = new PageService({
       db,
@@ -353,6 +345,10 @@ export class PodRuntime {
       onSubtaskStalled: (task, reason) => this.coordinator.onStalled(task, reason),
       learn: (session, task, lessons) => this.learnFromTask(session, task, lessons),
       markRead: (sessionId) => this.dispatcher.turnEnded(sessionId),
+      cardOf: (taskId) => {
+        const id = taskCardMessage(db, taskId)
+        return id === undefined ? undefined : getMessage(db, id)
+      },
     })
     this.launcher = new Launcher({
       db,
@@ -467,6 +463,7 @@ export class PodRuntime {
           this.dispatcher.setRunning(session.id, false)
           this.pages.onTurnEnd(session.id)
           this.turns.onTurnEnd(session, reason, failure)
+          this.front.onTurnEnd(session, reason, failure)
           this.consults.onTurnEnd(session)
         },
         onToolCall: (session, name, action, args) => {
@@ -551,6 +548,27 @@ export class PodRuntime {
       beforeRotate: async (room) => {
         await this.extractor.extract(room)
       },
+    })
+    this.front = new FrontDesk({
+      db,
+      now,
+      effects: this.effects,
+      engine: this.engine,
+      bots: this.bots,
+      registry: this.registry,
+      dispatcher: this.dispatcher,
+      segments: this.segments,
+      room: (roomId) => this.rooms.get(roomId),
+      preparing: (key, state) => this.setPreparing(key, state),
+      notice: (roomId, body, data) => {
+        this.rooms.post(roomId, { author: POD, kind: 'notice', body, data })
+      },
+      problem: (detail) => {
+        if (detail === null && !resolveProblem(db, 'front:missed', now())) return
+        if (detail !== null) raiseProblem(db, 'front:missed', detail, 1, now())
+        this.bus.emit({ type: 'health' })
+      },
+      warn,
     })
     this.routines = new RoutineService({
       db,
@@ -1029,9 +1047,10 @@ export class PodRuntime {
     const bot = this.bots.resolve(input.bot)
     if (bot === undefined) return fail('not-found', t('找不到 bot「{bot}」', { bot: input.bot }))
     if (input.title.trim() === '' || input.brief.trim() === '') return fail('invalid-input', t('任务要有标题和说明'))
-    const requester = await this.rooms.chatSession(this.rooms.ensureLeadRoom(), this.bots.lead())
+    const requester = await this.front.session(this.bots.lead())
     return this.tasks.delegate({
       requester,
+      roomId: this.rooms.ensureLeadRoom().id,
       bot,
       title: input.title,
       brief: input.brief,

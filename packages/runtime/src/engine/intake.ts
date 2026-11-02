@@ -20,7 +20,7 @@ export interface IntakeDeps {
   readonly askedAt: (task: Task, message: RoomMessage) => void
   /** 直通了哪些任务，记在消息上给页面看。 */
   readonly marked: (message: RoomMessage, tasks: readonly Task[]) => void
-  /** 交给前台（交还、退回的消息）：现在就是聊天室原来的接话流程；note 写在消息前面。 */
+  /** 交给前台（交还、退回的消息）；note 是交给前台时附的说明。 */
   readonly toFront: (message: RoomMessage, note: string) => Promise<void>
 }
 
@@ -59,7 +59,6 @@ export class Intake {
         this.deps.askedAt(task, message)
         done.push(task)
       }
-      if (done.length === 0) this.deps.topics.route(message.id, 'front', null, 'code')
       return done
     })
     if (delivered.length > 0) this.deps.marked(message, delivered)
@@ -85,7 +84,8 @@ export class Intake {
       const ref = this.deps.deliver(task, { ...routedOf(message, '用户'), ...(note === '' ? {} : { note }) })
       if (ref === undefined) return fail('conflict', t('任务已经停掉了；要接着做，先点继续'))
       this.deps.topics.followMessage(task.id, message.id, 'attached')
-      this.deps.topics.route(message.id, 'relayed', task.id, by, '', ref)
+      // 记在转它的那个前台名下：这条在那个前台就算有去向了。
+      this.deps.topics.route(message.id, 'relayed', task.id, by, note, ref, by)
       this.deps.askedAt(task, message)
       return ok(ref)
     })

@@ -396,3 +396,14 @@ export function lastMessages(db: DatabaseSync): ReadonlyMap<string, RoomMessage>
     .all() as unknown as readonly MessageRow[]
   return new Map(rows.map((row) => [row.room_id, toMessage(row)]))
 }
+
+/** 你说过的一句话在哪条消息里（最近的那条）；给了聊天室就只在那里找。 */
+export function findOwnerMessage(db: DatabaseSync, fragment: string, roomId: string | null): RoomMessage | undefined {
+  const like = `%${fragment.replace(/[\\%_]/g, (char) => `\\${char}`)}%`
+  const row = (
+    roomId === null
+      ? db.prepare("SELECT * FROM messages WHERE author = 'owner' AND kind = 'text' AND deleted_at IS NULL AND body LIKE ? ESCAPE '\\' ORDER BY created_at DESC LIMIT 1").get(like)
+      : db.prepare("SELECT * FROM messages WHERE room_id = ? AND author = 'owner' AND kind = 'text' AND deleted_at IS NULL AND body LIKE ? ESCAPE '\\' ORDER BY created_at DESC LIMIT 1").get(roomId, like)
+  ) as MessageRow | undefined
+  return row === undefined ? undefined : toMessage(row)
+}

@@ -2,7 +2,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { existsSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'
-import { OWNER, POD, expandQuickCommand, fail, ok, readId, readString, t, uploadNote as uploadLine, type Bot, type PodResult, type Room, type RoomMessage } from 'pod-domain'
+import { OWNER, POD, fail, ok, readId, readString, t, uploadNote as uploadLine, type Bot, type PodResult, type Room, type RoomMessage } from 'pod-domain'
 import { getMessage } from 'pod-store'
 import { canConvert, type ConvertOutcome } from '../convert/index.ts'
 import type { RoomService } from './rooms.ts'
@@ -89,7 +89,7 @@ export class ChatExtras {
     this.deps.onRegenerate(message)
     // 群里交给说这条回复的成员重新回答，不是交给主管。
     const author = room.kind === 'direct' ? undefined : this.deps.rooms.memberBots(room).find((bot) => bot.id === message.author)
-    const delivered = await this.deps.rooms.deliverText(room, `[用户要求重新回答] 用户对你上一条回复不满意，请换个思路重新回答下面这条消息（不用道歉，直接给新的回答）：\n${expandQuickCommand(asked.body) ?? asked.body}`, author)
+    const delivered = this.deps.rooms.again(room, asked, `[用户要求重新回答] 用户对你的回复 ${message.id} 不满意，换个思路重新回答这条（不用道歉，直接用 reply 给新的回答）。`, author)
     if (!delivered.ok) return delivered
     this.deps.rooms.post(room.id, { author: POD, kind: 'receipt', body: t('已请{name}重新回答', { name: delivered.value.name }), data: { messageId: message.id } })
     return ok(null)
@@ -108,7 +108,12 @@ export class ChatExtras {
     if (room === undefined || room.archivedAt !== null) return fail('not-found', t('找不到这个房间'))
     const botId = (failure as Readonly<Record<string, unknown>>).botId
     const bot = room.kind === 'direct' || typeof botId !== 'string' ? undefined : this.deps.rooms.memberBots(room).find((item) => item.id === botId)
-    const delivered = await this.deps.rooms.deliverText(room, '[用户要求重试] 刚才模型服务出错，你这一轮没回成。接着回答用户最近的那条消息，不用提出错的事。', bot)
+    const row = this.deps.db
+      .prepare("SELECT id FROM messages WHERE room_id = ? AND author = 'owner' AND kind = 'text' AND seq < ? AND deleted_at IS NULL ORDER BY seq DESC LIMIT 1")
+      .get(room.id, message.seq) as { readonly id: string } | undefined
+    const asked = row === undefined ? undefined : getMessage(this.deps.db, row.id)
+    if (asked === undefined) return fail('not-found', t('找不到要重试的那条消息'))
+    const delivered = this.deps.rooms.again(room, asked, '[用户要求重试] 刚才模型服务出错，这条没回成。接着处理，不用提出错的事。', bot)
     if (!delivered.ok) return delivered
     this.deps.rooms.patchMessage(message.id, { data: { ...message.data, turnError: { ...failure, retry: false, retried: true } } })
     return ok(null)
@@ -141,7 +146,7 @@ export class ChatExtras {
       data: { attachment: { name: basename(path), path, size: data.byteLength, ...textData(converted) } },
     })
     if (message === undefined) return fail('not-found', t('找不到这个房间'))
-    await this.deps.rooms.deliverUpload(room, uploadNote(path, data.byteLength, converted, note), note === '' ? uploadLine(basename(path)) : note, message.id)
+    this.deps.rooms.deliverUpload(room, message, uploadNote(path, data.byteLength, converted, note))
     return ok(message)
   }
 }

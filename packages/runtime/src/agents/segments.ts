@@ -102,7 +102,7 @@ export class SegmentManager {
 
   needsRotation(session: PodSession): boolean {
     if (session.contextTokens >= this.deps.softLimit()) return true
-    if (session.kind !== 'chat' || session.steps === 0 || session.lastActiveAt === null) return false
+    if ((session.kind !== 'chat' && session.kind !== 'front') || session.steps === 0 || session.lastActiveAt === null) return false
     return this.deps.now() - session.lastActiveAt > IDLE_ROTATE_MS
   }
 
@@ -181,6 +181,25 @@ export class SegmentManager {
       `[最近的对话]\n${this.recent(room)}`,
     ].join('\n\n')
     return { session, preface }
+  }
+
+  /**
+   * 前台换段：不写交接笔记，新的一段第一批带上开着的任务和各聊天室最近几条，
+   * 长期的决定在记忆里，更早的事按 id 读、用检索查。
+   */
+  async rotateFront(bot: Bot, old: PodSession): Promise<PodSession> {
+    const session = await this.deps.registry.open({
+      bot,
+      kind: 'front',
+      roomId: null,
+      taskId: null,
+      folder: old.folder,
+      title: t('dsh-bot · {name} · 前台第 {segment} 段', { name: bot.name, segment: old.segment + 1 }),
+      segment: old.segment + 1,
+      ceiling: 'talk',
+    })
+    this.deps.registry.retire(old.id)
+    return session
   }
 
   /** 任务会话换段：交接笔记从任务数据和最近的说明里拼出来，新的一段接着做。 */
