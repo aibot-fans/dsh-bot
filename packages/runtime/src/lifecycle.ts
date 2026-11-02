@@ -94,6 +94,7 @@ export function startRuntime(pod: PodRuntime): () => void {
     .catch(warn('重建搜索索引失败'))
   return () => {
     pod.dispatcher.stop()
+    pod.tasks.dispose()
     for (const timer of timeouts) clearTimeout(timer)
     for (const timer of intervals) clearInterval(timer)
     pod.sleep.stop()

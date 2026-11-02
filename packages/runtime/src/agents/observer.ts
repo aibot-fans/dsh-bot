@@ -51,7 +51,8 @@ export interface ObserverHooks {
   readonly onAssistantText: (session: PodSession, text: string, turn: number) => void
   /** 你在 dsh 的会话视图里直接打的字（不是 Pod 投进去的）。 */
   readonly onOwnerTyped: (session: PodSession, text: string, messageId: string) => void
-  readonly onTurnEnd: (session: PodSession, reason: string) => void
+  /** 一轮结束；出错结束时带上出错的原因。 */
+  readonly onTurnEnd: (session: PodSession, reason: string, failure?: TurnFailure) => void
   /** 这一轮出错结束了（多半是模型服务的错，dsh 自己的重试也没救回来）：在 onTurnEnd 之前调。 */
   readonly onTurnError?: (session: PodSession, failure: TurnFailure) => void
   readonly onToolCall: (session: PodSession, name: string, action: string, args: string) => void
@@ -311,8 +312,9 @@ export class SessionObserver {
         this.update(session, { running: false, current: null, ...(progress === null ? {} : { progress: stopThinking(progress, at) }) })
         this.hooks.onStream(session, '', true)
         if (progress !== null) this.hooks.onRunEnd?.(session, summarizeRun(progress, at))
-        if (reason === 'error') this.hooks.onTurnError?.(session, failureOf(record(data.reason).error))
-        this.hooks.onTurnEnd(session, reason)
+        const failure = reason === 'error' ? failureOf(record(data.reason).error) : undefined
+        if (failure !== undefined) this.hooks.onTurnError?.(session, failure)
+        this.hooks.onTurnEnd(session, reason, failure)
         return
       }
       default:

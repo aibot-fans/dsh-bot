@@ -272,4 +272,8 @@ export const RUNTIME_EN_NOTICES: Readonly<Record<string, string>> = {
   '模型服务出错了': 'The model service had an error',
   '找不到这条出错提示': "This error notice wasn't found",
   '等模型服务恢复，第 {retry} 次重试（{code}）': 'Waiting for the model service, retry {retry} ({code})',
+  '模型服务出错，第 {attempt} 次重试': 'Model service error; retry {attempt}',
+  '{reason}。处理好以后点继续': '{reason}. Click Resume once it is fixed',
+  '模型服务连着出错，自动重试了 {count} 次都没成（{code}）。服务恢复后点继续': 'The model service kept failing; {count} automatic retries did not help ({code}). Click Resume once the service is back',
+  '{line}：{why}': '{line}: {why}',
 }

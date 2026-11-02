@@ -32,15 +32,18 @@ import {
 } from 'pod-store'
 import type { Dispatcher } from '../agents/dispatcher.ts'
 import { noticeSource, relaySource } from '../agents/messages.ts'
+import type { TurnFailure } from '../agents/observer.ts'
 import type { SessionRegistry } from '../agents/registry.ts'
 import type { BotService } from '../bots/service.ts'
 import type { RoomService } from '../chat/rooms.ts'
+import { failureKind, failureReason } from '../chat/turn-errors.ts'
 import type { Auditor } from '../core/audit.ts'
 import type { PodBus } from '../core/bus.ts'
 import type { AgentRegistry } from '../dsh.ts'
 import type { UsageMeter } from '../usage/meter.ts'
 import { doneNote } from '../orchestrator/texts.ts'
 import { composeBrief, nudgeText, resumeText } from './brief.ts'
+import { ModelRetries, RETRY_DELAYS_MS } from './retries.ts'
 import { snapshotText } from './snapshot.ts'
 
 /** 一轮结束却没提交，最多提醒几次；还没进展就交回给派活的人。 */
@@ -107,11 +110,17 @@ function progressFingerprint(task: Task): string {
 export class TaskService {
   private readonly waiters = new Map<string, Set<(task: Task) => void>>()
   private readonly nudges = new Map<string, NudgeState>()
+  private readonly retries = new ModelRetries()
   private readonly emitTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private readonly deps: TaskServiceDeps
 
   constructor(deps: TaskServiceDeps) {
     this.deps = deps
+  }
+
+  /** Pod 停止时取消还没到点的重试。 */
+  dispose(): void {
+    this.retries.dispose()
   }
 
   private get db(): DatabaseSync {
@@ -305,6 +314,7 @@ export class TaskService {
       const submitted = this.deps.onSubtaskSubmitted(task, result)
       this.event(submitted, 'submitted', session.botId, { summary: result.summary, files: result.files })
       this.nudges.delete(task.id)
+      this.retries.clear(task.id)
       return ok(submitted)
     }
     const now = this.deps.now()
@@ -322,6 +332,7 @@ export class TaskService {
       this.deps.rooms.milestone(delivered.roomId, t('{value} 交付了「{title}」', { value: bot?.name ?? 'bot', title: delivered.title }), { taskId: delivered.id })
     }
     this.nudges.delete(delivered.id)
+    this.retries.clear(delivered.id)
     const awaited = this.hasWaiter(delivered.id)
     this.finish(delivered)
     if (!awaited) this.tellRequester(delivered, `[任务交付] 「${delivered.title}」已完成，任务卡已经变成交付卡发给用户。摘要：${result.summary}`)
@@ -350,14 +361,27 @@ export class TaskService {
     if (!busy) this.deps.bots.archiveById(bot.id, 'pod')
   }
 
-  /** 一轮结束：任务会话还没提交，就提醒它继续；连续几次没进展，交回给派活的人。 */
-  onTurnEnd(session: PodSession, reason: string): void {
+  /**
+   * 一轮结束：任务会话还没提交，就提醒它继续；连续几次没进展，交回给派活的人。
+   * 模型出错结束的不催：临时的等一会儿自己重试，要你处理的（认证、额度、没配模型）暂停任务等你。
+   */
+  onTurnEnd(session: PodSession, reason: string, failure?: TurnFailure): void {
     if (session.kind !== 'task') return
     const task = this.taskOf(session)
     if (task === undefined || task.status !== 'running') return
     if (reason === 'aborted' || reason === 'blocked') return
     const active = this.deps.registry.activeForTask(task.id, 'task')
     if (active?.id !== session.id) return
+    const kind = failure === undefined ? undefined : failureKind(failure)
+    if (failure !== undefined && kind === 'transient') {
+      this.retryLater(session, task, failure)
+      return
+    }
+    this.retries.clear(task.id)
+    if (failure !== undefined && kind === 'owner') {
+      this.hold(task, t('{reason}。处理好以后点继续', { reason: failureReason(failure) }))
+      return
+    }
     // 命令转到后台接着跑：跑完 dsh 会叫醒这条会话，这时不催，也不换段（换段会关掉会话，命令跟着停）。
     if (this.deps.backgroundJobs(session.id) > 0) return
     if (this.deps.shouldRotate(session)) {
@@ -382,7 +406,33 @@ export class TaskService {
     })
   }
 
+  /** 模型临时出错：等一会儿叫它从停下的地方接着做，不算催促；重试几次都不行就暂停任务。 */
+  private retryLater(session: PodSession, task: Task, failure: TurnFailure): void {
+    const count = this.retries.schedule(task.id, (attempt) => {
+      const current = this.get(task.id)
+      if (current?.status !== 'running' || this.deps.registry.activeForTask(task.id, 'task')?.id !== session.id) return
+      // 这期间它已经动起来了（比如你说了话），不用再叫。
+      if (this.deps.dispatcher.isRunning(session.id)) return
+      this.deps.dispatcher.enqueue({
+        sessionId: session.id,
+        mode: 'followup',
+        priority: current.urgent ? PRIORITY.urgent : PRIORITY.task,
+        text: '[dsh-bot] 刚才模型服务出错，上一轮没做完。从停下的地方接着做。',
+        source: noticeSource(t('模型服务出错，第 {attempt} 次重试', { attempt })),
+      })
+    })
+    if (count !== undefined) return
+    this.hold(task, t('模型服务连着出错，自动重试了 {count} 次都没成（{code}）。服务恢复后点继续', { count: RETRY_DELAYS_MS.length, code: failure.code }))
+  }
+
+  /** 停下等你：整个任务暂停，原因写进对话里那一行和提醒；进度说明不动，你点继续时它照着接着做。 */
+  private hold(task: Task, reason: string): void {
+    const paused = this.control(task.id, 'pause', 'pod', reason)
+    if (paused.ok) this.deps.notify({ ...(this.get(task.id) ?? task), note: reason }, 'stalled')
+  }
+
   private stall(task: Task): void {
+    this.retries.clear(task.id)
     const updated = this.write(task, { status: 'failed', note: t('连续 {MAX_NUDGES} 次提醒都没有进展，已停下等处理', { MAX_NUDGES }) })
     this.event(updated, 'stalled', 'pod', {})
     if (updated.parentId !== null) {
@@ -395,8 +445,8 @@ export class TaskService {
     this.deps.notify(updated, 'stalled')
   }
 
-  /** 暂停、继续、停止、取消；作用于整棵任务树。 */
-  control(taskId: string, action: ControlAction, actor: string): PodResult<Task> {
+  /** 暂停、继续、停止、取消；作用于整棵任务树。why 是 dsh-bot 自己暂停时的原因，写进对话里的那一行。 */
+  control(taskId: string, action: ControlAction, actor: string, why?: string): PodResult<Task> {
     const root = this.get(this.rootOf(taskId) ?? taskId)
     if (root === undefined) return fail('not-found', t('找不到这个任务'))
     const tree = this.tree(root.id)
@@ -421,6 +471,7 @@ export class TaskService {
     for (const task of changed) {
       const status = target(task)
       if (status === undefined) continue
+      this.retries.clear(task.id)
       const previous = task.status
       const updated = this.write(task, { status, ...(status === 'cancelled' ? { finishedAt: now } : {}) })
       if (action === 'resume' && status === 'running') this.resumeSession(updated, previous === 'stopped' ? 'stopped' : 'paused')
@@ -433,9 +484,10 @@ export class TaskService {
     }
     this.deps.onRootStateChange(root.id, action === 'cancel' ? 'cancelled' : action === 'stop' ? 'stopped' : 'resumed')
     const notes: Readonly<Record<ControlAction, string>> = { pause: '「{title}」已暂停', resume: '「{title}」已继续', stop: '「{title}」已停止', cancel: '「{title}」已取消' }
-    this.event(root, `control.${action}`, actor, {})
+    this.event(root, `control.${action}`, actor, why === undefined ? {} : { why })
     this.deps.audit.record(`task.${action}`, actor, root.id, { title: root.title })
-    this.deps.rooms.milestone(root.roomId, t(notes[action], { title: root.title }), { taskId: root.id })
+    const line = t(notes[action], { title: root.title })
+    this.deps.rooms.milestone(root.roomId, why === undefined ? line : t('{line}：{why}', { line, why }), { taskId: root.id })
     const after = this.get(root.id) ?? root
     if (action === 'cancel') this.finish(after)
     return ok(after)

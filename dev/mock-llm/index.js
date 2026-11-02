@@ -402,8 +402,8 @@ function decide(options) {
       const named = /交给([^\s，。,]+)/.exec(userText)?.[1]
       const bot = named ?? firstRosterName(system) ?? '主管'
       const login = userText.includes('登录')
-      if (userText.includes('浏览器') || userText.includes('沉淀') || userText.includes('后台命令') || wantedKind(userText) !== undefined) {
-        const title = userText.includes('浏览器') ? '浏览器测试' : userText.includes('沉淀') ? '沉淀测试' : userText.includes('后台命令') ? '后台命令测试' : '做页面'
+      if (userText.includes('浏览器') || userText.includes('沉淀') || userText.includes('后台命令') || userText.includes('一直限流') || userText.includes('一直认证失败') || wantedKind(userText) !== undefined) {
+        const title = userText.includes('浏览器') ? '浏览器测试' : userText.includes('沉淀') ? '沉淀测试' : userText.includes('后台命令') ? '后台命令测试' : userText.includes('一直限流') ? '限流测试' : userText.includes('一直认证失败') ? '认证失败测试' : '做页面'
         return {
           tool: 'delegate',
           args: { bot, title, brief: userText, deliverable: title === '做页面' ? '页面' : 'shared/测试.md', acceptance: ['按说明做'], assumptions: ['测试环境'], reason: '测试', wait: false },
@@ -499,6 +499,11 @@ function simulatedFailure(options) {
   const own = ownText(textOf(lastOf(messages, 'user')?.content))
   if (own.includes('模拟模型出错')) return providerError('Incorrect API key provided: sk-test-********abcd', 'AUTH', 401)
   if (own.includes('模拟限流')) return providerError('Rate limit reached for requests', 'RATE_LIMIT', 429)
+  // 任务说明里写“一直限流”“一直认证失败”：这个任务的每一轮都报这个错，看得到 dsh-bot 隔一会儿重试或者直接暂停。
+  const brief = textOf(messages.find((message) => message.role === 'user' && MEANINGFUL.has(message.source?.kind))?.content)
+  const task = systemOf(options, messages).includes('你正在执行一个任务')
+  if (task && brief.includes('一直限流')) return providerError('Rate limit reached for requests', 'RATE_LIMIT', 429)
+  if (task && brief.includes('一直认证失败')) return providerError('Incorrect API key provided: sk-test-********abcd', 'AUTH', 401)
   return undefined
 }
 

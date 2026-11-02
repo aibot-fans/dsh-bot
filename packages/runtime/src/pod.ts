@@ -368,10 +368,10 @@ export class PodRuntime {
           turnErrors.report(session, failure)
           ctx.logger.warn(`dsh-bot：${this.bots.get(session.botId)?.name ?? session.botId} 这一轮出错结束（${failure.code}${failure.status === undefined ? '' : ` ${failure.status}`}）`)
         },
-        onTurnEnd: (session, reason) => {
+        onTurnEnd: (session, reason, failure) => {
           this.dispatcher.setRunning(session.id, false)
           this.pages.onTurnEnd(session.id)
-          this.tasks.onTurnEnd(session, reason)
+          this.tasks.onTurnEnd(session, reason, failure)
           this.consults.onTurnEnd(session)
         },
         onToolCall: (session, name, action, args) => {

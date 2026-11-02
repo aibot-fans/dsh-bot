@@ -22,6 +22,35 @@ export interface TurnErrorDeps {
   readonly now: () => number
 }
 
+/**
+ * 模型服务的错分三类（dsh 自己的几次快速重试已经用完了）：
+ * - transient：限流、服务端出错、超时、断网，过一会儿多半就好，任务会话等一会儿自己重试；
+ * - owner：认证失败、额度用完、找不到模型，重试没用，要你处理；
+ * - other：其余的，照旧处理。
+ */
+export type FailureKind = 'transient' | 'owner' | 'other'
+
+export function failureKind(failure: TurnFailure): FailureKind {
+  switch (failure.code) {
+    case 'RATE_LIMIT':
+    case 'SERVER':
+    case 'TIMEOUT':
+    case 'TRANSPORT':
+    case 'EMPTY_RESPONSE':
+    case 'LLM_STREAM_IDLE_TIMEOUT':
+    case 'STREAM_CLOSED':
+      return 'transient'
+    case 'AUTH':
+    case 'MISSING_CREDENTIAL':
+    case 'QUOTA':
+    case 'NO_ADAPTER':
+    case 'UNKNOWN_MODEL':
+      return 'owner'
+  }
+  const status = failure.status
+  return status === 408 || status === 429 || (status !== undefined && status >= 500) ? 'transient' : 'other'
+}
+
 /** 模型服务的错按 code 说成人话；认不出的只说“模型服务出错了”，原始报错放在详情里。 */
 export function failureReason(failure: TurnFailure): string {
   switch (failure.code) {
