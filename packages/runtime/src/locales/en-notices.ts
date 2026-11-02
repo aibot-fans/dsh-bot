@@ -244,6 +244,7 @@ export const RUNTIME_EN_NOTICES: Readonly<Record<string, string>> = {
   '模板里没有成员': 'The template has no members',
   'Super-agent 新建': 'Created by Super-agent',
   '拉了群「{title}」': 'Created the group “{title}”',
+  '用了已有的群「{title}」': 'Using the existing group “{title}”',
   '用户说“记住……”': 'The user said “remember…”',
   '组长写团队约定': 'Team convention written by the team lead',
   'Super-agent 写房间要点': 'Chat notes written by Super-agent',

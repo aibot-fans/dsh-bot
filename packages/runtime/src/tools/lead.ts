@@ -1,4 +1,5 @@
 import { BOT_PRESETS, TICKET_STAGE_LABELS, TOOL_PROFILES, botLabel, botPreset, groupNameMax, isActive, t, validateDraft, type Bot, type ModelChoice, type PodSession, type ToolProfile } from 'pod-domain'
+import { getMessage, listRooms } from 'pod-store'
 import type { ToolDefinition } from '../dsh.ts'
 import type { PodRuntime } from '../pod.ts'
 import { bool, failure, flag, oneOf, podTool, str, strList, success, text, texts } from './define.ts'
@@ -153,25 +154,42 @@ export function orgTools(pod: PodRuntime, session: PodSession): readonly ToolDef
       name: str(`群名，最好不超过 ${groupNameMax()} 个字`),
       members: strList('拉谁进群：bot 的名字或 id；你会自动在群里'),
       intro: str('开场白：这个群是干什么的，作为群里的第一条消息'),
+      to: str('用户在哪条消息里要的（消息 id）：进群的入口放在那条所在的聊天室'),
     },
     required: ['name', 'members'],
-    parse: (args) => ({ name: text(args, 'name'), members: texts(args, 'members'), intro: text(args, 'intro') }),
-    run: ({ name, members, intro }) => {
+    parse: (args) => ({ name: text(args, 'name'), members: texts(args, 'members'), intro: text(args, 'intro'), to: text(args, 'to') }),
+    run: ({ name, members, intro, to }) => {
       const resolved = members.map((item) => ({ item, bot: pod.bots.resolve(item) }))
       const missing = resolved.filter((entry) => entry.bot === undefined || entry.bot.archivedAt !== null).map((entry) => entry.item)
       if (missing.length > 0) return failure(`找不到这些 bot：${missing.join('、')}。先用 find_bots 查，或用 create_bot 新建`)
+      const before = new Set(listRooms(pod.db, { archived: false }).map((room) => room.id))
       const created = pod.rooms.createGroup({ name, memberIds: resolved.map((entry) => entry.bot?.id ?? '') }, session.botId)
       if (!created.ok) return failure(created.error.message)
       const room = created.value
       if (intro !== '') pod.rooms.post(room.id, { author: session.botId, kind: 'text', body: intro, sessionId: session.id })
-      if (session.roomId !== null && session.roomId !== room.id) {
-        pod.rooms.post(session.roomId, { author: session.botId, kind: 'notice', body: t('拉了群「{title}」', { title: room.title }), data: { roomId: room.id } })
+      // 进群的入口放在用户要的那个聊天室：写了 to 就是那条所在的；前台不在某个聊天室里，就看它手上还没去向的最后一条。
+      const where = (to === '' ? undefined : getMessage(pod.db, to)?.roomId) ?? session.roomId ?? pendingRoom(pod, session)
+      if (where !== undefined && where !== room.id) {
+        const body = before.has(room.id) ? t('用了已有的群「{title}」', { title: room.title }) : t('拉了群「{title}」', { title: room.title })
+        pod.rooms.post(where, { author: session.botId, kind: 'notice', body, data: { roomId: room.id } })
       }
-      return success(`群「${room.title}」建好了，成员：${resolved.map((entry) => entry.bot?.name ?? '').join('、')}。用户可以在群里 @ 它们。`, { roomId: room.id })
+      const names = resolved.map((entry) => entry.bot?.name ?? '').join('、')
+      const done = before.has(room.id) ? `已经有同名的群「${room.title}」，直接用它（${names} 都在群里）` : `群「${room.title}」建好了，成员：${names}`
+      return success(`${done}。进群的入口已经放在聊天里，用户可以在群里 @ 它们。`, { roomId: room.id })
     },
   })
 
   return [findBots, createBot, archive, createGroup]
+}
+
+/** 前台这一批里还没去向的最后一条消息在哪个聊天室。 */
+function pendingRoom(pod: PodRuntime, session: PodSession): string | undefined {
+  const topics = pod.engine.topics
+  const routes = topics.undecided(session.botId, topics.inFlight(session.botId))
+  return routes
+    .map((route) => getMessage(pod.db, route.messageId))
+    .filter((message) => message !== undefined && message.deletedAt === null)
+    .at(-1)?.roomId
 }
 
 /** 前台看任务、控制任务：查进度、重试、暂停、继续、停止。 */
