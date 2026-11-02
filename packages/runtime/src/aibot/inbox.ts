@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { POD, t } from 'pod-domain'
+import { POD, t, type RoomMessage } from 'pod-domain'
 import { readState, writeState } from 'pod-store'
 import type { BotService } from '../bots/service.ts'
 import type { RoomService } from '../chat/rooms.ts'
@@ -27,9 +27,11 @@ export interface InboxDeps {
   readonly now: () => number
   /** 按 since 和 cursor 拉一页漏掉的事件（从新到旧）。 */
   readonly page: (since: string, cursor: string | undefined) => Promise<{ readonly events: readonly unknown[]; readonly next: string | undefined }>
+  /** 事件贴进群以后：交给自动来源过两段过滤。 */
+  readonly received: (view: XEvent['view'], message: RoomMessage) => void
 }
 
-/** X 监控事件的去处：按 id 去重，发进「X 监控」群聊、发通知；记下最后一条的时间，断线后从这里补拉。 */
+/** X 监控事件的去处：按 id 去重，发进「X 监控」群聊（再交给自动来源过两段过滤）、发通知；记下最后一条的时间，断线后从这里补拉。 */
 export class XInbox {
   private readonly deps: InboxDeps
 
@@ -68,7 +70,8 @@ export class XInbox {
     const room = xRoom(db, bots, rooms)
     const author = xBot(db, bots)?.id ?? POD
     for (const event of unique) {
-      if (room !== undefined) rooms.post(room.id, { author, kind: 'text', body: eventBody(event.view), data: { xEvent: event.view } })
+      const message = room === undefined ? undefined : rooms.post(room.id, { author, kind: 'text', body: eventBody(event.view), data: { xEvent: event.view } })
+      if (message !== undefined) this.deps.received(event.view, message)
     }
     const last = unique.reduce((latest, event) => (event.detectedAt > latest ? event.detectedAt : latest), record.since)
     writeState(db, STREAM_KEY, { since: last, ids: [...record.ids, ...unique.map((event) => event.id)].slice(-RECENT_IDS) })

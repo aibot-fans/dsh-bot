@@ -23,10 +23,10 @@ export interface ExtraTool {
   readonly create: (session: PodSession) => ToolDefinition
 }
 
-/** 前台只读 dsh-bot 自己的东西：不搜网页存档，页面只读不写。 */
-const FRONT_SKIPS = new Set(['search_web_archive', 'save_page', 'page_guide'])
+/** 前台只读 dsh-bot 自己的东西：不搜网页存档，页面只读不写；建例程改成开任务时带触发器。 */
+const FRONT_SKIPS = new Set(['search_web_archive', 'save_page', 'page_guide', 'create_routine'])
 
-/** 前台：分派、回复、读、看和控制任务、记忆、读页面、例程（到触发器上线为止）、在群里点名；Super-agent 另有组织工具。不碰外部。 */
+/** 前台：分派（开任务可以带触发器）、回复、读、看和控制任务、记忆、读页面、例程（看、改、删、盯网页）、在群里点名；Super-agent 另有组织工具。不碰外部。 */
 function frontEquipment(pod: PodRuntime, session: PodSession): readonly ToolDefinition[] {
   const lead = pod.bots.get(session.botId)?.role === 'lead'
   return [

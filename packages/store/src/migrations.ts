@@ -720,6 +720,13 @@ const MIGRATIONS: readonly string[] = [
   ALTER TABLE message_routes ADD COLUMN bot_id TEXT;
   CREATE INDEX IF NOT EXISTS message_routes_by_bot ON message_routes (bot_id, route, ref);
   `,
+  // v15：触发器补上关掉的时间、附带的状态（来源、错峰、盯网页的指纹）和谁定的；例程记下换成了哪个常开任务。
+  `
+  ALTER TABLE triggers ADD COLUMN closed_at INTEGER;
+  ALTER TABLE triggers ADD COLUMN state TEXT NOT NULL DEFAULT '{}';
+  ALTER TABLE triggers ADD COLUMN created_by TEXT NOT NULL DEFAULT '';
+  ALTER TABLE routines ADD COLUMN task_id TEXT;
+  `,
 ]
 
 function readVersion(db: DatabaseSync): number {

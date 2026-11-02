@@ -138,14 +138,15 @@ export class TaskReporting {
         tasks.tellRequester(outcome.task, `[任务没做成] 「${task.title}」：${args.summary}`)
         return ok({ task: outcome.task, message: t('已记下失败，等用户决定重试还是结束。这一轮到这里结束。') })
       case 'dismissed':
-        return ok({ task: outcome.task, message: t('已记下：无需处理，任务结束。') })
+        return ok({ task: outcome.task, message: outcome.standing ? t('已记下：这次没有要说的，不发消息，等下次到点。') : t('已记下：无需处理，任务结束。') })
       case 'ready': {
         const bypassed = this.deps.onRootStateChange(task.rootId, 'delivered')
         const result = this.result(args, bypassed)
         const delivered = engine.tickets.patch(outcome.task, { result })
-        // 结果回在每一处还没得到答复的提问下面；单聊里任务卡那一行原地变成结果。
-        replies.result(delivered, session.botId, session.id, (onCard) => resultText(delivered, result, onCard, outcome.completed))
+        // 结果回在每一处还没得到答复的提问下面；单聊里任务卡那一行原地变成结果。常开任务每次的结果直接发，不用验收。
+        replies.result(delivered, session.botId, session.id, (onCard) => resultText(delivered, result, onCard, outcome.completed || outcome.standing))
         if (args.lessons !== '') this.deps.learn(session, delivered, args.lessons)
+        if (outcome.standing) return ok({ task: delivered, message: t('已发出这次的结果，等下次到点。') })
         tasks.tellRequester(delivered, `[任务交付] 「${delivered.title}」已完成，任务卡已经变成交付卡发给用户。摘要：${args.summary}`)
         this.deps.notify(delivered, 'done')
         if (bot !== undefined && bot.temporary && bot.role === 'member' && outcome.completed) tasks.retireTemporary(bot)

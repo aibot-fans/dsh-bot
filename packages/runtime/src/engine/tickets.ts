@@ -14,6 +14,8 @@ export interface TicketDeps {
   readonly released: () => void
   /** 任务刚结束（还在这个事务里）。 */
   readonly ended: (task: Task) => void
+  /** 阶段变了（还在这个事务里）。 */
+  readonly restaged: (task: Task) => void
 }
 
 export interface OpenTaskInput extends Omit<NewTask, 'status' | 'stage' | 'now' | 'origin' | 'replyTo'> {
@@ -127,6 +129,7 @@ export class Tickets {
     const patch: TaskPatch = { ticketStage: stage, ...(statusChanged ? { status } : {}) }
     const updated = updateTask(this.db, task.id, patch, this.deps.now()) ?? task
     this.deps.changed(updated)
+    if (stage !== task.ticketStage) this.deps.restaged(updated)
     return updated
   }
 

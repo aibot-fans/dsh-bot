@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { checkAcceptance, endsRun, newAcceptance, newId, type ReportStatus, type RunOutcome, type RunReason, type Task, type TaskReport, type TaskRun } from 'pod-domain'
-import { endRun, getRun, insertReport, insertRun, mergeRunDetail, openRun, runsByStatus, startRun, transaction, updateTask } from 'pod-store'
+import { endRun, getRun, insertReport, insertRun, isStanding, mergeRunDetail, openRun, runsByStatus, startRun, transaction, updateTask } from 'pod-store'
 import { isTicket } from './facts.ts'
 import type { Tickets } from './tickets.ts'
 
@@ -35,6 +35,8 @@ export interface ReportOutcome {
   readonly task: Task
   /** 就绪而且验收项都过了、没有没核实的：任务完成。 */
   readonly completed: boolean
+  /** 常开任务（挂着会一直触发的触发器）：做完这一次也不结束。 */
+  readonly standing: boolean
 }
 
 /** 排着的执行合并开工原因：新来的消息、子任务的消息接在后面。 */
@@ -189,11 +191,13 @@ export class Runs {
       }
       const unverified = Array.isArray(input.data.unverified) ? input.data.unverified.length : 0
       // 子任务就绪由组长验收，不自己完成。
-      const completed = input.status === 'ready' && task.parentId === null && acceptance.every((item) => item.done) && unverified === 0
+      // 常开任务（例程、简报）就绪或无需处理只是这一次做完，任务留着等下次到点。
+      const standing = isStanding(this.db, task.id)
+      const completed = input.status === 'ready' && task.parentId === null && acceptance.every((item) => item.done) && unverified === 0 && !standing
       if (completed) this.deps.tickets.end(task.id, 'done', input.author)
-      if (input.status === 'dismissed') this.deps.tickets.end(task.id, 'dismissed', input.author)
+      if (input.status === 'dismissed' && !standing) this.deps.tickets.end(task.id, 'dismissed', input.author)
       const updated = this.deps.tickets.refresh(task.id) ?? task
-      return { report, task: updated, completed }
+      return { report, task: updated, completed, standing }
     })
   }
 }

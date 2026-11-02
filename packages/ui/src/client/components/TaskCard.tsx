@@ -28,6 +28,7 @@ import { BotName } from './GroupMark.tsx'
 import { Markdown } from './Markdown.tsx'
 import { ProgressBlock } from './Progress.tsx'
 import { TaskQuestion } from './TaskQuestion.tsx'
+import { TriggerLine } from './TriggerLine.tsx'
 
 function elapsed(task: Task, now: number): string {
   return duration((task.finishedAt ?? now) - (task.startedAt ?? task.createdAt))
@@ -91,7 +92,10 @@ function stageTone(stage: TicketStage): 'ok' | 'warn' | 'danger' | 'info' {
   return stage === 'ended' ? 'ok' : 'info'
 }
 
-/** 工单的按钮按阶段给：在做能暂停、停止；等新消息能继续；受阻、失败能重试；等你验收能收下；你停掉的能继续。子任务由组长验收，没有收下。 */
+/**
+ * 工单的按钮按阶段给：在做能暂停、停止；等新消息能继续；等到点的只能停止（要提前跑在任务页点“现在跑一次”）；
+ * 受阻、失败能重试；等你验收能收下；你停掉的能继续。子任务由组长验收，没有收下。
+ */
 function ticketActions(snapshot: TaskSnapshot): readonly ControlAction[] {
   if (snapshot.task.parentId !== null && snapshot.stage === 'review') return ['stop']
   const running = snapshot.run !== null && snapshot.run.status === 'running'
@@ -101,6 +105,8 @@ function ticketActions(snapshot: TaskSnapshot): readonly ControlAction[] {
       return running ? ['pause', 'stop'] : ['stop']
     case 'idle':
       return ['resume', 'stop']
+    case 'scheduled':
+      return ['stop']
     case 'blocked':
     case 'failed':
       return ['retry', 'stop']
@@ -259,8 +265,8 @@ function InlineTask(props: { readonly snapshot: TaskSnapshot; readonly now: numb
   }
   return (
     <div className="pod-task-inline">
-      <span className="pod-task-inline-title">{t('在做：{title}', { title: task.title })}</span>
-      <span className="pod-muted-inline">{t('已用')} {elapsed(task, now)}</span>
+      <span className="pod-task-inline-title">{snapshot.stage === 'scheduled' ? t('等到点：{title}', { title: task.title }) : t('在做：{title}', { title: task.title })}</span>
+      {snapshot.stage === 'scheduled' ? <TriggerLine snapshot={snapshot} /> : <span className="pod-muted-inline">{t('已用')} {elapsed(task, now)}</span>}
       {snapshot.lastReport !== null && snapshot.lastReport.status === 'progress' && (snapshot.run === null || snapshot.lastReport.createdAt >= snapshot.run.queuedAt) ? (
         <span className="pod-task-inline-progress">{snapshot.lastReport.summary}</span>
       ) : null}
@@ -313,10 +319,12 @@ export function TaskCard(props: { readonly taskId: string; readonly compact?: bo
           <strong>{task.title}</strong>
           {snapshot.ownerName === null || snapshot.children.length > 0 ? null : <BotName bot={bots?.find((bot) => bot.id === task.ownerBotId)} fallback={snapshot.ownerName} size={16} />}
         </div>
-        <span className="pod-muted-inline">
-          {finished ? t('用时') : t('已用')} {elapsed(task, now)}
-          {snapshot.cost > 0 ? t(' · 已花 {formatCost}', { formatCost: formatCost(snapshot.cost) }) : ''}
-        </span>
+        {snapshot.stage === 'scheduled' ? null : (
+          <span className="pod-muted-inline">
+            {finished ? t('用时') : t('已用')} {elapsed(task, now)}
+            {snapshot.cost > 0 ? t(' · 已花 {formatCost}', { formatCost: formatCost(snapshot.cost) }) : ''}
+          </span>
+        )}
       </div>
       {finished ? (
         <>
@@ -329,6 +337,7 @@ export function TaskCard(props: { readonly taskId: string; readonly compact?: bo
             <Stages task={task} done={snapshot.children.length > 0 ? snapshot.children.filter((child) => child.status === 'done').length : progress.done} total={snapshot.children.length > 0 ? snapshot.children.length : progress.total} />
           ) : null}
           <ReportLine snapshot={snapshot} />
+          <TriggerLine snapshot={snapshot} />
           <SegmentBar snapshot={snapshot} />
           {props.compact === true || snapshot.children.length > 0 || task.acceptance.length === 0 ? null : (
             <ul className="pod-acceptance">

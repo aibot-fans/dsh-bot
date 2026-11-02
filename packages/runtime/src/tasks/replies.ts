@@ -63,7 +63,8 @@ export class TaskReplies {
       const latest = asked.at(-1)
       let anchor: string | null
       if (here !== undefined) {
-        if (latest === undefined && room.kind === 'direct') continue
+        // 单聊里的内联任务卡原地变成结果；例程、简报这类常开任务的卡不是内联的，每次结果回在卡下面。
+        if (latest === undefined && room.kind === 'direct' && here.data.inline === true) continue
         anchor = latest?.id ?? here.id
       } else if (latest !== undefined) anchor = latest.id
       else if (task.replyTo.some((target) => target.roomId === roomId && target.messageId === null)) anchor = null

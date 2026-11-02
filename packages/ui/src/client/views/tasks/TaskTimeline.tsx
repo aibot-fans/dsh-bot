@@ -1,18 +1,11 @@
 import { REPORT_STATUS_LABELS, RUN_OUTCOME_LABELS, RUN_REASON_LABELS, t, type Bot } from 'pod-domain'
 import type { TimelineItem, TimelineMessage } from '../../api/endpoints.ts'
 import { Badge, clock } from '../../components/common.tsx'
+import { stamp } from '../../components/duration.ts'
 import { FoldText } from '../../components/FoldText.tsx'
 import { Markdown } from '../../components/Markdown.tsx'
 import { useApp } from '../../state/app.ts'
 import { Actor, eventLine } from './events.tsx'
-
-/** 今天的只写钟点，别的天带上月日。 */
-function stamp(time: number): string {
-  const date = new Date(time)
-  const today = new Date()
-  const sameDay = date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth() && date.getDate() === today.getDate()
-  return sameDay ? clock(time) : `${date.getMonth() + 1}/${date.getDate()} ${clock(time)}`
-}
 
 function keyOf(item: TimelineItem): string {
   switch (item.kind) {
@@ -66,7 +59,11 @@ function Line(props: { readonly item: TimelineItem; readonly bots: ReadonlyMap<s
           : t('{time} 结束（{outcome}）', { time: clock(run.endedAt), outcome: run.outcome === null ? '' : t(RUN_OUTCOME_LABELS[run.outcome]) })
       return (
         <>
-          <strong>{t('开工：{reason}', { reason: t(RUN_REASON_LABELS[run.reason]) })}</strong>
+          <strong>
+            {run.reason === 'trigger' && typeof run.detail.trigger === 'string'
+              ? t('开工：触发器「{trigger}」', { trigger: run.detail.trigger })
+              : t('开工：{reason}', { reason: t(RUN_REASON_LABELS[run.reason]) })}
+          </strong>
           <span className="pod-muted-inline">{end}</span>
           {run.error === null || run.error === '' ? null : <p className="pod-tl-text pod-form-error">{run.error}</p>}
         </>

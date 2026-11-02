@@ -17,6 +17,8 @@ export interface EngineDeps {
   readonly changed: (task: Task) => void
   /** 任务刚结束（在结束的事务里）：没读的消息退回前台。 */
   readonly ended: (task: Task) => void
+  /** 任务的阶段变了（在事务里，要做的事放到事务外）：等它就绪的触发器。 */
+  readonly restaged: (task: Task) => void
 }
 
 /**
@@ -38,6 +40,7 @@ export class Engine {
       cancelLaunch: (taskId) => deps.effects.cancel('open', taskId),
       released,
       ended: deps.ended,
+      restaged: deps.restaged,
     })
     this.runs = new Runs({
       db: deps.db,

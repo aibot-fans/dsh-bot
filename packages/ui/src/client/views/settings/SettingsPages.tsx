@@ -12,6 +12,7 @@ import { UpdateRow } from '../update/UpdateRow.tsx'
 import { BrowserSettings } from './BrowserSettings.tsx'
 import { Row, type Update } from './Row.tsx'
 import { XAccountRows } from './XAccountRows.tsx'
+import { XRulesRows } from './XRulesRows.tsx'
 
 function modelValue(model: ModelChoice | null): string {
   return model === null ? '' : `${model.provider}::${model.model}`
@@ -112,6 +113,7 @@ export function GeneralPage(props: { readonly settings: PodSettings; readonly up
       </Row>
       <AibotRows settings={settings} update={update} />
       <XAccountRows settings={settings} update={update} />
+      <XRulesRows settings={settings} update={update} />
       <Row label={t('首次引导')}>
         <Button
           small

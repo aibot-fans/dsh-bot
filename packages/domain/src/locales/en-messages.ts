@@ -104,4 +104,7 @@ export const DOMAIN_EN_MESSAGES: Readonly<Record<string, string>> = {
   'Chrome 路径要写绝对路径，留空表示自动查找': 'The Chrome path must be absolute; leave it blank to find Chrome automatically',
   '{key} 必须是开或关': '{key} must be on or off',
   '没有 {key} 这项设置': 'There is no setting called {key}',
+  'X 监控规则格式不对': 'The X monitor rules are malformed',
+  '事件类型、账号、关键词各最多 100 个': 'At most 100 event types, accounts and keywords each',
+  '不认识的事件类型：{type}': 'Unknown event type: {type}',
 }

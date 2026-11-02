@@ -80,8 +80,11 @@ export class Launcher {
       return
     }
     let session: PodSession
+    let fresh = false
     try {
-      session = this.deps.registry.activeForTask(task.id, 'task') ?? (await this.open(task, bot))
+      const existing = this.deps.registry.activeForTask(task.id, 'task')
+      fresh = existing === undefined
+      session = existing ?? (await this.open(task, bot))
     } catch (error) {
       if (attempts + 1 >= LAUNCH_FAILURES) {
         this.fail(task, run, t('开任务会话失败：{value}', { value: errorText(error) }))
@@ -97,7 +100,7 @@ export class Launcher {
         sessionId: session.id,
         mode: 'followup',
         priority: run.reason === 'message' ? PRIORITY.owner : current.urgent ? PRIORITY.urgent : PRIORITY.task,
-        text: this.briefFor(current, started),
+        text: this.briefFor(current, started, fresh),
         source: run.reason === 'new' ? relaySource(current.requesterSession ?? 'pod') : noticeSource(t('任务开始新的一次执行')),
       })
       // 这次执行带进去的消息，读没读过改看开工说明这次投递。
@@ -117,19 +120,24 @@ export class Launcher {
     })
   }
 
-  private briefFor(task: Task, run: TaskRun): string {
-    if (run.reason === 'new') {
-      const requester = task.requesterSession === null ? undefined : this.deps.registry.get(task.requesterSession)
-      const fromName = requester === undefined ? '用户' : (this.deps.bots.get(requester.botId)?.name ?? '主管')
-      const assumptions = Array.isArray(run.detail.assumptions) ? run.detail.assumptions.filter((item): item is string => typeof item === 'string') : []
-      // 等别的子任务就绪才开工的：带上它们的结果。
-      const upstream = task.dependsOn.flatMap((id) => {
-        const before = this.deps.engine.tickets.get(id)
-        return before?.result == null ? [] : [{ taskId: before.id, title: before.title, summary: before.result.summary, files: before.result.files }]
-      })
-      return composeBrief(task, { fromName, assumptions, conventions: [], upstream, workspaceRoot: this.deps.workspaceRoot })
-    }
+  /** 开工说明：第一次是完整的任务说明；之后只说这次为什么开工。会话是新开的（例程第一次到点、旧会话换掉了）就两样都给。 */
+  private briefFor(task: Task, run: TaskRun, fresh: boolean): string {
+    if (run.reason !== 'new' && fresh) return `${this.kickoff(task, run, false)}\n\n${this.briefFor(task, run, false)}`
+    if (run.reason === 'new') return this.kickoff(task, run, true)
     return runBrief(task, run, { lastReport: latestDecisiveReport(this.deps.db, task.id), workspaceRoot: this.deps.workspaceRoot, watching: this.watching(task, run) })
+  }
+
+  /** 完整的任务说明；不是新任务时（会话是新开的，要先补上说明）不写“开工原因：新任务”。 */
+  private kickoff(task: Task, run: TaskRun, newTask: boolean): string {
+    const requester = task.requesterSession === null ? undefined : this.deps.registry.get(task.requesterSession)
+    const fromName = requester === undefined ? '用户' : (this.deps.bots.get(requester.botId)?.name ?? '主管')
+    const assumptions = Array.isArray(run.detail.assumptions) ? run.detail.assumptions.filter((item): item is string => typeof item === 'string') : []
+    // 等别的子任务就绪才开工的：带上它们的结果。
+    const upstream = task.dependsOn.flatMap((id) => {
+      const before = this.deps.engine.tickets.get(id)
+      return before?.result == null ? [] : [{ taskId: before.id, title: before.title, summary: before.result.summary, files: before.result.files }]
+    })
+    return composeBrief(task, { fromName, assumptions, conventions: [], upstream, workspaceRoot: this.deps.workspaceRoot, newTask })
   }
 
   /** 只读跟进的话题里，上次开工以后（或者开始跟进以后）的新消息，每个话题最多 10 条。 */

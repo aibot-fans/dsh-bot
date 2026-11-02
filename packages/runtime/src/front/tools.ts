@@ -1,10 +1,11 @@
-import { OWNER, POD, t, type Bot, type OriginQuote, type PodSession, type ReplyTarget, type RoomMessage, type Task } from 'pod-domain'
+import { OWNER, POD, recurring, t, type Bot, type OriginQuote, type PodSession, type ReplyTarget, type RoomMessage, type Task, type TriggerSpec } from 'pod-domain'
 import { getMessage, transaction } from 'pod-store'
 import { ownerSource, relaySource } from '../agents/messages.ts'
 import type { JsonSchema, ToolDefinition } from '../dsh.ts'
 import { isTicket } from '../engine/index.ts'
 import type { PodRuntime } from '../pod.ts'
 import { bool, failure, oneOf, podTool, str, success, text } from '../tools/define.ts'
+import { TRIGGER_PROPS, readTriggerArgs, sourceFor } from '../tools/triggers.ts'
 
 /** 一次 dispatch 最多管几条消息。 */
 const DISPATCH_MAX = 20
@@ -23,6 +24,8 @@ interface Item {
   readonly task: string
   readonly reason: string
   readonly urgent: boolean
+  /** open：带触发器开（到点或等别的任务就绪再开工；重复的就是例程）。 */
+  readonly trigger: Readonly<Record<string, unknown>> | undefined
 }
 
 const ITEM_SCHEMA: JsonSchema = {
@@ -36,6 +39,11 @@ const ITEM_SCHEMA: JsonSchema = {
     task: str('forward、stop：任务 id'),
     reason: str('ignore：一句原因'),
     urgent: bool('open：用户说了急'),
+    trigger: {
+      type: 'object',
+      properties: TRIGGER_PROPS,
+      description: 'open：要等到点或等别的任务就绪再开工时写（“明天 9 点提醒我”“t41 做完再写稿”）；写重复的时间（每天、每周、每隔多久）就是例程，每次到点做一次',
+    },
   },
   required: ['messages', 'action'],
 }
@@ -60,6 +68,7 @@ function readItems(args: Readonly<Record<string, unknown>>): readonly Item[] | s
       task: text(entry, 'task'),
       reason: text(entry, 'reason'),
       urgent: entry.urgent === true,
+      trigger: typeof entry.trigger === 'object' && entry.trigger !== null && !Array.isArray(entry.trigger) ? (entry.trigger as Readonly<Record<string, unknown>>) : undefined,
     }
     if (item.action === 'open' && item.title === '') return 'open 要写 title'
     if ((item.action === 'forward' || item.action === 'stop') && item.task === '') return `${item.action} 要写 task（任务 id）`
@@ -104,6 +113,8 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
   const open = async (item: Item, messages: readonly RoomMessage[]): Promise<string> => {
     const bot = target(item.bot)
     if (typeof bot === 'string') return bot
+    const spec: TriggerSpec | string | undefined = item.trigger === undefined ? undefined : readTriggerArgs(pod, item.trigger)
+    if (typeof spec === 'string') return `trigger 写得不对：${spec}`
     const first = messages[0]
     const room = first === undefined ? undefined : pod.rooms.get(first.roomId)
     if (first === undefined || room === undefined) return '找不到消息所在的聊天室'
@@ -124,13 +135,24 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
       reason: t('前台分派'),
       quotes,
       replyTo,
-      card: { ...(room.kind === 'direct' ? { inline: true } : {}), ...(pageId === undefined ? {} : { pageId }) },
+      // 例程（重复的触发器）的任务卡不内联：每次的结果回在卡下面。
+      card: { ...(room.kind === 'direct' && (spec === undefined || !recurring(spec)) ? { inline: true } : {}), ...(spec !== undefined && recurring(spec) ? { standing: true } : {}), ...(pageId === undefined ? {} : { pageId }) },
+      start: spec === undefined,
     })
     if (!created.ok) return created.error.message
+    let when = ''
+    if (spec !== undefined) {
+      const set = pod.triggers.set(created.value, { spec, note: item.note, createdBy: session.botId, state: { source: sourceFor(spec, 'open'), ...(recurring(spec) ? { offPeak: true } : {}) } })
+      if (typeof set === 'string') {
+        pod.engine.tickets.end(created.value.id, 'stopped', session.botId)
+        return `trigger 没挂上：${set}`
+      }
+      when = `，${pod.triggers.describe(set)}开工`
+    }
     transaction(pod.db, () => {
       for (const message of messages) pod.engine.topics.decide(message.id, session.botId, 'opened', created.value.id, item.note)
     })
-    return `开了任务 ${created.value.id}「${created.value.title}」，交给${bot.name}`
+    return `开了任务 ${created.value.id}「${created.value.title}」，交给${bot.name}${when}`
   }
 
   const forward = (item: Item, messages: readonly RoomMessage[], task: Task): string => {

@@ -13,6 +13,7 @@ import { Subtasks } from './Subtasks.tsx'
 import { TaskOrigin } from './TaskOrigin.tsx'
 import { TaskReports } from './TaskReports.tsx'
 import { TaskTimeline } from './TaskTimeline.tsx'
+import { TaskTriggers } from './TaskTriggers.tsx'
 
 /** 底部输入框：就是“直接对任务说”，说的话直接进任务会话，做完了的接着做。 */
 function TalkBox(props: { readonly taskId: string }) {
@@ -86,6 +87,7 @@ export function TaskPage(props: { readonly taskId: string }) {
           <div className="pod-taskpage-main">
             <TaskCard taskId={props.taskId} />
             <TaskOrigin detail={detail} bots={bots} />
+            <TaskTriggers taskId={props.taskId} triggers={detail.triggers} />
             {detail.waits.length === 0 ? null : (
               <section className="pod-stack">
                 <div className="pod-section-title">{t('等你处理')}</div>

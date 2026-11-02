@@ -3,6 +3,7 @@
 import type { ToolProfile } from './bots.ts'
 import type { TicketStage } from './engine/stage.ts'
 import type { EndReason, ReplyTarget, TaskOrigin, TaskReport, TaskRun } from './engine/tickets.ts'
+import type { TriggerSummary } from './engine/triggers.ts'
 import type { TurnProgress } from './progress.ts'
 import type { Wait } from './waits.ts'
 
@@ -184,4 +185,6 @@ export interface TaskSnapshot {
   readonly stage: TicketStage
   readonly run: TaskRun | null
   readonly lastReport: TaskReport | null
+  /** 挂着的触发器里最近要叫醒的那个；没有是 null。 */
+  readonly trigger: TriggerSummary | null
 }

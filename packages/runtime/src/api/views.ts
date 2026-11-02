@@ -1,5 +1,5 @@
-import { stageGroup, type MessageRoute, type Task, type TaskSnapshot, type TicketStage, type Wait } from 'pod-domain'
-import { countRunning, latestDecisiveReport, openRootTasks, openTasksOf, routesFor } from 'pod-store'
+import { stageGroup, triggerSource, type MessageRoute, type Task, type TaskSnapshot, type TicketStage, type TriggerSource, type Wait } from 'pod-domain'
+import { countRunning, latestDecisiveReport, openRootTasks, openTasksOf, routesFor, triggersOf } from 'pod-store'
 import type { PodRuntime } from '../pod.ts'
 
 /** 概览里“现在要我处理什么”的一条：任务卡要你处理的，或者不属于任务的等你。 */
@@ -140,4 +140,33 @@ export function routesOf(pod: PodRuntime, messageId: string): readonly RouteView
 /** 消息开了或送进了哪个任务（搜索结果里“打开任务页”用）：最早的那次。 */
 export function taskOfMessage(pod: PodRuntime, messageId: string): string | null {
   return routesFor(pod.db, messageId).find((route) => route.taskId !== null && (route.route === 'opened' || route.route === 'direct' || route.route === 'relayed'))?.taskId ?? null
+}
+
+export interface TriggerView {
+  readonly id: string
+  readonly text: string
+  readonly note: string
+  readonly source: TriggerSource
+  readonly nextAt: number | null
+  readonly lastAt: number | null
+  readonly enabled: boolean
+  readonly closedAt: number | null
+  readonly lastStatus: string
+  readonly createdBy: string
+}
+
+/** 任务页上的触发器：挂着的在前，关掉的留最近几个看历史。 */
+export function triggerViews(pod: PodRuntime, taskId: string): readonly TriggerView[] {
+  return triggersOf(pod.db, taskId).map((trigger) => ({
+    id: trigger.id,
+    text: pod.triggers.describe(trigger),
+    note: trigger.note,
+    source: triggerSource(trigger),
+    nextAt: trigger.enabled ? trigger.nextAt : null,
+    lastAt: trigger.lastAt,
+    enabled: trigger.enabled,
+    closedAt: trigger.closedAt,
+    lastStatus: typeof trigger.state.lastStatus === 'string' ? trigger.state.lastStatus : '',
+    createdBy: trigger.createdBy,
+  }))
 }

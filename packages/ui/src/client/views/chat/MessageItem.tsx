@@ -285,7 +285,7 @@ function MessageFrame(props: MessageProps & { readonly owner: boolean; readonly 
   const [selecting, setSelecting] = useState(false)
   // 你的消息：鼠标停上去时才去取它的去向。
   const [hovered, setHovered] = useState(false)
-  const routable = props.owner && !touch
+  const routable = (props.owner || props.message.data.xEvent !== undefined) && !touch
   const menu = useMenu('start', view)
   const press = useLongPress((x, y) => {
     setView('main')

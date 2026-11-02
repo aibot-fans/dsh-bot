@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
-import { t, type AibotBind, type AibotBindResult, type AibotState, type AibotStatus, type PodSession, type PodSettings } from 'pod-domain'
+import { t, type AibotBind, type AibotBindResult, type AibotState, type AibotStatus, type PodSession, type PodSettings, type RoomMessage, type XEventView } from 'pod-domain'
 import { ensureAibotDevice, readAibotDevice, readState, saveAibotKey, setAibotDisabled, type AibotDevice } from 'pod-store'
 import type { BotService } from '../bots/service.ts'
 import type { RoomService } from '../chat/rooms.ts'
@@ -29,6 +29,8 @@ export interface AibotDeps {
   readonly warn: (message: string) => void
   /** X 工具装好或换了以后，让相关会话重新装一遍工具。 */
   readonly toolsChanged: () => void
+  /** X 监控事件贴进群以后：交给自动来源过两段过滤。 */
+  readonly received: (view: XEventView, message: RoomMessage) => void
 }
 
 const REFRESH_MS = 10 * 60_000
@@ -87,6 +89,7 @@ export class AibotService {
       notifications: deps.notifications,
       now: deps.now,
       page: (since, cursor) => this.authed((key) => this.client.events(key, since, cursor)),
+      received: (view, message) => deps.received(view, message),
     })
     this.stream = new MonitorStream({
       url: this.client.url('/twitter/monitor/events/stream'),

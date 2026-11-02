@@ -399,6 +399,15 @@ function decide(options) {
     }
     if (last?.role === 'tool' && calls.at(-1) === 'reply' && tools.has('report')) return { tool: 'report', args: { status: 'waiting', summary: '答复了用户的问题，接着等' } }
     if (last?.role === 'tool' && calls.at(-1) === 'report') return { text: '已经汇报了。' }
+    // 写着“定时叫醒”的：先给自己挂 1 分钟后的叫醒，报 waiting；到点醒来（开始新的一次执行）照常交结果。
+    if (brief.includes('定时叫醒') && tools.has('wake_me') && !userText.includes('开始新的一次执行')) {
+      if (!calls.includes('wake_me')) return { tool: 'wake_me', args: { in_minutes: 1, note: '看看服务起来没有' } }
+      return { tool: 'report', args: { status: 'waiting', summary: '挂了 1 分钟后的叫醒，到点再看服务起来没有' } }
+    }
+    // 例程里写着“没新东西”“没有变化”的：到点醒来报 dismissed，不发消息。
+    if (/没新东西|没有变化/.test(brief) && userText.includes('开始新的一次执行') && last?.role !== 'tool' && tools.has('report')) {
+      return { tool: 'report', args: { status: 'dismissed', summary: '这次没有新东西' } }
+    }
     if (brief.includes('看门狗') && !userText.includes('开始新的一次执行') && tools.has('bash')) return watchdogTask(userText, calls)
     if (brief.includes('浏览器') && tools.has('browser_open')) return browserTask(brief, userText, messages, calls)
     if (brief.includes('后台命令') && tools.has('bash')) return backgroundTask(messages, calls)

@@ -2,6 +2,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import {
   PRIORITY,
   checkAcceptance,
+  describeTrigger,
   fail,
   isTerminal,
   newAcceptance,
@@ -22,6 +23,7 @@ import {
   type TaskResult,
   type TaskSnapshot,
   type TaskStatus,
+  type TriggerSummary,
 } from 'pod-domain'
 import {
   activeTasksForBot,
@@ -33,6 +35,7 @@ import {
   listRootTasks,
   listTaskEvents,
   listTaskTree,
+  openTriggersOf,
   recentOwnerMessages,
   stuckDelivery,
   transaction,
@@ -107,6 +110,8 @@ export interface DelegateInput {
   readonly replyTo?: readonly ReplyTarget[]
   /** 任务卡上额外的数据：单聊里显示成一行（inline）、关于哪个页面（pageId）。 */
   readonly card?: Readonly<Record<string, unknown>>
+  /** false：先不排第一次执行（带了触发器，到点再开工）。 */
+  readonly start?: boolean
 }
 
 /** 暂停是停下这次执行；继续开一次新的；停止、取消结束任务；重试再做一次；收下是你验收通过。 */
@@ -205,6 +210,16 @@ export class TaskService {
     return unansweredOwnerMessages(this.db, requester.roomId, requester.botId, ORIGIN_QUOTES).map((message) => ({ messageId: message.id, author: t('用户'), text: message.body }))
   }
 
+  /** 任务卡上的触发器：开着的里面最先到点的，没有就是第一个（等任务的、暂停的）。 */
+  private triggerSummary(taskId: string): TriggerSummary | null {
+    const triggers = openTriggersOf(this.db, taskId)
+    if (triggers.length === 0) return null
+    const soonest = [...triggers].filter((trigger) => trigger.enabled && trigger.nextAt !== null).sort((a, b) => (a.nextAt ?? 0) - (b.nextAt ?? 0))[0] ?? triggers[0]
+    if (soonest === undefined) return null
+    const watched = soonest.spec.kind === 'task' ? this.get(soonest.spec.taskId)?.title : undefined
+    return { text: describeTrigger(soonest.spec, soonest.timezone, watched), nextAt: soonest.enabled ? soonest.nextAt : null, enabled: soonest.enabled, count: triggers.length }
+  }
+
   /** 把一件事交给一个 bot：开任务（来由原样放进来）、排第一次执行、在对话里放任务卡；会话由开工副作用去开。 */
   delegate(input: DelegateInput): Promise<PodResult<Task>> {
     const { requester, bot } = input
@@ -249,7 +264,8 @@ export class TaskService {
       this.event(opened, 'delegated', requester.botId, { to: bot.id, reason: input.reason })
       // 自带的话题：你交代这件事的那几条消息所在的回复串，之后回复、引用它们的话直接到这个任务。
       for (const quote of quotes) if (quote.messageId !== null) this.engine.topics.followMessage(opened.id, quote.messageId, 'own')
-      this.engine.runs.queue(opened.id, 'new', { assumptions: input.assumptions })
+      // 带触发器开的（到点或等别的任务就绪再开工）先不排，触发器到点再开工。
+      if (input.start !== false) this.engine.runs.queue(opened.id, 'new', { assumptions: input.assumptions })
       return this.get(id) ?? opened
     })
     this.deps.audit.record('task.delegate', requester.botId, id, { to: bot.id, title: input.title, reason: input.reason })
@@ -519,6 +535,7 @@ export class TaskService {
       stage: this.engine.tickets.stageOf(task),
       run: latestRun(this.db, task.id) ?? null,
       lastReport: latestReport(this.db, task.id) ?? null,
+      trigger: this.triggerSummary(task.id),
     }
   }
 

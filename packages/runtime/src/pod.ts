@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { join } from 'node:path'
-import { OWNER, POD, POD_VERSION, PRIORITY, botFolder, composePersona, roomFolder, fail, sessionBrowses, sessionMakesPages, t, withLanguage, worthSummary, type Bot, type BotStats, type Language, type PodEvent, type PodResult, type PodSession, type Room, type Task, type TaskTeam, type TeamTemplate } from 'pod-domain'
+import { OWNER, POD, POD_VERSION, PRIORITY, botFolder, composePersona, roomFolder, fail, sessionBrowses, sessionMakesPages, t, withLanguage, worthSummary, type Bot, type BotStats, type Language, type PodEvent, type PodResult, type PodSession, type Room, type Task, type TaskTeam, type TeamTemplate, triggerSource } from 'pod-domain'
 import { afterCommit, deliveryByMessageId, getMessage, inTransaction, onAfterCommitError, pinnedMessages, raiseProblem, resolveProblem, runningTasksByRoom, taskCardMessage, teamsOfBot } from 'pod-store'
 import { SegmentManager } from './agents/segments.ts'
 import { AibotService } from './aibot/service.ts'
@@ -14,7 +14,11 @@ import { NotificationService } from './notify/service.ts'
 import { DailyBrief, type BriefData } from './routines/brief.ts'
 import { readPageOverHttp } from './routines/page.ts'
 import { RoutineReplies } from './routines/replies.ts'
+import { migrateRoutines } from './routines/migrate.ts'
 import { RoutineService, type PageContent } from './routines/service.ts'
+import { TriggerClock } from './engine/triggers.ts'
+import { XSource } from './aibot/source.ts'
+import { xBot } from './aibot/seed.ts'
 import { AgentBinder } from './agents/binder.ts'
 import { Engine, isTicket } from './engine/index.ts'
 import { Intake } from './engine/intake.ts'
@@ -161,6 +165,8 @@ export class PodRuntime {
   readonly notifications: NotificationService
   readonly routines: RoutineService
   readonly brief: DailyBrief
+  readonly triggers: TriggerClock
+  readonly xSource: XSource
   readonly sleep: SleepGuard
   readonly maintenance: Maintenance
   readonly lite: LiteLlm
@@ -333,7 +339,20 @@ export class PodRuntime {
         return id === undefined ? undefined : getMessage(db, id)
       },
     })
-    this.engine = new Engine({ db, now, effects: this.effects, changed: (task) => this.tasks.touched(task), ended: (task) => this.intake.returnUnread(task) })
+    this.engine = new Engine({
+      db,
+      now,
+      effects: this.effects,
+      changed: (task) => this.tasks.touched(task),
+      ended: (task) => {
+        this.intake.returnUnread(task)
+        this.brief.ended(task)
+        // 任务结束：它的触发器一起关掉；等它结束或就绪的触发器看看该不该叫醒。
+        this.triggers.closeFor(task.id)
+        setImmediate(() => this.triggers.taskStaged(task.id))
+      },
+      restaged: (task) => setImmediate(() => this.triggers.taskStaged(task.id)),
+    })
     this.tasks = new TaskService({
       db,
       bus: this.bus,
@@ -664,19 +683,45 @@ export class PodRuntime {
       botName: (botId) => this.bots.get(botId)?.name ?? botId,
       changed: () => this.bus.emit({ type: 'health' }),
     })
+    this.triggers = new TriggerClock({
+      db,
+      now,
+      tickets: this.engine.tickets,
+      runs: this.engine.runs,
+      settings: () => this.settings.get(),
+      steer: (task, sessionId, text) => {
+        this.dispatcher.enqueue({ sessionId, mode: this.dispatcher.isRunning(sessionId) ? 'steer' : 'followup', priority: PRIORITY.task, text, source: noticeSource(t('触发器')) })
+      },
+      compose: (trigger, task) => {
+        const source = triggerSource(trigger)
+        if (source === 'routine') return Promise.resolve(this.routines.wake(trigger, task))
+        if (source === 'brief') return Promise.resolve(this.brief.wake())
+        return Promise.resolve(undefined)
+      },
+      readPage: (url, selector) => this.readPage(url, selector),
+      usesDeepSeek: (botId) => this.models.isDeepSeek(this.bots.get(botId)?.model ?? null),
+      changed: (taskId) => {
+        const task = this.engine.tickets.get(taskId)
+        if (task !== undefined) this.tasks.touched(task)
+        this.bus.emit({ type: 'routines' })
+      },
+      removed: (trigger) => {
+        if (triggerSource(trigger) === 'brief') this.brief.turnedOff()
+      },
+      warn,
+    })
     this.routines = new RoutineService({
       db,
       bus: this.bus,
       bots: this.bots,
       rooms: this.rooms,
       registry: this.registry,
-      dispatcher: this.dispatcher,
+      engine: this.engine,
+      triggers: this.triggers,
       audit: this.audit,
       settings: () => this.settings.get(),
       now,
       warn,
-      readPage: (url, selector) => this.readPage(url, selector),
-      usesDeepSeek: (botId) => this.models.isDeepSeek(this.bots.get(botId)?.model ?? null),
       describePage: (pageId) => {
         const page = this.pages.get(pageId)
         return page === undefined ? undefined : { title: page.title, kind: page.kind, version: page.version, deleted: page.deletedAt !== null }
@@ -684,15 +729,18 @@ export class PodRuntime {
     })
     this.brief = new DailyBrief({
       db,
-      dispatcher: this.dispatcher,
+      engine: this.engine,
+      rooms: this.rooms,
+      triggers: this.triggers,
       settings: () => this.settings.get(),
-      now,
       data: () => this.briefData(),
-      leadSession: async () => {
-        const room = this.rooms.ensureLeadRoom()
-        return this.rooms.chatSession(room, this.bots.lead())
+      lead: () => this.bots.lead(),
+      leadRoom: () => this.rooms.ensureLeadRoom(),
+      turnOff: () => {
+        const result = this.settings.update({ dailyBrief: { ...this.settings.get().dailyBrief, enabled: false } })
+        if (!result.ok) warn(result.error.message)
       },
-      notified: () => this.notifications.notify({ kind: 'brief', title: t('每日简报已发到主管单聊'), body: '', roomId: this.rooms.ensureLeadRoom().id }),
+      warn,
     })
     this.browser = createBrowserKit({
       db,
@@ -797,6 +845,17 @@ export class PodRuntime {
       now,
       warn,
       toolsChanged: () => this.reinstallXTools(),
+      received: (view, message) => this.xSource.receive(view, message),
+    })
+    this.xSource = new XSource({
+      db,
+      engine: this.engine,
+      rooms: this.rooms,
+      triggers: this.triggers,
+      effects: this.effects,
+      lite: this.lite,
+      settings: () => this.settings.get(),
+      worker: () => xBot(db, this.bots) ?? this.bots.lead(),
     })
     this.updates = new UpdateService({
       db,
@@ -810,7 +869,7 @@ export class PodRuntime {
     })
     this.settings.onChange((next, previous) => {
       if (next.language !== previous.language) this.language.refresh()
-      if (next.dailyBrief.time !== previous.dailyBrief.time || next.timezone !== previous.timezone || next.dailyBrief.enabled !== previous.dailyBrief.enabled) this.brief.reschedule()
+      if (next.dailyBrief.time !== previous.dailyBrief.time || next.timezone !== previous.timezone || next.dailyBrief.enabled !== previous.dailyBrief.enabled) this.brief.ensure()
       this.aibot.settingsChanged(next, previous)
       this.updates.settingsChanged(next, previous)
       if (next.paused !== previous.paused) this.pausedChanged(next.paused)
@@ -938,8 +997,7 @@ export class PodRuntime {
     this.audit.record(paused ? 'pod.pause' : 'pod.resume', OWNER, 'settings', {})
     if (!paused) {
       this.effects.resume()
-      void this.routines.tick().catch((error: unknown) => this.ctx.logger.warn('例程出错', error))
-      void this.brief.tick().catch((error: unknown) => this.ctx.logger.warn('每日简报出错', error))
+      void this.triggers.tick().catch((error: unknown) => this.ctx.logger.warn('触发器出错', error))
     }
     this.bus.emit({ type: 'health' })
   }
@@ -1106,6 +1164,12 @@ export class PodRuntime {
   }
 
   /** 每日简报用的数据：过去一天完成的、正在进行的、等你处理的、花费。 */
+  /** 启动时：旧的例程换成挂触发器的常开任务。 */
+  migrateRoutines(): void {
+    const moved = migrateRoutines({ db: this.db, engine: this.engine, rooms: this.rooms, triggers: this.triggers, bots: this.bots, registry: this.registry, now: () => this.now(), warn: (message, error) => this.ctx.logger.warn(message, error) })
+    if (moved > 0) this.ctx.logger.info(`旧例程换成了 ${String(moved)} 个常开任务`)
+  }
+
   private briefData(): BriefData {
     const now = this.now()
     const day = 86_400_000

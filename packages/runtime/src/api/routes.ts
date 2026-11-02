@@ -1,5 +1,6 @@
 import {
   MEMORY_TYPES,
+  OWNER,
   fail,
   isActive,
   ok,
@@ -19,7 +20,7 @@ import type { PodRuntime } from '../pod.ts'
 import type { ControlAction } from '../tasks/service.ts'
 import { followViews, taskTimeline } from '../tasks/timeline.ts'
 import { get, post, type RouteSpec } from './router.ts'
-import { overviewOf, routesOf, taskOfMessage, teamStatusOf } from './views.ts'
+import { overviewOf, routesOf, taskOfMessage, teamStatusOf, triggerViews } from './views.ts'
 
 /** 设置、bot 管理、回收站、审计和维护这些基础接口。 */
 export function baseRoutes(pod: PodRuntime): readonly RouteSpec[] {
@@ -127,6 +128,7 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
         reports: reportsFor(pod.db, snapshot.task.id, 20),
         timeline: taskTimeline(pod.db, snapshot.task),
         follows: followViews(pod.db, snapshot.task),
+        triggers: triggerViews(pod, snapshot.task.id),
       })
     }),
     post('/task/control', (body) => {
@@ -152,6 +154,23 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
       const id = readId(query, 'id')
       const plan = id === undefined ? null : pod.coordinator.plan(id)
       return plan === null ? fail('not-found', t('这个任务没有团队计划')) : ok({ plan, keys: Object.fromEntries(pod.coordinator.keys(id ?? '')) })
+    }),
+    post('/trigger/update', (body) => {
+      const id = readId(body, 'id')
+      const enabled = readBool(body, 'enabled')
+      if (id === undefined || enabled === undefined) return fail('invalid-input', t('缺少触发器 id 或开关'))
+      const changed = pod.triggers.change(id, { enabled }, OWNER)
+      return typeof changed === 'string' ? fail('conflict', changed) : ok(changed)
+    }),
+    post('/trigger/delete', (body) => {
+      const id = readId(body, 'id')
+      return id !== undefined && pod.triggers.close(id, OWNER) ? ok(null) : fail('not-found', t('找不到这个触发器'))
+    }),
+    post('/trigger/run', async (body) => {
+      const id = readId(body, 'id')
+      if (id === undefined) return fail('invalid-input', t('缺少触发器 id'))
+      const problem = await pod.triggers.fireNow(id)
+      return problem === undefined ? ok(null) : fail('conflict', problem)
     }),
     post('/task/talk', (body) => {
       const taskId = readId(body, 'taskId')

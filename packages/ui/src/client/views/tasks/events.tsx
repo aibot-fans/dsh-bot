@@ -38,6 +38,10 @@ export const EVENT_LABELS: Readonly<Record<string, string>> = {
   'control.resume': '继续',
   'control.stop': '停止',
   'control.cancel': '取消',
+  trigger_set: '挂了触发器',
+  trigger_changed: '改了触发器',
+  trigger_removed: '删了触发器',
+  trigger_fired: '触发器叫醒了任务',
 }
 
 /** 决策链一行里做事的人：你、Pod，或者带图标的 bot。 */
@@ -58,5 +62,6 @@ export function eventLine(event: TaskEvent, bots: ReadonlyMap<string, Bot>): str
   const quote = typeof event.data.quote === 'string' ? t('：「{quote}」', { quote: event.data.quote }) : typeof event.data.text === 'string' && event.kind === 'owner-talk' ? t('：「{quote}」', { quote: event.data.text }) : ''
   const verdict = event.kind === 'reviewed' ? (event.data.pass === true ? t('：通过') : t('：打回（{String}）', { String: String(event.data.feedback ?? '') })) : ''
   const version = event.kind === 'revised' ? t('：第 {String} 版，{String2}', { String: String(event.data.version ?? ''), String2: String(event.data.reason ?? '') }) : ''
-  return `${label}${judged}${to}${reason}${items}${quote}${verdict}${version}`
+  const trigger = event.kind.startsWith('trigger_') && typeof event.data.text === 'string' ? t('：{text}', { text: event.data.text }) : ''
+  return `${label}${judged}${to}${reason}${items}${quote}${verdict}${version}${trigger}`
 }

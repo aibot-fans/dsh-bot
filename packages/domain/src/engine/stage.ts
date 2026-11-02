@@ -5,7 +5,7 @@ import type { EndReason, ReportStatus, RunStatus } from './tickets.ts'
  * 任务卡和概览上的阶段：不存下来（库里那份只是缓存），每次按事实从上往下对，第一条对上的就是。
  * 同样的事实推出同样的阶段。
  */
-export type TicketStage = 'ended' | 'undelivered' | 'waiting' | 'review' | 'blocked' | 'failed' | 'queued' | 'idle' | 'running'
+export type TicketStage = 'ended' | 'undelivered' | 'waiting' | 'review' | 'blocked' | 'failed' | 'queued' | 'scheduled' | 'idle' | 'running'
 
 export interface StageFacts {
   readonly endReason: EndReason | null
@@ -18,14 +18,17 @@ export interface StageFacts {
    */
   readonly lastReport: ReportStatus | null
   readonly lastRun: RunStatus | null
+  /** 挂着还没关掉的触发器（暂停的也算）：没在跑时就是等到点。 */
+  readonly armed: boolean
 }
 
 export function deriveStage(facts: StageFacts): TicketStage {
   if (facts.endReason !== null) return 'ended'
   if (facts.undelivered) return 'undelivered'
   if (facts.openWaits > 0) return 'waiting'
-  if (facts.lastReport === 'ready') return 'review'
   if (facts.lastReport === 'blocked' || facts.lastReport === 'failed') return facts.lastReport
+  if (facts.armed && facts.lastRun !== 'running' && facts.lastRun !== 'queued') return 'scheduled'
+  if (facts.lastReport === 'ready') return 'review'
   if (facts.lastRun === null || facts.lastRun === 'queued') return 'queued'
   if (facts.lastReport === 'waiting' || facts.lastRun === 'ended') return 'idle'
   return 'running'
@@ -39,6 +42,7 @@ export const TICKET_STAGE_LABELS: Readonly<Record<TicketStage, string>> = {
   blocked: '受阻',
   failed: '失败',
   queued: '排队中',
+  scheduled: '等到点',
   idle: '等新消息',
   running: '进行中',
 }
@@ -58,6 +62,7 @@ export function stageGroup(stage: TicketStage): StageGroup {
     case 'running':
       return 'active'
     case 'ended':
+    case 'scheduled':
     case 'idle':
       return 'hidden'
   }
@@ -82,6 +87,7 @@ export function statusFromStage(stage: TicketStage, endReason: EndReason | null,
       return 'failed'
     case 'queued':
       return 'queued'
+    case 'scheduled':
     case 'idle':
       return 'paused'
     case 'running':

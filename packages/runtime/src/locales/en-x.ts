@@ -55,4 +55,13 @@ export const RUNTIME_EN_X: Readonly<Record<string, string>> = {
   '发到 X 的内容可能夹带私有信息': 'Content going to X may include private information',
   'X 写操作审批': 'X write approval',
   '执行到一半 dsh web 停了，不确定 X 那边有没有生效。请到 {url} 上确认；dsh-bot 不会自动重做。': 'dsh web stopped partway through, so it is unclear whether this took effect on X. Please check {url}; dsh-bot will not redo it automatically.',
+  '规则关着': 'Rules are off',
+  '规则挡掉：还没写要关注的类型、账号或关键词': 'Blocked by rules: no event types, accounts or keywords set yet',
+  '规则挡掉：事件类型不在关注的里面': 'Blocked by rules: event type not followed',
+  '规则挡掉：账号不在关注的里面': 'Blocked by rules: account not followed',
+  '规则挡掉：没有关键词': 'Blocked by rules: no keyword matched',
+  '重复：这条推文已经判断过': 'Duplicate: this post was already judged',
+  '轻量模型不可用，没判断': 'Lite model unavailable, not judged',
+  '轻量模型没给出能用的判断': 'The lite model gave no usable judgment',
+  'X 监控规则（第 {version} 版）': 'X monitor rules (version {version})',
 }

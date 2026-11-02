@@ -66,12 +66,16 @@ export function startRuntime(pod: PodRuntime): () => void {
   pod.launcher.recover()
   pod.front.start()
   pod.effects.start()
+  // 旧的例程换成挂触发器的常开任务；每日简报按设置建好它的常开任务。
+  pod.migrateRoutines()
+  pod.brief.ensure()
   // 上次 dsh web 退出时正在执行的浏览器写操作和 X 写操作：标为状态未知，先问你。
   pod.browser.approvals.markUnknown()
   pod.x.writes.markUnknown()
   const timeouts = [
     later(20_000, () => recoverAfterRestart(pod)),
-    later(30_000, () => void pod.routines.catchUp().catch(warn('例程补跑出错'))),
+    // 停机期间错过的触发器只补最近一次。
+    later(30_000, () => void pod.triggers.tick().catch(warn('触发器出错'))),
   ]
   const intervals = [
     every(30_000, () => {
@@ -82,8 +86,7 @@ export function startRuntime(pod: PodRuntime): () => void {
     }),
     every(30_000, () => {
       pod.evolutionKit.evolution.weeklyTick()
-      void pod.routines.tick().catch(warn('例程出错'))
-      void pod.brief.tick().catch(warn('每日简报出错'))
+      void pod.triggers.tick().catch(warn('触发器出错'))
       const busy = pod.registry.active().some((session) => session.taskId !== null && pod.dispatcher.isRunning(session.id))
       pod.sleep.set(pod.settings.get().preventSleep && busy)
     }),

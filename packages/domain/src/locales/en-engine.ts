@@ -27,4 +27,9 @@ export const DOMAIN_EN_ENGINE: Readonly<Record<string, string>> = {
   '前台判断不用处理': 'Front desk decided no action is needed',
   '前台直接答了': 'Answered by the front desk',
   '前台漏掉': 'Missed by the front desk',
+  '等到点': 'Scheduled',
+  '{time} 一次': 'Once at {time}',
+  '{name}就绪后': 'After {name} is ready',
+  '{name}结束后': 'After {name} ends',
+  '每 {minutes} 分钟看一次 {url}': 'Check {url} every {minutes} minutes',
 }

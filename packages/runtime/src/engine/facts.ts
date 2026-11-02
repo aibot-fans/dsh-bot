@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { deriveStage, stageFromStatus, statusFromStage, type StageFacts, type Task, type TicketStage } from 'pod-domain'
-import { latestDecisiveReport, latestRun } from 'pod-store'
+import { countOpenTriggers, latestDecisiveReport, latestRun } from 'pod-store'
 
 /**
  * 由引擎按执行和汇报管的任务（工单）：根任务，和任务会话开的子任务（L1）。
@@ -36,6 +36,7 @@ export function stageFacts(db: DatabaseSync, task: Task): StageFacts {
     openWaits: openWaits(db, task),
     lastReport: current ? report.status : null,
     lastRun: run?.status ?? null,
+    armed: countOpenTriggers(db, task.id) > 0,
   }
 }
 

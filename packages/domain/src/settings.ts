@@ -1,5 +1,6 @@
 /** Pod 的全局设置：默认值、校验和部分修改。 */
 
+import { X_EVENT_LABELS } from './aibot.ts'
 import { parseModelChoice, type ModelChoice } from './bots.ts'
 import { asRecord } from './input.ts'
 import { isLanguageSetting, t, type LanguageSetting } from './i18n.ts'
@@ -20,6 +21,23 @@ export interface ClockRange {
 export interface DailyBrief {
   readonly enabled: boolean
   readonly time: string
+}
+
+/**
+ * X 监控的规则（两段过滤的快路径）：事件类型、账号、关键词三项里写了的都要对上才往下走，三项都空就都挡掉；
+ * 过了的再问轻量模型值不值得做。改一次版本加 1，开出来的任务在来由里记下用的哪版。
+ */
+export interface XRules {
+  readonly enabled: boolean
+  /** 事件类型（X_EVENT_LABELS 的 key）；空的不按类型筛。 */
+  readonly types: readonly string[]
+  /** 账号（不带 @，小写）；空的不按账号筛。 */
+  readonly accounts: readonly string[]
+  /** 关键词：标题、摘要、推文里出现任何一个就算；空的不按关键词筛。 */
+  readonly keywords: readonly string[]
+  /** 先起草回复：后台任务看完上下文起草好，作为结果发到 X 监控群，你回一句“发”它才发。 */
+  readonly draft: boolean
+  readonly version: number
 }
 
 export interface PodSettings {
@@ -67,6 +85,8 @@ export interface PodSettings {
    * 关掉后排着的按原来的顺序出去，停着期间到点的触发器补最近一次。
    */
   readonly paused: boolean
+  /** X 监控事件的规则：值得做的开后台任务。 */
+  readonly xRules: XRules
 }
 
 export const DEFAULT_SETTINGS: PodSettings = {
@@ -92,6 +112,7 @@ export const DEFAULT_SETTINGS: PodSettings = {
   checkUpdates: true,
   language: 'auto',
   paused: false,
+  xRules: { enabled: true, types: [], accounts: [], keywords: [], draft: true, version: 1 },
 }
 
 const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/
@@ -131,6 +152,38 @@ function briefChange(raw: unknown, current: DailyBrief): Change {
   const time = raw.time === undefined ? current.time : raw.time
   if (!isClock(time)) return { ok: false, message: t('简报时间要写成 HH:MM') }
   return { ok: true, value: { dailyBrief: { enabled, time } } }
+}
+
+function wordList(raw: unknown, current: readonly string[], clean: (word: string) => string): readonly string[] | undefined {
+  if (raw === undefined) return current
+  if (!Array.isArray(raw) || raw.length > 100) return undefined
+  const words = raw.map((item) => (typeof item === 'string' ? clean(item.trim()).slice(0, 80) : '')).filter((word) => word !== '')
+  return [...new Set(words)]
+}
+
+/** 只写了要改的几项；没写 version 就是你改的，版本加 1（存下来的带着 version，照原样读回）。 */
+function xRulesChange(raw: unknown, current: XRules): Change {
+  if (!isRecord(raw)) return { ok: false, message: t('X 监控规则格式不对') }
+  const types = wordList(raw.types, current.types, (word) => word)
+  const accounts = wordList(raw.accounts, current.accounts, (word) => word.replace(/^@/, '').toLowerCase())
+  const keywords = wordList(raw.keywords, current.keywords, (word) => word)
+  if (types === undefined || accounts === undefined || keywords === undefined) return { ok: false, message: t('事件类型、账号、关键词各最多 100 个') }
+  const unknown = types.find((type) => X_EVENT_LABELS[type] === undefined)
+  if (unknown !== undefined) return { ok: false, message: t('不认识的事件类型：{type}', { type: unknown }) }
+  const version = typeof raw.version === 'number' && Number.isInteger(raw.version) && raw.version >= 1 ? raw.version : current.version + 1
+  return {
+    ok: true,
+    value: {
+      xRules: {
+        enabled: typeof raw.enabled === 'boolean' ? raw.enabled : current.enabled,
+        types,
+        accounts,
+        keywords,
+        draft: typeof raw.draft === 'boolean' ? raw.draft : current.draft,
+        version,
+      },
+    },
+  }
 }
 
 const SITE_MODES: readonly SiteMode[] = ['blocked', 'read-only', 'approve-writes', 'free']
@@ -189,6 +242,8 @@ function oneChange(key: string, raw: unknown, current: PodSettings): Change {
       return rangeChange('quietHours', raw, current.quietHours)
     case 'dailyBrief':
       return briefChange(raw, current.dailyBrief)
+    case 'xRules':
+      return xRulesChange(raw, current.xRules)
     case 'siteRules':
       return siteRulesChange(raw)
     case 'allowedHosts':

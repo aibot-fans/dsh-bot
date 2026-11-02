@@ -23,6 +23,7 @@ import type {
   FollowKind,
   MessageRoute,
   TopicKind,
+  TriggerSource,
   TabInfo,
   Wait,
   EvolutionEntry,
@@ -139,6 +140,21 @@ export interface TaskDetail {
   /** 时间线：消息、执行、汇报、等你、交还和确认、决策链里别的事，旧的在前。 */
   readonly timeline: readonly TimelineItem[]
   readonly follows: readonly FollowView[]
+  readonly triggers: readonly TriggerView[]
+}
+
+/** 任务上的触发器：挂着的在前，关掉的留最近几个。 */
+export interface TriggerView {
+  readonly id: string
+  readonly text: string
+  readonly note: string
+  readonly source: TriggerSource
+  readonly nextAt: number | null
+  readonly lastAt: number | null
+  readonly enabled: boolean
+  readonly closedAt: number | null
+  readonly lastStatus: string
+  readonly createdBy: string
 }
 
 export interface AuditEntry {
@@ -340,6 +356,9 @@ export const api = {
   taskDetail: (id: string) => apiGet<TaskDetail>('/task/detail', { id }),
   controlTask: (taskId: string, action: 'pause' | 'resume' | 'stop' | 'cancel' | 'retry' | 'accept') => apiPost('/task/control', { taskId, action }),
   talkToTask: (taskId: string, text: string) => apiPost('/task/talk', { taskId, text }),
+  updateTrigger: (id: string, enabled: boolean) => apiPost('/trigger/update', { id, enabled }),
+  deleteTrigger: (id: string) => apiPost<null>('/trigger/delete', { id }),
+  runTrigger: (id: string) => apiPost<null>('/trigger/run', { id }),
   redeliverTask: (taskId: string) => apiPost('/task/redeliver', { taskId }),
   diagnoseTask: (taskId: string) => apiPost<{ readonly text: string }>('/task/diagnose', { taskId }),
   approvePlan: (taskId: string) => apiPost('/task/approve', { taskId }),

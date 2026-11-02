@@ -8,6 +8,8 @@ export interface BriefContext {
   /** 上游子任务的结果摘要和文件路径。 */
   readonly upstream: readonly { readonly taskId?: string; readonly title: string; readonly summary: string; readonly files: readonly string[] }[]
   readonly workspaceRoot: string
+  /** 这次开工不是新任务（触发器叫醒、重启后接着做）时为 false：开工原因写在后面那段里，这里不写“新任务”。 */
+  readonly newTask?: boolean
 }
 
 function numbered(items: readonly string[]): string {
@@ -85,7 +87,7 @@ export function composeBrief(task: Task, context: BriefContext): string {
     { text: bulletList('任务约定（所有子任务都照着做）：', context.conventions, 600), shrink: (limit) => bulletList('任务约定（所有子任务都照着做）：', context.conventions, limit) },
     { text: upstream(CARD_LIMITS.message), shrink: upstream },
     { text: `任务文件夹：${context.workspaceRoot}/${task.folder}/（过程文件和产出都放这里）` },
-    { text: '开工原因：新任务。' },
+    { text: context.newTask === false ? '' : '开工原因：新任务。' },
     { text: REPORT_HOWTO },
   ]
   return fitParts(parts, [8, 7, 6, 3, 2], CARD_LIMITS.kickoff)

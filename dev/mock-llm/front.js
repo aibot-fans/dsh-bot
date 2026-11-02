@@ -10,7 +10,7 @@
  * - “进度”：先 task_status，再把结果 reply 出去。
  * - “记住…”：先 remember，再 reply。
  * - “拉个群「…」”：create_group（只有 Super-agent 有），再 reply。
- * - “每天”：create_routine 建在这个聊天室，再 reply。
+ * - “每天”：open 开一个挂着“每天 08:00”触发器的常开任务（例程），任务卡放在这个聊天室。
  * - “测试漏掉”：一直不记去向（追问一次，再没有就记成漏掉）；“测试追问”：第一次不记，被追问后再答。
  * - 其余：reply 直接答。
  * 这一批的工具都调完了，说一句收尾（前台的文字不发到聊天室）。
@@ -81,6 +81,7 @@ function openTitle(body) {
   if (body.includes('沉淀')) return '沉淀测试'
   if (body.includes('后台命令')) return '后台命令测试'
   if (body.includes('拿主意')) return '选方案测试'
+  if (body.includes('定时叫醒')) return '定时叫醒测试'
   if (body.includes('看门狗')) return '看门狗测试'
   if (body.includes('测试失败')) return '失败测试'
   if (body.includes('一直限流')) return '限流测试'
@@ -149,12 +150,7 @@ function stepsFor(item, context) {
       (result) => ({ tool: 'reply', args: { to: id, purpose: 'answer', text: `好的。${result.slice(0, 120)}` } }),
     ]
   }
-  if (body.includes('每天') && tools.has('create_routine')) {
-    return [
-      () => ({ tool: 'create_routine', args: { title: member ? '每日选题' : '早间资讯', prompt: member ? '列 3 个选题' : '整理昨晚到今早的资讯，挑 3 条', time: '08:00', room: room.kind === '单聊' ? '' : room.id } }),
-      (result) => ({ tool: 'reply', args: { to: id, purpose: 'answer', text: `好的。${result.slice(0, 120)}` } }),
-    ]
-  }
+  if (body.includes('每天')) return [dispatch(id, { action: 'open', title: member ? '每日选题' : '早间资讯', bot: '自己', note: '', trigger: { time: '08:00' } })]
   if (body.includes('测试追问')) return [reply(item, '（测试模型）被追问后补答了这一条。')]
   return [reply(item, `（测试模型）收到：${body.slice(0, 200)}\n\n这是**测试模型**的回复，支持 Markdown：\n\n- 第一条\n- 第二条`)]
 }
