@@ -35,7 +35,7 @@ export interface ReplyTarget {
 export type RunStatus = 'queued' | 'running' | 'ended'
 
 /** 开工原因：新任务、你的新消息、触发器、重试、重启恢复、点了继续、子任务交上来要评审。 */
-export type RunReason = 'new' | 'message' | 'trigger' | 'retry' | 'recover' | 'resume' | 'review'
+export type RunReason = 'new' | 'message' | 'trigger' | 'retry' | 'recover' | 'resume' | 'review' | 'subtask'
 
 /** 执行怎么结束的：交了汇报、你停下这次、你停掉任务、开工失败、重启打断、催了几次还没汇报。 */
 export type RunOutcome = 'reported' | 'paused' | 'stopped' | 'failed' | 'interrupted' | 'silent'

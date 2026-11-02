@@ -85,6 +85,17 @@ export function insertThreadTopic(db: DatabaseSync, topic: { readonly id: string
   return { id: topic.id, kind: 'thread', roomId: topic.roomId, rootMessage: topic.rootMessage, taskId: null, createdAt: topic.now }
 }
 
+/** 任务群的话题：整个群一个话题，群里不是回复的话写入时都记上它。调用方负责包在事务里。 */
+export function insertTeamTopic(db: DatabaseSync, topic: { readonly id: string; readonly roomId: string; readonly taskId: string; readonly now: number }): Topic {
+  db.prepare("INSERT INTO topics (id, kind, room_id, root_message, task_id, created_at) VALUES (?, 'team', ?, NULL, ?, ?)").run(topic.id, topic.roomId, topic.taskId, topic.now)
+  return { id: topic.id, kind: 'team', roomId: topic.roomId, rootMessage: null, taskId: topic.taskId, createdAt: topic.now }
+}
+
+export function teamTopicOf(db: DatabaseSync, roomId: string): Topic | undefined {
+  const row = db.prepare("SELECT * FROM topics WHERE kind = 'team' AND room_id = ? ORDER BY created_at LIMIT 1").get(roomId) as TopicRow | undefined
+  return row === undefined ? undefined : toTopic(row)
+}
+
 /** 自带比挂上强，挂上比只读强：重复跟进时只升不降；取消过的重新跟进。 */
 export function followTopic(db: DatabaseSync, follow: { readonly topicId: string; readonly taskId: string; readonly kind: FollowKind; readonly now: number }): void {
   db.prepare(

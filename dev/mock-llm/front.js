@@ -75,6 +75,7 @@ function taskTitle(text, taskId) {
 }
 
 function openTitle(body) {
+  if (/组个团队|组队/.test(body)) return '团队测试'
   if (body.includes('浏览器')) return '浏览器测试'
   if (body.includes('沉淀')) return '沉淀测试'
   if (body.includes('后台命令')) return '后台命令测试'

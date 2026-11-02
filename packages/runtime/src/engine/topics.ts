@@ -12,10 +12,12 @@ import {
   getMessage,
   getTopic,
   insertRoute,
+  insertTeamTopic,
   insertThreadTopic,
   pendingRoutes,
   rebindRouteRef,
   routesFor,
+  teamTopicOf,
   threadRoot,
   topicByRoot,
   transaction,
@@ -65,6 +67,11 @@ export class Topics {
       if (existing !== undefined) return existing
       return insertThreadTopic(this.db, { id: newId('topic'), roomId: getMessage(this.db, root)?.roomId ?? null, rootMessage: root, now: this.deps.now() })
     })
+  }
+
+  /** 任务群的话题（整个群一个），没有就建一个。 */
+  ensureTeam(roomId: string, taskId: string): Topic {
+    return transaction(this.db, () => teamTopicOf(this.db, roomId) ?? insertTeamTopic(this.db, { id: newId('topic'), roomId, taskId, now: this.deps.now() }))
   }
 
   follow(taskId: string, topicId: string, kind: FollowKind): void {

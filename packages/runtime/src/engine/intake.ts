@@ -22,6 +22,8 @@ export interface IntakeDeps {
   readonly marked: (message: RoomMessage, tasks: readonly Task[]) => void
   /** 交给前台（交还、退回的消息）；note 是交给前台时附的说明。 */
   readonly toFront: (message: RoomMessage, note: string) => Promise<void>
+  /** 任务群里还开着的子任务（@ 成员时它只有一个子任务就直通那个）。 */
+  readonly childrenIn: (roomId: string) => readonly Task[]
 }
 
 /** 送进任务会话的那条消息：带 id、谁说的、回的是哪条，正文截断。 */
@@ -46,10 +48,14 @@ export class Intake {
     return this.deps.db
   }
 
-  /** 你的一条消息：直通跟进它所在话题的任务，返回直通了哪些；空的就由调用方交给前台。 */
-  owner(message: RoomMessage): readonly Task[] {
+  /**
+   * 你的一条消息：直通跟进它所在话题的任务，返回直通了哪些；空的就由调用方交给前台。
+   * 在任务群里 @ 了成员：它在这个群里只有一个子任务就直通那个，否则照话题走（交给组长）。
+   */
+  owner(message: RoomMessage, mentioned: readonly string[] = []): readonly Task[] {
     const topic = message.topicId == null ? undefined : this.deps.topics.get(message.topicId)
-    const targets = topic === undefined ? [] : this.targets(topic.id, message.id)
+    const called = this.calledChildren(message, mentioned)
+    const targets = called.length > 0 ? called : topic === undefined ? [] : this.targets(topic.id, message.id)
     const delivered = transaction(this.db, () => {
       const done: Task[] = []
       for (const task of targets) {
@@ -63,6 +69,16 @@ export class Intake {
     })
     if (delivered.length > 0) this.deps.marked(message, delivered)
     return delivered
+  }
+
+  /** 被 @ 的成员各自在这个任务群里只有一个开着的子任务时，就是那几个子任务。回复了别的消息的不算。 */
+  private calledChildren(message: RoomMessage, mentioned: readonly string[]): readonly Task[] {
+    if (mentioned.length === 0 || message.replyTo !== null) return []
+    const children = this.deps.childrenIn(message.roomId)
+    return mentioned.flatMap((botId) => {
+      const mine = children.filter((child) => child.ownerBotId === botId)
+      return mine.length === 1 && !this.deps.topics.handedBack(message.id, mine[0]?.id ?? '') ? mine : []
+    })
   }
 
   /** 跟进这个话题、能收这条消息的任务：只读跟进的不收，你停掉的不收，交还过这条的不再给它。 */

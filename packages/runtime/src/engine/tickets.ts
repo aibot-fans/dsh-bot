@@ -75,6 +75,8 @@ export class Tickets {
       this.deps.cancelLaunch(task.id)
       updateTask(this.db, task.id, { endedAt: now, endReason: reason, finishedAt: now, nudges: 0, ...(note === undefined ? {} : { note }) }, now)
       this.event(task, 'task_ended', actor, { reason })
+      // 还没结束的子任务跟着停掉。
+      for (const child of this.openChildren(task.id)) this.end(child.id, 'stopped', actor)
       const ended = this.refresh(task.id)
       if (ended !== undefined) this.deps.ended(ended)
       return ended
@@ -90,6 +92,15 @@ export class Tickets {
       updateTask(this.db, task.id, { endedAt: null, endReason: null, finishedAt: null }, this.deps.now())
       this.event(task, 'task_reopened', actor, {})
       return this.refresh(task.id)
+    })
+  }
+
+  /** 这个任务下面还没结束的子任务（工单）。 */
+  openChildren(taskId: string): readonly Task[] {
+    const rows = this.db.prepare('SELECT id FROM tasks WHERE parent_id = ? AND ended_at IS NULL AND deleted_at IS NULL ORDER BY created_at').all(taskId) as unknown as readonly { readonly id: string }[]
+    return rows.flatMap((row) => {
+      const child = this.get(row.id)
+      return child !== undefined && isTicket(child) ? [child] : []
     })
   }
 

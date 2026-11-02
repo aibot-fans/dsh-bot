@@ -121,7 +121,12 @@ export class Launcher {
       const requester = task.requesterSession === null ? undefined : this.deps.registry.get(task.requesterSession)
       const fromName = requester === undefined ? '用户' : (this.deps.bots.get(requester.botId)?.name ?? '主管')
       const assumptions = Array.isArray(run.detail.assumptions) ? run.detail.assumptions.filter((item): item is string => typeof item === 'string') : []
-      return composeBrief(task, { fromName, assumptions, conventions: [], upstream: [], workspaceRoot: this.deps.workspaceRoot })
+      // 等别的子任务就绪才开工的：带上它们的结果。
+      const upstream = task.dependsOn.flatMap((id) => {
+        const before = this.deps.engine.tickets.get(id)
+        return before?.result == null ? [] : [{ title: before.title, summary: before.result.summary, files: before.result.files }]
+      })
+      return composeBrief(task, { fromName, assumptions, conventions: [], upstream, workspaceRoot: this.deps.workspaceRoot })
     }
     return runBrief(task, run, { lastReport: latestDecisiveReport(this.deps.db, task.id), workspaceRoot: this.deps.workspaceRoot, watching: this.watching(task, run) })
   }

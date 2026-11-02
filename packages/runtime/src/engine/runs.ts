@@ -37,10 +37,12 @@ export interface ReportOutcome {
   readonly completed: boolean
 }
 
-/** 排着的执行合并开工原因：新来的消息接在后面。 */
+/** 排着的执行合并开工原因：新来的消息、子任务的消息接在后面。 */
 function mergeDetail(current: Readonly<Record<string, unknown>>, next: Readonly<Record<string, unknown>>): Readonly<Record<string, unknown>> {
-  const messages = [...(Array.isArray(current.messages) ? current.messages : []), ...(Array.isArray(next.messages) ? next.messages : [])]
-  return { ...current, ...next, ...(messages.length === 0 ? {} : { messages }) }
+  const joined = (key: string): readonly unknown[] => [...(Array.isArray(current[key]) ? current[key] : []), ...(Array.isArray(next[key]) ? next[key] : [])]
+  const messages = joined('messages')
+  const notices = joined('notices')
+  return { ...current, ...next, ...(messages.length === 0 ? {} : { messages }), ...(notices.length === 0 ? {} : { notices }) }
 }
 
 /**
@@ -186,7 +188,8 @@ export class Runs {
         if (wasRunning) this.deps.released()
       }
       const unverified = Array.isArray(input.data.unverified) ? input.data.unverified.length : 0
-      const completed = input.status === 'ready' && acceptance.every((item) => item.done) && unverified === 0
+      // 子任务就绪由组长验收，不自己完成。
+      const completed = input.status === 'ready' && task.parentId === null && acceptance.every((item) => item.done) && unverified === 0
       if (completed) this.deps.tickets.end(task.id, 'done', input.author)
       if (input.status === 'dismissed') this.deps.tickets.end(task.id, 'dismissed', input.author)
       const updated = this.deps.tickets.refresh(task.id) ?? task

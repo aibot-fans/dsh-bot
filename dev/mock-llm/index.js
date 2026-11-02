@@ -160,6 +160,41 @@ function withoutPreface(text) {
   return marker === undefined ? text : text.slice((marker.index ?? 0) + marker[0].length)
 }
 
+/**
+ * 组长（根任务的会话）的剧本：任务说明里有“组个团队”时开两个子任务（「A 公司」交给名册里第一个 bot，「B 公司」交给自己），
+ * 报 waiting；子任务就绪时逐个验收（「B 公司」第一次打回，返工后通过）；受阻的答复，失败的停掉；都结束了交结果。
+ */
+function leaderDecision({ brief, userText, messages, tools, last, system }) {
+  if (!tools.has('subtask') || !/组个团队|组队/.test(brief)) return undefined
+  const all = toolCalls(messages)
+  const names = all.map((call) => call.name)
+  const start = messages.findLastIndex((message) => message.role === 'user' && MEANINGFUL.has(message.source?.kind))
+  const turn = toolCalls(messages.slice(start + 1))
+  if (!userText.includes('[子任务')) {
+    if (userText.includes('[直通消息')) return undefined
+    const opened = names.filter((name) => name === 'subtask').length
+    if (opened === 0) return { tool: 'subtask', args: { title: 'A 公司', bot: firstRosterName(system) ?? '自己', brief: '查 A 公司的公开定价，写进 A.md', acceptance: ['列出版本', '写清价格'] } }
+    if (opened === 1 && turn.length > 0) return { tool: 'subtask', args: { title: 'B 公司', bot: '自己', brief: '查 B 公司的公开定价，写进 B.md', acceptance: ['列出版本', '写清价格', '写主要限制'] } }
+    if (turn.length > 0) return { tool: 'report', args: { status: 'waiting', summary: '子任务开好了，等它们交上来' } }
+    return undefined
+  }
+  const ready = [...userText.matchAll(/\[子任务就绪\] 「([^」]*)」（(task_[0-9a-z]+)/g)].map((match) => ({ title: match[1], id: match[2] }))
+  for (const item of ready) {
+    if (turn.some((call) => call.name === 'review_subtask' && call.arguments.includes(item.id))) continue
+    const rejected = all.some((call) => call.name === 'review_subtask' && call.arguments.includes(item.id) && call.arguments.includes('false'))
+    if (item.title === 'B 公司' && !rejected) return { tool: 'review_subtask', args: { subtask: item.id, pass: false, feedback: '缺“主要限制”一列，补上' } }
+    return { tool: 'review_subtask', args: { subtask: item.id, pass: true } }
+  }
+  const blocked = /\[子任务受阻\] 「[^」]*」（(task_[0-9a-z]+)/.exec(userText)?.[1]
+  if (blocked !== undefined && !turn.some((call) => call.name === 'tell_subtask')) return { tool: 'tell_subtask', args: { subtask: blocked, text: '按中国区公开报价做' } }
+  const failed = /\[子任务没做成\] 「[^」]*」（(task_[0-9a-z]+)/.exec(userText)?.[1]
+  if (failed !== undefined && !turn.some((call) => call.name === 'stop_subtask')) return { tool: 'stop_subtask', args: { subtask: failed } }
+  if (last?.role === 'tool' && lastToolText(messages).includes('子任务都结束了')) {
+    return { tool: 'complete_task', args: { summary: '- 两家的定价都查完了，汇总在 shared/对比.md', files: ['shared/对比.md'], assumptions: ['只看了测试数据'], unverified: [], skipped: [] } }
+  }
+  return { tool: 'report', args: { status: 'waiting', summary: '还有子任务在做，等它们交上来' } }
+}
+
 /** 群聊里转来的一句话：谁说的、有没有 @ 你、正文和现在的成员。 */
 function groupMessage(text) {
   const head = /^\[([^\]\n]+?)在群聊「[^」\n]*」里(@了你|说)\]\n/.exec(text)
@@ -309,6 +344,8 @@ function decide(options) {
   if (system.includes('你正在执行一个任务')) {
     if (last?.role === 'tool' && calls.at(-1) === 'complete_task') return { text: '已经提交了。' }
     if (last?.role === 'tool' && calls.at(-1) === 'ask_owner') return { text: '已经请用户处理，等用户答复后接着做。' }
+    const leading = leaderDecision({ brief, userText, messages, tools, last, system })
+    if (leading !== undefined) return leading
     // 直通进来的消息：写着“（测试交还）”的交还，其余确认后交结果。
     const routedIds = [...userText.matchAll(/\[直通消息 (msg_[0-9a-f]+)\]/g)].map((match) => match[1])
     if (routedIds.length > 0 && tools.has('ack') && last?.role !== 'tool') {
@@ -340,7 +377,7 @@ function decide(options) {
     if (brief.includes('需要登录') && !calls.includes('ask_owner') && tools.has('ask_owner')) {
       return { tool: 'ask_owner', args: { kind: 'login', question: '需要登录 example.com 才能看到价格', detail: '登录页在 https://example.com/login', bypassed: false } }
     }
-    if (userText.includes('[组长打回]')) {
+    if (userText.includes('[组长打回]') || userText.includes('组长验收没通过')) {
       return { tool: 'complete_task', args: { summary: '- 按组长意见补上了主要限制', files: ['B.md'], assumptions: [], unverified: [], skipped: [] } }
     }
     if (userText.includes('开始新的一次执行') && last?.role !== 'tool') {

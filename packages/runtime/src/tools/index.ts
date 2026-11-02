@@ -3,6 +3,7 @@ import type { Equipment } from '../agents/binder.ts'
 import type { LiveAgent, ToolDefinition } from '../dsh.ts'
 import type { PodRuntime } from '../pod.ts'
 import { frontTools } from '../front/tools.ts'
+import { isTicket } from '../engine/index.ts'
 import { browserTools } from './browser.ts'
 import { coordTools } from './coord.ts'
 import { groupTools } from './group.ts'
@@ -60,7 +61,10 @@ export function equipSession(pod: PodRuntime, extras: readonly ExtraTool[], sess
     }))
   if (session.kind === 'front') return { tools: frontEquipment(pod, session), guard: pod.guardFor(session), skills }
   const base: ToolDefinition[] = []
-  if (session.kind === 'task') base.push(...taskTools(pod, session), readTool(pod, session), ...teamTools(pod, session))
+  // 工单的会话看子任务用 list_subtasks，旧的任务板只给按计划组队的任务。
+  const task = session.kind === 'task' ? pod.tasks.taskOf(session) : undefined
+  const ticket = task !== undefined && isTicket(task)
+  if (session.kind === 'task') base.push(...taskTools(pod, session), readTool(pod, session), ...teamTools(pod, session).filter((tool) => !(ticket && tool.name === 'task_board')))
   if (session.kind === 'coord') base.push(...coordTools(pod, session), askOwnerTool(pod, session), ...teamTools(pod, session))
   base.push(...memoryTools(pod, session))
   if (sessionBrowses(session)) base.push(...browserTools(pod, session))

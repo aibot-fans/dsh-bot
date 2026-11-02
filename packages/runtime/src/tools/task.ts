@@ -5,16 +5,18 @@ import { isTicket } from '../engine/index.ts'
 import { ackTool, handbackTool } from '../tasks/ack.ts'
 import { followTool, unfollowTool } from '../tasks/follow.ts'
 import { reportTool } from '../tasks/report.ts'
+import { subtaskTools } from '../tasks/subtask-tools.ts'
 import { bool, oneOf, podTool, str, success, text, flag } from './define.ts'
 
 /**
  * 任务会话的工具：汇报（进展、等消息、就绪、受阻、失败、无需处理）；工单还能确认、交还直通进来的消息，
- * 跟进、取消跟进话题。
+ * 跟进、取消跟进话题；根任务的会话还能开子任务、验收（组长）。
  */
 export function taskTools(pod: PodRuntime, session: PodSession): readonly ToolDefinition[] {
   const task = pod.tasks.taskOf(session)
   if (task === undefined || !isTicket(task)) return [reportTool(pod, session)]
-  return [reportTool(pod, session), ackTool(pod, session), handbackTool(pod, session), followTool(pod, session), unfollowTool(pod, session)]
+  const base = [reportTool(pod, session), ackTool(pod, session), handbackTool(pod, session), followTool(pod, session), unfollowTool(pod, session)]
+  return task.parentId === null ? [...base, ...subtaskTools(pod, session)] : base
 }
 
 /** 找用户：组长的协调会话用（任务会话改用 report 的 blocked）。 */

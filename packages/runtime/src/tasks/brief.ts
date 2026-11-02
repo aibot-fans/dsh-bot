@@ -97,9 +97,15 @@ export function routedText(task: Task, message: RoutedMessage): string {
   return [`[dsh-bot] 任务「${task.title}」的话题里有一条新消息。`, routedLine(message), ROUTED_HOWTO].join('\n')
 }
 
+/** 子任务汇报后送给组长的那几段。 */
+function runNotices(run: TaskRun): readonly string[] {
+  return Array.isArray(run.detail.notices) ? run.detail.notices.filter((item): item is string => typeof item === 'string') : []
+}
+
 /** 同一个任务的又一次执行：同一个会话、同一个文件夹，开工说明写明原因。 */
 export function runBrief(task: Task, run: TaskRun, context: RunBriefContext): string {
   const messages = runMessages(run)
+  const notices = runNotices(run)
   const routed = messages.some((message) => message.id !== null)
   const head = `[dsh-bot] 任务「${task.title}」（${task.id}）开始新的一次执行。`
   const reason = ((): string => {
@@ -121,13 +127,21 @@ export function runBrief(task: Task, run: TaskRun, context: RunBriefContext): st
         return `开工原因：用户点了继续。${task.note === '' ? '' : `你最近的进度说明是：「${task.note}」。`}从停下的地方接着做，已完成的部分不用重做。`
       case 'trigger':
         return `开工原因：触发器${typeof run.detail.trigger === 'string' ? `「${run.detail.trigger}」` : ''}到点了。${typeof run.detail.note === 'string' ? run.detail.note : ''}`
+      case 'review': {
+        const round = typeof run.detail.round === 'number' ? run.detail.round : 1
+        const feedback = typeof run.detail.feedback === 'string' ? run.detail.feedback : ''
+        return `开工原因：组长验收没通过（第 ${round} 次返工）。要改的地方：\n${feedback}\n在原来的产出上改，改好后再报 ready。`
+      }
+      case 'subtask':
+        return '开工原因：子任务有了新进展（见下面）。'
       default:
         return `开工原因：${typeof run.detail.note === 'string' ? run.detail.note : '接着做'}`
     }
   })()
   const watching =
     context.watching.length === 0 ? undefined : ['只读跟进的话题里的新消息（只看不接，不用确认或交还）：', ...context.watching.map((message) => `- ${message.id ?? ''} ${message.author}：${message.text}`)].join('\n')
-  return [head, reason, watching, `任务文件夹：${context.workspaceRoot}/${task.folder}/`, REPORT_HOWTO].filter((part): part is string => part !== undefined).join('\n\n')
+  const subtasks = notices.length === 0 ? undefined : notices.join('\n\n')
+  return [head, reason, subtasks, watching, `任务文件夹：${context.workspaceRoot}/${task.folder}/`, REPORT_HOWTO].filter((part): part is string => part !== undefined).join('\n\n')
 }
 
 /** 一轮结束却没汇报时的提醒。 */

@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { join } from 'node:path'
-import { OWNER, POD, POD_VERSION, PRIORITY, botFolder, composePersona, roomFolder, fail, sessionBrowses, sessionMakesPages, t, withLanguage, worthSummary, type Bot, type BotStats, type Language, type PodEvent, type PodResult, type PodSession, type Room, type Task, type TeamTemplate } from 'pod-domain'
+import { OWNER, POD, POD_VERSION, PRIORITY, botFolder, composePersona, roomFolder, fail, sessionBrowses, sessionMakesPages, t, withLanguage, worthSummary, type Bot, type BotStats, type Language, type PodEvent, type PodResult, type PodSession, type Room, type Task, type TaskTeam, type TeamTemplate } from 'pod-domain'
 import { afterCommit, deliveryByMessageId, getMessage, inTransaction, onAfterCommitError, pinnedMessages, raiseProblem, resolveProblem, taskCardMessage, teamsOfBot } from 'pod-store'
 import { SegmentManager } from './agents/segments.ts'
 import { AibotService } from './aibot/service.ts'
@@ -21,6 +21,7 @@ import { Intake } from './engine/intake.ts'
 import { Launcher } from './effects/launch.ts'
 import { routeIn } from './tasks/routed.ts'
 import { TaskReporting } from './tasks/report.ts'
+import { Subtasks } from './tasks/subtasks.ts'
 import { TaskTurns } from './tasks/turns.ts'
 import { Dispatcher } from './effects/delivery.ts'
 import { noticeSource } from './agents/messages.ts'
@@ -132,6 +133,8 @@ export class PodRuntime {
   readonly engine: Engine
   readonly turns: TaskTurns
   readonly reporting: TaskReporting
+  /** 组长开的子任务：验收、补话、通知组长。 */
+  readonly subtasks: Subtasks
   readonly launcher: Launcher
   readonly intake: Intake
   readonly coordinator: Coordinator
@@ -267,7 +270,7 @@ export class PodRuntime {
       indexed: (message) => this.search.indexMessage(message),
       leaderFor: (room) => this.leaderForRoom(room),
       onOwnerText: (message) => this.evolutionKit.feedback.observeOwner(message),
-      intake: (message) => this.intake.owner(message).length,
+      intake: (message, mentioned) => this.intake.owner(message, mentioned.map((bot) => bot.id)).length,
       stopSession: (sessionId) => {
         this.dispatcher.cancelPending(sessionId)
         ctx.agents.get(sessionId)?.cancel({ kind: 'user' })
@@ -333,6 +336,7 @@ export class PodRuntime {
       notify: (task, event) => this.onTaskNotify(task, event),
       onSubtaskStalled: (task, reason) => this.coordinator.onStalled(task, reason),
     })
+    this.subtasks = new Subtasks({ db, engine: this.engine, tasks: this.tasks, rooms: this.rooms, bots: this.bots, dispatcher: this.dispatcher, audit: this.audit })
     this.reporting = new TaskReporting({
       tasks: this.tasks,
       engine: this.engine,
@@ -349,6 +353,7 @@ export class PodRuntime {
         const id = taskCardMessage(db, taskId)
         return id === undefined ? undefined : getMessage(db, id)
       },
+      subtasks: this.subtasks,
     })
     this.launcher = new Launcher({
       db,
@@ -375,6 +380,10 @@ export class PodRuntime {
         this.rooms.patchMessage(message.id, { data: { ...message.data, routed: tasks.map((task) => ({ taskId: task.id, title: task.title })) } })
       },
       toFront: (message, note) => this.rooms.toFront(message, note),
+      childrenIn: (roomId) => {
+        const room = this.rooms.get(roomId)
+        return room?.taskId == null ? [] : this.engine.tickets.openChildren(room.taskId)
+      },
     })
     this.coordinator = new Coordinator({
       db,
@@ -863,9 +872,11 @@ export class PodRuntime {
     const bot = this.bots.get(session.botId) ?? this.bots.lead()
     const room = session.roomId === null ? undefined : this.rooms.get(session.roomId)
     const settings = this.settings.get()
+    const team = this.teamOf(session)
     return composePersona({
       bot,
       kind: session.kind,
+      ...(team === undefined ? {} : { team }),
       roster: this.bots.active(),
       workspaceRoot: this.options.workspaceRoot,
       folder: session.folder === '' ? '.' : session.folder,
@@ -880,6 +891,15 @@ export class PodRuntime {
       pages: sessionMakesPages(session),
       tuning: this.evolutionKit.tuner.personaFor(bot.id),
     })
+  }
+
+  /** 任务会话在团队里的位置：根任务（工单）的会话是组长，子任务写明父任务和组长。 */
+  private teamOf(session: PodSession): TaskTeam | undefined {
+    const task = session.kind !== 'task' || session.taskId === null ? undefined : this.tasks.get(session.taskId)
+    if (task === undefined || !isTicket(task)) return undefined
+    if (task.parentId === null) return { role: 'leader' }
+    const parent = this.tasks.get(task.parentId)
+    return { role: 'member', leader: this.bots.get(parent?.ownerBotId ?? '')?.name ?? '组长', parent: parent?.title ?? '' }
   }
 
   /** agent 预设读人设用；每次组装提示词都会调用，所以是同步的，只查内存。不是 Pod 建的会话按主管处理。 */

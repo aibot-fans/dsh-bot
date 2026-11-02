@@ -55,6 +55,12 @@ export function getRoom(db: DatabaseSync, id: string): Room | undefined {
   return row === undefined ? undefined : toRoom(row)
 }
 
+/** 任务的任务群（开第一个子任务时建的）。 */
+export function taskRoomOf(db: DatabaseSync, taskId: string): Room | undefined {
+  const row = db.prepare("SELECT * FROM rooms WHERE task_id = ? AND kind = 'task' AND purged_at IS NULL AND archived_at IS NULL ORDER BY created_at LIMIT 1").get(taskId) as RoomRow | undefined
+  return row === undefined ? undefined : toRoom(row)
+}
+
 export function findDirectRooms(db: DatabaseSync, botId: string): readonly Room[] {
   const rows = db
     .prepare(
@@ -235,8 +241,15 @@ export function appendMessage(db: DatabaseSync, input: NewMessage): RoomMessage 
   )
   // 回复、引用了某个话题里的消息：这条也算进那个话题。
   const parent = input.replyTo == null ? undefined : (db.prepare('SELECT topic_id FROM messages WHERE id = ?').get(input.replyTo) as { readonly topic_id: string | null } | undefined)
-  const topicId = parent?.topic_id ?? null
-  if (topicId !== null) db.prepare("UPDATE messages SET topic_id = ?, topic_via = 'reply' WHERE id = ?").run(topicId, input.id)
+  const inherited = parent?.topic_id ?? null
+  if (inherited !== null) db.prepare("UPDATE messages SET topic_id = ?, topic_via = 'reply' WHERE id = ?").run(inherited, input.id)
+  // 任务群整个群是一个话题：不是回复的话都算进去；任务卡是子任务自带的话题，不算。
+  const team =
+    inherited === null && input.replyTo == null && input.kind !== 'task-card'
+      ? ((db.prepare("SELECT id FROM topics WHERE kind = 'team' AND room_id = ? ORDER BY created_at LIMIT 1").get(input.roomId) as { readonly id: string } | undefined)?.id ?? null)
+      : null
+  if (team !== null) db.prepare("UPDATE messages SET topic_id = ?, topic_via = 'room' WHERE id = ?").run(team, input.id)
+  const topicId = inherited ?? team
   return {
     id: input.id,
     roomId: input.roomId,

@@ -98,8 +98,8 @@ export interface RoomServiceDeps {
   readonly leaderFor: (room: Room) => Bot | undefined
   /** 你在房间里说了话（自我优化据此认出“以后别这样”之类的纠正）。 */
   readonly onOwnerText?: (message: RoomMessage) => void
-  /** 接收：你的话在有任务跟进的话题里就直通那些任务，返回直通了几个；0 才交给前台。 */
-  readonly intake?: (message: RoomMessage) => number
+  /** 接收：你的话在有任务跟进的话题里就直通那些任务（任务群里 @ 了成员的先看它的子任务），返回直通了几个；0 才交给前台。 */
+  readonly intake?: (message: RoomMessage, mentioned: readonly Bot[]) => number
   /** 交给这几个 bot 的前台（每个 bot 一个，跨聊天室）；note 是交给前台时附的说明。 */
   readonly front: (message: RoomMessage, bots: readonly Bot[], note: string) => void
   /** 这个 bot 现在的前台。 */
@@ -499,7 +499,7 @@ export class RoomService {
     markRoomRead(this.db, roomId, message.seq)
     this.deps.onOwnerText?.(message)
     // 回复、引用的是有任务跟进的话题（比如任务卡）：直接送进那些任务，不再交给前台。
-    if ((this.deps.intake?.(message) ?? 0) > 0) return ok(message)
+    if ((this.deps.intake?.(message, mentioned) ?? 0) > 0) return ok(message)
     this.toFronts(room, message, '')
     return ok(message)
   }

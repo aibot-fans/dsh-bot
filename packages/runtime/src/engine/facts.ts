@@ -3,11 +3,12 @@ import { deriveStage, stageFromStatus, statusFromStage, type StageFacts, type Ta
 import { latestDecisiveReport, latestRun } from 'pod-store'
 
 /**
- * 由引擎按执行和汇报管的任务（工单）。团队任务（L2、L3 的根任务和它们的子任务）在团队改成
- * 任务会话开子任务之前，还由编排器直接写旧状态，阶段按旧状态对回来。
+ * 由引擎按执行和汇报管的任务（工单）：根任务，和任务会话开的子任务（L1）。
+ * 以前按计划组队的团队任务（L2、L3 的根任务和它们的子任务）还由编排器直接写旧状态，阶段按旧状态对回来。
  */
 export function isTicket(task: Pick<Task, 'parentId' | 'level'>): boolean {
-  return task.parentId === null && task.level !== 'L2' && task.level !== 'L3'
+  if (task.parentId !== null) return task.level === 'L1'
+  return task.level !== 'L2' && task.level !== 'L3'
 }
 
 function openWaits(db: DatabaseSync, task: Task): number {

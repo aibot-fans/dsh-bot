@@ -22,6 +22,7 @@ import { doneNote } from '../orchestrator/texts.ts'
 import type { PodRuntime } from '../pod.ts'
 import { failure, intList, oneOf, podTool, str, strList, success, text, texts, ints } from '../tools/define.ts'
 import type { TaskService } from './service.ts'
+import type { Subtasks } from './subtasks.ts'
 import type { TaskTurns } from './turns.ts'
 
 export interface ReportArgs {
@@ -57,6 +58,7 @@ export interface ReportingDeps {
   readonly markRead: (sessionId: string) => void
   /** 任务的任务卡（结果回复在它下面）。 */
   readonly cardOf: (taskId: string) => RoomMessage | undefined
+  readonly subtasks: Subtasks
 }
 
 /**
@@ -82,9 +84,8 @@ export class TaskReporting {
     return { summary: args.summary, files: args.files, assumptions: args.assumptions, unverified: [...args.unverified, ...extra], skipped: args.skipped }
   }
 
-  private ticket(session: PodSession, task: Task, args: ReportArgs): PodResult<{ readonly task: Task; readonly message: string }> {
-    const { engine, tasks, rooms } = this.deps
-    const outcome = engine.runs.report({
+  private record(session: PodSession, task: Task, args: ReportArgs): ReturnType<Engine['runs']['report']> {
+    return this.deps.engine.runs.report({
       task,
       author: session.botId,
       status: args.status,
@@ -97,6 +98,16 @@ export class TaskReporting {
       acceptance: args.acceptance,
       data: { files: args.files, assumptions: args.assumptions, unverified: args.unverified, skipped: args.skipped },
     })
+  }
+
+  private ticket(session: PodSession, task: Task, args: ReportArgs): PodResult<{ readonly task: Task; readonly message: string }> {
+    const { engine, tasks, rooms } = this.deps
+    if (task.parentId !== null) return this.child(session, task, args)
+    const open = args.status === 'ready' ? this.deps.subtasks.openChildren(task) : []
+    if (open.length > 0) {
+      return fail('conflict', t('还有子任务没结束：{titles}。先用 review_subtask 验收，或者 stop_subtask 停掉', { titles: open.map((child) => `${child.id}「${child.title}」`).join('、') }))
+    }
+    const outcome = this.record(session, task, args)
     if (args.status !== 'progress') this.deps.turns.clear(task.id)
     const bot = this.deps.bots.get(session.botId)
     const name = bot?.name ?? 'bot'
@@ -136,6 +147,50 @@ export class TaskReporting {
         this.deps.notify(delivered, 'done')
         if (bot !== undefined && bot.temporary && bot.role === 'member' && outcome.completed) tasks.retireTemporary(bot)
         return ok({ task: delivered, message: outcome.completed ? t('已交付。') : t('已交上去，有没核实的地方，等用户验收。') })
+      }
+    }
+  }
+
+  /**
+   * 子任务：汇报交给组长。就绪的结果回复在它的任务卡下面，等组长验收；拿不准的事（ambiguity）由组长定，
+   * 登录、写入审批这类必须用户出面的才找用户；失败和无需处理组长来定。
+   */
+  private child(session: PodSession, task: Task, args: ReportArgs): PodResult<{ readonly task: Task; readonly message: string }> {
+    const { engine, rooms, subtasks } = this.deps
+    const outcome = this.record(session, task, args)
+    if (args.status !== 'progress') this.deps.turns.clear(task.id)
+    const told = (toOwner: boolean): void => subtasks.reported(engine.tickets.get(task.id) ?? outcome.task, { report: outcome.report, question: args.question, toOwner, files: args.files })
+    switch (args.status) {
+      case 'progress':
+        return ok({ task: outcome.task, message: t('已更新任务卡') })
+      case 'waiting':
+        return ok({ task: outcome.task, message: t('已记下：这一步做完了，等后续消息。这一轮到这里结束。') })
+      case 'blocked': {
+        const toOwner = args.questionKind !== 'ambiguity'
+        if (toOwner) this.deps.ask({ session, kind: args.questionKind, title: args.question, detail: [args.summary, args.report].filter(Boolean).join('\n\n'), reportId: outcome.report.id })
+        told(toOwner)
+        return ok({
+          task: engine.tickets.get(task.id) ?? outcome.task,
+          message: toOwner ? t('已经交给用户处理；用户答复后会开一次新的执行，答复带给你。这一轮到这里结束。') : t('已经交给组长；组长答复后会开一次新的执行，答复带给你。这一轮到这里结束。'),
+        })
+      }
+      case 'failed':
+        told(false)
+        return ok({ task: outcome.task, message: t('已记下失败，交给组长处理。这一轮到这里结束。') })
+      case 'dismissed':
+        told(false)
+        return ok({ task: outcome.task, message: t('已记下：无需处理，子任务结束。') })
+      case 'ready': {
+        const result = this.result(args)
+        const delivered = engine.tickets.patch(outcome.task, { result })
+        const room = task.roomId === null ? undefined : rooms.get(task.roomId)
+        if (room !== undefined) {
+          const card = this.deps.cardOf(delivered.id)
+          rooms.post(room.id, { author: session.botId, kind: 'text', body: doneNote(delivered, result, undefined), sessionId: session.id, replyTo: card?.id ?? null, data: { taskId: delivered.id } })
+        }
+        if (args.lessons !== '') this.deps.learn(session, delivered, args.lessons)
+        told(false)
+        return ok({ task: delivered, message: t('已交给组长验收。') })
       }
     }
   }
