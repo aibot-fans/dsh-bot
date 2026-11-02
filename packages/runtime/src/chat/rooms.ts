@@ -128,6 +128,8 @@ export interface RoomServiceDeps {
   readonly leaderFor: (room: Room) => Bot | undefined
   /** 你在房间里说了话（自我优化据此认出“以后别这样”之类的纠正）。 */
   readonly onOwnerText?: (message: RoomMessage) => void
+  /** 接收：你的话在有任务跟进的话题里就直通那些任务，返回直通了几个；0 才交给前台。 */
+  readonly intake?: (message: RoomMessage) => number
   /** 停掉一条会话正在跑的这一轮（停止回复、清空记录、开新对话时用）。 */
   readonly stopSession: (sessionId: string) => void
   /** 临时对话删掉时，把 dsh 里对应的会话也归档，dsh 的会话列表里就不再出现。 */
@@ -531,24 +533,45 @@ export class RoomService {
     if (message === undefined) return fail('not-found', t('找不到这个房间'))
     markRoomRead(this.db, roomId, message.seq)
     this.deps.onOwnerText?.(message)
+    // 回复、引用的是有任务跟进的话题（比如任务卡）：直接送进那些任务，不再交给前台。
+    if ((this.deps.intake?.(message) ?? 0) > 0) return ok(message)
+    // 不等交到 bot 手上就返回：开会话、换段可能要十几秒，输入框不该一直卡着；交不出去时房间里会留一行说明。
+    void this.dispatch(room, message, masked.text, quoted, mentioned, responder)
+    return ok(message)
+  }
+
+  /**
+   * 交给前台：点了名的交给被点名的，普通群聊里没点名的按分工挑人，其余交给负责回答的 bot。
+   * note 写在你的话前面（任务交还、没读退回时说明来历）。
+   */
+  private dispatch(room: Room, message: RoomMessage, raw: string, quoted: RoomMessage | undefined, mentioned: readonly Bot[], responder: Bot, note = ''): Promise<void> {
     // 快捷指令（/任务、/总结……）：房间里留你的原话，交给 bot 的是展开后的说明。
-    const text = expandQuickCommand(masked.text) ?? masked.text
+    const expanded = expandQuickCommand(raw) ?? raw
+    const text = note === '' ? expanded : `${note}\n\n${expanded}`
     if (mentioned.length === 0 && this.routes(room)) {
       this.routing(room.id, message.id)
-      void this.inOrder(room.id, () => this.deliverRouted(room, text, masked.text, quoted, message.id).then(() => undefined))
-      return ok(message)
+      return this.inOrder(room.id, () => this.deliverRouted(room, text, raw, quoted, message.id).then(() => undefined))
     }
-    // 不等交到 bot 手上就返回：开会话、换段可能要十几秒，输入框不该一直卡着；交不出去时房间里会留一行说明。
-    void this.inOrder(room.id, async () => {
+    return this.inOrder(room.id, async () => {
       for (const bot of mentioned.length > 0 ? mentioned : [responder]) {
         try {
           await this.deliver(room, bot, text, quoted, { mentioned: mentioned.length > 0, messageId: message.id })
         } catch (error) {
-          this.milestone(roomId, t('没能把消息交给{name}：{value}', { name: bot.name, value: error instanceof Error ? error.message : String(error) }))
+          this.milestone(room.id, t('没能把消息交给{name}：{value}', { name: bot.name, value: error instanceof Error ? error.message : String(error) }))
         }
       }
     })
-    return ok(message)
+  }
+
+  /** 任务交还、或任务结束时没读到的你的消息：重新交给前台判断。 */
+  async toFront(message: RoomMessage, note: string): Promise<void> {
+    const room = this.get(message.roomId)
+    if (room === undefined || room.archivedAt !== null) return
+    const quoted = message.replyTo === null ? undefined : getMessage(this.db, message.replyTo)
+    const mentioned = room.kind === 'direct' ? [] : this.mentioned(room, message.body)
+    const responder = mentioned[0] ?? this.responder(room)
+    if (responder === undefined) return
+    await this.dispatch(room, message, message.body, quoted, mentioned, responder, note)
   }
 
   /** 普通群聊（不挂任务、不是正式团队）里没点名的话按分工挑人；任务群和团队群由组长接。 */

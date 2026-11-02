@@ -46,4 +46,12 @@ export const RUNTIME_EN_ENGINE: Readonly<Record<string, string>> = {
   '「{title}」受阻：{reason}': '"{title}" is blocked: {reason}',
   '连续 {MAX_NUDGES} 次提醒都没有汇报，已停下等处理': 'No report after {MAX_NUDGES} reminders; stopped and waiting for you',
   '「{title}」多次提醒仍没有汇报，已停下': '"{title}" did not report after several reminders and was stopped',
+  '确认收到的消息': 'Confirming a message',
+  '交还一条消息': 'Handing back a message',
+  '跟进话题': 'Following a topic',
+  '取消跟进话题': 'Unfollowing a topic',
+  '已转达给「{title}」': 'Passed on to "{title}"',
+  '「{title}」已经交还过这条消息，不能再转给它': '"{title}" already handed this message back, so it cannot be passed to it again',
+  '这些消息没有送给这个任务，或者已经确认、交还过了': 'These messages were not sent to this task, or were already confirmed or handed back',
+  '这条消息没有送给这个任务，或者已经确认、交还过了': 'This message was not sent to this task, or was already confirmed or handed back',
 }

@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { PRIORITY, maskSecrets, t, type Bot, type PodSession, type PodSettings, type Task, type TaskRun } from 'pod-domain'
-import { countRunning, getRun, latestDecisiveReport, runsByStatus, transaction } from 'pod-store'
+import { OWNER, PRIORITY, maskSecrets, t, type Bot, type PodSession, type PodSettings, type RoutedMessage, type Task, type TaskRun } from 'pod-domain'
+import { countRunning, getRun, latestDecisiveReport, runsByStatus, runsFor, topicMessagesSince, transaction } from 'pod-store'
 import { noticeSource, relaySource } from '../agents/messages.ts'
 import type { SessionRegistry } from '../agents/registry.ts'
 import type { BotService } from '../bots/service.ts'
@@ -92,13 +92,15 @@ export class Launcher {
       const started = engine.runs.start(run.id, session.id)
       if (started === undefined) return
       const current = engine.tickets.get(task.id) ?? task
-      this.deps.dispatcher.enqueue({
+      const delivery = this.deps.dispatcher.enqueue({
         sessionId: session.id,
         mode: 'followup',
         priority: run.reason === 'message' ? PRIORITY.owner : current.urgent ? PRIORITY.urgent : PRIORITY.task,
         text: this.briefFor(current, started),
         source: run.reason === 'new' ? relaySource(current.requesterSession ?? 'pod') : noticeSource(t('任务开始新的一次执行')),
       })
+      // 这次执行带进去的消息，读没读过改看开工说明这次投递。
+      engine.topics.rebind(run.id, delivery.id)
     })
   }
 
@@ -121,7 +123,25 @@ export class Launcher {
       const assumptions = Array.isArray(run.detail.assumptions) ? run.detail.assumptions.filter((item): item is string => typeof item === 'string') : []
       return composeBrief(task, { fromName, assumptions, conventions: [], upstream: [], workspaceRoot: this.deps.workspaceRoot })
     }
-    return runBrief(task, run, { lastReport: latestDecisiveReport(this.deps.db, task.id), workspaceRoot: this.deps.workspaceRoot })
+    return runBrief(task, run, { lastReport: latestDecisiveReport(this.deps.db, task.id), workspaceRoot: this.deps.workspaceRoot, watching: this.watching(task, run) })
+  }
+
+  /** 只读跟进的话题里，上次开工以后（或者开始跟进以后）的新消息，每个话题最多 10 条。 */
+  private watching(task: Task, run: TaskRun): readonly RoutedMessage[] {
+    const previous = runsFor(this.deps.db, task.id)
+      .filter((item) => item.id !== run.id && item.startedAt !== null)
+      .reduce((latest, item) => Math.max(latest, item.startedAt ?? 0), 0)
+    return this.deps.engine.topics
+      .follows(task.id)
+      .filter((follow) => follow.kind === 'readonly')
+      .flatMap((follow) =>
+        topicMessagesSince(this.deps.db, follow.topicId, Math.max(previous, follow.startedAt), 10).map((message) => ({
+          id: message.id,
+          author: message.author === OWNER ? '用户' : (this.deps.bots.get(message.author)?.name ?? message.author),
+          replyTo: message.replyTo,
+          text: message.body.length > 600 ? `${message.body.slice(0, 600)}…（截断了）` : message.body,
+        })),
+      )
   }
 
   /** 开不了工：这次执行记失败，替任务记一条失败的汇报，等你决定重试还是结束。 */

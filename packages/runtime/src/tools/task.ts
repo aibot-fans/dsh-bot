@@ -1,12 +1,20 @@
 import { WAIT_KINDS, t, type PodSession, type WaitKind } from 'pod-domain'
 import type { ToolDefinition } from '../dsh.ts'
 import type { PodRuntime } from '../pod.ts'
+import { isTicket } from '../engine/index.ts'
+import { ackTool, handbackTool } from '../tasks/ack.ts'
+import { followTool, unfollowTool } from '../tasks/follow.ts'
 import { reportTool } from '../tasks/report.ts'
 import { bool, oneOf, podTool, str, success, text, flag } from './define.ts'
 
-/** 任务会话的工具：汇报（进展、等消息、就绪、受阻、失败、无需处理）。 */
+/**
+ * 任务会话的工具：汇报（进展、等消息、就绪、受阻、失败、无需处理）；工单还能确认、交还直通进来的消息，
+ * 跟进、取消跟进话题。
+ */
 export function taskTools(pod: PodRuntime, session: PodSession): readonly ToolDefinition[] {
-  return [reportTool(pod, session)]
+  const task = pod.tasks.taskOf(session)
+  if (task === undefined || !isTicket(task)) return [reportTool(pod, session)]
+  return [reportTool(pod, session), ackTool(pod, session), handbackTool(pod, session), followTool(pod, session), unfollowTool(pod, session)]
 }
 
 /** 找用户：组长的协调会话用（任务会话改用 report 的 blocked）。 */

@@ -52,6 +52,8 @@ export interface ReportingDeps {
   readonly onRootStateChange: (rootId: string, change: 'delivered') => readonly string[]
   readonly onSubtaskStalled: (task: Task, reason: string) => void
   readonly learn: (session: PodSession, task: Task, lessons: string) => void
+  /** 汇报时这一轮之前收进历史的消息都算读过（任务结束时没读的才退回前台）。 */
+  readonly markRead: (sessionId: string) => void
 }
 
 /**
@@ -69,6 +71,7 @@ export class TaskReporting {
     const task = this.deps.tasks.taskOf(session)
     if (task === undefined || session.kind !== 'task') return fail('not-found', t('这条会话没有对应的任务'))
     if (task.endedAt !== null) return fail('conflict', t('任务已经结束'))
+    this.deps.markRead(session.id)
     return isTicket(task) ? this.ticket(session, task, args) : this.subtask(session, task, args)
   }
 
@@ -97,8 +100,10 @@ export class TaskReporting {
     switch (args.status) {
       case 'progress':
         return ok({ task: outcome.task, message: t('已更新任务卡') })
-      case 'waiting':
-        return ok({ task: outcome.task, message: t('已记下：这一步做完了，等后续消息。这一轮到这里结束。') })
+      case 'waiting': {
+        const restored = this.restoreIfMisrouted(outcome.task, outcome.report.runId)
+        return ok({ task: restored ?? outcome.task, message: t('已记下：这一步做完了，等后续消息。这一轮到这里结束。') })
+      }
       case 'blocked': {
         this.deps.ask({ session, kind: args.questionKind, title: args.question, detail: [args.summary, args.report].filter(Boolean).join('\n\n'), reportId: outcome.report.id })
         tasks.finish(outcome.task)
@@ -136,6 +141,22 @@ export class TaskReporting {
         return ok({ task: delivered, message: outcome.completed ? t('已交付。') : t('已交上去，有没核实的地方，等用户验收。') })
       }
     }
+  }
+
+  /**
+   * 结束了的任务被一条消息重新打开，它却把这次带来的消息都交还了：恢复成原来的结束方式，
+   * 免得一条走错的消息让做完的任务一直开着。
+   */
+  private restoreIfMisrouted(task: Task, runId: string | null): Task | undefined {
+    const { engine } = this.deps
+    const run = runId === null ? undefined : engine.runs.get(runId)
+    const reopened = run?.detail.reopened
+    if (run === undefined || (reopened !== 'done' && reopened !== 'dismissed')) return undefined
+    const ids = (Array.isArray(run.detail.messages) ? run.detail.messages : []).flatMap((item) =>
+      typeof item === 'object' && item !== null && typeof (item as Record<string, unknown>).id === 'string' ? [(item as Record<string, unknown>).id as string] : [],
+    )
+    if (ids.length === 0 || !ids.every((id) => engine.topics.handedBack(id, task.id))) return undefined
+    return engine.tickets.end(task.id, reopened, 'pod')
   }
 
   /** 团队子任务：进展勾验收项，就绪交给组长验收，受阻找你，失败交给组长处理。 */

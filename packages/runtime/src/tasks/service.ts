@@ -13,6 +13,7 @@ import {
   type OriginQuote,
   type PodResult,
   type PodSession,
+  type RoomMessage,
   type Task,
   type TaskActivity,
   type TaskOrigin,
@@ -30,6 +31,7 @@ import {
   listRootTasks,
   listTaskEvents,
   listTaskTree,
+  recentOwnerMessages,
   stuckDelivery,
   transaction,
   unansweredOwnerMessages,
@@ -76,6 +78,8 @@ export interface TaskServiceDeps {
   readonly onSubtaskSubmitted: (task: Task, result: TaskResult) => Task
   /** 每条任务事件（验收、复盘经验……）写下后通知，自我优化从这里取反馈。 */
   readonly onEvent?: (task: Task, kind: string, actor: string, data: Readonly<Record<string, unknown>>) => void
+  /** 前台把你的一条消息转给工单：送进去并让它跟进那条所在的话题。 */
+  readonly forward: (task: Task, message: RoomMessage, by: string, note: string) => PodResult<string>
 }
 
 export interface DelegateInput {
@@ -238,12 +242,16 @@ export class TaskService {
         actor: requester.botId,
       })
       this.event(opened, 'delegated', requester.botId, { to: bot.id, reason: input.reason })
+      // 自带的话题：你交代这件事的那几条消息所在的回复串，之后回复、引用它们的话直接到这个任务。
+      for (const quote of quotes) if (quote.messageId !== null) this.engine.topics.followMessage(opened.id, quote.messageId, 'own')
       this.engine.runs.queue(opened.id, 'new', { assumptions: input.assumptions })
       return this.get(id) ?? opened
     })
     this.deps.audit.record('task.delegate', requester.botId, id, { to: bot.id, title: input.title, reason: input.reason })
     if (task.roomId !== null) {
-      this.deps.rooms.post(task.roomId, { author: requester.botId, kind: 'task-card', body: input.title, data: { taskId: id, rootId: id } })
+      const card = this.deps.rooms.post(task.roomId, { author: requester.botId, kind: 'task-card', body: input.title, data: { taskId: id, rootId: id } })
+      // 任务卡也是自带的话题：回复、引用任务卡的话直接进任务。
+      if (card !== undefined) this.engine.topics.followMessage(id, card.id, 'own')
     }
     return Promise.resolve(ok(task))
   }
@@ -470,6 +478,15 @@ export class TaskService {
     const task = this.get(taskId)
     if (task === undefined) return fail('not-found', t('找不到这个任务'))
     if (ownerQuote === '') return fail('invalid-input', t('转达必须原样引用用户的话'))
+    const original = isTicket(task) && from.roomId !== null ? this.ownerMessageFor(from.roomId, ownerQuote) : undefined
+    if (original !== undefined) {
+      // 转的是你在聊天室里的一条消息：送进任务，任务跟进这条所在的话题，之后回复它的话直接到任务。
+      const forwarded = this.deps.forward(task, original, from.botId, message)
+      if (!forwarded.ok) return forwarded
+      this.event(task, 'relayed', from.botId, { quote: ownerQuote, message, messageId: original.id })
+      this.deps.rooms.post(from.roomId ?? '', { author: 'pod', kind: 'receipt', body: t('已转达给「{title}」', { title: task.title }), data: { taskId: task.id } })
+      return ok(this.get(task.id) ?? task)
+    }
     const text = `[用户补充，经${this.deps.bots.get(from.botId)?.name ?? '主管'}转达]\n[用户原话] ${ownerQuote}${message === '' ? '' : `\n说明：${message}`}`
     const sent = this.sendToTask(task, text, relaySource(from.id), ownerQuote)
     if (!sent.ok) return sent
@@ -482,6 +499,15 @@ export class TaskService {
       data: { taskId: task.id },
     })
     return ok(sent.value)
+  }
+
+  /** 转达引用的你的原话是聊天室里的哪条：最近 20 条里正文包含它（或被它包含）的最新一条。 */
+  private ownerMessageFor(roomId: string, quote: string): RoomMessage | undefined {
+    const wanted = quote.trim()
+    if (wanted === '') return undefined
+    return recentOwnerMessages(this.db, roomId, 20)
+      .filter((item) => item.body.includes(wanted) || wanted.includes(item.body.trim()))
+      .at(-1)
   }
 
   /** “直接对任务说”：你的话直接进任务；做完了的接着做。 */

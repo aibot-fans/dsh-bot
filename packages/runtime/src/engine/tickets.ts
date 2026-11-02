@@ -12,6 +12,8 @@ export interface TicketDeps {
   readonly cancelLaunch: (taskId: string) => void
   /** 一次执行结束了：名额空出来。 */
   readonly released: () => void
+  /** 任务刚结束（还在这个事务里）。 */
+  readonly ended: (task: Task) => void
 }
 
 export interface OpenTaskInput extends Omit<NewTask, 'status' | 'stage' | 'now' | 'origin' | 'replyTo'> {
@@ -73,7 +75,9 @@ export class Tickets {
       this.deps.cancelLaunch(task.id)
       updateTask(this.db, task.id, { endedAt: now, endReason: reason, finishedAt: now, nudges: 0, ...(note === undefined ? {} : { note }) }, now)
       this.event(task, 'task_ended', actor, { reason })
-      return this.refresh(task.id)
+      const ended = this.refresh(task.id)
+      if (ended !== undefined) this.deps.ended(ended)
+      return ended
     })
   }
 

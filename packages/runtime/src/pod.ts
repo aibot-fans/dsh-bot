@@ -17,7 +17,9 @@ import { RoutineReplies } from './routines/replies.ts'
 import { RoutineService, type PageContent } from './routines/service.ts'
 import { AgentBinder } from './agents/binder.ts'
 import { Engine, isTicket } from './engine/index.ts'
+import { Intake } from './engine/intake.ts'
 import { Launcher } from './effects/launch.ts'
+import { routeIn } from './tasks/routed.ts'
 import { TaskReporting } from './tasks/report.ts'
 import { TaskTurns } from './tasks/turns.ts'
 import { Dispatcher } from './effects/delivery.ts'
@@ -129,6 +131,7 @@ export class PodRuntime {
   readonly turns: TaskTurns
   readonly reporting: TaskReporting
   readonly launcher: Launcher
+  readonly intake: Intake
   readonly coordinator: Coordinator
   readonly consults: ConsultService
   readonly waits: WaitService
@@ -272,6 +275,7 @@ export class PodRuntime {
       indexed: (message) => this.search.indexMessage(message),
       leaderFor: (room) => this.leaderForRoom(room),
       onOwnerText: (message) => this.evolutionKit.feedback.observeOwner(message),
+      intake: (message) => this.intake.owner(message).length,
       stopSession: (sessionId) => {
         this.dispatcher.cancelPending(sessionId)
         ctx.agents.get(sessionId)?.cancel({ kind: 'user' })
@@ -298,7 +302,7 @@ export class PodRuntime {
       roomsOfBot: (botId) => this.roomsOfBot(botId),
     })
     this.pageLibrary = new PageLibrary({ db, pages: this.pages, bots: this.bots, rooms: this.rooms, now })
-    this.engine = new Engine({ db, now, effects: this.effects, changed: (task) => this.tasks.touched(task) })
+    this.engine = new Engine({ db, now, effects: this.effects, changed: (task) => this.tasks.touched(task), ended: (task) => this.intake.returnUnread(task) })
     this.tasks = new TaskService({
       db,
       bus: this.bus,
@@ -323,6 +327,7 @@ export class PodRuntime {
       onEvent: (task, kind, _actor, data) => {
         if (kind === 'reviewed') this.evolutionKit.feedback.onReview(task, data.pass === true, typeof data.feedback === 'string' ? data.feedback : '')
       },
+      forward: (task, message, by, note) => this.intake.forward(task, message, by, note),
     })
     this.turns = new TaskTurns({
       tasks: this.tasks,
@@ -347,6 +352,7 @@ export class PodRuntime {
       onRootStateChange: (rootId, change) => this.waits.onRootChange(rootId, change).map((wait) => WaitService.describe(wait)),
       onSubtaskStalled: (task, reason) => this.coordinator.onStalled(task, reason),
       learn: (session, task, lessons) => this.learnFromTask(session, task, lessons),
+      markRead: (sessionId) => this.dispatcher.turnEnded(sessionId),
     })
     this.launcher = new Launcher({
       db,
@@ -358,6 +364,21 @@ export class PodRuntime {
       settings: () => this.settings.get(),
       workspaceRoot: options.workspaceRoot,
       paused: () => false,
+    })
+    this.intake = new Intake({
+      db,
+      now,
+      topics: this.engine.topics,
+      effects: this.effects,
+      task: (id) => this.tasks.get(id),
+      deliver: (task, message) => routeIn({ db, engine: this.engine, dispatcher: this.dispatcher }, task, message),
+      askedAt: (task, message) => {
+        this.engine.tickets.addReplyTarget(task, { roomId: message.roomId, messageId: message.id })
+      },
+      marked: (message, tasks) => {
+        this.rooms.patchMessage(message.id, { data: { ...message.data, routed: tasks.map((task) => ({ taskId: task.id, title: task.title })) } })
+      },
+      toFront: (message, note) => this.rooms.toFront(message, note),
     })
     this.coordinator = new Coordinator({
       db,

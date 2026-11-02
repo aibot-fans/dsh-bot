@@ -3,6 +3,7 @@ import type { Task } from 'pod-domain'
 import type { Effects } from '../effects/queue.ts'
 import { Runs } from './runs.ts'
 import { Tickets } from './tickets.ts'
+import { Topics } from './topics.ts'
 
 export { isTicket } from './facts.ts'
 export type { OpenTaskInput } from './tickets.ts'
@@ -14,6 +15,8 @@ export interface EngineDeps {
   readonly effects: Effects
   /** 任务变了（推页面）。 */
   readonly changed: (task: Task) => void
+  /** 任务刚结束（在结束的事务里）：没读的消息退回前台。 */
+  readonly ended: (task: Task) => void
 }
 
 /**
@@ -23,15 +26,18 @@ export interface EngineDeps {
 export class Engine {
   readonly tickets: Tickets
   readonly runs: Runs
+  readonly topics: Topics
 
   constructor(deps: EngineDeps) {
     const released = (): void => deps.effects.release('open')
+    this.topics = new Topics({ db: deps.db, now: deps.now })
     this.tickets = new Tickets({
       db: deps.db,
       now: deps.now,
       changed: deps.changed,
       cancelLaunch: (taskId) => deps.effects.cancel('open', taskId),
       released,
+      ended: deps.ended,
     })
     this.runs = new Runs({
       db: deps.db,

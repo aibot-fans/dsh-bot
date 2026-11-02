@@ -1,4 +1,4 @@
-import { REPORT_STATUS_LABELS, type Task, type TaskReport, type TaskRun } from 'pod-domain'
+import { REPORT_STATUS_LABELS, type RoutedMessage, type Task, type TaskReport, type TaskRun } from 'pod-domain'
 
 export interface BriefContext {
   readonly fromName: string
@@ -58,16 +58,53 @@ export interface RunBriefContext {
   /** 重试时附的上次汇报。 */
   readonly lastReport: TaskReport | undefined
   readonly workspaceRoot: string
+  /** 只读跟进的话题里上次开工以后的新消息（只看不接）。 */
+  readonly watching: readonly RoutedMessage[]
+}
+
+/** 直通、转来的消息怎么处理：确认了再做，不归这个任务的交还。 */
+export const ROUTED_HOWTO = '这些消息直接送到了你这里：归这个任务的用 ack 确认再接着做；不归它的（超出范围、属于别的任务）用 handback 交还，写一句原因，整个话题都不归你就顺便取消跟进。'
+
+function routedLine(message: RoutedMessage): string {
+  const reply = message.replyTo === null ? '' : `（回复 ${message.replyTo}）`
+  const note = message.note === undefined || message.note === '' ? '' : `\n转来时的说明：${message.note}`
+  return message.id === null ? `[用户原话] ${message.text}` : `[直通消息 ${message.id}] ${message.author}${reply}：${message.text}${note}`
+}
+
+/** 开工原因里的消息：直通或转来的（带消息 id）和你直接对任务说的、答复的（只有原话）。 */
+function runMessages(run: TaskRun): readonly RoutedMessage[] {
+  const raw = Array.isArray(run.detail.messages) ? run.detail.messages : []
+  return raw.flatMap((item): RoutedMessage[] => {
+    if (typeof item === 'string') return [{ id: null, author: '用户', replyTo: null, text: item }]
+    if (typeof item !== 'object' || item === null) return []
+    const value = item as Record<string, unknown>
+    if (typeof value.text !== 'string') return []
+    return [
+      {
+        id: typeof value.id === 'string' ? value.id : null,
+        author: typeof value.author === 'string' ? value.author : '用户',
+        replyTo: typeof value.replyTo === 'string' ? value.replyTo : null,
+        text: value.text,
+        ...(typeof value.note === 'string' ? { note: value.note } : {}),
+      },
+    ]
+  })
+}
+
+/** 会话正在跑时直通进来的一条消息。 */
+export function routedText(task: Task, message: RoutedMessage): string {
+  return [`[dsh-bot] 任务「${task.title}」的话题里有一条新消息。`, routedLine(message), ROUTED_HOWTO].join('\n')
 }
 
 /** 同一个任务的又一次执行：同一个会话、同一个文件夹，开工说明写明原因。 */
 export function runBrief(task: Task, run: TaskRun, context: RunBriefContext): string {
-  const messages = Array.isArray(run.detail.messages) ? run.detail.messages.filter((item): item is string => typeof item === 'string') : []
+  const messages = runMessages(run)
+  const routed = messages.some((message) => message.id !== null)
   const head = `[dsh-bot] 任务「${task.title}」（${task.id}）开始新的一次执行。`
   const reason = ((): string => {
     switch (run.reason) {
       case 'message':
-        return ['开工原因：用户的新消息。', ...messages.map((text) => `[用户原话] ${text}`)].join('\n')
+        return ['开工原因：用户的新消息。', ...messages.map(routedLine), ...(routed ? [ROUTED_HOWTO] : [])].join('\n')
       case 'retry': {
         const last = context.lastReport
         return [
@@ -87,7 +124,9 @@ export function runBrief(task: Task, run: TaskRun, context: RunBriefContext): st
         return `开工原因：${typeof run.detail.note === 'string' ? run.detail.note : '接着做'}`
     }
   })()
-  return [head, reason, `任务文件夹：${context.workspaceRoot}/${task.folder}/`, REPORT_HOWTO].join('\n\n')
+  const watching =
+    context.watching.length === 0 ? undefined : ['只读跟进的话题里的新消息（只看不接，不用确认或交还）：', ...context.watching.map((message) => `- ${message.id ?? ''} ${message.author}：${message.text}`)].join('\n')
+  return [head, reason, watching, `任务文件夹：${context.workspaceRoot}/${task.folder}/`, REPORT_HOWTO].filter((part): part is string => part !== undefined).join('\n\n')
 }
 
 /** 一轮结束却没汇报时的提醒。 */

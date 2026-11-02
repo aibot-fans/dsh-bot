@@ -294,6 +294,17 @@ function decide(options) {
   if (system.includes('你正在执行一个任务')) {
     if (last?.role === 'tool' && calls.at(-1) === 'complete_task') return { text: '已经提交了。' }
     if (last?.role === 'tool' && calls.at(-1) === 'ask_owner') return { text: '已经请用户处理，等用户答复后接着做。' }
+    // 直通进来的消息：写着“（测试交还）”的交还，其余确认后交结果。
+    const routedIds = [...userText.matchAll(/\[直通消息 (msg_[0-9a-f]+)\]/g)].map((match) => match[1])
+    if (routedIds.length > 0 && tools.has('ack') && last?.role !== 'tool') {
+      if (userText.includes('（测试交还）')) return { tool: 'handback', args: { message_id: routedIds[0], reason: '这件事不归这个任务', unfollow: false } }
+      return { tool: 'ack', args: { message_ids: routedIds } }
+    }
+    if (last?.role === 'tool' && calls.at(-1) === 'handback') return { tool: 'report', args: { status: 'waiting', summary: '交还了一条不归这个任务的消息' } }
+    if (last?.role === 'tool' && calls.at(-1) === 'ack') {
+      return { tool: 'complete_task', args: { summary: '- 按直通进来的消息改好了', files: ['shared/测试结果.md'], assumptions: [], unverified: [], skipped: [] } }
+    }
+    if (last?.role === 'tool' && calls.at(-1) === 'report') return { text: '已经汇报了。' }
     if (brief.includes('浏览器') && tools.has('browser_open')) return browserTask(brief, userText, messages, calls)
     if (brief.includes('后台命令') && tools.has('bash')) return backgroundTask(messages, calls)
     const pageKind = tools.has('save_page') ? wantedKind(brief) : undefined
@@ -437,6 +448,12 @@ function decide(options) {
     if (userText.includes('拉个群') && tools.has('create_group')) {
       const name = /拉个群「([^」]+)」/.exec(userText)?.[1] ?? '监控播报'
       return { tool: 'create_group', args: { name, members: rosterNames(system).slice(0, 2), intro: '测试拉群' } }
+    }
+    // “转达给任务 task_xxx：……”：把这句原话转给那个任务。
+    const relayTarget = /转达给任务 (task_[0-9a-f]+)/.exec(userText)?.[1]
+    if (relayTarget !== undefined && tools.has('relay_to_task')) {
+      if (last?.role === 'tool' && calls.at(-1) === 'relay_to_task') return { text: '已经转达给任务了。' }
+      return { tool: 'relay_to_task', args: { task_id: relayTarget, owner_quote: userText, message: '' } }
     }
     if ((userText.includes('委派') || userText.includes('交给')) && tools.has('delegate')) {
       const named = /交给([^\s，。,]+)/.exec(userText)?.[1]
