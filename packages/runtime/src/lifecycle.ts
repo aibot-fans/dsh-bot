@@ -1,6 +1,7 @@
 import { PRIORITY, t, type PodSession } from 'pod-domain'
 import { sessionsWithPending } from 'pod-store'
 import { noticeSource } from './agents/messages.ts'
+import { isTicket } from './engine/index.ts'
 import type { PreStepDecision } from './dsh.ts'
 import type { PodRuntime } from './pod.ts'
 
@@ -16,11 +17,12 @@ export function recoverAfterRestart(pod: PodRuntime): void {
   for (const session of pod.registry.active()) {
     if (pending.has(session.id) || pod.dispatcher.isRunning(session.id) || session.taskId === null) continue
     const task = pod.tasks.get(session.taskId)
-    if (task === undefined) continue
+    // 工单在启动时由引擎恢复（各开一次新的执行），这里只管团队任务。
+    if (task === undefined || isTicket(task)) continue
     if (session.kind === 'task' && task.status === 'running') {
       remind(
         session,
-        '[dsh-bot] dsh web 重启过，这个任务的上一轮被中断了，在后台跑的命令也跟着停了。看一下任务文件夹里已有的产出，从停下的地方接着做，没跑完的命令要用就重跑；做完调用 complete_task。',
+        '[dsh-bot] dsh web 重启过，这个任务的上一轮被中断了，在后台跑的命令也跟着停了。看一下任务文件夹里已有的产出，从停下的地方接着做，没跑完的命令要用就重跑；做完用 report 汇报。',
         t('dsh 重启后接着做'),
       )
     }
@@ -57,8 +59,11 @@ export function startRuntime(pod: PodRuntime): () => void {
   })
   pod.rooms.ensureLeadRoom()
   const stopAibot = pod.aibot.start()
-  // 上次没交出的接着交，交了没收进历史的查过再重交；然后副作用队列开始干活。
+  // 上次没交出的接着交，交了没收进历史的查过再重交；没结束的执行记成被打断、各开一次新的；然后副作用队列开始干活。
   pod.dispatcher.recover()
+  pod.engine.tickets.refreshOpen()
+  pod.engine.runs.recoverInterrupted()
+  pod.launcher.recover()
   pod.effects.start()
   // 上次 dsh web 退出时正在执行的浏览器写操作和 X 写操作：标为状态未知，先问你。
   pod.browser.approvals.markUnknown()
@@ -97,7 +102,7 @@ export function startRuntime(pod: PodRuntime): () => void {
   return () => {
     pod.effects.stop()
     pod.dispatcher.stop()
-    pod.tasks.dispose()
+    pod.turns.dispose()
     for (const timer of timeouts) clearTimeout(timer)
     for (const timer of intervals) clearInterval(timer)
     pod.sleep.stop()

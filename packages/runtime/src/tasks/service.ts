@@ -10,10 +10,12 @@ import {
   rootTaskFolder,
   t,
   type Bot,
+  type OriginQuote,
   type PodResult,
   type PodSession,
   type Task,
   type TaskActivity,
+  type TaskOrigin,
   type TaskResult,
   type TaskSnapshot,
   type TaskStatus,
@@ -23,40 +25,40 @@ import {
   appendTaskEvent,
   findDelegated,
   getTask,
-  stuckDelivery,
-  insertTask,
+  latestReport,
+  latestRun,
   listRootTasks,
   listTaskEvents,
   listTaskTree,
+  stuckDelivery,
+  transaction,
+  unansweredOwnerMessages,
   updateTask,
   type TaskEvent,
   type TaskPatch,
 } from 'pod-store'
-import type { Dispatcher } from '../effects/delivery.ts'
-import { noticeSource, relaySource } from '../agents/messages.ts'
-import type { TurnFailure } from '../agents/observer.ts'
+import { noticeSource, ownerSource, relaySource } from '../agents/messages.ts'
 import type { SessionRegistry } from '../agents/registry.ts'
 import type { BotService } from '../bots/service.ts'
 import type { RoomService } from '../chat/rooms.ts'
-import { failureKind, failureReason } from '../chat/turn-errors.ts'
 import type { Auditor } from '../core/audit.ts'
 import type { PodBus } from '../core/bus.ts'
-import type { AgentRegistry } from '../dsh.ts'
+import type { AgentRegistry, MessageSource } from '../dsh.ts'
+import type { Dispatcher } from '../effects/delivery.ts'
+import { isTicket, type Engine } from '../engine/index.ts'
 import type { UsageMeter } from '../usage/meter.ts'
-import { doneNote } from '../orchestrator/texts.ts'
-import { composeBrief, nudgeText, resumeText } from './brief.ts'
-import { ModelRetries, RETRY_DELAYS_MS } from './retries.ts'
 import { snapshotText } from './snapshot.ts'
-
-/** 一轮结束却没提交，最多提醒几次；还没进展就交回给派活的人。 */
-const MAX_NUDGES = 3
 
 /** 给任务的消息连续交不出去几次，任务卡上显示“消息没送到”。 */
 const UNDELIVERED_AFTER = 3
 
+/** 派活时最多把你的几句原话放进来由。 */
+const ORIGIN_QUOTES = 5
+
 export interface TaskServiceDeps {
   readonly db: DatabaseSync
   readonly bus: PodBus
+  readonly engine: Engine
   readonly bots: BotService
   readonly registry: SessionRegistry
   readonly dispatcher: Dispatcher
@@ -67,20 +69,11 @@ export interface TaskServiceDeps {
   readonly workspaceRoot: string
   readonly now: () => number
   readonly activity: (sessionId: string) => TaskActivity | undefined
-  /** 会话还有几个命令在后台跑。 */
-  readonly backgroundJobs: (sessionId: string) => number
   readonly openWaits: (rootId: string) => number
   /** 根任务停止、继续、取消、交付时，等你事项跟着变；交付时返回要写进“前提和待确认”的已绕过事项。 */
   readonly onRootStateChange: (rootId: string, change: 'stopped' | 'resumed' | 'cancelled' | 'delivered') => readonly string[]
-  /** 任务完成、失败时发通知。 */
-  readonly notify: (task: Task, event: 'done' | 'failed' | 'stalled') => void
   /** 团队子任务提交后交给组长验收，返回进入待验收的子任务。 */
   readonly onSubtaskSubmitted: (task: Task, result: TaskResult) => Task
-  /** 团队子任务停滞或失败，交给组长处理。 */
-  readonly onSubtaskStalled: (task: Task, reason: string) => void
-  /** 任务会话上下文太长时换段；换了就不再提醒。 */
-  readonly shouldRotate: (session: PodSession) => boolean
-  readonly rotateTask: (session: PodSession, task: Task) => Promise<void>
   /** 每条任务事件（验收、复盘经验……）写下后通知，自我优化从这里取反馈。 */
   readonly onEvent?: (task: Task, kind: string, actor: string, data: Readonly<Record<string, unknown>>) => void
 }
@@ -95,27 +88,28 @@ export interface DelegateInput {
   readonly assumptions: readonly string[]
   readonly urgent: boolean
   readonly reason: string
+  /** 来由里的原话；不给就取派活的聊天室里你还没得到回复的话。 */
+  readonly quotes?: readonly OriginQuote[]
 }
 
-export type ControlAction = 'pause' | 'resume' | 'stop' | 'cancel'
+/** 暂停是停下这次执行；继续开一次新的；停止、取消结束任务；重试再做一次；收下是你验收通过。 */
+export type ControlAction = 'pause' | 'resume' | 'stop' | 'cancel' | 'retry' | 'accept'
 
-interface NudgeState {
-  readonly count: number
-  readonly fingerprint: string
-}
-
-function progressFingerprint(task: Task): string {
-  return `${task.acceptance.filter((item) => item.done).length}|${task.note}|${task.status}`
+const CONTROL_NOTES: Readonly<Record<ControlAction, string>> = {
+  pause: '「{title}」已暂停',
+  resume: '「{title}」已继续',
+  stop: '「{title}」已停止',
+  cancel: '「{title}」已取消',
+  retry: '「{title}」重新做一次',
+  accept: '「{title}」你收下了',
 }
 
 /**
- * 任务：委派（L1，也包括主管交给自己的后台活）、进度、提交、提醒，以及暂停、停止、继续、取消。
- * 团队任务（L2、L3）的拆分和调度在 M4 的编排器里，复用这里的子任务执行部分。
+ * 任务：派活、你的话转给任务、暂停继续停止重试收下、任务卡上的快照。
+ * 单个 bot 的任务是工单（引擎按执行和汇报管，阶段由事实推出）；团队任务的拆分和调度还在编排器里，状态照旧。
  */
 export class TaskService {
   private readonly waiters = new Map<string, Set<(task: Task) => void>>()
-  private readonly nudges = new Map<string, NudgeState>()
-  private readonly retries = new ModelRetries()
   private readonly emitTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private readonly deps: TaskServiceDeps
 
@@ -123,13 +117,12 @@ export class TaskService {
     this.deps = deps
   }
 
-  /** Pod 停止时取消还没到点的重试。 */
-  dispose(): void {
-    this.retries.dispose()
-  }
-
   private get db(): DatabaseSync {
     return this.deps.db
+  }
+
+  private get engine(): Engine {
+    return this.deps.engine
   }
 
   get(id: string): Task | undefined {
@@ -154,17 +147,21 @@ export class TaskService {
     return activeTasksForBot(this.db, botId).length
   }
 
+  events(rootId: string): readonly TaskEvent[] {
+    return listTaskEvents(this.db, rootId)
+  }
+
   /** 这条会话这一轮（从 since 起）已经派过同名的任务了吗：模型重复调用 delegate 时不再建第二个。 */
   delegatedSince(requesterSession: string, title: string, since: number): Task | undefined {
     return findDelegated(this.db, requesterSession, title, since)
   }
 
-  events(rootId: string): readonly TaskEvent[] {
-    return listTaskEvents(this.db, rootId)
-  }
-
-  /** 等你事项让任务进入或离开“等你”。 */
+  /** 等你事项让任务进入或离开“等你”；工单的阶段由开着的等你推出来。 */
   setWaiting(task: Task, waiting: boolean): void {
+    if (isTicket(task)) {
+      this.engine.tickets.refresh(task.id)
+      return
+    }
     if (waiting && (task.status === 'running' || task.status === 'review')) this.write(task, { status: 'waiting' })
     if (!waiting && task.status === 'waiting') this.write(task, { status: 'running' })
   }
@@ -182,7 +179,9 @@ export class TaskService {
     this.emitTimers.set(key, timer)
   }
 
-  private write(task: Task, patch: TaskPatch): Task {
+  /** 改任务字段：工单经引擎（阶段跟着重算），团队任务照旧直接写。 */
+  write(task: Task, patch: TaskPatch): Task {
+    if (isTicket(task)) return this.engine.tickets.patch(task, patch)
     const updated = updateTask(this.db, task.id, patch, this.deps.now()) ?? task
     this.touched(updated)
     return updated
@@ -193,83 +192,66 @@ export class TaskService {
     this.deps.onEvent?.(task, kind, actor, data)
   }
 
-  /** 把一件事交给一个 bot：建任务、开任务会话、在对话里放任务卡、投出任务说明。 */
-  async delegate(input: DelegateInput): Promise<PodResult<Task>> {
-    const { requester, bot } = input
-    const now = this.deps.now()
-    const id = newId('task')
-    const task = insertTask(this.db, {
-      id,
-      rootId: id,
-      parentId: null,
-      roomId: requester.roomId,
-      teamId: null,
-      title: input.title,
-      brief: input.brief,
-      kind: '',
-      deliverable: input.deliverable,
-      acceptance: newAcceptance(input.acceptance),
-      dependsOn: [],
-      needs: { browser: false, shell: false },
-      ownerBotId: bot.id,
-      level: bot.role === 'lead' ? 'L0' : 'L1',
-      status: 'running',
-      stage: 'execute',
-      folder: rootTaskFolder({ id, title: input.title }),
-      urgent: input.urgent,
-      tainted: requester.tainted,
-      createdBy: requester.id,
-      requesterSession: requester.id,
-      now,
-    })
-    const updated = this.write(task, { startedAt: now })
-    this.event(updated, 'delegated', requester.botId, { to: bot.id, reason: input.reason })
-    this.deps.audit.record('task.delegate', requester.botId, id, { to: bot.id, title: input.title, reason: input.reason })
-    let session: PodSession
-    try {
-      session = await this.deps.registry.open({
-        bot,
-        kind: 'task',
-        roomId: null,
-        taskId: id,
-        folder: updated.folder,
-        title: t('dsh-bot · 任务 · {title}', { title: input.title }),
-        tainted: requester.tainted,
-      })
-    } catch (error) {
-      const failed = this.write(updated, { status: 'failed', note: t('开任务会话失败：{value}', { value: error instanceof Error ? error.message : String(error) }) })
-      return fail('session-unavailable', failed.note)
-    }
-    if (updated.roomId !== null) {
-      this.deps.rooms.post(updated.roomId, {
-        author: requester.botId,
-        kind: 'task-card',
-        body: input.title,
-        data: { taskId: id, rootId: id },
-        sessionId: session.id,
-      })
-    }
-    const fromName = this.deps.bots.get(requester.botId)?.name ?? '主管'
-    this.deps.dispatcher.enqueue({
-      sessionId: session.id,
-      mode: 'followup',
-      priority: input.urgent ? PRIORITY.urgent : PRIORITY.task,
-      text: composeBrief(updated, {
-        fromName,
-        assumptions: input.assumptions,
-        conventions: [],
-        upstream: [],
-        workspaceRoot: this.deps.workspaceRoot,
-      }),
-      source: relaySource(requester.id),
-    })
-    return ok(updated)
+  /** 派活的聊天室里你还没得到回复的话：放进来由。 */
+  private ownerQuotes(requester: PodSession): readonly OriginQuote[] {
+    if (requester.roomId === null) return []
+    return unansweredOwnerMessages(this.db, requester.roomId, requester.botId, ORIGIN_QUOTES).map((message) => ({ messageId: message.id, author: t('用户'), text: message.body }))
   }
 
-  /** 等任务结束，最多等 ms；超时返回 undefined（任务照常在后台进行）。 */
+  /** 把一件事交给一个 bot：开任务（来由原样放进来）、排第一次执行、在对话里放任务卡；会话由开工副作用去开。 */
+  delegate(input: DelegateInput): Promise<PodResult<Task>> {
+    const { requester, bot } = input
+    const id = newId('task')
+    const quotes = input.quotes ?? this.ownerQuotes(requester)
+    const origin: TaskOrigin = {
+      kind: quotes.length > 0 ? 'owner' : 'bot',
+      quotes,
+      requester: quotes.length > 0 ? 'owner' : requester.botId,
+      roomId: requester.roomId,
+      rule: null,
+      title: input.title,
+      note: input.brief,
+    }
+    const task = transaction(this.db, () => {
+      const opened = this.engine.tickets.open({
+        id,
+        rootId: id,
+        parentId: null,
+        roomId: requester.roomId,
+        teamId: null,
+        title: input.title,
+        brief: input.brief,
+        kind: '',
+        deliverable: input.deliverable,
+        acceptance: newAcceptance(input.acceptance),
+        dependsOn: [],
+        needs: { browser: false, shell: false },
+        ownerBotId: bot.id,
+        level: bot.role === 'lead' ? 'L0' : 'L1',
+        folder: rootTaskFolder({ id, title: input.title }),
+        urgent: input.urgent,
+        tainted: requester.tainted,
+        createdBy: requester.id,
+        requesterSession: requester.id,
+        origin,
+        replyTo: requester.roomId === null ? [] : [{ roomId: requester.roomId, messageId: quotes.at(-1)?.messageId ?? null }],
+        actor: requester.botId,
+      })
+      this.event(opened, 'delegated', requester.botId, { to: bot.id, reason: input.reason })
+      this.engine.runs.queue(opened.id, 'new', { assumptions: input.assumptions })
+      return this.get(id) ?? opened
+    })
+    this.deps.audit.record('task.delegate', requester.botId, id, { to: bot.id, title: input.title, reason: input.reason })
+    if (task.roomId !== null) {
+      this.deps.rooms.post(task.roomId, { author: requester.botId, kind: 'task-card', body: input.title, data: { taskId: id, rootId: id } })
+    }
+    return Promise.resolve(ok(task))
+  }
+
+  /** 等任务有结果（结束、就绪、受阻、失败），最多等 ms；超时返回 undefined（任务照常在后台进行）。 */
   awaitResult(taskId: string, ms: number, signal: AbortSignal): Promise<Task | undefined> {
     const current = this.get(taskId)
-    if (current !== undefined && isTerminal(current.status)) return Promise.resolve(current)
+    if (current !== undefined && (current.endedAt !== null || isTerminal(current.status))) return Promise.resolve(current)
     return new Promise((resolve) => {
       const listeners = this.waiters.get(taskId) ?? new Set()
       const done = (task: Task | undefined): void => {
@@ -289,11 +271,12 @@ export class TaskService {
     })
   }
 
-  private hasWaiter(taskId: string): boolean {
+  hasWaiter(taskId: string): boolean {
     return (this.waiters.get(taskId)?.size ?? 0) > 0
   }
 
-  private finish(task: Task): void {
+  /** 有结果了：叫醒等着它的 delegate。 */
+  finish(task: Task): void {
     for (const listener of [...(this.waiters.get(task.id) ?? [])]) listener(task)
   }
 
@@ -302,7 +285,7 @@ export class TaskService {
     return session.taskId === null ? undefined : this.get(session.taskId)
   }
 
-  /** update_task：勾验收项（编号从 1 开始）、写进度说明。 */
+  /** 团队子任务的进展：勾验收项（编号从 1 开始）、写进度说明。 */
   progress(session: PodSession, check: readonly number[], note: string): PodResult<Task> {
     const task = this.taskOf(session)
     if (task === undefined || session.kind !== 'task') return fail('not-found', t('这条会话没有对应的任务'))
@@ -314,159 +297,120 @@ export class TaskService {
     return ok(updated)
   }
 
-  /** complete_task：提交结果。单个 bot 的任务提交即交付；团队子任务交给组长验收（M4）。 */
-  complete(session: PodSession, result: TaskResult): PodResult<Task> {
+  /** 团队子任务交上来：交给组长验收。 */
+  submit(session: PodSession, result: TaskResult): PodResult<Task> {
     const task = this.taskOf(session)
     if (task === undefined || session.kind !== 'task') return fail('not-found', t('这条会话没有对应的任务'))
     if (isTerminal(task.status)) return fail('conflict', t('任务已经结束'))
     if (task.status === 'review') return fail('conflict', t('已经提交过了，正在等组长验收'))
-    if (task.parentId !== null) {
-      const submitted = this.deps.onSubtaskSubmitted(task, result)
-      this.event(submitted, 'submitted', session.botId, { summary: result.summary, files: result.files })
-      this.nudges.delete(task.id)
-      this.retries.clear(task.id)
-      return ok(submitted)
-    }
-    const now = this.deps.now()
-    const acceptance = task.acceptance.map((item) => (item.done ? item : { ...item, done: true, at: now }))
-    const bypassed = this.deps.onRootStateChange(task.rootId, 'delivered')
-    const merged: TaskResult = { ...result, unverified: [...result.unverified, ...bypassed] }
-    const delivered = this.write(task, { status: 'done', stage: 'done', result: merged, acceptance, finishedAt: now })
-    this.event(delivered, 'completed', session.botId, { summary: result.summary, files: result.files })
-    const bot = this.deps.bots.get(session.botId)
-    const room = delivered.roomId === null ? undefined : this.deps.rooms.get(delivered.roomId)
-    // 群里交给成员的活：成员自己在群里说做完了什么；单聊里照旧由派活的主管转述。
-    if (room !== undefined && room.kind !== 'direct' && bot !== undefined && bot.role !== 'lead') {
-      this.deps.rooms.post(room.id, { author: bot.id, kind: 'text', body: doneNote(delivered, merged, undefined), sessionId: session.id, data: { taskId: delivered.id } })
-    } else {
-      this.deps.rooms.milestone(delivered.roomId, t('{value} 交付了「{title}」', { value: bot?.name ?? 'bot', title: delivered.title }), { taskId: delivered.id })
-    }
-    this.nudges.delete(delivered.id)
-    this.retries.clear(delivered.id)
-    const awaited = this.hasWaiter(delivered.id)
-    this.finish(delivered)
-    if (!awaited) this.tellRequester(delivered, `[任务交付] 「${delivered.title}」已完成，任务卡已经变成交付卡发给用户。摘要：${result.summary}`)
-    this.deps.notify(delivered, 'done')
-    if (bot !== undefined && bot.temporary && bot.role === 'member') this.retireTemporary(bot)
-    return ok(this.get(delivered.id) ?? delivered)
+    const submitted = this.deps.onSubtaskSubmitted(task, result)
+    this.event(submitted, 'submitted', session.botId, { summary: result.summary, files: result.files })
+    return ok(submitted)
   }
 
-  /** 后台任务结束后告诉派活的会话：用 inject，不唤醒它，下一轮自然带上。 */
-  private tellRequester(task: Task, text: string): void {
+  /** 后台任务有结果后告诉派活的会话：用 inject，不唤醒它，下一轮自然带上。 */
+  tellRequester(task: Task, text: string): void {
     if (task.requesterSession === null) return
-    this.deps.dispatcher.enqueue({
-      sessionId: task.requesterSession,
-      mode: 'inject',
-      priority: PRIORITY.task,
-      text,
-      source: noticeSource(text),
-    })
+    this.deps.dispatcher.enqueue({ sessionId: task.requesterSession, mode: 'inject', priority: PRIORITY.task, text, source: noticeSource(text) })
   }
 
   /** 临时 bot 手上没活了就归档（30 天内可恢复）。 */
-  private retireTemporary(bot: Bot): void {
+  retireTemporary(bot: Bot): void {
     const busy = this.deps.registry
       .active()
-      .some((session) => session.botId === bot.id && session.taskId !== null && !isTerminal(this.get(session.taskId)?.status ?? 'done'))
+      .some((session) => session.botId === bot.id && session.taskId !== null && this.get(session.taskId)?.endedAt === null)
     if (!busy) this.deps.bots.archiveById(bot.id, 'pod')
   }
 
   /**
-   * 一轮结束：任务会话还没提交，就提醒它继续；连续几次没进展，交回给派活的人。
-   * 模型出错结束的不催：临时的等一会儿自己重试，要你处理的（认证、额度、没配模型）暂停任务等你。
+   * 你的话（或转达的话）交给任务：在做就直接送进会话（正在跑插进当前这一轮）；没在做就开一次新的执行；
+   * 结束了的重新打开再做，你停掉的除外。团队任务照旧送进在执行的会话。
    */
-  onTurnEnd(session: PodSession, reason: string, failure?: TurnFailure): void {
-    if (session.kind !== 'task') return
-    const task = this.taskOf(session)
-    if (task === undefined || task.status !== 'running') return
-    if (reason === 'aborted' || reason === 'blocked') return
-    const active = this.deps.registry.activeForTask(task.id, 'task')
-    if (active?.id !== session.id) return
-    const kind = failure === undefined ? undefined : failureKind(failure)
-    if (failure !== undefined && kind === 'transient') {
-      this.retryLater(session, task, failure)
-      return
+  sendToTask(task: Task, text: string, source: MessageSource, quote: string): PodResult<Task> {
+    if (isTicket(task)) {
+      if (task.endedAt !== null) {
+        if (task.endReason === 'stopped') return fail('conflict', t('任务已经停掉了；要接着做，先点继续'))
+        this.engine.tickets.reopen(task.id, source.kind === 'user' ? 'owner' : 'pod')
+      }
+      const run = this.engine.runs.current(task.id)
+      if (run?.status === 'running' && run.sessionId !== null) {
+        this.deliver(run.sessionId, text, source)
+        return ok(this.get(task.id) ?? task)
+      }
+      this.engine.runs.queue(task.id, 'message', { messages: [quote] })
+      return ok(this.get(task.id) ?? task)
     }
-    this.retries.clear(task.id)
-    if (failure !== undefined && kind === 'owner') {
-      this.hold(task, t('{reason}。处理好以后点继续', { reason: failureReason(failure) }))
-      return
-    }
-    // 命令转到后台接着跑：跑完 dsh 会叫醒这条会话，这时不催，也不换段（换段会关掉会话，命令跟着停）。
-    if (this.deps.backgroundJobs(session.id) > 0) return
-    if (this.deps.shouldRotate(session)) {
-      void this.deps.rotateTask(session, task)
-      return
-    }
-    const fingerprint = progressFingerprint(task)
-    const previous = this.nudges.get(task.id)
-    const count = previous === undefined || previous.fingerprint !== fingerprint ? 1 : previous.count + 1
-    this.nudges.set(task.id, { count, fingerprint })
-    if (count > MAX_NUDGES) {
-      this.stall(task)
-      return
-    }
-    const text = nudgeText(task, count)
-    this.deps.dispatcher.enqueue({
-      sessionId: session.id,
-      mode: 'followup',
-      priority: task.urgent ? PRIORITY.urgent : PRIORITY.task,
-      text,
-      source: noticeSource(t('提醒提交任务（第 {count} 次）', { count })),
-    })
+    if (isTerminal(task.status)) return fail('conflict', t('任务已经结束，新的要求请建新任务'))
+    const session = this.deps.registry.activeForTask(task.id, 'task') ?? this.deps.registry.activeForTask(task.id, 'coord')
+    if (session === undefined) return fail('not-found', t('这个任务现在没有在执行的会话'))
+    this.deliver(session.id, text, source)
+    return ok(task)
   }
 
-  /** 模型临时出错：等一会儿叫它从停下的地方接着做，不算催促；重试几次都不行就暂停任务。 */
-  private retryLater(session: PodSession, task: Task, failure: TurnFailure): void {
-    const count = this.retries.schedule(task.id, (attempt) => {
-      const current = this.get(task.id)
-      if (current?.status !== 'running' || this.deps.registry.activeForTask(task.id, 'task')?.id !== session.id) return
-      // 这期间它已经动起来了（比如你说了话），不用再叫。
-      if (this.deps.dispatcher.isRunning(session.id)) return
-      this.deps.dispatcher.enqueue({
-        sessionId: session.id,
-        mode: 'followup',
-        priority: current.urgent ? PRIORITY.urgent : PRIORITY.task,
-        text: '[dsh-bot] 刚才模型服务出错，上一轮没做完。从停下的地方接着做。',
-        source: noticeSource(t('模型服务出错，第 {attempt} 次重试', { attempt })),
-      })
-    })
-    if (count !== undefined) return
-    this.hold(task, t('模型服务连着出错，自动重试了 {count} 次都没成（{code}）。服务恢复后点继续', { count: RETRY_DELAYS_MS.length, code: failure.code }))
+  private deliver(sessionId: string, text: string, source: MessageSource): void {
+    this.deps.dispatcher.enqueue({ sessionId, mode: this.deps.dispatcher.isRunning(sessionId) ? 'steer' : 'followup', priority: PRIORITY.owner, text, source })
   }
 
-  /** 停下等你：整个任务暂停，原因写进对话里那一行和提醒；进度说明不动，你点继续时它照着接着做。 */
-  private hold(task: Task, reason: string): void {
-    const paused = this.control(task.id, 'pause', 'pod', reason)
-    if (paused.ok) this.deps.notify({ ...(this.get(task.id) ?? task), note: reason }, 'stalled')
-  }
-
-  private stall(task: Task): void {
-    this.retries.clear(task.id)
-    const updated = this.write(task, { status: 'failed', note: t('连续 {MAX_NUDGES} 次提醒都没有进展，已停下等处理', { MAX_NUDGES }) })
-    this.event(updated, 'stalled', 'pod', {})
-    if (updated.parentId !== null) {
-      this.deps.onSubtaskStalled(updated, updated.note)
-      return
-    }
-    this.deps.rooms.milestone(updated.roomId, t('「{title}」多次提醒仍没有进展，已停下', { title: updated.title }), { taskId: updated.id })
-    this.finish(updated)
-    this.tellRequester(updated, `[任务停滞] 「${updated.title}」连续 ${MAX_NUDGES} 次提醒都没有进展，已经停下。可以换人、拆小或者自己来做。`)
-    this.deps.notify(updated, 'stalled')
-  }
-
-  /** 暂停、继续、停止、取消；作用于整棵任务树。why 是 dsh-bot 自己暂停时的原因，写进对话里的那一行。 */
+  /** 暂停、继续、停止、取消、重试、收下；作用于整棵任务树。why 是 dsh-bot 自己暂停时的原因，写进对话里的那一行。 */
   control(taskId: string, action: ControlAction, actor: string, why?: string): PodResult<Task> {
     const root = this.get(this.rootOf(taskId) ?? taskId)
     if (root === undefined) return fail('not-found', t('找不到这个任务'))
-    const tree = this.tree(root.id)
+    const result = isTicket(root) ? this.controlTicket(root, action, actor) : this.controlTeam(root, action)
+    if (!result.ok) return result
+    // 停掉，或者停下工单的这次执行：正在跑的一轮也停下，排着的消息撤掉。
+    if (action === 'stop' || action === 'cancel' || (action === 'pause' && isTicket(root))) {
+      const sessions = this.tree(root.id)
+        .flatMap((task) => this.deps.registry.forTask(task.id))
+        .filter((session) => session.status === 'active')
+      for (const session of sessions) {
+        this.deps.dispatcher.cancelPending(session.id)
+        this.deps.agents.get(session.id)?.cancel({ kind: 'user' })
+      }
+    }
+    if (action !== 'accept') this.deps.onRootStateChange(root.id, action === 'cancel' ? 'cancelled' : action === 'stop' ? 'stopped' : 'resumed')
+    this.event(root, `control.${action}`, actor, why === undefined ? {} : { why })
+    this.deps.audit.record(`task.${action}`, actor, root.id, { title: root.title })
+    const line = t(CONTROL_NOTES[action], { title: root.title })
+    this.deps.rooms.milestone(root.roomId, why === undefined ? line : t('{line}：{why}', { line, why }), { taskId: root.id })
+    const after = this.get(root.id) ?? root
+    if (action === 'stop' || action === 'cancel' || action === 'accept') this.finish(after)
+    return ok(after)
+  }
+
+  private controlTicket(task: Task, action: ControlAction, actor: string): PodResult<Task> {
+    const run = this.engine.runs.current(task.id)
+    switch (action) {
+      case 'pause':
+        if (run === undefined) return fail('conflict', t('任务现在没有在做'))
+        this.engine.runs.end(run.id, 'paused')
+        return ok(task)
+      case 'resume':
+      case 'retry': {
+        if (run !== undefined) return fail('conflict', t('任务正在做'))
+        if (task.endedAt !== null && this.engine.tickets.reopen(task.id, actor, true) === undefined) return fail('conflict', t('任务现在的状态不能这样操作'))
+        const queued = this.engine.runs.queue(task.id, action, {})
+        return queued === undefined ? fail('conflict', t('任务现在的状态不能这样操作')) : ok(task)
+      }
+      case 'stop':
+      case 'cancel':
+        if (task.endedAt !== null) return fail('conflict', t('任务已经结束'))
+        this.engine.tickets.end(task.id, 'stopped', actor)
+        return ok(task)
+      case 'accept':
+        if (task.endedAt !== null) return fail('conflict', t('任务已经结束'))
+        this.engine.tickets.end(task.id, 'done', actor)
+        return ok(task)
+    }
+  }
+
+  private controlTeam(root: Task, action: ControlAction): PodResult<Task> {
     const now = this.deps.now()
-    const sessions = tree.flatMap((task) => this.deps.registry.forTask(task.id)).filter((session) => session.status === 'active')
     const target = (task: Task): TaskStatus | undefined => {
       switch (action) {
         case 'pause':
           return task.status === 'running' || task.status === 'waiting' ? 'paused' : undefined
         case 'resume':
+        case 'retry':
           // 从没开工过的子任务回到排队，由调度按依赖派出；开过工的接着做。
           if (task.status !== 'paused' && task.status !== 'stopped') return undefined
           return task.startedAt === null && task.parentId !== null ? 'queued' : 'running'
@@ -474,44 +418,32 @@ export class TaskService {
           return isTerminal(task.status) || task.status === 'stopped' ? undefined : 'stopped'
         case 'cancel':
           return isTerminal(task.status) ? undefined : 'cancelled'
+        case 'accept':
+          return task.id === root.id && task.status === 'review' ? 'done' : undefined
       }
     }
-    const changed = tree.filter((task) => target(task) !== undefined)
+    const changed = this.tree(root.id).filter((task) => target(task) !== undefined)
     if (changed.length === 0) return fail('conflict', t('任务现在的状态不能这样操作'))
     for (const task of changed) {
       const status = target(task)
       if (status === undefined) continue
-      this.retries.clear(task.id)
       const previous = task.status
-      const updated = this.write(task, { status, ...(status === 'cancelled' ? { finishedAt: now } : {}) })
-      if (action === 'resume' && status === 'running') this.resumeSession(updated, previous === 'stopped' ? 'stopped' : 'paused')
+      const updated = this.write(task, { status, ...(status === 'cancelled' || status === 'done' ? { finishedAt: now } : {}) })
+      if ((action === 'resume' || action === 'retry') && status === 'running') this.resumeSession(updated, previous === 'stopped' ? 'stopped' : 'paused')
     }
-    if (action === 'stop' || action === 'cancel') {
-      for (const session of sessions) {
-        this.deps.dispatcher.cancelPending(session.id)
-        this.deps.agents.get(session.id)?.cancel({ kind: 'user' })
-      }
-    }
-    this.deps.onRootStateChange(root.id, action === 'cancel' ? 'cancelled' : action === 'stop' ? 'stopped' : 'resumed')
-    const notes: Readonly<Record<ControlAction, string>> = { pause: '「{title}」已暂停', resume: '「{title}」已继续', stop: '「{title}」已停止', cancel: '「{title}」已取消' }
-    this.event(root, `control.${action}`, actor, why === undefined ? {} : { why })
-    this.deps.audit.record(`task.${action}`, actor, root.id, { title: root.title })
-    const line = t(notes[action], { title: root.title })
-    this.deps.rooms.milestone(root.roomId, why === undefined ? line : t('{line}：{why}', { line, why }), { taskId: root.id })
-    const after = this.get(root.id) ?? root
-    if (action === 'cancel') this.finish(after)
-    return ok(after)
+    return ok(root)
   }
 
   private resumeSession(task: Task, after: 'paused' | 'stopped'): void {
     const session = this.deps.registry.activeForTask(task.id, 'task')
     if (session === undefined) return
-    this.nudges.delete(task.id)
+    const why = after === 'paused' ? '任务暂停后继续了' : '任务被停止后，用户让它继续'
+    const note = task.note === '' ? '' : `你最近的进度说明是：「${task.note}」。`
     this.deps.dispatcher.enqueue({
       sessionId: session.id,
       mode: 'followup',
       priority: task.urgent ? PRIORITY.urgent : PRIORITY.task,
-      text: resumeText(task, after),
+      text: `[dsh-bot] ${why}。${note}从停下的地方接着做；已完成的部分不用重做。`,
       source: noticeSource(t('任务继续')),
     })
   }
@@ -524,50 +456,42 @@ export class TaskService {
     const session = this.deps.registry.get(sessionId)
     if (session === undefined || session.taskId === null || session.kind === 'chat') return false
     const task = this.get(session.taskId)
-    return task !== undefined && (task.status === 'paused' || task.status === 'stopped' || task.status === 'cancelled')
+    if (task === undefined) return false
+    if (isTicket(task)) {
+      if (task.endedAt !== null) return task.endReason === 'stopped'
+      if (this.engine.runs.current(task.id) !== undefined) return false
+      return latestRun(this.db, task.id)?.outcome === 'paused'
+    }
+    return task.status === 'paused' || task.status === 'stopped' || task.status === 'cancelled'
   }
 
   /** 把你的纠正或补充转达给任务：必须带着你的原话。 */
   relay(taskId: string, ownerQuote: string, message: string, from: PodSession): PodResult<Task> {
     const task = this.get(taskId)
     if (task === undefined) return fail('not-found', t('找不到这个任务'))
-    if (isTerminal(task.status)) return fail('conflict', t('任务已经结束，新的要求请建新任务'))
     if (ownerQuote === '') return fail('invalid-input', t('转达必须原样引用用户的话'))
-    const session = this.deps.registry.activeForTask(task.id, 'task') ?? this.deps.registry.activeForTask(task.id, 'coord')
-    if (session === undefined) return fail('not-found', t('这个任务现在没有在执行的会话'))
     const text = `[用户补充，经${this.deps.bots.get(from.botId)?.name ?? '主管'}转达]\n[用户原话] ${ownerQuote}${message === '' ? '' : `\n说明：${message}`}`
-    this.deps.dispatcher.enqueue({
-      sessionId: session.id,
-      mode: this.deps.dispatcher.isRunning(session.id) ? 'steer' : 'followup',
-      priority: PRIORITY.owner,
-      text,
-      source: relaySource(from.id),
-    })
+    const sent = this.sendToTask(task, text, relaySource(from.id), ownerQuote)
+    if (!sent.ok) return sent
     this.event(task, 'relayed', from.botId, { quote: ownerQuote, message })
+    if (from.roomId !== null && isTicket(task)) this.engine.tickets.addReplyTarget(this.get(task.id) ?? task, { roomId: from.roomId, messageId: null })
     this.deps.rooms.post(task.roomId ?? from.roomId ?? '', {
       author: 'pod',
       kind: 'receipt',
       body: t('已转达给「{title}」，下一步生效', { title: task.title }),
       data: { taskId: task.id },
     })
-    return ok(task)
+    return ok(sent.value)
   }
 
-  /** “直接对任务说”：你的话直接进任务会话。 */
+  /** “直接对任务说”：你的话直接进任务；做完了的接着做。 */
   talk(taskId: string, text: string): PodResult<Task> {
     const task = this.get(taskId)
     if (task === undefined) return fail('not-found', t('找不到这个任务'))
-    const session = this.deps.registry.activeForTask(task.id, 'task') ?? this.deps.registry.activeForTask(task.id, 'coord')
-    if (session === undefined) return fail('not-found', t('这个任务现在没有在执行的会话'))
-    this.deps.dispatcher.enqueue({
-      sessionId: session.id,
-      mode: this.deps.dispatcher.isRunning(session.id) ? 'steer' : 'followup',
-      priority: PRIORITY.owner,
-      text: `[用户原话，直接对任务说] ${text}`,
-      source: { kind: 'user' },
-    })
+    const sent = this.sendToTask(task, `[用户原话，直接对任务说] ${text}`, ownerSource(), text)
+    if (!sent.ok) return sent
     this.event(task, 'owner-talk', 'owner', { text })
-    return ok(task)
+    return sent
   }
 
   snapshot(taskId: string): TaskSnapshot | undefined {
@@ -595,6 +519,9 @@ export class TaskService {
       tokens: usage.tokens,
       waits: this.deps.openWaits(task.rootId),
       undelivered: this.undelivered(own?.id),
+      stage: this.engine.tickets.stageOf(task),
+      run: latestRun(this.db, task.id) ?? null,
+      lastReport: latestReport(this.db, task.id) ?? null,
     }
   }
 

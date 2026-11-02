@@ -1,0 +1,235 @@
+import {
+  REPORT_STATUSES,
+  WAIT_KINDS,
+  fail,
+  needsReport,
+  ok,
+  t,
+  type PodResult,
+  type PodSession,
+  type ReportStatus,
+  type Task,
+  type TaskResult,
+  type Wait,
+  type WaitKind,
+} from 'pod-domain'
+import type { BotService } from '../bots/service.ts'
+import type { RoomService } from '../chat/rooms.ts'
+import type { ToolDefinition } from '../dsh.ts'
+import { isTicket, type Engine } from '../engine/index.ts'
+import { doneNote } from '../orchestrator/texts.ts'
+import type { PodRuntime } from '../pod.ts'
+import { failure, intList, oneOf, podTool, str, strList, success, text, texts, ints } from '../tools/define.ts'
+import type { TaskService } from './service.ts'
+import type { TaskTurns } from './turns.ts'
+
+export interface ReportArgs {
+  readonly status: ReportStatus
+  readonly summary: string
+  readonly report: string
+  readonly question: string
+  readonly questionKind: WaitKind
+  readonly aboutMessage: string | null
+  readonly replyMessage: string | null
+  /** 勾的验收项，编号从 1 开始。 */
+  readonly checks: readonly number[]
+  readonly acceptance: readonly string[]
+  readonly files: readonly string[]
+  readonly assumptions: readonly string[]
+  readonly unverified: readonly string[]
+  readonly skipped: readonly string[]
+  readonly lessons: string
+}
+
+export interface ReportingDeps {
+  readonly tasks: TaskService
+  readonly engine: Engine
+  readonly turns: TaskTurns
+  readonly rooms: RoomService
+  readonly bots: BotService
+  readonly ask: (input: { readonly session: PodSession; readonly kind: WaitKind; readonly title: string; readonly detail: string; readonly reportId: string | null }) => Wait
+  readonly notify: (task: Task, event: 'done' | 'failed' | 'stalled') => void
+  readonly onRootStateChange: (rootId: string, change: 'delivered') => readonly string[]
+  readonly onSubtaskStalled: (task: Task, reason: string) => void
+  readonly learn: (session: PodSession, task: Task, lessons: string) => void
+}
+
+/**
+ * 汇报的后续：引擎记下汇报、改执行和阶段，这里做对外的事——就绪的结果发到聊天室、受阻的问题进等你、
+ * 失败和无需处理说一句；进展和等消息不说话（只更新任务卡）。团队子任务按旧的提交、找你、停滞走。
+ */
+export class TaskReporting {
+  private readonly deps: ReportingDeps
+
+  constructor(deps: ReportingDeps) {
+    this.deps = deps
+  }
+
+  report(session: PodSession, args: ReportArgs): PodResult<{ readonly task: Task; readonly message: string }> {
+    const task = this.deps.tasks.taskOf(session)
+    if (task === undefined || session.kind !== 'task') return fail('not-found', t('这条会话没有对应的任务'))
+    if (task.endedAt !== null) return fail('conflict', t('任务已经结束'))
+    return isTicket(task) ? this.ticket(session, task, args) : this.subtask(session, task, args)
+  }
+
+  private result(args: ReportArgs, extra: readonly string[] = []): TaskResult {
+    return { summary: args.summary, files: args.files, assumptions: args.assumptions, unverified: [...args.unverified, ...extra], skipped: args.skipped }
+  }
+
+  private ticket(session: PodSession, task: Task, args: ReportArgs): PodResult<{ readonly task: Task; readonly message: string }> {
+    const { engine, tasks, rooms } = this.deps
+    const outcome = engine.runs.report({
+      task,
+      author: session.botId,
+      status: args.status,
+      summary: args.summary,
+      report: args.report,
+      question: args.question,
+      aboutMessage: args.aboutMessage,
+      replyMessage: args.replyMessage,
+      checks: args.checks.map((index) => index - 1),
+      acceptance: args.acceptance,
+      data: { files: args.files, assumptions: args.assumptions, unverified: args.unverified, skipped: args.skipped },
+    })
+    if (args.status !== 'progress') this.deps.turns.clear(task.id)
+    const bot = this.deps.bots.get(session.botId)
+    const name = bot?.name ?? 'bot'
+    switch (args.status) {
+      case 'progress':
+        return ok({ task: outcome.task, message: t('已更新任务卡') })
+      case 'waiting':
+        return ok({ task: outcome.task, message: t('已记下：这一步做完了，等后续消息。这一轮到这里结束。') })
+      case 'blocked': {
+        this.deps.ask({ session, kind: args.questionKind, title: args.question, detail: [args.summary, args.report].filter(Boolean).join('\n\n'), reportId: outcome.report.id })
+        tasks.finish(outcome.task)
+        return ok({ task: engine.tickets.get(task.id) ?? outcome.task, message: t('已经交给用户处理；用户答复后会开一次新的执行，答复带给你。这一轮到这里结束。') })
+      }
+      case 'failed':
+        rooms.milestone(task.roomId, t('「{title}」没做成：{summary}', { title: task.title, summary: args.summary }), { taskId: task.id })
+        this.deps.notify({ ...outcome.task, note: args.summary }, 'failed')
+        tasks.finish(outcome.task)
+        tasks.tellRequester(outcome.task, `[任务没做成] 「${task.title}」：${args.summary}`)
+        return ok({ task: outcome.task, message: t('已记下失败，等用户决定重试还是结束。这一轮到这里结束。') })
+      case 'dismissed':
+        rooms.milestone(task.roomId, t('「{title}」无需处理：{summary}', { title: task.title, summary: args.summary }), { taskId: task.id })
+        tasks.finish(outcome.task)
+        return ok({ task: outcome.task, message: t('已记下：无需处理，任务结束。') })
+      case 'ready': {
+        const bypassed = this.deps.onRootStateChange(task.rootId, 'delivered')
+        const result = this.result(args, bypassed)
+        const delivered = engine.tickets.patch(outcome.task, { result })
+        const room = task.roomId === null ? undefined : rooms.get(task.roomId)
+        // 群里交给成员的活：成员自己在群里说做完了什么；单聊里照旧由派活的主管转述。
+        if (room !== undefined && room.kind !== 'direct' && bot !== undefined && bot.role !== 'lead') {
+          rooms.post(room.id, { author: bot.id, kind: 'text', body: doneNote(delivered, result, undefined), sessionId: session.id, data: { taskId: delivered.id } })
+        } else if (outcome.completed) {
+          rooms.milestone(delivered.roomId, t('{value} 交付了「{title}」', { value: name, title: delivered.title }), { taskId: delivered.id })
+        } else {
+          rooms.milestone(delivered.roomId, t('{value} 做完了「{title}」，等你验收', { value: name, title: delivered.title }), { taskId: delivered.id })
+        }
+        if (args.lessons !== '') this.deps.learn(session, delivered, args.lessons)
+        const awaited = tasks.hasWaiter(delivered.id)
+        tasks.finish(delivered)
+        if (!awaited) tasks.tellRequester(delivered, `[任务交付] 「${delivered.title}」已完成，任务卡已经变成交付卡发给用户。摘要：${args.summary}`)
+        this.deps.notify(delivered, 'done')
+        if (bot !== undefined && bot.temporary && bot.role === 'member' && outcome.completed) tasks.retireTemporary(bot)
+        return ok({ task: delivered, message: outcome.completed ? t('已交付。') : t('已交上去，有没核实的地方，等用户验收。') })
+      }
+    }
+  }
+
+  /** 团队子任务：进展勾验收项，就绪交给组长验收，受阻找你，失败交给组长处理。 */
+  private subtask(session: PodSession, task: Task, args: ReportArgs): PodResult<{ readonly task: Task; readonly message: string }> {
+    const { tasks } = this.deps
+    switch (args.status) {
+      case 'progress': {
+        const updated = tasks.progress(session, args.checks, args.summary)
+        return updated.ok ? ok({ task: updated.value, message: t('已更新任务卡') }) : updated
+      }
+      case 'ready':
+      case 'dismissed': {
+        const submitted = tasks.submit(session, this.result(args))
+        if (submitted.ok && args.lessons !== '') this.deps.learn(session, submitted.value, args.lessons)
+        return submitted.ok ? ok({ task: submitted.value, message: t('已交给组长验收。') }) : submitted
+      }
+      case 'blocked':
+        this.deps.ask({ session, kind: args.questionKind, title: args.question, detail: [args.summary, args.report].filter(Boolean).join('\n\n'), reportId: null })
+        return ok({ task, message: t('已经交给用户处理；先做不依赖这件事的部分，都做不了就结束这一轮。') })
+      case 'failed': {
+        const failed = tasks.write(task, { status: 'failed', note: args.summary })
+        tasks.event(failed, 'stalled', session.botId, { reason: args.summary })
+        this.deps.onSubtaskStalled(failed, args.summary)
+        return ok({ task: failed, message: t('已交给组长处理。') })
+      }
+      case 'waiting':
+        return ok({ task, message: t('已记下。') })
+    }
+  }
+}
+
+const ASK_KINDS: readonly WaitKind[] = WAIT_KINDS.filter((kind) => kind === 'login' || kind === 'write' || kind === 'security' || kind === 'ambiguity')
+
+/** 汇报工具：任务会话用它交结果、问问题、报失败，代替以前的 update_task、complete_task、ask_owner。 */
+export function reportTool(pod: PodRuntime, session: PodSession): ToolDefinition {
+  const current = (): PodSession => pod.registry.get(session.id) ?? session
+  return podTool({
+    name: 'report',
+    description: [
+      '向 dsh-bot 汇报这个任务，一次只能是一种状态，最多附一个问题：',
+      'progress 进展（只更新任务卡，聊天室里不说话）；waiting 这一步做完了，等后续消息；ready 做完了，结果能用（写报告，勾验收项）；',
+      'blocked 缺东西做不下去（登录、权限、用户的决定），必须附一个问题；failed 试过了做不成，写原因；dismissed 看过了不用做（重复、已经做过）。',
+      'summary 是一句摘要，先写结论（就绪时作为结果发给用户）；ready、blocked、failed 还要写 report（完整报告，放任务页）。',
+      '除了 progress，汇报后这一轮结束。',
+    ].join(''),
+    properties: {
+      status: oneOf('progress / waiting / ready / blocked / failed / dismissed', [...REPORT_STATUSES]),
+      summary: str('一句摘要，先写结论和要用户做什么；不写做法和过程'),
+      report: str('完整报告（ready、blocked、failed 必填）：做了什么、结果、依据、没核实的'),
+      question: str('blocked 时要用户处理的事，一句话说清'),
+      question_kind: oneOf('问题的种类：login 需要登录或验证；write 要批准不可撤回的对外操作；security 被安全规则拦下；ambiguity 要用户拿主意', [...ASK_KINDS]),
+      about_message: str('问题针对哪条消息（消息 id，可选）'),
+      reply_message: str('这次汇报回的是哪条消息（消息 id，可选）'),
+      checks: intList('ready 或 progress 时勾上的验收项编号，从 1 开始；ready 不写就当作都过了'),
+      acceptance: strList('任务还没有验收项时，按用户的原话列出 2–5 条（第一次汇报时写）'),
+      files: strList('产出文件的路径'),
+      assumptions: strList('做了哪些假设'),
+      unverified: strList('哪些信息没核实（有的话任务等用户验收）'),
+      skipped: strList('跳过了什么、为什么'),
+      lessons: str('这次学到的做法或教训（可选，会写进你的经验）'),
+    },
+    required: ['status', 'summary'],
+    parse: (args) => {
+      const status = text(args, 'status')
+      if (!(REPORT_STATUSES as readonly string[]).includes(status)) return 'status 只能是 progress、waiting、ready、blocked、failed、dismissed'
+      const summary = text(args, 'summary')
+      if (summary === '') return '摘要不能为空'
+      const report = text(args, 'report')
+      if (needsReport(status as ReportStatus) && report === '') return `${status} 要写 report（完整报告）`
+      const question = text(args, 'question')
+      if (status === 'blocked' && question === '') return 'blocked 要附一个问题'
+      const kind = text(args, 'question_kind')
+      return {
+        status: status as ReportStatus,
+        summary,
+        report,
+        question,
+        questionKind: (ASK_KINDS as readonly string[]).includes(kind) ? (kind as WaitKind) : 'ambiguity',
+        aboutMessage: text(args, 'about_message') || null,
+        replyMessage: text(args, 'reply_message') || null,
+        checks: ints(args, 'checks'),
+        acceptance: texts(args, 'acceptance'),
+        files: texts(args, 'files'),
+        assumptions: texts(args, 'assumptions'),
+        unverified: texts(args, 'unverified'),
+        skipped: texts(args, 'skipped'),
+        lessons: text(args, 'lessons'),
+      }
+    },
+    run: (args, exec) => {
+      const result = pod.reporting.report(current(), args)
+      if (!result.ok) return failure(result.error.message)
+      if (args.status !== 'progress') exec.concludeTurn()
+      return success(result.value.message, { status: args.status, stage: result.value.task.ticketStage ?? result.value.task.status })
+    },
+  })
+}

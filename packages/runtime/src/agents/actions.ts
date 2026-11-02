@@ -36,6 +36,26 @@ type Describe = (args: Readonly<Record<string, unknown>>) => string
 /** 跑命令：dsh 要求模型每次附一句这条命令在做什么，有就用它，原始命令留给 commandOf。 */
 const runCommand: Describe = (args) => (text(args.description).trim() === '' ? t('运行命令：{short}', { short: short(text(args.command)) }) : short(text(args.description)))
 
+/** 汇报按状态说成一件事。 */
+function reportAction(status: string): string {
+  switch (status) {
+    case 'progress':
+      return t('更新任务卡')
+    case 'waiting':
+      return t('汇报：等后续消息')
+    case 'ready':
+      return t('提交结果')
+    case 'blocked':
+      return t('请你处理一件事')
+    case 'failed':
+      return t('汇报没做成')
+    case 'dismissed':
+      return t('汇报无需处理')
+    default:
+      return t('汇报任务')
+  }
+}
+
 const DESCRIBERS: Readonly<Record<string, Describe>> = {
   bash: runCommand,
   pwsh: runCommand,
@@ -48,8 +68,7 @@ const DESCRIBERS: Readonly<Record<string, Describe>> = {
   web_fetch: (args) => t('打开 {short}', { short: short(host(text(args.url))) }),
   skill: (args) => t('加载技能 {short}', { short: short(text(args.name)) }),
   todo_write: () => t('更新待办'),
-  update_task: (args) => (Array.isArray(args.check) && args.check.length > 0 ? t('勾选验收项') : t('写进度说明')),
-  complete_task: () => t('提交结果'),
+  report: (args) => reportAction(text(args.status)),
   ask_owner: () => t('请你处理一件事'),
   ask_bot: (args) => t('咨询 {short}', { short: short(text(args.bot), 16) }),
   delegate: (args) => t('交给 {short}：{short2}', { short: short(text(args.bot), 16), short2: short(text(args.title), 24) }),

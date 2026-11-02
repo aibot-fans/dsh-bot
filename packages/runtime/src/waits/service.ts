@@ -35,6 +35,8 @@ export interface WaitServiceDeps {
   readonly task: (taskId: string) => Task | undefined
   /** 没绕过去的等你事项会让任务进入“等你”，处理完再回到进行中。 */
   readonly setTaskWaiting: (task: Task, waiting: boolean) => void
+  /** 工单的答复由任务接着做（开一次新的执行）；返回 true 就不再直接送进会话。 */
+  readonly sendToTask?: (task: Task, text: string, quote: string) => boolean
   readonly notify: (wait: Wait) => void
 }
 
@@ -46,6 +48,8 @@ export interface AskInput {
   /** 已经先绕过去了：任务照常推进，交付时列进“前提和待确认”。 */
   readonly bypassed: boolean
   readonly data?: Readonly<Record<string, unknown>>
+  /** 问题来自哪次汇报。 */
+  readonly reportId?: string | null
 }
 
 /**
@@ -81,6 +85,7 @@ export class WaitService {
       roomId,
       now: this.deps.now(),
     })
+    if (input.reportId !== undefined && input.reportId !== null) this.db.prepare('UPDATE waits SET report_id = ? WHERE id = ?').run(input.reportId, wait.id)
     if (roomId !== null) {
       this.deps.rooms.post(roomId, { author: input.session.botId, kind: 'wait', body: wait.title, data: { waitId: wait.id, taskId: wait.taskId } })
     }
@@ -147,6 +152,7 @@ export class WaitService {
     const task = wait.taskId === null ? undefined : this.deps.task(wait.taskId)
     if (task !== undefined && (task.status === 'cancelled' || task.status === 'done')) return
     const text = `[用户对「${wait.title}」的答复]\n[用户原话] ${answer === '' ? '已处理（比如已经登录好了）' : answer}`
+    if (task !== undefined && this.deps.sendToTask?.(task, text, `${wait.title}：${answer === '' ? t('已处理') : answer}`) === true) return
     this.deps.dispatcher.enqueue({
       sessionId: wait.sessionId,
       mode: this.deps.dispatcher.isRunning(wait.sessionId) ? 'steer' : 'followup',

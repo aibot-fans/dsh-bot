@@ -224,7 +224,7 @@ export class Coordinator extends Orchestrator {
     const reset = updateTask(this.db, task.id, { status: 'running', acceptance, result: null, finishedAt: null, note: t('计划第 {version} 版：需要重做', { version }) }, now) ?? task
     this.deps.tasks.touched(reset)
     const session = this.deps.registry.activeForTask(task.id, 'task')
-    const text = `[计划第 ${version} 版] ${reason}\n这个子任务需要按新的前提重做。已有的过程文件可以参考，结果按新要求重新提交（complete_task）。`
+    const text = `[计划第 ${version} 版] ${reason}\n这个子任务需要按新的前提重做。已有的过程文件可以参考，结果按新要求重新提交（report 报 ready）。`
     if (session === undefined) await this.startSubtask(reset, text)
     else this.deps.dispatcher.enqueue({ sessionId: session.id, mode: this.deps.dispatcher.isRunning(session.id) ? 'steer' : 'followup', priority: PRIORITY.task, text, source: noticeSource(t('计划第 {version} 版：需要重做', { version })) })
     return true

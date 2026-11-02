@@ -18,6 +18,7 @@ import {
 } from 'pod-domain'
 import { getMessage, listAudit, updateHandoverNote } from 'pod-store'
 import type { PodRuntime } from '../pod.ts'
+import type { ControlAction } from '../tasks/service.ts'
 import { get, post, type RouteSpec } from './router.ts'
 
 /** 设置、bot 管理、回收站、审计和维护这些基础接口。 */
@@ -135,8 +136,8 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
     post('/task/control', (body) => {
       const taskId = readId(body, 'taskId')
       const action = readString(body, 'action')
-      if (taskId === undefined || !['pause', 'resume', 'stop', 'cancel'].includes(action)) return fail('invalid-input', t('要写明任务和操作'))
-      return pod.tasks.control(taskId, action as 'pause' | 'resume' | 'stop' | 'cancel', 'owner')
+      if (taskId === undefined || !['pause', 'resume', 'stop', 'cancel', 'retry', 'accept'].includes(action)) return fail('invalid-input', t('要写明任务和操作'))
+      return pod.tasks.control(taskId, action as ControlAction, 'owner')
     }),
     post('/task/redeliver', (body) => {
       const taskId = readId(body, 'taskId')

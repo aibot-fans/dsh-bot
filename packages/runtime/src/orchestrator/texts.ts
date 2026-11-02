@@ -93,7 +93,7 @@ export function stalledEvent(task: Task, key: string, reason: string, board: str
 }
 
 export function rejectText(task: Task, feedback: string, attempt: number): string {
-  return [`[组长打回] 「${task.title}」第 ${attempt} 次打回：`, feedback, '请按意见修改后重新调用 complete_task 提交。'].join('\n')
+  return [`[组长打回] 「${task.title}」第 ${attempt} 次打回：`, feedback, '请按意见修改后重新用 report 报 ready 提交。'].join('\n')
 }
 
 /** 组长协调会话的背景：开工时注入，不唤醒它。 */

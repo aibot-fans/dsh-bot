@@ -16,6 +16,10 @@ import { readPageOverHttp } from './routines/page.ts'
 import { RoutineReplies } from './routines/replies.ts'
 import { RoutineService, type PageContent } from './routines/service.ts'
 import { AgentBinder } from './agents/binder.ts'
+import { Engine, isTicket } from './engine/index.ts'
+import { Launcher } from './effects/launch.ts'
+import { TaskReporting } from './tasks/report.ts'
+import { TaskTurns } from './tasks/turns.ts'
 import { Dispatcher } from './effects/delivery.ts'
 import { noticeSource } from './agents/messages.ts'
 import { SessionObserver } from './agents/observer.ts'
@@ -121,6 +125,10 @@ export class PodRuntime {
   readonly rooms: RoomService
   readonly teams: TeamService
   readonly tasks: TaskService
+  readonly engine: Engine
+  readonly turns: TaskTurns
+  readonly reporting: TaskReporting
+  readonly launcher: Launcher
   readonly coordinator: Coordinator
   readonly consults: ConsultService
   readonly waits: WaitService
@@ -290,9 +298,11 @@ export class PodRuntime {
       roomsOfBot: (botId) => this.roomsOfBot(botId),
     })
     this.pageLibrary = new PageLibrary({ db, pages: this.pages, bots: this.bots, rooms: this.rooms, now })
+    this.engine = new Engine({ db, now, effects: this.effects, changed: (task) => this.tasks.touched(task) })
     this.tasks = new TaskService({
       db,
       bus: this.bus,
+      engine: this.engine,
       bots: this.bots,
       registry: this.registry,
       dispatcher: this.dispatcher,
@@ -303,21 +313,51 @@ export class PodRuntime {
       workspaceRoot: options.workspaceRoot,
       now,
       activity: (sessionId) => this.observer.activityOf(sessionId),
-      backgroundJobs: (sessionId) => this.observer.backgroundJobs(sessionId),
       openWaits: (rootId) => this.waits.openCountFor(rootId),
       onRootStateChange: (rootId, change) => {
         const moved = this.waits.onRootChange(rootId, change).map((wait) => WaitService.describe(wait))
         if (change === 'resumed') void this.coordinator.schedule(rootId)
         return moved
       },
-      notify: (task, event) => this.onTaskNotify(task, event),
       onSubtaskSubmitted: (task, result) => this.coordinator.onSubmitted(task, result),
-      onSubtaskStalled: (task, reason) => this.coordinator.onStalled(task, reason),
-      shouldRotate: (session) => session.contextTokens >= this.settings.get().softContextTokens,
-      rotateTask: (session, task) => this.rotateTaskSession(session, task),
       onEvent: (task, kind, _actor, data) => {
         if (kind === 'reviewed') this.evolutionKit.feedback.onReview(task, data.pass === true, typeof data.feedback === 'string' ? data.feedback : '')
       },
+    })
+    this.turns = new TaskTurns({
+      tasks: this.tasks,
+      engine: this.engine,
+      registry: this.registry,
+      dispatcher: this.dispatcher,
+      rooms: this.rooms,
+      backgroundJobs: (sessionId) => this.observer.backgroundJobs(sessionId),
+      shouldRotate: (session) => session.contextTokens >= this.settings.get().softContextTokens,
+      rotateTask: (session, task) => this.rotateTaskSession(session, task),
+      notify: (task, event) => this.onTaskNotify(task, event),
+      onSubtaskStalled: (task, reason) => this.coordinator.onStalled(task, reason),
+    })
+    this.reporting = new TaskReporting({
+      tasks: this.tasks,
+      engine: this.engine,
+      turns: this.turns,
+      rooms: this.rooms,
+      bots: this.bots,
+      ask: (input) => this.waits.ask({ session: input.session, kind: input.kind, title: input.title, detail: input.detail, bypassed: false, reportId: input.reportId }),
+      notify: (task, event) => this.onTaskNotify(task, event),
+      onRootStateChange: (rootId, change) => this.waits.onRootChange(rootId, change).map((wait) => WaitService.describe(wait)),
+      onSubtaskStalled: (task, reason) => this.coordinator.onStalled(task, reason),
+      learn: (session, task, lessons) => this.learnFromTask(session, task, lessons),
+    })
+    this.launcher = new Launcher({
+      db,
+      engine: this.engine,
+      effects: this.effects,
+      registry: this.registry,
+      dispatcher: this.dispatcher,
+      bots: this.bots,
+      settings: () => this.settings.get(),
+      workspaceRoot: options.workspaceRoot,
+      paused: () => false,
     })
     this.coordinator = new Coordinator({
       db,
@@ -354,6 +394,7 @@ export class PodRuntime {
       now,
       task: (taskId) => this.tasks.get(taskId),
       setTaskWaiting: (task, waiting) => this.tasks.setWaiting(task, waiting),
+      sendToTask: (task, text, quote) => (isTicket(task) ? this.tasks.sendToTask(task, text, { kind: 'user' }, quote).ok : false),
       notify: (wait) => {
         this.notifications.wait(wait)
         this.evolutionKit.feedback.onWait(wait)
@@ -404,7 +445,7 @@ export class PodRuntime {
           this.dispatcher.turnEnded(session.id)
           this.dispatcher.setRunning(session.id, false)
           this.pages.onTurnEnd(session.id)
-          this.tasks.onTurnEnd(session, reason, failure)
+          this.turns.onTurnEnd(session, reason, failure)
           this.consults.onTurnEnd(session)
         },
         onToolCall: (session, name, action, args) => {

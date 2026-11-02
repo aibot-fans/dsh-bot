@@ -198,7 +198,10 @@ export function leadTools(pod: PodRuntime, session: PodSession): readonly ToolDe
           status: 'background',
         })
       }
-      if (finished.status !== 'done') return failure(`任务「${finished.title}」${finished.status === 'cancelled' ? '被取消了' : '没有完成'}：${finished.note}`)
+      if (finished.ticketStage === 'waiting' || finished.status === 'waiting') {
+        return success('任务在等用户处理一件事（任务卡上有“等你”），用户处理后它会接着做。告诉用户要处理什么就行。', { taskId: finished.id, status: 'waiting' })
+      }
+      if (finished.status !== 'done' && finished.ticketStage !== 'review') return failure(`任务「${finished.title}」${finished.status === 'cancelled' || finished.status === 'stopped' ? '被停掉了' : '没有完成'}：${finished.note}`)
       const room = requester.roomId === null ? undefined : pod.rooms.get(requester.roomId)
       if (room !== undefined && room.kind !== 'direct' && target.role !== 'lead') {
         // 群里成员自己说了做完了什么，主管不再转述一遍。

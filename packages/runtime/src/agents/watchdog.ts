@@ -118,7 +118,7 @@ export class Watchdog {
       sessionId: session.id,
       mode: 'inject',
       priority: PRIORITY.task,
-      text: `[dsh-bot 提醒] 你已经做了 ${steps - previous.steps} 步，但没有勾新的验收项，也没有写新的进度说明，可能在绕圈。换个做法；确实卡住就用 ask_owner 说明，能绕过的先绕过。`,
+      text: `[dsh-bot 提醒] 你已经做了 ${steps - previous.steps} 步，但没有勾新的验收项，也没有写新的进度说明，可能在绕圈。换个做法；确实卡住就用 report 报 blocked 说明，能绕过的先绕过。`,
       source: noticeSource(t('可能在绕圈，提醒换做法')),
     })
     this.deps.onStall(session, task, t('已经 {steps} 步没有新进展，可能在绕圈', { steps: steps - previous.steps }))

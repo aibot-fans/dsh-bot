@@ -25,6 +25,37 @@ function toolCalls(messages) {
     .filter((message) => message.role === 'assistant')
     .flatMap((message) => (Array.isArray(message.content) ? message.content : []))
     .filter((block) => block && block.type === 'tool-call')
+    .map((block) => (block.name === 'report' ? { ...block, name: legacyReportName(block) } : block))
+}
+
+/**
+ * 任务会话的 update_task、complete_task、ask_owner 换成了一个 report：剧本照旧按旧名字写，
+ * 这里把 report 的调用认回旧名字，把剧本给出的旧调用翻成 report。
+ */
+function legacyReportName(block) {
+  let status = ''
+  try {
+    status = JSON.parse(typeof block.arguments === 'string' ? block.arguments : JSON.stringify(block.arguments ?? {})).status ?? ''
+  } catch {
+    status = ''
+  }
+  return status === 'progress' ? 'update_task' : status === 'blocked' ? 'ask_owner' : 'complete_task'
+}
+
+const LEGACY_TASK_TOOLS = ['update_task', 'complete_task', 'ask_owner']
+
+function asReport(decision) {
+  const args = decision.args ?? {}
+  if (decision.tool === 'update_task') return { ...decision, tool: 'report', args: { status: 'progress', summary: args.note || '更新进度', checks: args.check ?? [] } }
+  if (decision.tool === 'ask_owner') {
+    return { ...decision, tool: 'report', args: { status: 'blocked', summary: args.question, report: args.detail || args.question, question: args.question, question_kind: args.kind } }
+  }
+  const summary = String(args.summary ?? '')
+  return {
+    ...decision,
+    tool: 'report',
+    args: { status: 'ready', summary: summary.split('\n')[0].replace(/^- /, ''), report: summary, files: args.files ?? [], assumptions: args.assumptions ?? [], unverified: args.unverified ?? [], skipped: args.skipped ?? [] },
+  }
 }
 
 /** 真正有意义的用户消息：你说的话、bot 之间的转达、Pod 的提醒；跳过时间注入这类上下文。 */
@@ -242,7 +273,12 @@ function decide(options) {
   const userText = ownText(textOf(lastOf(messages, 'user')?.content))
   const calls = toolCalls(messages).map((call) => call.name)
   const tools = new Set((options.tools ?? []).map((tool) => tool.name))
+  if (tools.has('report')) for (const name of LEGACY_TASK_TOOLS) tools.add(name)
+  // 开工说明里讲怎么汇报的几段（提到“报告”）不算任务内容，免得剧本按关键词误判成做报告页。
   const brief = textOf(messages.find((message) => message.role === 'user' && MEANINGFUL.has(message.source?.kind))?.content)
+    .split('\n\n')
+    .filter((part) => !part.includes('report'))
+    .join('\n\n')
   if (process.env.POD_MOCK_DEBUG === '1') console.error('[mock]', JSON.stringify(userText.slice(0, 40)), [...tools].join(','))
 
   if (system.includes('你是群聊里的分派器')) return { text: JSON.stringify({ to: routeTarget(textOf(messages.find((message) => message.role === 'user')?.content)) }) }
@@ -280,6 +316,10 @@ function decide(options) {
     }
     if (userText.includes('[组长打回]')) {
       return { tool: 'complete_task', args: { summary: '- 按组长意见补上了主要限制', files: ['B.md'], assumptions: [], unverified: [], skipped: [] } }
+    }
+    if (userText.includes('开始新的一次执行') && last?.role !== 'tool') {
+      const why = /开工原因：([^。\n]*)/.exec(userText)?.[1] ?? '接着做'
+      return { tool: 'complete_task', args: { summary: `- 按这次的开工原因（${why}）接着做完了`, files: ['shared/测试结果.md'], assumptions: [], unverified: [], skipped: [] } }
     }
     if (userText.includes('[用户对') || userText.includes('[dsh-bot 提醒]')) {
       return { tool: 'complete_task', args: { summary: '- 测试任务完成\n- 用户的答复已经采纳', files: ['shared/测试结果.md'], assumptions: ['只做了测试范围内的事'], unverified: [], skipped: [] } }
@@ -515,7 +555,9 @@ async function* stream(options) {
     await sleep(800, options.signal)
     throw failure
   }
-  const decision = decide(options)
+  const raw = decide(options)
+  const offered = new Set((options.tools ?? []).map((tool) => tool.name))
+  const decision = LEGACY_TASK_TOOLS.includes(raw.tool) && offered.has('report') && !offered.has(raw.tool) ? asReport(raw) : raw
   const system = systemOf(options, Array.isArray(options.messages) ? options.messages : [])
   if (LITE_DELAY_MS > 0 && (system.includes('你是群聊里的分派器') || system.includes('你负责写交接笔记'))) await sleep(LITE_DELAY_MS, options.signal)
   if (system.includes('你正在执行一个任务') && JSON.stringify(options.messages ?? []).includes('慢慢')) await sleep(5000, options.signal)
