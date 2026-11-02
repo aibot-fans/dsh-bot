@@ -28,7 +28,7 @@ export function taskTools(pod: PodRuntime, session: PodSession): readonly ToolDe
     name: 'complete_task',
     description: '全部做完后提交结果：摘要、产出文件路径，以及交付卡上的“前提和待确认”（做了哪些假设、哪些信息没核实、跳过了什么）。只写摘要和路径，不要把长内容塞进来。提交后这一轮结束。',
     properties: {
-      summary: str('结果摘要：要点几条，简洁具体'),
+      summary: str('结果摘要，给用户看：第一句说结果和要用户做什么，再列几条要点；不写做法和验证过程'),
       files: strList('产出文件的路径（相对工作区或绝对路径）'),
       assumptions: strList('你做了哪些假设'),
       unverified: strList('哪些信息没核实'),

@@ -110,7 +110,7 @@ export function coordTools(pod: PodRuntime, session: PodSession): readonly ToolD
     name: 'deliver_task',
     description: '全部子任务通过、结果合并好以后交付：最终产物放进 shared/，写要点、文件，以及“前提和待确认”（做了哪些假设、哪些没核实、跳过了什么）。交付就是完成，不需要用户点验收。',
     properties: {
-      summary: str('交付要点，几条，简洁具体'),
+      summary: str('交付摘要，给用户看：第一句说结果和要用户做什么，再列几条要点；不写做法和验证过程'),
       files: strList('最终产物的路径'),
       assumptions: strList('做了哪些假设'),
       unverified: strList('哪些信息没核实'),
