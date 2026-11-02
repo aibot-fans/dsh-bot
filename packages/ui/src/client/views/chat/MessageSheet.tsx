@@ -31,6 +31,8 @@ export interface MessageSheetProps {
   readonly onPinned: (message: RoomMessage) => void
   /** 打开能自己选一段的原文。 */
   readonly onSelect: () => void
+  /** 这一轮记下了执行过程：展开或收起它的步骤（平时不显示）。 */
+  readonly steps?: { readonly open: boolean; readonly toggle: () => void }
 }
 
 /** 踩的原因：可以不写，直接提交。 */
@@ -63,7 +65,7 @@ function DownReason(props: { readonly onSubmit: (reason: string) => void; readon
 
 /**
  * 触屏上长按一条消息弹出的操作（手机上从底下升起）：复制、选择文字、引用回复；
- * bot 的回答还有重新回答、赞、踩；最后是置顶和在 dsh 里查看过程。
+ * bot 的回答还有重新回答、赞、踩；最后是置顶、这一轮的步骤和在 dsh 里查看过程。
  */
 export function MessageSheet(props: MessageSheetProps) {
   const app = useApp()
@@ -106,6 +108,7 @@ export function MessageSheet(props: MessageSheetProps) {
           ) : null}
           <MenuDivider />
           <MenuItem icon={message.pinned ? 'unpin' : 'pin'} label={message.pinned ? t('取消置顶') : t('置顶这条消息')} onClick={() => act(() => void api.pinMessage(message.id, !message.pinned).then(props.onPinned))} />
+          {props.steps === undefined ? null : <MenuItem icon="history" label={props.steps.open ? t('收起这一轮的步骤') : t('这一轮的步骤')} onClick={() => act(props.steps?.toggle ?? (() => {}))} />}
           {sessionId === null ? null : <MenuItem icon="open" label={t('在 dsh 里查看过程')} onClick={() => act(() => app.host.openSession(sessionId))} />}
         </>
       )}

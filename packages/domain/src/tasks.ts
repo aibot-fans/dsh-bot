@@ -187,4 +187,6 @@ export interface TaskSnapshot {
   readonly lastReport: TaskReport | null
   /** 挂着的触发器里最近要叫醒的那个；没有是 null。 */
   readonly trigger: TriggerSummary | null
+  /** 任务群（开了子任务的任务才有）：主对话里的任务卡变成进群的入口。 */
+  readonly groupRoomId: string | null
 }

@@ -1,5 +1,5 @@
 /**
- * 0.5 的新部件：侧栏的红色未读角标和拖动提示、悬停才出现的消息按钮、群提示里的群名链接、
+ * 0.5 的新部件：侧栏的红色未读角标和拖动提示、悬停才出现的消息按钮、
  * 详情页的返回、文件预览的更多格式（PDF、音视频、JSON）、鲸鱼图标、上传文件旁边的「文字版」。颜色都取 dsh 的主题变量。
  */
 export const V5_CSS = `
@@ -14,9 +14,6 @@ export const V5_CSS = `
 .pod-usage-subject { font-size: 12px; color: var(--dsw-alias-label-tertiary); }
 .pod-usage-place { font-size: 13px; color: var(--dsw-alias-label-secondary); }
 .pod-convo-new { flex: none; width: 32px; height: 32px; border-radius: 8px; color: var(--dsw-alias-label-secondary); }
-.pod-notice-link { --pod-link: var(--dsw-alias-link, #4d6bfe); appearance: none; display: inline; padding: 0 3px; border: 0; border-radius: 6px; background: color-mix(in srgb, var(--pod-link) 10%, transparent); color: var(--pod-link); font: inherit; font-weight: 600; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--pod-link) 40%, transparent); text-underline-offset: 3px; cursor: pointer; }
-.pod-notice-link:hover { background: color-mix(in srgb, var(--pod-link) 18%, transparent); text-decoration-color: currentColor; }
-.pod-notice-link:focus-visible { outline: 2px solid var(--pod-link); outline-offset: 1px; }
 .pod-group-hero { display: flex; align-items: center; gap: 14px; text-align: left; }
 .pod-group-hero-main { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
 .pod-group-hero .pod-hero-title { margin-left: -8px; }

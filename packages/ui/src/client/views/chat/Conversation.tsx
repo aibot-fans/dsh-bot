@@ -9,10 +9,14 @@ import { useResource } from '../../state/resource.ts'
 import { ChatHeader } from './ChatHeader.tsx'
 import { Composer } from './Composer.tsx'
 import { PinnedBar } from './PinnedBar.tsx'
+import { TaskStrip } from './TaskStrip.tsx'
 import { TeamBar } from './TeamBar.tsx'
 import { Timeline } from './Timeline.tsx'
 
-/** 中间的对话：顶部是对象和用量（有置顶消息时下面一条置顶条），中间是时间线，底部是输入框；宽窄按设置里的“聊天区宽度”。默认打开和主管的单聊。 */
+/**
+ * 中间的对话：顶部是对象和用量（群聊下面一行团队状态，任务群是这件事的状态；有置顶消息时再一条置顶条），中间是时间线，底部是输入框；
+ * 宽窄按设置里的“聊天区宽度”。默认打开和主管的单聊。
+ */
 export function Conversation() {
   const app = useApp()
   const nav = useNav()
@@ -64,7 +68,7 @@ export function Conversation() {
   return (
     <main className={`pod-convo pod-width-${width}`}>
       <ChatHeader room={room} bots={bots} memberIds={memberIds} />
-      {room.kind === 'direct' ? null : <TeamBar room={room} bots={bots} />}
+      {room.kind === 'direct' ? null : room.taskId !== null ? <TaskStrip taskId={room.taskId} /> : <TeamBar room={room} bots={bots} />}
       <PinnedBar room={room} bots={authors} />
       <Timeline room={room} bots={authors} members={memberBots} onReply={chooseReply} readSeqAtOpen={readAtOpen?.roomId === room.id ? readAtOpen.seq : room.readSeq} followAt={sentAt} />
       <Composer

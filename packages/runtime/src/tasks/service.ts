@@ -38,6 +38,7 @@ import {
   openTriggersOf,
   recentOwnerMessages,
   stuckDelivery,
+  taskRoomOf,
   transaction,
   unansweredOwnerMessages,
   updateTask,
@@ -536,6 +537,7 @@ export class TaskService {
       run: latestRun(this.db, task.id) ?? null,
       lastReport: latestReport(this.db, task.id) ?? null,
       trigger: this.triggerSummary(task.id),
+      groupRoomId: taskRoomOf(this.db, task.rootId)?.id ?? null,
     }
   }
 

@@ -21,15 +21,16 @@ function stateText(member: MemberStatus, now: number): string {
   }
 }
 
-/** 群顶的团队状态：每个成员一个头像，标出空闲、在做（任务名和已用时间）、等你、受阻；点开进任务页。 */
+/** 群顶的团队状态：只列有事的成员（在做的写任务名和已用时间，等你、受阻的写卡在哪件），都空闲就不显示；点开进任务页。 */
 export function TeamBar(props: { readonly room: RoomSummary; readonly bots: ReadonlyMap<string, Bot> }) {
   const app = useApp()
   const now = useNow(30_000)
   const { data } = useResource(app.cache, `team:${props.room.id}`, () => api.roomTeam(props.room.id))
-  if (data === undefined || data.length === 0) return null
+  const busy = (data ?? []).filter((member) => member.state !== 'idle')
+  if (busy.length === 0) return null
   return (
     <div className="pod-teambar" role="list" aria-label={t('团队状态')}>
-      {data.map((member) => {
+      {busy.map((member) => {
         const bot = props.bots.get(member.botId)
         const text = stateText(member, now)
         const content = (

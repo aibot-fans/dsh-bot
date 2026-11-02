@@ -1,7 +1,5 @@
-import { useEffect, useState } from 'react'
 import {
   END_REASON_LABELS,
-  REPORT_STATUS_LABELS,
   STAGE_LABELS,
   TASK_STATUS_LABELS,
   TICKET_STAGE_LABELS,
@@ -22,17 +20,12 @@ import { errorText } from '../api/http.ts'
 import { useApp } from '../state/app.ts'
 import { useResource } from '../state/resource.ts'
 import { Badge, Button, useNow } from './common.tsx'
-import { duration } from './duration.ts'
-import { FilePreview } from './FilePreview.tsx'
 import { BotName } from './GroupMark.tsx'
-import { Markdown } from './Markdown.tsx'
 import { ProgressBlock } from './Progress.tsx'
+import { GroupEntry, SubtaskLine } from './TaskEntry.tsx'
+import { ActionButtons, Delivery, ReportLine, Undelivered, actionsFor, elapsed, isTeamTask, useSnapshot, type ControlAction } from './taskParts.tsx'
 import { TaskQuestion } from './TaskQuestion.tsx'
 import { TriggerLine } from './TriggerLine.tsx'
-
-function elapsed(task: Task, now: number): string {
-  return duration((task.finishedAt ?? now) - (task.startedAt ?? task.createdAt))
-}
 
 function ago(time: number | null, now: number): string {
   if (time === null) return ''
@@ -81,49 +74,10 @@ export function SegmentBar(props: { readonly snapshot: TaskSnapshot }) {
   )
 }
 
-type ControlAction = 'pause' | 'resume' | 'stop' | 'cancel' | 'retry' | 'accept'
-
-const ACTION_LABELS: Readonly<Record<ControlAction, string>> = { pause: '暂停', resume: '继续', stop: '停止', cancel: '取消', retry: '重试', accept: '收下' }
-const ACTION_ICONS: Readonly<Record<ControlAction, 'pause' | 'play' | 'stop' | undefined>> = { pause: 'pause', resume: 'play', stop: 'stop', cancel: 'stop', retry: 'play', accept: undefined }
-
 function stageTone(stage: TicketStage): 'ok' | 'warn' | 'danger' | 'info' {
   if (stage === 'failed' || stage === 'undelivered') return 'danger'
   if (stageGroup(stage) === 'attention') return 'warn'
   return stage === 'ended' ? 'ok' : 'info'
-}
-
-/**
- * 工单的按钮按阶段给：在做能暂停、停止；等新消息能继续；等到点的只能停止（要提前跑在任务页点“现在跑一次”）；
- * 受阻、失败能重试；等你验收能收下；你停掉的能继续。子任务由组长验收，没有收下。
- */
-function ticketActions(snapshot: TaskSnapshot): readonly ControlAction[] {
-  if (snapshot.task.parentId !== null && snapshot.stage === 'review') return ['stop']
-  const running = snapshot.run !== null && snapshot.run.status === 'running'
-  switch (snapshot.stage) {
-    case 'running':
-    case 'queued':
-      return running ? ['pause', 'stop'] : ['stop']
-    case 'idle':
-      return ['resume', 'stop']
-    case 'scheduled':
-      return ['stop']
-    case 'blocked':
-    case 'failed':
-      return ['retry', 'stop']
-    case 'review':
-      return ['accept', 'retry', 'stop']
-    case 'waiting':
-    case 'undelivered':
-      return running ? ['pause', 'stop'] : ['stop']
-    case 'ended':
-      return snapshot.task.endReason === 'stopped' ? ['resume'] : []
-  }
-}
-
-function teamActions(task: Task): readonly ControlAction[] {
-  if (task.status === 'running' || task.status === 'waiting') return ['pause', 'stop']
-  if (task.status === 'paused' || task.status === 'stopped') return ['resume']
-  return []
 }
 
 function Stages(props: { readonly task: Task; readonly done: number; readonly total: number }) {
@@ -156,43 +110,6 @@ function ActivityLine(props: { readonly activity: TaskActivity | null | undefine
   )
 }
 
-function Delivery(props: { readonly snapshot: TaskSnapshot }) {
-  const result = props.snapshot.task.result
-  const [preview, setPreview] = useState<string | undefined>(undefined)
-  if (result === null) return null
-  const caveats = [...result.assumptions.map((item) => t('假设：{item}', { item })), ...result.unverified.map((item) => t('未核实：{item}', { item })), ...result.skipped.map((item) => t('跳过：{item}', { item }))]
-  return (
-    <div className="pod-delivery">
-      <Markdown text={result.summary} />
-      {result.files.length === 0 ? null : (
-        <div className="pod-delivery-files">
-          <span className="pod-label">{t('文件')}</span>
-          {result.files.map((file) => (
-            <button key={file} type="button" className="pod-file" title={t('预览')} onClick={() => setPreview(file)}>
-              {file}
-            </button>
-          ))}
-        </div>
-      )}
-      {preview === undefined ? null : <FilePreview path={preview} taskId={props.snapshot.task.id} onClose={() => setPreview(undefined)} />}
-      {caveats.length === 0 ? null : (
-        <div className="pod-caveats">
-          <span className="pod-label">{t('前提和待确认')}</span>
-          <ul>
-            {caveats.map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  )
-}
-
-/**
- * 原地刷新的任务卡：阶段、分段进度条、验收项、正在做什么、等你的事；
- * 任务完成后变成交付卡：要点、文件、用时、花费、前提和待确认。
- */
 /** 任务在用的浏览器标签页：卡片上直接打开对应的画面。 */
 function TaskTabs(props: { readonly snapshot: TaskSnapshot }) {
   const app = useApp()
@@ -211,39 +128,14 @@ function TaskTabs(props: { readonly snapshot: TaskSnapshot }) {
   )
 }
 
-/** 发不出去的消息：交不进会话的，或者发不到聊天室的回复；点重试马上再试。 */
-function Undelivered(props: { readonly snapshot: TaskSnapshot }) {
-  const { undelivered, task } = props.snapshot
-  if (undelivered === null || undelivered === undefined) return null
-  return (
-    <div className="pod-task-wait">
-      {t('消息没送到：{error}', { error: undelivered.error })}{' '}
-      <Button onClick={() => void api.redeliverTask(task.id)}>{t('重试')}</Button>
-    </div>
-  )
-}
-
 /**
- * 最后一句进展和最后一次汇报：这次执行里有进展汇报就写进展；要你处理或等新消息时写那次汇报（它定了现在的阶段）；
- * 重新开工以后、还没新汇报时不写旧的。
+ * 单聊里开的任务：在做时只是一行“在做”和最近一句进展，过程在详情里；做完原地变成结果（标明是谁做的）；
+ * 要你处理（验收、答复、重试）时展开成完整的卡。
  */
-function ReportLine(props: { readonly snapshot: TaskSnapshot }) {
-  const { lastReport: report, run, stage } = props.snapshot
-  if (report === null) return null
-  if (report.status === 'progress') {
-    if (run !== null && report.createdAt < run.queuedAt) return null
-    return <div className="pod-task-note">{t('进展：{summary}', { summary: report.summary })}</div>
-  }
-  if (stage !== 'idle' && stage !== 'ended' && stageGroup(stage) !== 'attention') return null
-  return <div className="pod-task-note">{t('最近汇报（{status}）：{summary}', { status: t(REPORT_STATUS_LABELS[report.status]), summary: report.summary })}</div>
-}
-
-/** 单聊里开的任务：在做时只是一行“在做”，做完原地变成结果（标明是谁做的）；要你处理（验收、答复、重试）时展开成完整的卡。 */
 function InlineTask(props: { readonly snapshot: TaskSnapshot; readonly now: number; readonly control: (action: ControlAction) => void; readonly owner: Bot | undefined }) {
   const app = useApp()
   const { snapshot, now } = props
   const { task } = snapshot
-  const sessionId = snapshot.sessionId ?? undefined
   const done = task.status === 'done'
   const details = (
     <Button small kind="quiet" onClick={() => app.openTask(task.rootId)}>
@@ -270,41 +162,43 @@ function InlineTask(props: { readonly snapshot: TaskSnapshot; readonly now: numb
       {snapshot.lastReport !== null && snapshot.lastReport.status === 'progress' && (snapshot.run === null || snapshot.lastReport.createdAt >= snapshot.run.queuedAt) ? (
         <span className="pod-task-inline-progress">{snapshot.lastReport.summary}</span>
       ) : null}
-      {snapshot.activity?.running === true ? <ActivityLine activity={snapshot.activity} now={now} /> : null}
       <span className="pod-task-inline-actions">
         <Button small kind="quiet" icon="stop" onClick={() => props.control('stop')}>
           {t('停止')}
         </Button>
-        {sessionId === undefined ? null : (
-          <Button small kind="quiet" icon="open" onClick={() => app.host.openSession(sessionId)}>
-            {t('查看过程')}
-          </Button>
-        )}
         {details}
       </span>
     </div>
   )
 }
 
-export function TaskCard(props: { readonly taskId: string; readonly compact?: boolean; readonly inline?: boolean }) {
+/**
+ * 原地刷新的任务卡：阶段、分段进度条、验收项、正在做什么、等你的事；
+ * 任务完成后变成交付卡：要点、文件、用时、花费、前提和待确认。
+ * 放在聊天里时（给了 roomId）：开了群的任务在群外只是一个进群的入口，子任务在任务群里只占一行。
+ */
+export function TaskCard(props: { readonly taskId: string; readonly compact?: boolean; readonly inline?: boolean; readonly roomId?: string }) {
   const app = useApp()
   const now = useNow(5000)
-  const { data: snapshot, error } = useResource(app.cache, `snapshot:${props.taskId}`, () => api.taskSnapshot(props.taskId))
+  const { snapshot, error } = useSnapshot(props.taskId)
   const { data: bots } = useResource(app.cache, 'bots', () => api.bots())
-  useEffect(() => {
-    if (snapshot !== undefined) app.rememberTree(snapshot.task.rootId, [snapshot.task.id, ...snapshot.children.map((child) => child.id)])
-  }, [app, snapshot])
   if (snapshot === undefined) return <div className="pod-task-card pod-task-card-loading">{error === undefined ? t('正在读取任务…') : error}</div>
   const { task } = snapshot
   const progress = acceptanceProgress(task.acceptance)
   const finished = task.status === 'done'
-  const team = task.level === 'L2' || task.level === 'L3'
+  const team = isTeamTask(task)
   const control = (action: ControlAction): void => {
     api.controlTask(task.id, action).catch((reason: unknown) => window.alert(errorText(reason)))
   }
+  const owner = bots?.find((bot) => bot.id === task.ownerBotId)
+  const group = snapshot.groupRoomId
+  if (props.roomId !== undefined && group !== null) {
+    if (task.parentId === null && props.roomId !== group) return <GroupEntry snapshot={snapshot} now={now} control={control} owner={owner} />
+    if (task.parentId !== null && props.roomId === group) return <SubtaskLine snapshot={snapshot} now={now} owner={owner} />
+  }
   const sessionId = snapshot.sessionId ?? undefined
   const inline = props.inline === true && !team && (task.status === 'done' || (snapshot.stage !== 'ended' && stageGroup(snapshot.stage) !== 'attention'))
-  if (inline) return <InlineTask snapshot={snapshot} now={now} control={control} owner={bots?.find((bot) => bot.id === task.ownerBotId)} />
+  if (inline) return <InlineTask snapshot={snapshot} now={now} control={control} owner={owner} />
   const stageLabel =
     snapshot.stage === 'ended' && task.endReason !== null
       ? t(END_REASON_LABELS[task.endReason])
@@ -317,7 +211,7 @@ export function TaskCard(props: { readonly taskId: string; readonly compact?: bo
         <div className="pod-task-title">
           {finished ? <Badge tone="ok">{t('交付')}</Badge> : <Badge tone={stageTone(snapshot.stage)}>{stageLabel}</Badge>}
           <strong>{task.title}</strong>
-          {snapshot.ownerName === null || snapshot.children.length > 0 ? null : <BotName bot={bots?.find((bot) => bot.id === task.ownerBotId)} fallback={snapshot.ownerName} size={16} />}
+          {snapshot.ownerName === null || snapshot.children.length > 0 ? null : <BotName bot={owner} fallback={snapshot.ownerName} size={16} />}
         </div>
         {snapshot.stage === 'scheduled' ? null : (
           <span className="pod-muted-inline">
@@ -370,11 +264,7 @@ export function TaskCard(props: { readonly taskId: string; readonly compact?: bo
         </>
       )}
       <div className="pod-task-actions">
-        {(team ? teamActions(task) : ticketActions(snapshot)).map((action) => (
-          <Button key={action} small kind={action === 'accept' ? 'primary' : 'quiet'} icon={ACTION_ICONS[action]} onClick={() => control(action)}>
-            {t(ACTION_LABELS[action])}
-          </Button>
-        ))}
+        <ActionButtons actions={actionsFor(snapshot)} control={control} />
         {sessionId === undefined ? null : (
           <Button small kind="quiet" icon="open" onClick={() => app.host.openSession(sessionId)}>
             {t('查看过程')}

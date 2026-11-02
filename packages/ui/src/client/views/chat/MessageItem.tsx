@@ -14,6 +14,8 @@ import type { Mentions } from '../../components/mentions.tsx'
 import { MenuItem, MenuPanel, useMenu } from '../../components/Menu.tsx'
 import { RunSummaryLine } from '../../components/Progress.tsx'
 import { TaskCard } from '../../components/TaskCard.tsx'
+import { GroupChip } from '../../components/TaskEntry.tsx'
+import { useSnapshot } from '../../components/taskParts.tsx'
 import { WaitCard } from '../../components/WaitCard.tsx'
 import { PageCard, PageChip } from '../pages/PageCard.tsx'
 import { useApp } from '../../state/app.ts'
@@ -37,6 +39,8 @@ export interface MessageProps {
   readonly mentions: Mentions
   /** 你的消息：同一分钟里后面还有你的消息时，时间留给最后一条。 */
   readonly hideTime?: boolean
+  /** 任务群里只留对话：不显示进群退群这类里程碑，你的话下面也不写送进了哪个任务（整个群就是这个任务）。 */
+  readonly quiet?: boolean
 }
 
 /** bot 的话下面附的任务链接：结果附报告，答复里提到的任务也附上。 */
@@ -48,10 +52,47 @@ function taskLinkOf(message: RoomMessage): { readonly taskId: string; readonly l
 }
 
 /** 你的这条消息直接送进了哪些任务（回复、引用了任务的话题）。 */
-function routedTitles(message: RoomMessage): readonly string[] {
+function routedTasks(message: RoomMessage): readonly { readonly taskId: string; readonly title: string }[] {
   const raw = message.data.routed
   if (!Array.isArray(raw)) return []
-  return raw.flatMap((item) => (typeof item === 'object' && item !== null && typeof (item as Record<string, unknown>).title === 'string' ? [(item as Record<string, unknown>).title as string] : []))
+  return raw.flatMap((item) => {
+    if (typeof item !== 'object' || item === null) return []
+    const entry = item as Readonly<Record<string, unknown>>
+    return typeof entry.title === 'string' ? [{ taskId: typeof entry.taskId === 'string' ? entry.taskId : '', title: entry.title }] : []
+  })
+}
+
+/** 你的话送进了哪个任务：开了群的点一下进群，没开群的点开任务。 */
+function RoutedLine(props: { readonly taskId: string; readonly title: string; readonly roomId: string }) {
+  const app = useApp()
+  const { snapshot } = useSnapshot(props.taskId)
+  const group = snapshot?.groupRoomId ?? null
+  const label = t('已直接送到任务「{title}」', { title: props.title })
+  if (props.taskId === '') return <div className="pod-muted-inline">{label}</div>
+  return (
+    <button type="button" className="pod-link pod-routed-link" onClick={() => (group !== null && group !== props.roomId ? app.openRoom(group) : app.openTask(props.taskId))}>
+      {group !== null && group !== props.roomId ? t('{label} · 进群聊', { label }) : label}
+    </button>
+  )
+}
+
+/** bot 的话下面的任务链接：开了群的任务多一个“进群聊”（已经在群里就不用）。 */
+function TaskLink(props: { readonly taskId: string; readonly label: string; readonly roomId: string }) {
+  const app = useApp()
+  const { snapshot } = useSnapshot(props.taskId)
+  const group = snapshot?.groupRoomId ?? null
+  return (
+    <span className="pod-msg-task-links">
+      {group === null || group === props.roomId ? null : (
+        <button type="button" className="pod-link pod-msg-task-link" onClick={() => app.openRoom(group)}>
+          {t('进群聊')}
+        </button>
+      )}
+      <button type="button" className="pod-link pod-msg-task-link" onClick={() => app.openTask(props.taskId)}>
+        {props.label}
+      </button>
+    </span>
+  )
 }
 
 function authorName(author: string, bots: ReadonlyMap<string, Bot>): string {
@@ -91,20 +132,14 @@ function KickoffActions(props: { readonly taskId: string }) {
   )
 }
 
-/** 提到一个群的提示（比如“拉了群「监控播报」”）：群名画成链接，点一下进那个群。 */
+/** 提到一个群的提示（比如“拉了群「监控播报」”）：群名换成进群的入口，点一下进那个群。 */
 function RoomNotice(props: { readonly body: string; readonly roomId: string }) {
-  const app = useApp()
-  const match = /「[^」]+」|“[^”]+”/.exec(props.body)
-  const link = (
-    <button type="button" className="pod-notice-link" onClick={() => app.openRoom(props.roomId)} title={t('打开这个群聊')}>
-      {match === null ? props.body : match[0]}
-    </button>
-  )
-  if (match === null) return link
+  const match = /「([^」]+)」|“([^”]+)”/.exec(props.body)
+  if (match === null) return <GroupChip roomId={props.roomId} title={props.body} />
   return (
     <>
       {props.body.slice(0, match.index)}
-      {link}
+      <GroupChip roomId={props.roomId} title={match[1] ?? match[2] ?? match[0]} />
       {props.body.slice(match.index + match[0].length)}
     </>
   )
@@ -125,6 +160,8 @@ function Folded(props: { readonly message: RoomMessage }) {
 /** 时间线里的一条：你的气泡、bot 的发言、一行里程碑、任务卡、页面卡片、需要你处理的卡片、回执或折叠内容。 */
 export function MessageItem(props: MessageProps) {
   const app = useApp()
+  // 这一轮的步骤（用时、几步）平时不显示，从消息的“更多”里展开。
+  const [stepsOpen, setStepsOpen] = useState(false)
   const { message, bots } = props
   switch (message.kind) {
     case 'notice': {
@@ -148,6 +185,7 @@ export function MessageItem(props: MessageProps) {
     }
     case 'milestone':
     case 'receipt': {
+      if (props.quiet === true && message.kind === 'milestone') return null
       const subject = typeof message.data.botId === 'string' ? bots.get(message.data.botId) : bots.get(message.author)
       const elsewhere = typeof message.data.roomId === 'string' && message.data.roomId !== message.roomId ? message.data.roomId : undefined
       return (
@@ -167,14 +205,10 @@ export function MessageItem(props: MessageProps) {
     }
     case 'task-card':
       // 任务卡也能引用回复：回复它的话直接送进这个任务。
+      // 开了群的任务在群外只是一个进群的入口，子任务在任务群里只占一行（见 TaskCard）。
       return (
         <MessageFrame {...props} owner={false} className="pod-msg-card pod-msg-card-task">
-          <TaskCard taskId={String(message.data.taskId ?? '')} inline={message.data.inline === true} />
-          {typeof message.data.roomId === 'string' && message.data.roomId !== message.roomId ? (
-            <button type="button" className="pod-link" onClick={() => app.openRoom(message.data.roomId as string)}>
-              {t('打开群聊')}
-            </button>
-          ) : null}
+          <TaskCard taskId={String(message.data.taskId ?? '')} inline={message.data.inline === true} roomId={message.roomId} />
         </MessageFrame>
       )
     case 'browser':
@@ -223,11 +257,9 @@ export function MessageItem(props: MessageProps) {
           {attachment !== undefined && isUploadNote(message.body, String(attachment.name ?? '')) ? null : <Markdown text={message.body} mentions={calledMentions(message, props.mentions, true)} />}
           {attachment === undefined ? null : <Attachment attachment={attachment} />}
           {message.data.via === 'dsh' ? <div className="pod-muted-inline">{t('来自 dsh 会话视图')}</div> : null}
-          {routedTitles(message).map((title) => (
-            <div key={title} className="pod-muted-inline">
-              {t('已直接送到任务「{title}」', { title })}
-            </div>
-          ))}
+          {props.quiet === true
+            ? null
+            : routedTasks(message).map((routed) => <RoutedLine key={`${routed.taskId}:${routed.title}`} taskId={routed.taskId} title={routed.title} roomId={message.roomId} />)}
         </div>
         {message.pinned ? <span className="pod-badge pod-badge-muted pod-msg-pinned">{t('已置顶')}</span> : null}
         {props.hideTime === true ? null : <time className="pod-msg-time">{clock(message.createdAt)}</time>}
@@ -238,8 +270,9 @@ export function MessageItem(props: MessageProps) {
     if (bot !== undefined) app.showMember(bot.id)
   }
   const taskLink = taskLinkOf(message)
+  const steps = run === undefined ? undefined : { open: stepsOpen, toggle: () => setStepsOpen((value) => !value) }
   return (
-    <MessageFrame {...props} owner={false} className={`pod-msg${message.kind === 'kickoff' ? ' pod-msg-kickoff' : ''}`}>
+    <MessageFrame {...props} owner={false} steps={steps} className={`pod-msg${message.kind === 'kickoff' ? ' pod-msg-kickoff' : ''}`}>
       <button type="button" className="pod-msg-avatar" onClick={openBot} aria-label={t('{authorName} 的详情', { authorName: authorName(message.author, bots) })}>
         <Avatar bot={bot} size={28} />
       </button>
@@ -262,24 +295,26 @@ export function MessageItem(props: MessageProps) {
         ) : (
           <XEventCard view={xEvent} />
         )}
-        {taskLink === undefined ? null : (
-          <button type="button" className="pod-link pod-msg-task-link" onClick={() => app.openTask(taskLink.taskId)}>
-            {taskLink.label}
-          </button>
-        )}
+        {taskLink === undefined ? null : <TaskLink taskId={taskLink.taskId} label={taskLink.label} roomId={message.roomId} />}
         {attachment === undefined ? null : <Attachment attachment={attachment} />}
-        {run === undefined ? null : <RunSummaryLine run={run} />}
+        {run === undefined || !stepsOpen ? null : <RunSummaryLine run={run} />}
         {message.kind === 'kickoff' && typeof message.data.taskId === 'string' ? <KickoffActions taskId={message.data.taskId} /> : null}
       </div>
     </MessageFrame>
   )
 }
 
+/** 这一轮记下的执行过程：从“更多”里展开或收起。 */
+interface Steps {
+  readonly open: boolean
+  readonly toggle: () => void
+}
+
 /**
  * 你的或 bot 的一条消息的外框。有鼠标时操作是悬停浮出的一小排按钮；
  * 触屏上没有悬停，长按弹出操作面板（手机上从底下升起），按着的那条垫一层底色。
  */
-function MessageFrame(props: MessageProps & { readonly owner: boolean; readonly className: string; readonly children: ReactNode }) {
+function MessageFrame(props: MessageProps & { readonly owner: boolean; readonly className: string; readonly children: ReactNode; readonly steps?: Steps }) {
   const touch = useTouch()
   const [view, setView] = useState<SheetView>('main')
   const [selecting, setSelecting] = useState(false)
@@ -301,7 +336,7 @@ function MessageFrame(props: MessageProps & { readonly owner: boolean; readonly 
       {props.children}
       {routable && hovered ? <MessageRoutes messageId={props.message.id} bots={props.bots} /> : null}
       {touch ? (
-        <MessageSheet control={menu} view={view} onView={setView} message={props.message} owner={props.owner} onReply={props.onReply} onPinned={props.onPinned} onSelect={() => setSelecting(true)} />
+        <MessageSheet control={menu} view={view} onView={setView} message={props.message} owner={props.owner} onReply={props.onReply} onPinned={props.onPinned} onSelect={() => setSelecting(true)} steps={props.steps} />
       ) : (
         <MessageActions {...props} />
       )}
@@ -316,10 +351,10 @@ function MessageFrame(props: MessageProps & { readonly owner: boolean; readonly 
 
 /**
  * 消息的操作：平时不显示，鼠标移到消息上时在右上角浮出一小排按钮，不占地方。
- * bot 的回复有复制、引用、重新回答、赞、踩，置顶和查看过程收在“…”里；你自己的消息有复制、引用和“…”。
+ * bot 的回复有复制、引用、重新回答、赞、踩，置顶、这一轮的步骤和查看过程收在“…”里；你自己的消息有复制、引用和“…”。
  * 触屏上不用它，长按弹出 MessageSheet。
  */
-function MessageActions(props: MessageProps & { readonly owner: boolean }) {
+function MessageActions(props: MessageProps & { readonly owner: boolean; readonly steps?: Steps }) {
   const app = useApp()
   const { message } = props
   const menu = useMenu('start')
@@ -349,6 +384,16 @@ function MessageActions(props: MessageProps & { readonly owner: boolean }) {
             void api.pinMessage(message.id, !message.pinned).then(props.onPinned)
           }}
         />
+        {props.steps === undefined ? null : (
+          <MenuItem
+            icon="history"
+            label={props.steps.open ? t('收起这一轮的步骤') : t('这一轮的步骤')}
+            onClick={() => {
+              menu.close()
+              props.steps?.toggle()
+            }}
+          />
+        )}
         {sessionId === null ? null : (
           <MenuItem
             icon="open"

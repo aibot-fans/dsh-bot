@@ -399,6 +399,7 @@ export function Timeline(props: TimelineProps) {
                     onPinned={(updated) => setMessages((current) => merge(current, [updated]))}
                     mentions={mentions}
                     hideTime={sameMinuteAsNext(message, ordered[index + 1])}
+                    quiet={room.taskId !== null}
                   />
                 </div>
               </Fragment>
