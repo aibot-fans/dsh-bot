@@ -10,6 +10,8 @@ export { afterCommit, flag, inTransaction, onAfterCommitError, readJson, transac
 export * from './effects.ts'
 export * from './ops.ts'
 export * from './problems.ts'
+export * from './reports.ts'
+export * from './runs.ts'
 export * from './kv.ts'
 export * from './memory.ts'
 export * from './pages.ts'

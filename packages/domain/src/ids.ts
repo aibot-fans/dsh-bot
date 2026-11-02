@@ -24,6 +24,10 @@ export type IdPrefix =
   | 'shot'
   | 'page'
   | 'xw'
+  | 'run'
+  | 'rep'
+  | 'topic'
+  | 'trg'
 
 export function newId(prefix: IdPrefix): string {
   return `${prefix}_${randomHex(12)}`

@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import type { AcceptanceItem, Task, TaskLevel, TaskNeeds, TaskResult, TaskStage, TaskStatus, ToolProfile } from 'pod-domain'
+import type { AcceptanceItem, EndReason, ReplyTarget, Task, TaskLevel, TaskNeeds, TaskOrigin, TaskResult, TaskStage, TaskStatus, TicketStage, ToolProfile } from 'pod-domain'
 import { flag, readJson, writeJson } from './json.ts'
 
 interface TaskRow {
@@ -30,6 +30,12 @@ interface TaskRow {
   readonly created_by: string
   readonly requester_session: string | null
   readonly attempts: number
+  readonly origin: string | null
+  readonly reply_to: string
+  readonly ended_at: number | null
+  readonly end_reason: string | null
+  readonly stage_cache: string | null
+  readonly nudges: number
   readonly created_at: number
   readonly started_at: number | null
   readonly finished_at: number | null
@@ -65,6 +71,12 @@ function toTask(row: TaskRow): Task {
     createdBy: row.created_by,
     requesterSession: row.requester_session,
     attempts: row.attempts,
+    origin: readJson<TaskOrigin | null>(row.origin, null),
+    replyTo: readJson<readonly ReplyTarget[]>(row.reply_to, []),
+    endedAt: row.ended_at,
+    endReason: (row.end_reason as EndReason | null) ?? null,
+    ticketStage: (row.stage_cache as TicketStage | null) ?? null,
+    nudges: row.nudges,
     createdAt: row.created_at,
     startedAt: row.started_at,
     finishedAt: row.finished_at,
@@ -139,14 +151,16 @@ export interface NewTask {
   readonly planPending?: boolean
   readonly createdBy: string
   readonly requesterSession: string | null
+  readonly origin?: TaskOrigin | null
+  readonly replyTo?: readonly ReplyTarget[]
   readonly now: number
 }
 
 export function insertTask(db: DatabaseSync, input: NewTask): Task {
   db.prepare(
     `INSERT INTO tasks (id, root_id, parent_id, room_id, team_id, title, brief, kind, deliverable, acceptance, depends_on, needs,
-       owner_bot_id, level, status, stage, folder, urgent, tainted, max_profile, plan_pending, created_by, requester_session, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       owner_bot_id, level, status, stage, folder, urgent, tainted, max_profile, plan_pending, created_by, requester_session, origin, reply_to, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     input.id,
     input.rootId,
@@ -171,6 +185,8 @@ export function insertTask(db: DatabaseSync, input: NewTask): Task {
     input.planPending === true ? 1 : 0,
     input.createdBy,
     input.requesterSession,
+    input.origin === undefined || input.origin === null ? null : writeJson(input.origin),
+    writeJson(input.replyTo ?? []),
     input.now,
     input.now,
   )
@@ -201,6 +217,11 @@ export interface TaskPatch {
   readonly attempts?: number
   readonly startedAt?: number | null
   readonly finishedAt?: number | null
+  readonly replyTo?: readonly ReplyTarget[]
+  readonly endedAt?: number | null
+  readonly endReason?: EndReason | null
+  readonly ticketStage?: TicketStage | null
+  readonly nudges?: number
 }
 
 export function updateTask(db: DatabaseSync, id: string, patch: TaskPatch, now: number): Task | undefined {
@@ -210,7 +231,8 @@ export function updateTask(db: DatabaseSync, id: string, patch: TaskPatch, now: 
   db.prepare(
     `UPDATE tasks SET title = ?, brief = ?, deliverable = ?, acceptance = ?, depends_on = ?, owner_bot_id = ?, status = ?, stage = ?,
        note = ?, result = ?, room_id = ?, plan_version = ?, urgent = ?, tainted = ?, plan_pending = ?, kind = ?, needs = ?,
-       requester_session = ?, attempts = ?, started_at = ?, finished_at = ?, updated_at = ?
+       requester_session = ?, attempts = ?, started_at = ?, finished_at = ?, reply_to = ?, ended_at = ?, end_reason = ?, stage_cache = ?, nudges = ?,
+       updated_at = ?
      WHERE id = ?`,
   ).run(
     next.title,
@@ -234,6 +256,11 @@ export function updateTask(db: DatabaseSync, id: string, patch: TaskPatch, now: 
     next.attempts,
     next.startedAt,
     next.finishedAt,
+    writeJson(next.replyTo),
+    next.endedAt,
+    next.endReason,
+    next.ticketStage,
+    next.nudges,
     now,
     id,
   )

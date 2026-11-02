@@ -249,6 +249,18 @@ export function appendMessage(db: DatabaseSync, input: NewMessage): RoomMessage 
   }
 }
 
+/** 你在这个聊天室里说的、这个 bot 还没回过的话（最多 limit 条，旧的在前）：派活时放进来由。 */
+export function unansweredOwnerMessages(db: DatabaseSync, roomId: string, botId: string, limit: number): readonly RoomMessage[] {
+  const rows = db
+    .prepare(
+      `SELECT * FROM messages WHERE room_id = ? AND author = 'owner' AND deleted_at IS NULL
+         AND seq > COALESCE((SELECT MAX(seq) FROM messages WHERE room_id = ? AND author = ? AND kind = 'text' AND deleted_at IS NULL), 0)
+       ORDER BY seq DESC LIMIT ?`,
+    )
+    .all(roomId, roomId, botId, limit) as unknown as readonly MessageRow[]
+  return rows.map(toMessage).reverse()
+}
+
 export function getMessage(db: DatabaseSync, id: string): RoomMessage | undefined {
   const row = db.prepare('SELECT * FROM messages WHERE id = ?').get(id) as MessageRow | undefined
   return row === undefined ? undefined : toMessage(row)

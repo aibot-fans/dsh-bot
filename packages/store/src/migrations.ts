@@ -675,6 +675,40 @@ const MIGRATIONS: readonly string[] = [
 
   ALTER TABLE waits ADD COLUMN report_id TEXT;
   `,
+  // v12：任务换成工单。执行带开工原因的补充，汇报记作者；旧任务补来由（标成旧任务，没有原话）、
+  // 按旧状态补结束方式和一条执行，最后一次结果换成一条汇报。旧的 status 列先留着，由阶段推出来写。
+  `
+  ALTER TABLE task_runs ADD COLUMN detail TEXT NOT NULL DEFAULT '{}';
+  ALTER TABLE task_reports ADD COLUMN author TEXT NOT NULL DEFAULT '';
+
+  UPDATE tasks SET origin = json_object('kind', 'legacy', 'quotes', json('[]'), 'requester', created_by, 'roomId', room_id, 'rule', NULL, 'title', title, 'note', brief)
+    WHERE origin IS NULL;
+  UPDATE tasks SET reply_to = json_array(json_object('roomId', room_id, 'messageId', NULL)) WHERE room_id IS NOT NULL AND reply_to = '[]';
+  UPDATE tasks SET ended_at = COALESCE(finished_at, updated_at), end_reason = CASE status WHEN 'done' THEN 'done' ELSE 'stopped' END
+    WHERE status IN ('done', 'stopped', 'cancelled') AND ended_at IS NULL;
+
+  INSERT OR IGNORE INTO task_runs (id, task_id, session_id, status, reason, outcome, error, queued_at, started_at, ended_at, detail)
+    SELECT 'run_' || substr(t.id, 6), t.id,
+      (SELECT s.id FROM sessions s WHERE s.task_id = t.id AND s.kind IN ('task', 'coord') ORDER BY s.created_at DESC LIMIT 1),
+      CASE t.status WHEN 'queued' THEN 'queued' WHEN 'running' THEN 'running' ELSE 'ended' END,
+      'new',
+      CASE t.status WHEN 'queued' THEN NULL WHEN 'running' THEN NULL WHEN 'paused' THEN 'paused' WHEN 'stopped' THEN 'stopped' WHEN 'cancelled' THEN 'stopped' ELSE 'reported' END,
+      NULL, t.created_at, t.started_at,
+      CASE WHEN t.status IN ('queued', 'running') THEN NULL ELSE COALESCE(t.finished_at, t.updated_at) END,
+      '{}'
+    FROM tasks t WHERE t.deleted_at IS NULL;
+
+  INSERT OR IGNORE INTO task_reports (id, run_id, task_id, status, summary, report, question, about_message, reply_message, checks, data, author, created_at)
+    SELECT 'rep_' || substr(t.id, 6), 'run_' || substr(t.id, 6), t.id,
+      CASE t.status WHEN 'failed' THEN 'failed' ELSE 'ready' END,
+      CASE WHEN t.status = 'failed' THEN t.note ELSE COALESCE(json_extract(t.result, '$.summary'), '') END,
+      '', NULL, NULL, NULL, '[]', COALESCE(t.result, '{}'), COALESCE(t.owner_bot_id, ''), COALESCE(t.finished_at, t.updated_at)
+    FROM tasks t WHERE t.deleted_at IS NULL AND t.status IN ('done', 'review', 'failed');
+
+  UPDATE tasks SET stage_cache = CASE status
+      WHEN 'queued' THEN 'queued' WHEN 'running' THEN 'running' WHEN 'waiting' THEN 'waiting' WHEN 'review' THEN 'review'
+      WHEN 'failed' THEN 'failed' WHEN 'paused' THEN 'idle' ELSE 'ended' END;
+  `,
 ]
 
 function readVersion(db: DatabaseSync): number {

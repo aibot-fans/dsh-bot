@@ -1,6 +1,8 @@
 /** 任务树：根任务是目标，子任务派给成员；验收项既是标准，也是进度的计量单位。 */
 
 import type { ToolProfile } from './bots.ts'
+import type { TicketStage } from './engine/stage.ts'
+import type { EndReason, ReplyTarget, TaskOrigin, TaskReport, TaskRun } from './engine/tickets.ts'
 import type { TurnProgress } from './progress.ts'
 
 export type TaskStatus =
@@ -75,6 +77,16 @@ export interface Task {
   /** 结果要回给哪条会话（主管的聊天会话或组长的协调会话）。 */
   readonly requesterSession: string | null
   readonly attempts: number
+  /** 来由（工单）；迁移前的旧任务是 legacy，没有原话。 */
+  readonly origin: TaskOrigin | null
+  readonly replyTo: readonly ReplyTarget[]
+  /** 结束的时间和方式；开着的是 null。 */
+  readonly endedAt: number | null
+  readonly endReason: EndReason | null
+  /** 引擎按事实推出的阶段（缓存）；团队编排的任务按旧状态对回来。 */
+  readonly ticketStage: TicketStage | null
+  /** 这次执行里一轮结束没汇报、催了几次。 */
+  readonly nudges: number
   readonly createdAt: number
   readonly startedAt: number | null
   readonly finishedAt: number | null
@@ -165,4 +177,8 @@ export interface TaskSnapshot {
   readonly waits: number
   /** 给任务会话的消息连着几次交不出去：任务卡上显示“消息没送到”，可以点重试。 */
   readonly undelivered: { readonly error: string; readonly attempts: number; readonly since: number } | null
+  /** 按事实推出的阶段。 */
+  readonly stage: TicketStage
+  readonly run: TaskRun | null
+  readonly lastReport: TaskReport | null
 }
