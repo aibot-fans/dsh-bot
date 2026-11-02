@@ -45,8 +45,10 @@ export interface NavState {
   readonly settings: SettingsTab | null
   /** 搜索框里的词；null 表示搜索关着。 */
   readonly search: string | null
-  /** 打开的任务详情。 */
+  /** 打开的任务页：中间换成这个任务的页面。 */
   readonly taskId: string | null
+  /** 中间是概览（现在要我处理什么、系统好不好、进行中的）。 */
+  readonly overview: boolean
   /** 从搜索结果跳过来时要定位的消息。 */
   readonly focus: { readonly roomId: string; readonly seq: number; readonly messageId: string } | null
   /** 打开的页面：中间的对话换成页面查看器。 */
@@ -87,7 +89,7 @@ export interface HostActions {
 
 const NAV_KEY = 'pod-ui.nav.v2'
 
-const CLOSED: Omit<NavState, 'roomId' | 'sidebarCollapsed'> = { panel: null, drawer: null, settings: null, search: null, taskId: null, focus: null, page: null, update: false }
+const CLOSED: Omit<NavState, 'roomId' | 'sidebarCollapsed'> = { panel: null, drawer: null, settings: null, search: null, taskId: null, overview: false, focus: null, page: null, update: false }
 
 function loadNav(): NavState {
   const fallback: NavState = { ...CLOSED, roomId: null, sidebarCollapsed: false }
@@ -164,14 +166,19 @@ export class AppState {
   openRoom(roomId: string): void {
     const same = this.nav.roomId === roomId
     const panel = same ? this.nav.panel : null
-    this.navigate({ roomId, focus: null, search: null, settings: null, panel, page: null })
+    this.navigate({ roomId, focus: null, search: null, settings: null, panel, page: null, taskId: null, overview: false })
     // 点的就是开着的这个对话：输入框没换，叫它拿焦点；换了对话，新的输入框装上时自己拿。
     if (same) for (const listener of this.focusListeners) listener(roomId)
   }
 
   /** 手机上回到列表：不在任何对话里（临时对话就此删掉），列表上的未读照常算。宽屏上中间会回到主管的单聊。 */
   showList(): void {
-    this.navigate({ roomId: null, panel: null, page: null, focus: null })
+    this.navigate({ roomId: null, panel: null, page: null, focus: null, taskId: null, overview: false })
+  }
+
+  /** 中间换成概览；开着的任务页和页面查看器关上。 */
+  showOverview(): void {
+    this.navigate({ overview: true, taskId: null, page: null, search: null, settings: null })
   }
 
   /** 打开和某个 bot 的单聊（没有就建一个）。 */
@@ -212,11 +219,16 @@ export class AppState {
 
   /** 跳到某条消息：加载它前后的内容并高亮。 */
   focusMessage(roomId: string, seq: number, messageId: string): void {
-    this.navigate({ roomId, focus: { roomId, seq, messageId }, search: null, page: null })
+    this.navigate({ roomId, focus: { roomId, seq, messageId }, search: null, page: null, taskId: null, overview: false })
   }
 
+  /** 中间换成任务页；关上它回到原来的对话或概览。开着的页面查看器关上。 */
   openTask(taskId: string): void {
-    this.navigate({ taskId })
+    this.navigate({ taskId, page: null, search: null })
+  }
+
+  closeTask(): void {
+    this.navigate({ taskId: null })
   }
 
   /** 打开 bot 详情；from 是群聊 id 时显示成员卡片，可以返回那个群的详情。 */
@@ -368,6 +380,7 @@ export class AppState {
         return
       case 'health':
         cache.invalidate('health')
+        cache.invalidate('overview')
         return
       case 'settings':
         cache.invalidate('settings')
@@ -392,6 +405,7 @@ export class AppState {
         cache.invalidate(`pins:${event.roomId}`)
         cache.invalidate(`ratings:${event.roomId}`)
         cache.invalidate((key) => key.startsWith('page-thread:'))
+        cache.invalidate((key) => key.startsWith('routes:'))
         return
       case 'pages':
         cache.invalidate('pages')
@@ -408,6 +422,10 @@ export class AppState {
         cache.invalidate(`detail:${root}`)
         cache.invalidate(`plan:${root}`)
         cache.invalidate('tasks')
+        cache.invalidate('overview')
+        cache.invalidate('rooms')
+        cache.invalidate((key) => key.startsWith('team:'))
+        cache.invalidate((key) => key.startsWith('routes:'))
         return
       }
       case 'activity':
@@ -425,6 +443,8 @@ export class AppState {
       case 'waits':
         cache.invalidate('waits')
         cache.invalidate('rooms')
+        cache.invalidate('overview')
+        cache.invalidate((key) => key.startsWith('team:'))
         return
       case 'notifications':
         cache.invalidate('notifications')

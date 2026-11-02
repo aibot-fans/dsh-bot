@@ -22,15 +22,15 @@ import { errorText } from '../api/http.ts'
 import { useApp } from '../state/app.ts'
 import { useResource } from '../state/resource.ts'
 import { Badge, Button, useNow } from './common.tsx'
+import { duration } from './duration.ts'
 import { FilePreview } from './FilePreview.tsx'
 import { BotName } from './GroupMark.tsx'
 import { Markdown } from './Markdown.tsx'
 import { ProgressBlock } from './Progress.tsx'
+import { TaskQuestion } from './TaskQuestion.tsx'
 
 function elapsed(task: Task, now: number): string {
-  const end = task.finishedAt ?? now
-  const minutes = Math.max(0, Math.round((end - (task.startedAt ?? task.createdAt)) / 60_000))
-  return minutes < 60 ? t('{minutes} 分钟', { minutes }) : t('{floor} 小时 {value} 分', { floor: Math.floor(minutes / 60), value: minutes % 60 })
+  return duration((task.finishedAt ?? now) - (task.startedAt ?? task.createdAt))
 }
 
 function ago(time: number | null, now: number): string {
@@ -217,6 +217,21 @@ function Undelivered(props: { readonly snapshot: TaskSnapshot }) {
   )
 }
 
+/**
+ * 最后一句进展和最后一次汇报：这次执行里有进展汇报就写进展；要你处理或等新消息时写那次汇报（它定了现在的阶段）；
+ * 重新开工以后、还没新汇报时不写旧的。
+ */
+function ReportLine(props: { readonly snapshot: TaskSnapshot }) {
+  const { lastReport: report, run, stage } = props.snapshot
+  if (report === null) return null
+  if (report.status === 'progress') {
+    if (run !== null && report.createdAt < run.queuedAt) return null
+    return <div className="pod-task-note">{t('进展：{summary}', { summary: report.summary })}</div>
+  }
+  if (stage !== 'idle' && stage !== 'ended' && stageGroup(stage) !== 'attention') return null
+  return <div className="pod-task-note">{t('最近汇报（{status}）：{summary}', { status: t(REPORT_STATUS_LABELS[report.status]), summary: report.summary })}</div>
+}
+
 /** 单聊里开的任务：在做时只是一行“在做”，做完原地变成结果（标明是谁做的）；要你处理（验收、答复、重试）时展开成完整的卡。 */
 function InlineTask(props: { readonly snapshot: TaskSnapshot; readonly now: number; readonly control: (action: ControlAction) => void; readonly owner: Bot | undefined }) {
   const app = useApp()
@@ -246,6 +261,9 @@ function InlineTask(props: { readonly snapshot: TaskSnapshot; readonly now: numb
     <div className="pod-task-inline">
       <span className="pod-task-inline-title">{t('在做：{title}', { title: task.title })}</span>
       <span className="pod-muted-inline">{t('已用')} {elapsed(task, now)}</span>
+      {snapshot.lastReport !== null && snapshot.lastReport.status === 'progress' && (snapshot.run === null || snapshot.lastReport.createdAt >= snapshot.run.queuedAt) ? (
+        <span className="pod-task-inline-progress">{snapshot.lastReport.summary}</span>
+      ) : null}
       {snapshot.activity?.running === true ? <ActivityLine activity={snapshot.activity} now={now} /> : null}
       <span className="pod-task-inline-actions">
         <Button small kind="quiet" icon="stop" onClick={() => props.control('stop')}>
@@ -310,9 +328,7 @@ export function TaskCard(props: { readonly taskId: string; readonly compact?: bo
           {team ? (
             <Stages task={task} done={snapshot.children.length > 0 ? snapshot.children.filter((child) => child.status === 'done').length : progress.done} total={snapshot.children.length > 0 ? snapshot.children.length : progress.total} />
           ) : null}
-          {snapshot.lastReport === null || snapshot.lastReport.status === 'progress' ? null : (
-            <div className="pod-task-note">{t('最近汇报（{status}）：{summary}', { status: t(REPORT_STATUS_LABELS[snapshot.lastReport.status]), summary: snapshot.lastReport.summary })}</div>
-          )}
+          <ReportLine snapshot={snapshot} />
           <SegmentBar snapshot={snapshot} />
           {props.compact === true || snapshot.children.length > 0 || task.acceptance.length === 0 ? null : (
             <ul className="pod-acceptance">
@@ -335,8 +351,12 @@ export function TaskCard(props: { readonly taskId: string; readonly compact?: bo
             .map((child) => (
               <ActivityLine key={child.id} activity={snapshot.childActivity[child.id]} now={now} prefix={child.title} />
             ))}
-          {task.note === '' ? null : <div className="pod-task-note">{t('进度说明：{note}', { note: task.note })}</div>}
-          {snapshot.waits > 0 ? <div className="pod-task-wait">{t('等你处理：{waits} 件', { waits: snapshot.waits })}</div> : null}
+          {task.note === '' || (snapshot.lastReport !== null && snapshot.lastReport.summary === task.note) ? null : <div className="pod-task-note">{t('进度说明：{note}', { note: task.note })}</div>}
+          {snapshot.question !== null && snapshot.question !== undefined ? (
+            <TaskQuestion wait={snapshot.question} more={Math.max(0, snapshot.waits - 1)} />
+          ) : snapshot.waits > 0 ? (
+            <div className="pod-task-wait">{t('等你处理：{waits} 件', { waits: snapshot.waits })}</div>
+          ) : null}
           <Undelivered snapshot={snapshot} />
         </>
       )}

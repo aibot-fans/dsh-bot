@@ -20,6 +20,7 @@ import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 import { Attachment } from './Attachment.tsx'
 import { calledMentions } from './Calls.tsx'
+import { MessageRoutes } from './MessageRoutes.tsx'
 import { MessageSheet, answerable, regenerable, type SheetView } from './MessageSheet.tsx'
 import { RateButtons } from './Rating.tsx'
 import { readTurnError, TurnErrorLine } from './TurnErrorLine.tsx'
@@ -282,14 +283,23 @@ function MessageFrame(props: MessageProps & { readonly owner: boolean; readonly 
   const touch = useTouch()
   const [view, setView] = useState<SheetView>('main')
   const [selecting, setSelecting] = useState(false)
+  // 你的消息：鼠标停上去时才去取它的去向。
+  const [hovered, setHovered] = useState(false)
+  const routable = props.owner && !touch
   const menu = useMenu('start', view)
   const press = useLongPress((x, y) => {
     setView('main')
     menu.openAt(x, y)
   }, touch)
   return (
-    <div className={`${props.className}${touch && menu.open ? ' pod-msg-pressed' : ''}`} {...press}>
+    <div
+      className={`${props.className}${touch && menu.open ? ' pod-msg-pressed' : ''}`}
+      {...press}
+      onMouseEnter={routable ? () => setHovered(true) : undefined}
+      onMouseLeave={routable ? () => setHovered(false) : undefined}
+    >
       {props.children}
+      {routable && hovered ? <MessageRoutes messageId={props.message.id} bots={props.bots} /> : null}
       {touch ? (
         <MessageSheet control={menu} view={view} onView={setView} message={props.message} owner={props.owner} onReply={props.onReply} onPinned={props.onPinned} onSelect={() => setSelecting(true)} />
       ) : (

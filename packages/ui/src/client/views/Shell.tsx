@@ -12,6 +12,7 @@ import { useMobileBack } from '../state/mobileBack.ts'
 import { useResource } from '../state/resource.ts'
 import { Conversation } from './chat/Conversation.tsx'
 import { Onboarding } from './Onboarding.tsx'
+import { OverviewView } from './overview/OverviewView.tsx'
 import { PageViewer } from './pages/PageViewer.tsx'
 import { useSurfaceTheme } from './pages/theme.ts'
 import { Drawers } from './panel/Drawers.tsx'
@@ -20,6 +21,7 @@ import { SearchDialog } from './search/SearchDialog.tsx'
 import { SettingsModal } from './settings/SettingsModal.tsx'
 import { SystemBanners } from './SystemBanners.tsx'
 import { Sidebar } from './side/Sidebar.tsx'
+import { TaskPage } from './tasks/TaskPage.tsx'
 import { UpdateDialog } from './update/UpdateDialog.tsx'
 import { UpdateNotice } from './update/UpdateNotice.tsx'
 
@@ -78,7 +80,7 @@ function useEscapeClosesPanel(): void {
       const target = event.target as HTMLElement | null
       if (target !== null && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return
       const current = app.getNav()
-      if (current.drawer !== null || current.settings !== null || current.search !== null || current.taskId !== null) return
+      if (current.drawer !== null || current.settings !== null || current.search !== null) return
       if (document.querySelector('.pod-modal, .pod-menu') !== null) return
       // 从详情里放大看的浏览器：Esc 先回到详情。
       if (current.panel?.kind === 'browser' && current.panel.back !== undefined && current.panel.back !== null) app.navigate({ panel: current.panel.back })
@@ -116,11 +118,21 @@ function Layout() {
   useEscapeClosesPanel()
   useRoomHousekeeping()
   useMobileBack(app, narrow)
-  const center = nav.page === null ? <Conversation /> : <PageViewer key={nav.page.id} pageId={nav.page.id} version={nav.page.version} />
+  // 中间一栏：页面查看器 > 任务页 > 概览 > 对话。
+  const center =
+    nav.page !== null ? (
+      <PageViewer key={nav.page.id} pageId={nav.page.id} version={nav.page.version} />
+    ) : nav.taskId !== null ? (
+      <TaskPage key={nav.taskId} taskId={nav.taskId} />
+    ) : nav.overview ? (
+      <OverviewView />
+    ) : (
+      <Conversation />
+    )
   if (narrow) {
     return (
       <div className="pod-layout pod-layout-narrow">
-        {nav.page === null && nav.roomId === null ? <Sidebar /> : center}
+        {nav.page === null && nav.roomId === null && nav.taskId === null && !nav.overview ? <Sidebar /> : center}
         <RightPanel />
       </div>
     )
@@ -134,7 +146,7 @@ function Layout() {
   )
 }
 
-/** Pod 页面的外壳：左侧栏、中间对话（或页面查看器）、右侧面板，加上设置弹窗、更新弹窗、搜索和抽屉。没有顶部导航。 */
+/** Pod 页面的外壳：左侧栏、中间对话（或页面查看器、任务页、概览）、右侧面板，加上设置弹窗、更新弹窗、搜索和抽屉。没有顶部导航。 */
 export function PodApp(props: { readonly host: HostActions; readonly locale: HostLocale }) {
   const [app] = useState(() => new AppState(props.host))
   useEffect(() => () => app.dispose(), [app])

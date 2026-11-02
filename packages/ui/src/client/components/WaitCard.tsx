@@ -6,6 +6,7 @@ import { useApp } from '../state/app.ts'
 import { useResource } from '../state/resource.ts'
 import { ApprovalDetail } from './ApprovalDetail.tsx'
 import { Badge, Button, RelativeTime } from './common.tsx'
+import { Markdown } from './Markdown.tsx'
 
 const PLACEHOLDER: Readonly<Record<string, string>> = {
   login: '登录好之后写一句“已登录”就行；不需要写密码',
@@ -46,7 +47,11 @@ export function WaitView(props: { readonly wait: Wait; readonly showTask?: boole
           <RelativeTime time={wait.createdAt} />
         </span>
       </div>
-      {wait.detail === '' || wait.kind === 'write' ? null : <p className="pod-wait-detail">{wait.detail}</p>}
+      {wait.detail === '' || wait.kind === 'write' ? null : (
+        <div className="pod-wait-detail">
+          <Markdown text={wait.detail} />
+        </div>
+      )}
       {wait.kind === 'write' ? <ApprovalDetail wait={wait} /> : null}
       {wait.kind === 'login' && typeof wait.data.tabId === 'string' ? (
         <div>

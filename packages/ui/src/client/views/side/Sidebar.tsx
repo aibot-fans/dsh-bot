@@ -106,6 +106,30 @@ function FolderHead(props: { readonly folder: SidebarFolder; readonly count: num
   )
 }
 
+/** 侧栏顶上的概览入口：有要你处理的事时显示件数。 */
+function OverviewEntry(props: { readonly collapsed: boolean; readonly active: boolean }) {
+  const app = useApp()
+  const { data } = useResource(app.cache, 'overview', () => api.overview())
+  const count = data?.attention.length ?? 0
+  return (
+    <button
+      type="button"
+      className={`pod-side-row pod-side-overview${props.active ? ' pod-side-row-active' : ''}`}
+      onClick={() => app.showOverview()}
+      title={props.collapsed ? t('概览') : undefined}
+      aria-current={props.active ? 'true' : undefined}
+    >
+      <Icon name="inbox" size={18} />
+      {props.collapsed ? null : <span className="pod-side-row-title">{t('概览')}</span>}
+      {count === 0 ? null : (
+        <span className="pod-unread pod-unread-warn" title={t('{count} 件要你处理', { count })}>
+          {count}
+        </span>
+      )}
+    </button>
+  )
+}
+
 /** 列表太长时只显示前几条；正在看的那条总是显示。 */
 function limit(items: readonly SidebarItem[], expanded: boolean, roomId: string | null): { readonly shown: readonly SidebarItem[]; readonly hidden: number } {
   if (expanded || items.length <= SHOWN) return { shown: items, hidden: 0 }
@@ -116,7 +140,7 @@ function limit(items: readonly SidebarItem[], expanded: boolean, roomId: string 
 }
 
 /**
- * 左侧栏：顶部是搜索、新对话、临时对话，最右边是收起按钮；下面是置顶（主管总在第一个）、你建的分组、Bot、群聊，
+ * 左侧栏：顶部是搜索、新对话、临时对话，最右边是收起按钮；下面是概览入口、置顶（主管总在第一个）、你建的分组、Bot、群聊，
  * Bot 和群聊默认各显示 5 条，拖动可以排顺序；归档的不在侧栏里，在设置的“归档”里看；最底下是设置，有新版本时旁边有提醒。
  * 手机上它就是列表页：占满整屏、不能收起、全部显示；触屏上不能拖，排顺序用菜单里的置顶和移到分组。
  */
@@ -197,6 +221,7 @@ export function Sidebar() {
         </p>
       )}
       <div className="pod-side-scroll">
+        <OverviewEntry collapsed={collapsed} active={nav.overview && nav.taskId === null && nav.page === null} />
         {sections.pinned.length === 0 ? null : (
           <>
             <SectionHead title={tc('置顶', '状态')} collapsed={collapsed} drop={drag.head(SIDEBAR_PINNED)} />

@@ -55,6 +55,26 @@ export interface TaskRun {
   readonly endedAt: number | null
 }
 
+export const RUN_REASON_LABELS: Readonly<Record<RunReason, string>> = {
+  new: '新任务',
+  message: '你的新消息',
+  trigger: '触发器',
+  retry: '重试',
+  recover: '重启后接着做',
+  resume: '点了继续',
+  review: '组长打回重做',
+  subtask: '子任务有新进展',
+}
+
+export const RUN_OUTCOME_LABELS: Readonly<Record<RunOutcome, string>> = {
+  reported: '交了汇报',
+  paused: '停下这次',
+  stopped: '任务停掉',
+  failed: '开工失败',
+  interrupted: '重启打断',
+  silent: '催了几次没汇报',
+}
+
 /** 汇报 6 种：进展、等消息、就绪、受阻、失败、无需处理。 */
 export type ReportStatus = 'progress' | 'waiting' | 'ready' | 'blocked' | 'failed' | 'dismissed'
 

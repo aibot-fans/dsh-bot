@@ -6,7 +6,6 @@ import { useApp, useNav } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 import { EvolutionPanel, ScorecardStrip, SkillsPanel } from '../bots/GrowthPanels.tsx'
 import { MemoryPanel } from '../memory/MemoryView.tsx'
-import { TaskDetail } from '../tasks/TasksView.tsx'
 import { NewBotFlow, NewGroup } from './NewItems.tsx'
 import { Versions } from './Versions.tsx'
 
@@ -28,7 +27,7 @@ function Growth(props: { readonly bot: Bot }) {
   )
 }
 
-/** 盖在面板上的抽屉：记忆、技能、成长记录、历史版本、新建 bot、新建群聊，以及任务详情。 */
+/** 盖在面板上的抽屉：记忆、技能、成长记录、历史版本、新建 bot、新建群聊。 */
 export function Drawers() {
   const app = useApp()
   const nav = useNav()
@@ -57,7 +56,6 @@ export function Drawers() {
       {drawer?.kind === 'versions' && botOf(drawer.botId) !== undefined ? <Versions bot={botOf(drawer.botId) as Bot} onClose={close} /> : null}
       {drawer?.kind === 'new-bot' ? <NewBotFlow bots={(botList ?? []).filter((bot) => bot.archivedAt === null)} onClose={close} /> : null}
       {drawer?.kind === 'new-group' ? <NewGroup bots={(botList ?? []).filter((bot) => bot.archivedAt === null)} onClose={close} /> : null}
-      {nav.taskId === null ? null : <TaskDetail taskId={nav.taskId} bots={bots} onClose={() => app.navigate({ taskId: null })} />}
     </>
   )
 }

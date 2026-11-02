@@ -6,7 +6,7 @@ import { Icon } from './Icon.tsx'
 import { useNarrow } from './media.ts'
 
 /** 头像：你上传的图片；没有图片时用内置的鲸鱼娘图标（没选时按角色配）。 */
-export function Avatar(props: { readonly bot?: IconBot; readonly size?: number; readonly status?: 'busy' | 'waiting' | 'idle' }) {
+export function Avatar(props: { readonly bot?: IconBot; readonly size?: number; readonly status?: 'busy' | 'waiting' | 'blocked' | 'idle' }) {
   const size = props.size ?? 32
   const avatar = props.bot?.avatar ?? ''
   return (

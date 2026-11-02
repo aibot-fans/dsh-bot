@@ -4,6 +4,7 @@ import type { ToolProfile } from './bots.ts'
 import type { TicketStage } from './engine/stage.ts'
 import type { EndReason, ReplyTarget, TaskOrigin, TaskReport, TaskRun } from './engine/tickets.ts'
 import type { TurnProgress } from './progress.ts'
+import type { Wait } from './waits.ts'
 
 export type TaskStatus =
   | 'queued'
@@ -175,6 +176,8 @@ export interface TaskSnapshot {
   readonly cost: number
   readonly tokens: number
   readonly waits: number
+  /** 要你回答的问题：还开着的等你里最早的一件（根任务算上子任务的）。 */
+  readonly question: Wait | null
   /** 给任务会话的消息连着几次交不出去：任务卡上显示“消息没送到”，可以点重试。 */
   readonly undelivered: { readonly error: string; readonly attempts: number; readonly since: number } | null
   /** 按事实推出的阶段。 */

@@ -120,6 +120,30 @@ export function activeTasksForBot(db: DatabaseSync, botId: string): readonly Tas
   return rows.map(toTask)
 }
 
+/** 某个 bot 手上开着的任务（群顶的团队状态用），最近动过的在前。 */
+export function openTasksOf(db: DatabaseSync, botId: string): readonly Task[] {
+  const rows = db
+    .prepare('SELECT * FROM tasks WHERE owner_bot_id = ? AND ended_at IS NULL AND deleted_at IS NULL ORDER BY updated_at DESC')
+    .all(botId) as unknown as readonly TaskRow[]
+  return rows.map(toTask)
+}
+
+/** 每个聊天室里在跑（进行中、排队中）的任务有几个，侧栏标在聊天室旁；任务群也算上它那个根任务。按缓存的阶段数。 */
+export function runningTasksByRoom(db: DatabaseSync): ReadonlyMap<string, number> {
+  const rows = db
+    .prepare(
+      `SELECT room, COUNT(*) AS n FROM (
+         SELECT room_id AS room FROM tasks
+         WHERE room_id IS NOT NULL AND ended_at IS NULL AND deleted_at IS NULL AND stage_cache IN ('running', 'queued')
+         UNION ALL
+         SELECT r.id AS room FROM rooms r JOIN tasks t ON t.id = r.task_id
+         WHERE t.ended_at IS NULL AND t.deleted_at IS NULL AND t.stage_cache IN ('running', 'queued') AND (t.room_id IS NULL OR t.room_id != r.id)
+       ) GROUP BY room`,
+    )
+    .all() as unknown as readonly { readonly room: string; readonly n: number }[]
+  return new Map(rows.map((row) => [row.room, row.n]))
+}
+
 export function listTasksByStatus(db: DatabaseSync, statuses: readonly TaskStatus[]): readonly Task[] {
   const rows = db
     .prepare(`SELECT * FROM tasks WHERE status IN (${statuses.map(() => '?').join(', ')}) AND deleted_at IS NULL ORDER BY created_at`)

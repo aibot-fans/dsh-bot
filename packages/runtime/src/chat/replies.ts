@@ -115,6 +115,8 @@ export class Replies {
       body: input.body,
       sessionId: input.sessionId ?? null,
       replyTo: this.anchor(input, room),
+      // 不挂在那条下面时也算进它所在的话题（比如任务卡下面的话：回复它们的消息照样直通任务）。
+      topicFrom: this.sameRoom(input, room),
       data: { ...input.data, purpose: input.purpose, ...(input.taskId === null || input.taskId === undefined ? {} : { taskId: input.taskId }) },
     })
     if (posted === undefined) throw new Error(t('聊天室不在了'))
@@ -125,6 +127,12 @@ export class Replies {
   private earlier(seq: number, group: string): boolean {
     const row = this.deps.db.prepare("SELECT 1 AS found FROM effects WHERE kind = 'reply' AND seq < ? AND json_extract(payload, '$.group') = ? LIMIT 1").get(seq, group)
     return row !== undefined
+  }
+
+  /** 要回的那条在同一个聊天室：算进它的话题。 */
+  private sameRoom(input: ReplyInput, room: Room): string | null {
+    if (input.replyTo === null || input.replyTo === undefined) return null
+    return getMessage(this.deps.db, input.replyTo)?.roomId === room.id ? input.replyTo : null
   }
 
   /** 挂在哪条下面：那条还在、在同一个聊天室才挂；单聊里回的正是最新一条就不挂，对话照常往下走。 */

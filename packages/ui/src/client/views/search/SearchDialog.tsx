@@ -151,6 +151,18 @@ export function SearchDialog() {
                   </div>
                   <Snippet text={hit.snippet} />
                 </button>
+                {hit.kind !== 'message' || hit.taskId === null ? null : (
+                  <button
+                    type="button"
+                    className="pod-link pod-hit-task"
+                    onClick={() => {
+                      close()
+                      app.openTask(hit.taskId ?? '')
+                    }}
+                  >
+                    {t('打开它的任务页')}
+                  </button>
+                )}
               </li>
             ))}
           </ul>

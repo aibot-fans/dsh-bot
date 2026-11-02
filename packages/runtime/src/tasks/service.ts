@@ -38,6 +38,7 @@ import {
   transaction,
   unansweredOwnerMessages,
   updateTask,
+  waitsForRoot,
   type TaskEvent,
   type TaskPatch,
 } from 'pod-store'
@@ -513,6 +514,7 @@ export class TaskService {
       cost: usage.cost,
       tokens: usage.tokens,
       waits: this.deps.openWaits(task.rootId),
+      question: waitsForRoot(this.db, task.rootId).find((wait) => wait.status === 'open' && (task.parentId === null || wait.taskId === task.id)) ?? null,
       undelivered: this.undelivered(task.id, own?.id),
       stage: this.engine.tickets.stageOf(task),
       run: latestRun(this.db, task.id) ?? null,

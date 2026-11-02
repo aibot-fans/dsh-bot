@@ -36,17 +36,19 @@ function Item(props: { readonly item: LibraryItem; readonly onOpen: () => void }
   )
 }
 
-/** 资料库：对话里产出的文档、截图、网页存档和你上传的文件，按本周和更早分组，点开预览。 */
-export function Library(props: { readonly botId?: string; readonly roomId?: string }) {
+/** 资料库：对话里产出的文档、截图、网页存档和你上传的文件，按本周和更早分组，点开预览。给了 taskId 是任务页旁边那个任务文件夹里的。 */
+export function Library(props: { readonly botId?: string; readonly roomId?: string; readonly taskId?: string }) {
   const app = useApp()
-  const key = `library:${props.botId ?? ''}:${props.roomId ?? ''}`
-  const { data, error, reload } = useResource(app.cache, key, () => api.library({ botId: props.botId, roomId: props.roomId }))
+  const { taskId } = props
+  const key = taskId === undefined ? `library:${props.botId ?? ''}:${props.roomId ?? ''}` : `task-files:${taskId}`
+  const { data, error, reload } = useResource(app.cache, key, () => (taskId === undefined ? api.library({ botId: props.botId, roomId: props.roomId }) : api.taskFiles(taskId)))
   const [open, setOpen] = useState<LibraryItem | undefined>(undefined)
   const [expanded, setExpanded] = useState(false)
   // 每次打开都重新看一眼文件夹：文件是 bot 在工作区里写的，没有事件通知。
   useEffect(() => reload(), [reload])
   if (error !== undefined) return <p className="pod-form-error">{error}</p>
   if (data === undefined) return <p className="pod-muted">{t('正在读取…')}</p>
+  if (data.length === 0 && taskId !== undefined) return <p className="pod-muted">{t('任务文件夹里还没有文件。')}</p>
   if (data.length === 0) return <Empty title={t('资料库是空的')}>{t('对话里产出的文档、截图和你上传的文件会出现在这里。')}</Empty>
   const now = Date.now()
   const recent = data.filter((item) => now - item.modifiedAt < WEEK)

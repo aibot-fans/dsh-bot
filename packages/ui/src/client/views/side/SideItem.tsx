@@ -131,7 +131,17 @@ export function SideItem(props: SideItemProps) {
   const iconSize = narrow ? 44 : props.collapsed ? 28 : 24
   const icon = item.kind === 'bot' ? <Avatar bot={bot} size={iconSize} /> : <GroupMark members={props.members} size={iconSize} />
   const flag = waits > 0 && !props.collapsed ? <Badge tone="warn">{t('需要你')}</Badge> : unread > 0 ? <UnreadBadge count={unread} /> : null
-  const busy = props.busy ? <span className="pod-side-busy" role="img" aria-label={t('正在工作')} /> : null
+  // 聊天室旁标出在跑几个任务；没有在跑的任务、只是 bot 正在回答时只亮一个点。
+  const running = item.rooms.reduce((sum, thread) => sum + (thread.running ?? 0), 0)
+  const busy =
+    running > 0 && !props.collapsed ? (
+      <span className="pod-side-running" title={t('在跑 {count} 个任务', { count: running })}>
+        <span className="pod-side-busy" />
+        {running}
+      </span>
+    ) : props.busy || running > 0 ? (
+      <span className="pod-side-busy" role="img" aria-label={t('正在工作')} />
+    ) : null
   const lastAt = item.room?.lastMessageAt ?? null
   return (
     <div

@@ -2,14 +2,12 @@ import {
   MEMORY_TYPES,
   fail,
   isActive,
-  localDate,
   ok,
   readBool,
   readId,
   readInt,
   readString,
   t,
-  zonedTime,
   type MemoryScopeKind,
   type MemoryStatus,
   type MemoryType,
@@ -19,7 +17,9 @@ import {
 import { getMessage, listAudit, reportsFor, updateHandoverNote } from 'pod-store'
 import type { PodRuntime } from '../pod.ts'
 import type { ControlAction } from '../tasks/service.ts'
+import { followViews, taskTimeline } from '../tasks/timeline.ts'
 import { get, post, type RouteSpec } from './router.ts'
+import { overviewOf, routesOf, taskOfMessage, teamStatusOf } from './views.ts'
 
 /** 设置、bot 管理、回收站、审计和维护这些基础接口。 */
 export function baseRoutes(pod: PodRuntime): readonly RouteSpec[] {
@@ -66,28 +66,17 @@ const SCOPES: readonly MemoryScopeKind[] = ['owner', 'bot', 'team', 'room', 'tas
 
 const STATUSES: readonly TaskStatus[] = ['queued', 'running', 'waiting', 'review', 'done', 'failed', 'paused', 'stopped', 'cancelled']
 
-/** 今天零点（按设置里的时区）。 */
-function startOfToday(pod: PodRuntime): number {
-  const timezone = pod.settings.get().timezone
-  const [year, month, day] = localDate(pod.now(), timezone).split('-').map(Number)
-  return zonedTime({ year: year ?? 1970, month: month ?? 1, day: day ?? 1, hour: 0, minute: 0 }, timezone)
-}
-
 /** 房间、消息、任务和等你处理。 */
 export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
   return [
-    get('/overview', () => {
-      const roots = pod.tasks.roots(100)
-      const active = roots.filter((task) => isActive(task.status) || task.status === 'paused' || task.status === 'stopped')
-      const today = pod.meter.since(startOfToday(pod))
-      const busyBots = new Set(pod.registry.active().filter((session) => pod.dispatcher.isRunning(session.id)).map((session) => session.botId))
-      return ok({
-        activeTasks: active.map((task) => pod.tasks.snapshot(task.id)).filter(Boolean),
-        recentDone: roots.filter((task) => task.status === 'done').slice(0, 8).map((task) => pod.tasks.snapshot(task.id)).filter(Boolean),
-        waits: pod.waits.open().length,
-        bots: pod.bots.active().map((bot) => ({ id: bot.id, busy: busyBots.has(bot.id), load: pod.tasks.activeLoad(bot.id) })),
-        today,
-      })
+    get('/overview', () => ok(overviewOf(pod))),
+    get('/room/team', (query) => {
+      const roomId = readId(query, 'roomId')
+      return roomId === undefined ? fail('invalid-input', t('缺少房间 id')) : ok(teamStatusOf(pod, roomId))
+    }),
+    get('/message/routes', (query) => {
+      const id = readId(query, 'id')
+      return id === undefined ? fail('invalid-input', t('缺少消息 id')) : ok(routesOf(pod, id))
     }),
     get('/rooms', (query) => pod.rooms.list(query)),
     post('/room/open', (body) => pod.rooms.openDirect(body)),
@@ -136,6 +125,8 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
         sessions: pod.tasks.tree(rootId).flatMap((task) => pod.registry.forTask(task.id)),
         waits: pod.waits.open().filter((wait) => wait.rootId === rootId),
         reports: reportsFor(pod.db, snapshot.task.id, 20),
+        timeline: taskTimeline(pod.db, snapshot.task),
+        follows: followViews(pod.db, snapshot.task),
       })
     }),
     post('/task/control', (body) => {
@@ -249,14 +240,14 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
       const kinds = readString(query, 'kinds').split(',').filter(Boolean) as SearchKind[]
       const roomId = readString(query, 'roomId')
       const botId = readString(query, 'botId')
-      return ok(
-        await pod.search.search(q, {
-          limit: 50,
-          ...(kinds.length === 0 ? {} : { kinds }),
-          ...(roomId === '' ? {} : { roomId }),
-          ...(botId === '' ? {} : { botId }),
-        }),
-      )
+      const hits = await pod.search.search(q, {
+        limit: 50,
+        ...(kinds.length === 0 ? {} : { kinds }),
+        ...(roomId === '' ? {} : { roomId }),
+        ...(botId === '' ? {} : { botId }),
+      })
+      // 搜到的消息开了或送进了任务：带上任务，结果里能直接打开它的任务页。
+      return ok(hits.map((hit) => (hit.kind === 'message' && hit.taskId === null ? { ...hit, taskId: taskOfMessage(pod, hit.ref.slice(hit.ref.indexOf(':') + 1)) } : hit)))
     }),
     get('/handovers', (query) => {
       const roomId = readString(query, 'roomId')

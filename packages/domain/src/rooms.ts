@@ -69,6 +69,8 @@ export interface RoomSummary extends Room {
   readonly preview: string
   /** 有任务在跑时显示状态点。 */
   readonly busy: boolean
+  /** 在跑（进行中、排队中）的任务有几个，侧栏标在聊天室旁；接口总会给，旧数据里没有。 */
+  readonly running?: number
   readonly waits: number
   /** 房间成员（bot id），群聊详情和 bot 的“所在群聊”用。 */
   readonly memberIds: readonly string[]

@@ -90,6 +90,8 @@ export interface RoomServiceDeps {
   readonly now: () => number
   /** 房间里有任务在跑吗（房间列表的状态点）。 */
   readonly busy: (room: Room) => boolean
+  /** 每个聊天室里在跑的任务数。 */
+  readonly runningTasks: () => ReadonlyMap<string, number>
   /** 房间里还开着的等你事项数。 */
   readonly openWaits: (roomId: string) => number
   /** 消息写入或更新后进搜索索引。 */
@@ -387,6 +389,7 @@ export class RoomService {
     const last = lastMessages(this.db)
     const subjects = firstOwnerLines(this.db)
     const rooms = listRooms(this.db, { archived })
+    const running = this.deps.runningTasks()
     return ok(
       rooms.map((room) => {
         const message = last.get(room.id)
@@ -395,6 +398,7 @@ export class RoomService {
           unread: Math.max(0, room.lastSeq - room.readSeq),
           preview: message === undefined ? '' : truncate(oneLine(previewOf(message, this.deps.bots)), 60),
           busy: this.deps.busy(room),
+          running: running.get(room.id) ?? 0,
           waits: this.deps.openWaits(room.id),
           memberIds: listRoomMembers(this.db, room.id).map((member) => member.botId),
           subject: room.kind === 'direct' ? chatSubject(subjects.get(room.id) ?? '') : '',
@@ -438,6 +442,7 @@ export class RoomService {
       readonly data?: Readonly<Record<string, unknown>>
       readonly sessionId?: string | null
       readonly replyTo?: string | null
+      readonly topicFrom?: string | null
     },
   ): RoomMessage | undefined {
     if (this.get(roomId) === undefined) return undefined
@@ -451,6 +456,7 @@ export class RoomService {
         ...(message.data === undefined ? {} : { data: message.data }),
         ...(message.sessionId === undefined ? {} : { sessionId: message.sessionId }),
         ...(message.replyTo === undefined ? {} : { replyTo: message.replyTo }),
+        ...(message.topicFrom === undefined ? {} : { topicFrom: message.topicFrom }),
         now: this.deps.now(),
       }),
     )

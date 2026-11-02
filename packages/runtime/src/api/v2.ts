@@ -41,6 +41,14 @@ export function v2Routes(pod: PodRuntime): readonly RouteSpec[] {
       const base = room.kind === 'direct' ? (bot === undefined ? [] : [botFolder(bot)]) : [task?.folder ?? roomFolder(room)]
       return ok(await listLibrary(pod.workspaceRoot, [...base, ...taskFoldersFor(pod.db, { roomId: room.id })]))
     }),
+    // 任务页旁边的文件：任务文件夹（团队任务带上子任务的）里的文件和产出。
+    get('/task/files', async (query) => {
+      const id = readId(query, 'id')
+      const task = id === undefined ? undefined : pod.tasks.get(id)
+      if (task === undefined) return fail('not-found', t('找不到这个任务'))
+      const folders = task.parentId === null ? pod.tasks.tree(task.rootId).map((item) => item.folder) : [task.folder]
+      return ok(await listLibrary(pod.workspaceRoot, folders))
+    }),
     post('/room/create-group', (body) => pod.rooms.createGroupFromPage(body)),
     post('/room/member/add', (body) => pod.rooms.addMemberFromPage(body)),
     post('/room/member/remove', (body) => pod.rooms.removeMemberFromPage(body)),

@@ -17,7 +17,12 @@ import type {
   RoomSummary,
   TaskActivity,
   TaskReport,
+  TaskRun,
   TaskSnapshot,
+  TicketStage,
+  FollowKind,
+  MessageRoute,
+  TopicKind,
   TabInfo,
   Wait,
   EvolutionEntry,
@@ -92,6 +97,38 @@ export interface TaskEvent {
   readonly createdAt: number
 }
 
+/** 任务页时间线里的一条消息；送进这个任务的标出读过没有，别的为 null。 */
+export interface TimelineMessage {
+  readonly id: string
+  readonly roomId: string
+  readonly seq: number
+  readonly author: string
+  readonly kind: string
+  readonly body: string
+  readonly createdAt: number
+  readonly read: boolean | null
+}
+
+export type TimelineItem =
+  | { readonly kind: 'message'; readonly at: number; readonly message: TimelineMessage }
+  | { readonly kind: 'run'; readonly at: number; readonly run: TaskRun }
+  | { readonly kind: 'report'; readonly at: number; readonly report: TaskReport }
+  | { readonly kind: 'wait'; readonly at: number; readonly wait: Wait }
+  | { readonly kind: 'route'; readonly at: number; readonly route: MessageRoute; readonly excerpt: string }
+  | { readonly kind: 'event'; readonly at: number; readonly event: TaskEvent }
+
+/** 任务跟进的一个话题。 */
+export interface FollowView {
+  readonly topicId: string
+  readonly follow: FollowKind
+  readonly topic: TopicKind
+  readonly roomId: string | null
+  readonly roomTitle: string | null
+  readonly rootMessage: string | null
+  readonly seq: number | null
+  readonly excerpt: string
+}
+
 export interface TaskDetail {
   readonly snapshot: TaskSnapshot
   readonly events: readonly TaskEvent[]
@@ -99,6 +136,9 @@ export interface TaskDetail {
   readonly waits: readonly Wait[]
   /** 这个任务的汇报，最近的在前（完整报告在任务页看）。 */
   readonly reports: readonly TaskReport[]
+  /** 时间线：消息、执行、汇报、等你、交还和确认、决策链里别的事，旧的在前。 */
+  readonly timeline: readonly TimelineItem[]
+  readonly follows: readonly FollowView[]
 }
 
 export interface AuditEntry {
@@ -133,12 +173,45 @@ export interface HandoverNote {
   readonly updatedAt: number
 }
 
+/** 概览里“现在要我处理什么”的一条：任务卡要你处理的，或者不属于任务的等你。 */
+export interface AttentionItem {
+  readonly key: string
+  readonly taskId: string | null
+  readonly title: string
+  readonly botId: string | null
+  readonly stage: TicketStage | null
+  /** 从什么时候开始等你。 */
+  readonly since: number
+  readonly summary: string
+  readonly wait: Wait | null
+}
+
+export interface ActiveItem {
+  readonly taskId: string
+  readonly title: string
+  readonly botId: string | null
+  readonly stage: TicketStage
+  readonly since: number
+  readonly progress: string | null
+}
+
 export interface OverviewData {
-  readonly activeTasks: readonly TaskSnapshot[]
-  readonly recentDone: readonly TaskSnapshot[]
-  readonly waits: number
-  readonly bots: readonly { readonly id: string; readonly busy: boolean; readonly load: number }[]
-  readonly today: { readonly tokens: number; readonly cost: number }
+  readonly attention: readonly AttentionItem[]
+  readonly active: readonly ActiveItem[]
+  readonly slots: { readonly used: number; readonly total: number }
+}
+
+/** 群顶团队状态里一个成员：空闲、在做、等你、受阻。 */
+export interface MemberStatus {
+  readonly botId: string
+  readonly state: 'idle' | 'working' | 'waiting' | 'blocked'
+  readonly taskId: string | null
+  readonly title: string | null
+  readonly since: number | null
+}
+
+export interface RouteView extends MessageRoute {
+  readonly taskTitle: string | null
 }
 
 export interface TabView extends TabInfo {
@@ -217,6 +290,9 @@ export interface LibraryItem {
 
 export const api = {
   overview: () => apiGet<OverviewData>('/overview'),
+  roomTeam: (roomId: string) => apiGet<readonly MemberStatus[]>('/room/team', { roomId }),
+  messageRoutes: (id: string) => apiGet<readonly RouteView[]>('/message/routes', { id }),
+  taskFiles: (id: string) => apiGet<readonly LibraryItem[]>('/task/files', { id }),
   status: () => apiGet<PodStatus>('/status'),
   health: () => apiGet<HealthReport>('/health'),
   retryProblem: (kind: string) => apiPost<{ readonly retried: number }>('/health/retry', { kind }),
