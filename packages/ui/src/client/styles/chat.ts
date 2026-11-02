@@ -39,6 +39,8 @@ export const CHAT_CSS = `
 @keyframes pod-flash { 0%, 40% { background: color-mix(in srgb, var(--pod-warn) 22%, transparent); } 100% { background: transparent; } }
 .pod-kickoff-actions { display: flex; gap: 6px; margin-top: 6px; }
 .pod-msg-card { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 4px 0 4px 38px; }
+.pod-msg-card-task { position: relative; }
+.pod-msg-card-task:hover .pod-msg-actions, .pod-msg-card-task:focus-within .pod-msg-actions { opacity: 1; pointer-events: auto; }
 .pod-msg-card > * { width: 100%; max-width: var(--pod-card-max); }
 .pod-msg-card > .pod-link { width: auto; }
 .pod-quote { margin: 2px 0 4px; padding: 2px 8px; border-left: 2px solid var(--pod-line); font-size: 12px; color: var(--dsw-alias-label-tertiary); }

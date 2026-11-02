@@ -38,6 +38,13 @@ export interface MessageProps {
   readonly hideTime?: boolean
 }
 
+/** 你的这条消息直接送进了哪些任务（回复、引用了任务的话题）。 */
+function routedTitles(message: RoomMessage): readonly string[] {
+  const raw = message.data.routed
+  if (!Array.isArray(raw)) return []
+  return raw.flatMap((item) => (typeof item === 'object' && item !== null && typeof (item as Record<string, unknown>).title === 'string' ? [(item as Record<string, unknown>).title as string] : []))
+}
+
 function authorName(author: string, bots: ReadonlyMap<string, Bot>): string {
   if (author === OWNER) return t('你')
   if (author === POD) return 'dsh-bot'
@@ -144,15 +151,16 @@ export function MessageItem(props: MessageProps) {
       )
     }
     case 'task-card':
+      // 任务卡也能引用回复：回复它的话直接送进这个任务。
       return (
-        <div className="pod-msg-card">
+        <MessageFrame {...props} owner={false} className="pod-msg-card pod-msg-card-task">
           <TaskCard taskId={String(message.data.taskId ?? '')} />
           {typeof message.data.roomId === 'string' && message.data.roomId !== message.roomId ? (
             <button type="button" className="pod-link" onClick={() => app.openRoom(message.data.roomId as string)}>
               {t('打开群聊')}
             </button>
           ) : null}
-        </div>
+        </MessageFrame>
       )
     case 'wait':
       return (
@@ -206,6 +214,11 @@ export function MessageItem(props: MessageProps) {
           {attachment !== undefined && isUploadNote(message.body, String(attachment.name ?? '')) ? null : <Markdown text={message.body} mentions={calledMentions(message, props.mentions, true)} />}
           {attachment === undefined ? null : <Attachment attachment={attachment} />}
           {message.data.via === 'dsh' ? <div className="pod-muted-inline">{t('来自 dsh 会话视图')}</div> : null}
+          {routedTitles(message).map((title) => (
+            <div key={title} className="pod-muted-inline">
+              {t('已直接送到任务「{title}」', { title })}
+            </div>
+          ))}
         </div>
         {message.pinned ? <span className="pod-badge pod-badge-muted pod-msg-pinned">{t('已置顶')}</span> : null}
         {props.hideTime === true ? null : <time className="pod-msg-time">{clock(message.createdAt)}</time>}
