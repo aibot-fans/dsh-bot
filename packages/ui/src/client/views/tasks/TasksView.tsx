@@ -16,6 +16,7 @@ import { BotName } from '../../components/GroupMark.tsx'
 import { TaskCard, segmentTone } from '../../components/TaskCard.tsx'
 import { WaitView } from '../../components/WaitCard.tsx'
 import { TaskReports } from './TaskReports.tsx'
+import { AskWatchdog } from './AskWatchdog.tsx'
 import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 
@@ -42,6 +43,9 @@ export function TaskTile(props: { readonly snapshot: TaskSnapshot; readonly bots
     </button>
   )
 }
+
+/** 决策链里看门狗的结论。 */
+const VERDICT_WORDS: Readonly<Record<string, string>> = { continue: '继续', remind: '提醒', blocked: '受阻' }
 
 const EVENT_LABELS: Readonly<Record<string, string>> = {
   planned: '提交团队计划',
@@ -70,7 +74,8 @@ const EVENT_LABELS: Readonly<Record<string, string>> = {
   reply_sent: '发了消息',
   subtask_opened: '开了子任务',
   team_room: '开了任务群',
-  watchdog: '看门狗提醒',
+  watchdog: '看门狗报警',
+  watchdog_verdict: '判断',
   'control.pause': '暂停',
   'control.resume': '继续',
   'control.stop': '停止',
@@ -81,19 +86,21 @@ const EVENT_LABELS: Readonly<Record<string, string>> = {
 function Actor(props: { readonly actor: string; readonly bots: ReadonlyMap<string, Bot> }) {
   if (props.actor === 'owner') return <>{t('你')}</>
   if (props.actor === 'pod') return <>dsh-bot</>
+  if (props.actor === 'watchdog') return <>{t('看门狗')}</>
   return <BotName bot={props.bots.get(props.actor)} fallback={props.actor} size={14} />
 }
 
 /** 决策链一行里做事的人后面的那部分。 */
 function eventLine(event: TaskEvent, bots: ReadonlyMap<string, Bot>): string {
   const label = tc(EVENT_LABELS[event.kind] ?? event.kind, '事件')
+  const judged = event.kind === 'watchdog_verdict' && typeof event.data.verdict === 'string' ? t('（{verdict}）', { verdict: tc(VERDICT_WORDS[event.data.verdict] ?? event.data.verdict, '看门狗') }) : ''
   const to = typeof event.data.to === 'string' ? ` ${bots.get(event.data.to)?.name ?? event.data.to}` : ''
   const reason = typeof event.data.reason === 'string' && event.data.reason !== '' ? t('：{reason}', { reason: event.data.reason }) : ''
   const items = Array.isArray(event.data.items) ? t('：{items}', { items: (event.data.items as unknown[]).join(t('、')) }) : ''
   const quote = typeof event.data.quote === 'string' ? t('：「{quote}」', { quote: event.data.quote }) : ''
   const verdict = event.kind === 'reviewed' ? (event.data.pass === true ? t('：通过') : t('：打回（{String}）', { String: String(event.data.feedback ?? '') })) : ''
   const version = event.kind === 'revised' ? t('：第 {String} 版，{String2}', { String: String(event.data.version ?? ''), String2: String(event.data.reason ?? '') }) : ''
-  return `${label}${to}${reason}${items}${quote}${verdict}${version}`
+  return `${label}${judged}${to}${reason}${items}${quote}${verdict}${version}`
 }
 
 /** 子任务树：负责人、状态、验收项、进度说明和结果，每个都能查看过程。 */
@@ -169,6 +176,7 @@ export function TaskDetail(props: { readonly taskId: string; readonly bots: Read
         <div className="pod-stack">
           <TaskCard taskId={props.taskId} />
           <TaskReports reports={detail.reports} bots={props.bots} />
+          <AskWatchdog taskId={props.taskId} events={detail.events} />
           <Subtasks detail={detail} bots={props.bots} />
           {detail.snapshot.task.brief === '' ? null : (
             <section>
@@ -216,7 +224,7 @@ export function TaskDetail(props: { readonly taskId: string; readonly bots: Read
             <ol className="pod-events">
               {detail.events.map((event) => (
                 <li key={event.id}>
-                  <time>{clock(event.createdAt)}</time> <Actor actor={event.actor} bots={props.bots} /> {eventLine(event, props.bots)}
+                  <time>{clock(event.createdAt)}</time> <span className="pod-event-id">#{event.id}</span> <Actor actor={event.actor} bots={props.bots} /> {eventLine(event, props.bots)}
                 </li>
               ))}
             </ol>

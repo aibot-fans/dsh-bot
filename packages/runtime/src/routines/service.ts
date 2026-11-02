@@ -248,6 +248,8 @@ export class RoutineService {
 
   /** 启动时补跑：错过的例程按设置补跑一次，之后按时间表继续。 */
   async catchUp(): Promise<void> {
+    // 处理暂停时先不补，关掉时再补最近一次。
+    if (this.deps.settings().paused) return
     const now = this.deps.now()
     for (const routine of this.list()) {
       if (!routine.enabled || routine.nextRunAt === null || routine.nextRunAt > now) continue
@@ -257,7 +259,8 @@ export class RoutineService {
   }
 
   async tick(): Promise<void> {
-    if (this.running) return
+    // 处理暂停时到点只留着（下次时间不动），关掉后补最近一次。
+    if (this.running || this.deps.settings().paused) return
     this.running = true
     try {
       for (const routine of dueRoutines(this.db, this.deps.now())) await this.run(routine, 'schedule')

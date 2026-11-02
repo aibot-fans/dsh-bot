@@ -20,10 +20,12 @@ export interface HealthReport {
   readonly queues: readonly QueueHealth[]
   /** dsh 有没有查重和落盘要用的接口；没有就退回不查重的投递。 */
   readonly exactlyOnce: boolean
+  /** 处理暂停了（开工、送达、回复、触发器都先停着）。 */
+  readonly paused: boolean
 }
 
 /** 系统好不好：系统问题、副作用队列排着的和失败的。 */
-export function healthReport(db: DatabaseSync, exactlyOnce: boolean, now: number): HealthReport {
+export function healthReport(db: DatabaseSync, exactlyOnce: boolean, paused: boolean, now: number): HealthReport {
   const rows = listEffects(db)
   const kinds = [...new Set(rows.map((row) => row.kind))]
   const queues = kinds.map((kind) => {
@@ -37,5 +39,5 @@ export function healthReport(db: DatabaseSync, exactlyOnce: boolean, now: number
   })
   const day = 86_400_000
   const recent = listProblems(db, { openOnly: false, limit: 20 }).filter((problem) => problem.resolvedAt !== null && problem.resolvedAt > now - day)
-  return { problems: listProblems(db, { openOnly: true }), recent, queues, exactlyOnce }
+  return { problems: listProblems(db, { openOnly: true }), recent, queues, exactlyOnce, paused }
 }

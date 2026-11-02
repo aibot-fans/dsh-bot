@@ -35,8 +35,6 @@ export interface RepliesDeps {
   readonly sent: (input: ReplyInput, message: RoomMessage) => void
   /** 任务的一条回复连续失败到门槛，或者之后又发出去了：任务卡的阶段跟着变。 */
   readonly stuck: (taskId: string) => void
-  /** 处理暂停时先不发，排着的关掉后按原来的顺序出去。 */
-  readonly paused: () => boolean
 }
 
 function readInput(payload: Readonly<Record<string, unknown>>): ReplyInput | undefined {
@@ -58,7 +56,7 @@ function readInput(payload: Readonly<Record<string, unknown>>): ReplyInput | und
 }
 
 /**
- * 回复队列：bot 发到聊天室的话都从这里走（副作用里的“回复”），一次发一条。
+ * 回复队列：bot 发到聊天室的话都从这里走（副作用里的“回复”），一次发一条；处理暂停时排着，关掉后按原来的顺序出去。
  * 先登记再发：消息 id 登记时就定好，发出去留回执；一个任务（或一个 bot）发到同一个聊天室的话按登记顺序发，
  * 前面的没发出去后面的等着；失败从 5 秒退避到 300 秒一直重试，只有聊天室被删了才丢弃。
  */
@@ -68,7 +66,6 @@ export class Replies {
   constructor(deps: RepliesDeps) {
     this.deps = deps
     deps.effects.handle('reply', (payload, row) => this.deliver(row.key, payload), {
-      limit: () => (deps.paused() ? 0 : 1),
       retry: [5000, 300_000],
       // 任务的回复发不出去显示在任务卡上，不另记系统问题。
       quiet: (key) => typeof deps.effects.pending('reply', key)?.payload.taskId === 'string',

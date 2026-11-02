@@ -60,6 +60,8 @@ export interface EffectsDeps {
   readonly now: () => number
   /** 系统问题出现或恢复。 */
   readonly onHealth: () => void
+  /** 处理暂停了：排着的都先不做（正在做的照常做完），关掉后按原来的顺序接着做。 */
+  readonly paused: () => boolean
   readonly warn: (message: string, error?: unknown) => void
 }
 
@@ -145,9 +147,27 @@ export class Effects {
     return found
   }
 
+  /** 你点了系统问题上的“重试”：这一种失败过的都清零、马上再试，返回几行；不认识的种类返回 undefined。 */
+  retryAll(kind: string): number | undefined {
+    if (!this.handlers.has(kind as EffectKind)) return undefined
+    const now = this.deps.now()
+    const keys = listEffects(this.deps.db, kind).filter((row) => row.attempts > 0).map((row) => row.key)
+    for (const key of keys) retryEffect(this.deps.db, kind, key, now)
+    this.report(kind as EffectKind)
+    this.kick()
+    return keys.length
+  }
+
   /** 名额空出来了：往后排着的这一种马上再试。 */
   release(kind: EffectKind): void {
     wakeEffects(this.deps.db, kind, this.deps.now())
+    this.kick()
+  }
+
+  /** 处理暂停关掉了：往后排着的都马上再试，排着的按原来的顺序出去。 */
+  resume(): void {
+    const now = this.deps.now()
+    for (const kind of this.handlers.keys()) wakeEffects(this.deps.db, kind, now)
     this.kick()
   }
 
@@ -184,6 +204,11 @@ export class Effects {
 
   private dispatch(): void {
     if (!this.started || this.stopped) return
+    if (this.deps.paused()) {
+      if (this.timer !== undefined) clearTimeout(this.timer)
+      this.timer = undefined
+      return
+    }
     const now = this.deps.now()
     for (const [kind, handler] of this.handlers) {
       try {

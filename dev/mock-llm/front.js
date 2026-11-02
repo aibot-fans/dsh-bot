@@ -80,6 +80,7 @@ function openTitle(body) {
   if (body.includes('沉淀')) return '沉淀测试'
   if (body.includes('后台命令')) return '后台命令测试'
   if (body.includes('拿主意')) return '选方案测试'
+  if (body.includes('看门狗')) return '看门狗测试'
   if (body.includes('测试失败')) return '失败测试'
   if (body.includes('一直限流')) return '限流测试'
   if (body.includes('一直认证失败')) return '认证失败测试'

@@ -80,6 +80,7 @@ const DESCRIBERS: Readonly<Record<string, Describe>> = {
   create_bot: (args) => t('新建 bot {short}', { short: short(text(args.name), 16) }),
   find_bots: () => t('查找合适的 bot'),
   task_status: () => t('查看任务进度'),
+  diagnose_task: () => t('问看门狗'),
   relay_to_task: () => t('转达给任务'),
   remember: () => t('写记忆'),
   recall: (args) => t('查记忆“{short}”', { short: short(text(args.query), 24) }),

@@ -81,7 +81,7 @@ export class TaskTurns {
     }
     this.retries.clear(task.id)
     if (failure !== undefined && kind === 'owner') {
-      this.block(task, t('{reason}。处理好以后点重试', { reason: failureReason(failure) }))
+      this.block(task, t('{reason}。处理好以后点重试', { reason: failureReason(failure) }), 'pod', { fault: 'owner' })
       return
     }
     // 命令转到后台接着跑：跑完 dsh 会叫醒这条会话，这时不催，也不换段（换段会关掉会话，命令跟着停）。
@@ -123,11 +123,20 @@ export class TaskTurns {
     this.block(task, t('模型服务连着出错，自动重试了 {count} 次都没成（{code}）。服务恢复后点重试', { count: RETRY_DELAYS_MS.length, code: failure.code }))
   }
 
-  /** 要你处理的故障：替任务记一条受阻的汇报（这次执行结束、名额让出），原因以干活的 bot 的名义回复任务卡。 */
-  private block(task: Task, reason: string): void {
+  /** 看门狗判断做不下去：替任务记一条受阻的汇报，不再重试和催。 */
+  stalled(task: Task, reason: string): void {
+    this.clear(task.id)
+    this.block(task, reason, 'watchdog')
+  }
+
+  /**
+   * 要你处理的故障：替任务记一条受阻的汇报（这次执行结束、名额让出），原因以干活的 bot 的名义回复任务卡。
+   * 模型服务要你处理的错在汇报里记 fault，系统问题上点重试时重试这些任务。
+   */
+  private block(task: Task, reason: string, author = 'pod', data: Readonly<Record<string, unknown>> = {}): void {
     const outcome = this.deps.engine.runs.report({
       task,
-      author: 'pod',
+      author,
       status: 'blocked',
       summary: reason,
       report: reason,
@@ -136,7 +145,7 @@ export class TaskTurns {
       replyMessage: null,
       checks: [],
       acceptance: [],
-      data: {},
+      data,
     })
     this.deps.replies.wait(outcome.task, task.ownerBotId ?? POD, { body: reason })
     this.deps.notify({ ...outcome.task, note: reason }, 'stalled')

@@ -84,6 +84,7 @@ export const CARDS_CSS = `
 .pod-handover summary { cursor: pointer; color: var(--dsw-alias-label-secondary); }
 .pod-events { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--dsw-alias-label-secondary); }
 .pod-events time { color: var(--dsw-alias-label-tertiary); margin-right: 6px; font-size: 12px; }
+.pod-event-id { color: var(--dsw-alias-label-tertiary); font-size: 11.5px; font-variant-numeric: tabular-nums; margin-right: 4px; }
 .pod-session-row { padding: 3px 0; font-size: 13px; }
 .pod-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
 .pod-stat { appearance: none; font: inherit; color: inherit; text-align: left; border: 1px solid var(--pod-line); border-radius: 12px; padding: 14px 16px; background: var(--dsw-alias-bg-layer-2); display: flex; flex-direction: column; gap: 2px; cursor: pointer; }

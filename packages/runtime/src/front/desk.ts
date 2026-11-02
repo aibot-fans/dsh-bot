@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { OWNER, POD, PRIORITY, botFolder, t, truncate, oneLine, type Bot, type PodSession, type Room, type RoomMessage } from 'pod-domain'
-import { getDelivery, getMessage, lastChatBreak, listMessages, listRoomMembers, pendingFor, transaction } from 'pod-store'
+import { getDelivery, getMessage, lastChatBreak, listMessages, listRoomMembers, missedFrontRoutes, pendingFor, transaction } from 'pod-store'
 import { noticeSource, ownerSource } from '../agents/messages.ts'
 import type { TurnFailure } from '../agents/observer.ts'
 import type { SessionRegistry } from '../agents/registry.ts'
@@ -216,6 +216,16 @@ export class FrontDesk {
       )
       for (const route of queue) this.deps.engine.topics.decide(route.messageId, botId, 'missed', null, t('bot 已经不在了'))
     })
+  }
+
+  /** 你点了系统问题上的“重试”：这段时间记成漏掉的消息重新交给各自的前台（bot 还在的），返回几条。 */
+  retryMissed(since: number): number {
+    const routes = missedFrontRoutes(this.deps.db, since).filter((route) => route.botId !== null && this.deps.bots.get(route.botId)?.archivedAt === null)
+    transaction(this.deps.db, () => {
+      for (const route of routes) this.deps.engine.topics.toFront(route.messageId, route.botId ?? '', t('漏掉后重试'))
+      for (const botId of new Set(routes.map((route) => route.botId ?? ''))) this.deps.effects.enqueue('front', botId)
+    })
+    return routes.length
   }
 
   /** 前台一轮结束：收掉“正在……”，查没去向的；有排着的消息就送下一批。 */

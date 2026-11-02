@@ -30,6 +30,7 @@ import { noticeSource } from './agents/messages.ts'
 import { SessionObserver } from './agents/observer.ts'
 import { SessionRegistry } from './agents/registry.ts'
 import { Watchdog } from './agents/watchdog.ts'
+import { WatchdogJudge } from './agents/judge.ts'
 import { BotService } from './bots/service.ts'
 import { ChatExtras } from './chat/extras.ts'
 import { TurnErrors } from './chat/turn-errors.ts'
@@ -48,6 +49,7 @@ import type { HostContext, LlmService, SessionPersistenceLike } from './dsh.ts'
 import { healthReport, type HealthReport } from './effects/health.ts'
 import { DeliveryLedger } from './effects/ledger.ts'
 import { Effects } from './effects/queue.ts'
+import { SystemProblems } from './effects/problems.ts'
 import { SessionFactory } from './sessions/factory.ts'
 import { TaskService } from './tasks/service.ts'
 import { equipSession, type ExtraTool } from './tools/index.ts'
@@ -126,6 +128,8 @@ export class PodRuntime {
   readonly dispatcher: Dispatcher
   readonly observer: SessionObserver
   readonly watchdog: Watchdog
+  /** 看门狗的慢路径：报警后用轻量模型判断继续、提醒还是受阻；也定时巡查、回答为什么卡住。 */
+  readonly judge: WatchdogJudge
   readonly binder: AgentBinder
   readonly rooms: RoomService
   /** 回复队列：bot 发到聊天室的话按顺序发、留回执。 */
@@ -134,6 +138,8 @@ export class PodRuntime {
   readonly taskReplies: TaskReplies
   /** 前台：每个 bot 一个，跨聊天室，交给它的消息成批送进去。 */
   readonly front: FrontDesk
+  /** 系统问题里模型故障的来源，和系统问题上的“重试”。 */
+  readonly problems: SystemProblems
   readonly teams: TeamService
   readonly tasks: TaskService
   readonly engine: Engine
@@ -198,7 +204,7 @@ export class PodRuntime {
       return true
     })
     onAfterCommitError((error) => ctx.logger.warn('dsh-bot 提交后的处理出错', error))
-    this.effects = new Effects({ db, now, onHealth: () => this.bus.emit({ type: 'health' }), warn: (message, error) => ctx.logger.warn(message, error) })
+    this.effects = new Effects({ db, now, onHealth: () => this.bus.emit({ type: 'health' }), paused: () => this.settings.get().paused, warn: (message, error) => ctx.logger.warn(message, error) })
     this.ledger = new DeliveryLedger(() => ctx.get('sessionPersistence') as SessionPersistenceLike | undefined)
     this.audit = new Auditor(db, now, warn)
     this.settings = new SettingsService(db, this.bus, now)
@@ -316,7 +322,6 @@ export class PodRuntime {
       stuck: (taskId) => {
         this.engine.tickets.refresh(taskId)
       },
-      paused: () => false,
     })
     this.taskReplies = new TaskReplies({
       db,
@@ -392,7 +397,7 @@ export class PodRuntime {
       bots: this.bots,
       settings: () => this.settings.get(),
       workspaceRoot: options.workspaceRoot,
-      paused: () => false,
+      paused: () => this.settings.get().paused,
     })
     this.intake = new Intake({
       db,
@@ -510,6 +515,7 @@ export class PodRuntime {
           this.turns.onTurnEnd(session, reason, failure)
           this.front.onTurnEnd(session, reason, failure)
           this.consults.onTurnEnd(session)
+          this.problems.turnEnded(session, reason, failure)
         },
         onToolCall: (session, name, action, args) => {
           this.audit.record('tool.call', session.botId, session.id, { name, action })
@@ -557,14 +563,41 @@ export class PodRuntime {
       agents: ctx.agents,
       task: (taskId) => this.tasks.get(taskId),
       now,
-      onStall: (session, task, reason) => {
+      onAlert: (session, task, reason, fallback) => {
         this.audit.record('task.stall', 'pod', session.id, { reason, taskId: task?.id ?? null })
-        if (task !== undefined) {
-          // 看门狗的提醒记在任务页，不进聊天室。
-          this.tasks.event(task, 'watchdog', 'pod', { reason })
-          this.tasks.touched(task)
+        if (task === undefined) {
+          fallback()
+          return
         }
+        // 报警记在任务页，不进聊天室；再交给看门狗判断。
+        this.tasks.event(task, 'watchdog', 'pod', { reason })
+        this.tasks.touched(task)
+        this.judge.alert(session, task, reason, fallback)
       },
+    })
+    this.judge = new WatchdogJudge({
+      db,
+      lite: this.lite,
+      engine: this.engine,
+      now,
+      sessionOf: (task) => {
+        const sessionId = this.engine.runs.current(task.id)?.sessionId ?? null
+        return sessionId === null ? undefined : this.registry.get(sessionId)
+      },
+      activity: (sessionId) => this.observer.activityOf(sessionId),
+      backgroundJobs: (sessionId) => this.observer.backgroundJobs(sessionId),
+      botName: (botId) => (botId === null ? 'dsh-bot' : (this.bots.get(botId)?.name ?? botId)),
+      remind: (session, task, hint) => {
+        this.dispatcher.enqueue({ sessionId: session.id, mode: 'inject', priority: task.urgent ? PRIORITY.urgent : PRIORITY.task, text: `[看门狗提醒] ${hint}`, source: noticeSource(t('看门狗提醒')) })
+      },
+      block: (session, task, reason) => {
+        ctx.agents.get(session.id)?.cancel({ kind: 'hook', reason: 'pod: watchdog' }, { keepInbox: true })
+        this.turns.stalled(task, t('看门狗判断这个任务做不下去了：{reason}。处理好以后点任务卡上的“重试”，或者回复任务卡告诉它怎么做。', { reason }))
+      },
+      settled: (session, judgment) => {
+        if (judgment.verdict === 'continue') this.observer.markStalled(session.id, false)
+      },
+      warn: (message, error) => ctx.logger.warn(message, error),
     })
     this.binder = new AgentBinder({
       ctx,
@@ -615,6 +648,20 @@ export class PodRuntime {
         this.bus.emit({ type: 'health' })
       },
       warn,
+    })
+    this.problems = new SystemProblems({
+      db,
+      effects: this.effects,
+      engine: this.engine,
+      tasks: this.tasks,
+      front: this.front,
+      now,
+      modelOf: (botId) => {
+        const model = botId === null ? null : (this.bots.get(botId)?.model ?? null)
+        return model === null ? null : `${model.provider}/${model.model}`
+      },
+      botName: (botId) => this.bots.get(botId)?.name ?? botId,
+      changed: () => this.bus.emit({ type: 'health' }),
     })
     this.routines = new RoutineService({
       db,
@@ -765,6 +812,7 @@ export class PodRuntime {
       if (next.dailyBrief.time !== previous.dailyBrief.time || next.timezone !== previous.timezone || next.dailyBrief.enabled !== previous.dailyBrief.enabled) this.brief.reschedule()
       this.aibot.settingsChanged(next, previous)
       this.updates.settingsChanged(next, previous)
+      if (next.paused !== previous.paused) this.pausedChanged(next.paused)
     })
     this.language.onChange(() => {
       this.bots.syncLeadSeed()
@@ -881,7 +929,18 @@ export class PodRuntime {
 
   /** 系统好不好：还没恢复的系统问题、副作用队列排着的和失败的。 */
   health(): HealthReport {
-    return healthReport(this.db, this.ledger.available, this.now())
+    return healthReport(this.db, this.ledger.available, this.settings.get().paused, this.now())
+  }
+
+  /** 暂停处理开关变了：关掉时排着的按原来的顺序出去，到点的触发器补最近一次。 */
+  private pausedChanged(paused: boolean): void {
+    this.audit.record(paused ? 'pod.pause' : 'pod.resume', OWNER, 'settings', {})
+    if (!paused) {
+      this.effects.resume()
+      void this.routines.tick().catch((error: unknown) => this.ctx.logger.warn('例程出错', error))
+      void this.brief.tick().catch((error: unknown) => this.ctx.logger.warn('每日简报出错', error))
+    }
+    this.bus.emit({ type: 'health' })
   }
 
   status(): PodStatus {

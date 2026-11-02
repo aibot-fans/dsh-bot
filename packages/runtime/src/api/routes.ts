@@ -26,6 +26,10 @@ export function baseRoutes(pod: PodRuntime): readonly RouteSpec[] {
   return [
     get('/status', () => ok(pod.status())),
     get('/health', () => ok(pod.health())),
+    post('/health/retry', (body) => {
+      const kind = readString(body, 'kind')
+      return kind === '' ? fail('invalid-input', t('缺少问题的种类')) : pod.problems.retry(kind)
+    }),
     get('/settings', () => ok(pod.settings.get())),
     post('/settings/update', (body) => pod.settings.update(body)),
     // 页面上报 dsh 的界面语言：设置是“跟随 dsh”时宿主照它说话。
@@ -139,6 +143,11 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
       const action = readString(body, 'action')
       if (taskId === undefined || !['pause', 'resume', 'stop', 'cancel', 'retry', 'accept'].includes(action)) return fail('invalid-input', t('要写明任务和操作'))
       return pod.tasks.control(taskId, action as ControlAction, 'owner')
+    }),
+    post('/task/diagnose', async (body) => {
+      const taskId = readId(body, 'taskId')
+      const task = taskId === undefined ? undefined : pod.tasks.get(taskId)
+      return task === undefined ? fail('not-found', t('找不到这个任务')) : ok({ text: await pod.judge.diagnose(task) })
     }),
     post('/task/redeliver', (body) => {
       const taskId = readId(body, 'taskId')

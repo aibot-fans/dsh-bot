@@ -62,6 +62,11 @@ export interface PodSettings {
   readonly checkUpdates: boolean
   /** 界面、系统消息和 bot 回答用的语言；auto 跟随 dsh 的界面语言。 */
   readonly language: LanguageSetting
+  /**
+   * 暂停处理：开工、送达、回复、触发器先停着；消息照旧接收和记录，任务卡照旧显示。
+   * 关掉后排着的按原来的顺序出去，停着期间到点的触发器补最近一次。
+   */
+  readonly paused: boolean
 }
 
 export const DEFAULT_SETTINGS: PodSettings = {
@@ -86,6 +91,7 @@ export const DEFAULT_SETTINGS: PodSettings = {
   aibotEnabled: true,
   checkUpdates: true,
   language: 'auto',
+  paused: false,
 }
 
 const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/
@@ -153,7 +159,7 @@ function allowedHostsChange(raw: unknown): Change {
   return { ok: true, value: { allowedHosts: [...new Set(hosts)] } }
 }
 
-const BOOLEAN_KEYS = ['preventSleep', 'offPeak', 'memoryExtraction', 'browserNotifications', 'onboarded', 'aibotEnabled', 'checkUpdates'] as const
+const BOOLEAN_KEYS = ['preventSleep', 'offPeak', 'memoryExtraction', 'browserNotifications', 'onboarded', 'aibotEnabled', 'checkUpdates', 'paused'] as const
 
 function oneChange(key: string, raw: unknown, current: PodSettings): Change {
   switch (key) {

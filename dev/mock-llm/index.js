@@ -153,6 +153,32 @@ function browserTask(brief, userText, messages, calls) {
   return done('- 浏览器任务完成')
 }
 
+/** 看门狗的剧本：同样的参数连着调 3 次 bash（代码看门狗报警），再一步步等看门狗的判断；收到提醒就换做法交结果。 */
+function watchdogTask(userText, calls) {
+  if (userText.includes('[看门狗提醒]')) return { tool: 'complete_task', args: { summary: '- 按看门狗的提醒换了做法，做完了', files: [], assumptions: [], unverified: [], skipped: [] } }
+  const count = calls.filter((name) => name === 'bash').length
+  if (count < 3) return { tool: 'bash', args: { description: '查一下', command: 'echo 看门狗测试' } }
+  if (count < 10) return { tool: 'bash', args: { description: '等一会儿', command: `sleep 2; echo 第 ${count} 次` } }
+  return { tool: 'complete_task', args: { summary: '- 等了一会儿没收到看门狗的提醒，先交结果', files: [], assumptions: [], unverified: [], skipped: [] } }
+}
+
+/**
+ * 看门狗的判断和诊断：任务来由里有“看门狗受阻”判受阻，有“测试看门狗”给提醒，其余继续；诊断说两句。都引用最后一个事件 id。
+ */
+function watchdogDecision(system, messages) {
+  const facts = textOf(messages.find((message) => message.role === 'user')?.content)
+  const ids = [...facts.matchAll(/^- #(\d+) /gm)].map((match) => Number(match[1]))
+  const cited = ids.at(-1)
+  const cite = cited === undefined ? '' : `（#${cited}）`
+  if (system.includes('用户或前台在问')) {
+    const calling = /正在调用「([^」]+)」/.exec(facts)?.[1]
+    return { text: `（测试模型）${calling === undefined ? '现在没有在跑的调用' : `正在调用「${calling}」`}${cite}，没看到卡死的迹象。再等一会儿，半小时还没汇报就点重试。` }
+  }
+  const verdict = facts.includes('看门狗受阻') ? 'blocked' : facts.includes('测试看门狗') ? 'remind' : 'continue'
+  const reason = verdict === 'blocked' ? `测试：要登录才能接着做${cite}` : verdict === 'remind' ? `测试：一直在重复同一个命令${cite}` : `测试：命令在跑${cite}`
+  return { text: JSON.stringify({ verdict, reason, hint: verdict === 'remind' ? '别再重复同一个命令了，换个做法，先把已有的结果交上来。' : '', events: cited === undefined ? [] : [cited] }) }
+}
+
 /** 后台命令的剧本：放一个要跑一会儿的命令到后台就结束这一轮；跑完被 dsh 叫醒后读输出、提交。 */
 function backgroundTask(messages, calls) {
   const since = messages.findLastIndex((message) => message.role === 'assistant')
@@ -330,6 +356,7 @@ function decide(options) {
   if (process.env.POD_MOCK_DEBUG === '1') console.error('[mock]', JSON.stringify(userText.slice(0, 40)), [...tools].join(','))
 
   if (system.includes('你是群聊里的分派器')) return { text: JSON.stringify({ to: routeTarget(textOf(messages.find((message) => message.role === 'user')?.content)) }) }
+  if (system.includes('你是 dsh-bot 的看门狗')) return watchdogDecision(system, messages)
 
   // 前台：消息成批送来，逐条记去向。出错后接着处理时，从最近一批开始数调过的工具。
   if (tools.has('dispatch')) {
@@ -372,6 +399,7 @@ function decide(options) {
     }
     if (last?.role === 'tool' && calls.at(-1) === 'reply' && tools.has('report')) return { tool: 'report', args: { status: 'waiting', summary: '答复了用户的问题，接着等' } }
     if (last?.role === 'tool' && calls.at(-1) === 'report') return { text: '已经汇报了。' }
+    if (brief.includes('看门狗') && !userText.includes('开始新的一次执行') && tools.has('bash')) return watchdogTask(userText, calls)
     if (brief.includes('浏览器') && tools.has('browser_open')) return browserTask(brief, userText, messages, calls)
     if (brief.includes('后台命令') && tools.has('bash')) return backgroundTask(messages, calls)
     const pageKind = tools.has('save_page') ? wantedKind(brief) : undefined

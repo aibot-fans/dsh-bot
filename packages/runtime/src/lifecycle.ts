@@ -77,6 +77,8 @@ export function startRuntime(pod: PodRuntime): () => void {
     every(30_000, () => {
       void pod.dispatcher.pump()
       pod.watchdog.tick()
+      // 看门狗定时巡查进行中的任务；处理暂停时不巡查。
+      if (!pod.settings.get().paused) pod.judge.review()
     }),
     every(30_000, () => {
       pod.evolutionKit.evolution.weeklyTick()

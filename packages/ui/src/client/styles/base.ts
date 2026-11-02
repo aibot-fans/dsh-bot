@@ -20,6 +20,10 @@ export const BASE_CSS = `
 .pod-stop-all:hover { background: color-mix(in srgb, var(--pod-danger) 8%, transparent); }
 .pod-banner { padding: 8px 20px; font-size: 13px; color: var(--pod-warn); background: color-mix(in srgb, var(--pod-warn) 10%, transparent); }
 .pod-banner-action { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.pod-problems { display: flex; flex-direction: column; gap: 6px; color: var(--pod-danger); background: color-mix(in srgb, var(--pod-danger) 9%, transparent); }
+.pod-problem { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.pod-problem-text { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; min-width: 0; flex: 1 1 260px; overflow-wrap: anywhere; }
+.pod-problem-meta, .pod-problem-note { font-size: 12px; color: var(--pod-muted); }
 .pod-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .pod-page { flex: 1; min-height: 0; overflow-y: auto; padding: 24px 32px 48px; display: flex; flex-direction: column; gap: 20px; }
 .pod-page > * { max-width: 1120px; width: 100%; margin-left: auto; margin-right: auto; }

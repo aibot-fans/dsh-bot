@@ -41,6 +41,25 @@ export interface PodStatus {
   readonly exposure: { readonly exposed: boolean; readonly reasons: readonly string[]; readonly note: string | null }
 }
 
+/** 系统问题：种类、最后一次错误（已打码）、连续失败几次、从什么时候开始。 */
+export interface SystemProblem {
+  readonly id: number
+  readonly kind: string
+  readonly detail: string
+  readonly failures: number
+  readonly startedAt: number
+  readonly updatedAt: number
+  readonly resolvedAt: number | null
+}
+
+export interface HealthReport {
+  readonly problems: readonly SystemProblem[]
+  readonly recent: readonly SystemProblem[]
+  readonly queues: readonly { readonly kind: string; readonly waiting: number; readonly failing: number; readonly since: number | null }[]
+  readonly exactlyOnce: boolean
+  readonly paused: boolean
+}
+
 export interface BotVersion {
   readonly id: string
   readonly botId: string
@@ -199,6 +218,8 @@ export interface LibraryItem {
 export const api = {
   overview: () => apiGet<OverviewData>('/overview'),
   status: () => apiGet<PodStatus>('/status'),
+  health: () => apiGet<HealthReport>('/health'),
+  retryProblem: (kind: string) => apiPost<{ readonly retried: number }>('/health/retry', { kind }),
   settings: () => apiGet<PodSettings>('/settings'),
   updateSettings: (patch: Partial<PodSettings>) => apiPost<PodSettings>('/settings/update', patch),
   reportLocale: (locale: string) => apiPost<{ readonly language: Language; readonly changed: boolean }>('/locale', { locale }),
@@ -244,6 +265,7 @@ export const api = {
   controlTask: (taskId: string, action: 'pause' | 'resume' | 'stop' | 'cancel' | 'retry' | 'accept') => apiPost('/task/control', { taskId, action }),
   talkToTask: (taskId: string, text: string) => apiPost('/task/talk', { taskId, text }),
   redeliverTask: (taskId: string) => apiPost('/task/redeliver', { taskId }),
+  diagnoseTask: (taskId: string) => apiPost<{ readonly text: string }>('/task/diagnose', { taskId }),
   approvePlan: (taskId: string) => apiPost('/task/approve', { taskId }),
   taskPlan: (id: string) => apiGet<{ readonly plan: TeamPlan; readonly keys: Readonly<Record<string, string>> }>('/task/plan', { id }),
   stopAll: () => apiPost<{ readonly stopped: number }>('/tasks/stop-all'),

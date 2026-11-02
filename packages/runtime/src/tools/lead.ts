@@ -212,5 +212,19 @@ export function taskInfoTools(pod: PodRuntime, session: PodSession): readonly To
     },
   })
 
-  return [taskStatus, control]
+  const diagnose = podTool({
+    name: 'diagnose_task',
+    description: '问看门狗一个任务为什么卡住、有没有在推进。只读，不会打断任务；回答里引用任务事件的 id（#12）。用户问“怎么还没好”“是不是卡住了”时用。',
+    properties: { task_id: str('任务 id') },
+    required: ['task_id'],
+    parse: (args) => (text(args, 'task_id') === '' ? '要写任务 id' : { taskId: text(args, 'task_id') }),
+    concurrent: true,
+    timeoutMs: 120_000,
+    run: async ({ taskId }) => {
+      const task = pod.tasks.get(taskId)
+      return task === undefined ? failure('找不到这个任务') : success(await pod.judge.diagnose(task))
+    },
+  })
+
+  return [taskStatus, control, diagnose]
 }

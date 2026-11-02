@@ -46,13 +46,16 @@ function Time(props: { readonly value: string; readonly onChange: (value: string
   return <input className="pod-input pod-input-time" type="time" aria-label={props.label} value={props.value} onChange={(event) => props.onChange(event.target.value)} />
 }
 
-/** 通用：语言、聊天区宽度、放手程度、通知、勿扰、自动记住要点、X 数据和监控（aibot）、x_ 工具用的 X 账号。 */
+/** 通用：暂停处理、语言、聊天区宽度、放手程度、通知、勿扰、自动记住要点、X 数据和监控（aibot）、x_ 工具用的 X 账号。 */
 export function GeneralPage(props: { readonly settings: PodSettings; readonly update: Update }) {
   const app = useApp()
   const width = useChatWidth()
   const { settings, update } = props
   return (
     <div className="pod-settings-body">
+      <Row label={t('暂停处理')} hint={t('开工、送消息、往聊天室发、例程都先停着，消息照旧记下；关掉后排着的按原来的顺序接着做。换模型、改提示词、升级重启前用')}>
+        <Switch checked={settings.paused} label={t('暂停处理')} onChange={(paused) => update({ paused })} />
+      </Row>
       <Row label={t('语言')} hint={t('跟随 dsh：和 dsh 设置里的界面语言一致。系统消息和 bot 的回答也用这个语言')}>
         <Segmented
           value={settings.language}

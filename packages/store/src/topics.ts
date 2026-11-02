@@ -175,6 +175,19 @@ export function frontQueue(db: DatabaseSync, botId: string): readonly MessageRou
   return rows.map(toRoute)
 }
 
+/** 这个时间以后记成漏掉、之后没再有去向的消息（你点重试时重新交给前台）。 */
+export function missedFrontRoutes(db: DatabaseSync, since: number): readonly MessageRoute[] {
+  const rows = db
+    .prepare(
+      `SELECT * FROM message_routes r
+       WHERE r.route = 'missed' AND r.bot_id IS NOT NULL AND r.created_at >= ?
+         AND NOT EXISTS (SELECT 1 FROM message_routes s WHERE s.message_id = r.message_id AND s.id > r.id)
+       ORDER BY r.id`,
+    )
+    .all(since) as unknown as readonly RouteRow[]
+  return rows.map(toRoute)
+}
+
 /** 有待送消息的前台。 */
 export function frontsWithQueue(db: DatabaseSync): readonly string[] {
   const rows = db.prepare("SELECT DISTINCT bot_id FROM message_routes WHERE route = 'front' AND bot_id IS NOT NULL AND ref IS NULL").all() as unknown as readonly { readonly bot_id: string }[]

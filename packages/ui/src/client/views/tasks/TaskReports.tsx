@@ -8,7 +8,7 @@ function ReportHead(props: { readonly report: TaskReport; readonly bots: Readonl
   return (
     <div className="pod-row pod-wrap">
       <Badge tone={report.status === 'ready' ? 'ok' : report.status === 'failed' ? 'danger' : 'warn'}>{t(REPORT_STATUS_LABELS[report.status])}</Badge>
-      {report.author === 'pod' ? <span>dsh-bot</span> : <BotName bot={props.bots.get(report.author)} fallback={report.author} size={14} />}
+      {report.author === 'pod' ? <span>dsh-bot</span> : report.author === 'watchdog' ? <span>{t('看门狗')}</span> : <BotName bot={props.bots.get(report.author)} fallback={report.author} size={14} />}
       <time className="pod-muted-inline">{clock(report.createdAt)}</time>
     </div>
   )

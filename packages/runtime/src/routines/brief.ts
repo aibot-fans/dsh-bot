@@ -55,7 +55,8 @@ export class DailyBrief {
 
   async tick(): Promise<boolean> {
     const settings = this.deps.settings()
-    if (!settings.dailyBrief.enabled) return false
+    // 处理暂停时到点先不发，关掉后补一次。
+    if (!settings.dailyBrief.enabled || settings.paused) return false
     const now = this.deps.now()
     const due = readState<number | null>(this.deps.db, STATE_KEY, null)
     if (due === null) {

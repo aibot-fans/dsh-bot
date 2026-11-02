@@ -366,6 +366,9 @@ export class AppState {
       case 'status':
         cache.invalidate('status')
         return
+      case 'health':
+        cache.invalidate('health')
+        return
       case 'settings':
         cache.invalidate('settings')
         return

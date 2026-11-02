@@ -18,6 +18,7 @@ import { Drawers } from './panel/Drawers.tsx'
 import { RightPanel } from './panel/RightPanel.tsx'
 import { SearchDialog } from './search/SearchDialog.tsx'
 import { SettingsModal } from './settings/SettingsModal.tsx'
+import { SystemBanners } from './SystemBanners.tsx'
 import { Sidebar } from './side/Sidebar.tsx'
 import { UpdateDialog } from './update/UpdateDialog.tsx'
 import { UpdateNotice } from './update/UpdateNotice.tsx'
@@ -151,6 +152,7 @@ export function PodApp(props: { readonly host: HostActions; readonly locale: Hos
           <StaleBanner />
           <UpdateNotice />
           <ReadOnlyBanner />
+          <SystemBanners />
           <Layout />
           <SettingsModal />
           <UpdateDialog />

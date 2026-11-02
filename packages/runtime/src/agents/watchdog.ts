@@ -30,8 +30,11 @@ export interface WatchdogDeps {
   readonly agents: AgentRegistry
   readonly task: (taskId: string) => Task | undefined
   readonly now: () => number
-  /** 标出停滞或卡死时通知派活的人和你。 */
-  readonly onStall: (session: PodSession, task: Task | undefined, reason: string) => void
+  /**
+   * 报警：交给慢路径（看门狗的模型判断）决定继续、提醒还是受阻；判断不了时调 fallback，
+   * 照旧用代码的做法（提醒换做法，或者只标出来）。
+   */
+  readonly onAlert: (session: PodSession, task: Task | undefined, reason: string, fallback: () => void) => void
 }
 
 function fingerprint(task: Task): string {
@@ -39,10 +42,12 @@ function fingerprint(task: Task): string {
 }
 
 /**
- * 看门狗和绕圈检测：
- * - 一步长时间没有任何事件：先取消并重试一次；还卡住就标出来交给派活的人。
- * - 步数一直在涨却没有新进展：标“可能在绕圈”，提醒它换做法，并提醒你一次。不打断任务。
- * - 反复调用同一个工具、同样的参数：提醒它换做法。
+ * 代码看门狗（快路径），每 30 秒看一次，报警后交给慢路径判断：
+ * - 工具很久没返回：标出来报警。
+ * - 模型一步长时间没有任何事件：先取消并重试一次；还卡住就标出来报警。
+ * - 步数一直在涨却没有新进展：标“可能在绕圈”，报警。
+ * - 反复调用同一个工具、同样的参数：报警。
+ * 慢路径判断不了时，后两种照旧提醒它换做法。
  */
 export class Watchdog {
   private readonly retried = new Set<string>()
@@ -64,7 +69,7 @@ export class Watchdog {
       if (activity.current !== null) {
         if (silent > TOOL_STUCK_MS && !activity.stalled) {
           this.deps.observer.markStalled(session.id, true)
-          this.deps.onStall(session, this.taskOf(session), t('工具「{current}」已经 {round} 分钟没有结束', { current: activity.current, round: Math.round(silent / 60_000) }))
+          this.deps.onAlert(session, this.taskOf(session), t('工具「{current}」已经 {round} 分钟没有结束', { current: activity.current, round: Math.round(silent / 60_000) }), () => undefined)
         }
         continue
       }
@@ -73,7 +78,7 @@ export class Watchdog {
       if (this.retried.has(key)) {
         if (!activity.stalled) {
           this.deps.observer.markStalled(session.id, true)
-          this.deps.onStall(session, this.taskOf(session), t('模型长时间没有响应，重试后还是卡住'))
+          this.deps.onAlert(session, this.taskOf(session), t('模型长时间没有响应，重试后还是卡住'), () => undefined)
         }
         continue
       }
@@ -114,14 +119,16 @@ export class Watchdog {
     if (previous.warned || steps - previous.steps < STALL_STEPS) return
     this.progress.set(task.id, { ...previous, warned: true })
     this.deps.observer.markStalled(session.id, true)
-    this.deps.dispatcher.enqueue({
-      sessionId: session.id,
-      mode: 'inject',
-      priority: PRIORITY.task,
-      text: `[dsh-bot 提醒] 你已经做了 ${steps - previous.steps} 步，但没有勾新的验收项，也没有写新的进度说明，可能在绕圈。换个做法；确实卡住就用 report 报 blocked 说明，能绕过的先绕过。`,
-      source: noticeSource(t('可能在绕圈，提醒换做法')),
-    })
-    this.deps.onStall(session, task, t('已经 {steps} 步没有新进展，可能在绕圈', { steps: steps - previous.steps }))
+    const count = steps - previous.steps
+    this.deps.onAlert(session, task, t('已经 {steps} 步没有新进展，可能在绕圈', { steps: count }), () =>
+      this.deps.dispatcher.enqueue({
+        sessionId: session.id,
+        mode: 'inject',
+        priority: PRIORITY.task,
+        text: `[dsh-bot 提醒] 你已经做了 ${count} 步，但没有勾新的验收项，也没有写新的进度说明，可能在绕圈。换个做法；确实卡住就用 report 报 blocked 说明，能绕过的先绕过。`,
+        source: noticeSource(t('可能在绕圈，提醒换做法')),
+      }),
+    )
   }
 
   /** 反复调用同一个工具、同样的参数时提醒一次。 */
@@ -131,13 +138,15 @@ export class Watchdog {
     this.recentCalls.set(session.id, recent)
     if (recent.length < REPEAT_LIMIT || recent.some((item) => item !== signature)) return
     this.recentCalls.set(session.id, [])
-    this.deps.dispatcher.enqueue({
-      sessionId: session.id,
-      mode: 'inject',
-      priority: PRIORITY.task,
-      text: `[dsh-bot 提醒] 你已经连续 ${REPEAT_LIMIT} 次用同样的参数调用 ${name}，结果不会变。换个做法。`,
-      source: noticeSource(t('重复调用 {name}，提醒换做法', { name })),
-    })
+    this.deps.onAlert(session, this.taskOf(session), t('连续 {count} 次用同样的参数调用 {name}', { count: REPEAT_LIMIT, name }), () =>
+      this.deps.dispatcher.enqueue({
+        sessionId: session.id,
+        mode: 'inject',
+        priority: PRIORITY.task,
+        text: `[dsh-bot 提醒] 你已经连续 ${REPEAT_LIMIT} 次用同样的参数调用 ${name}，结果不会变。换个做法。`,
+        source: noticeSource(t('重复调用 {name}，提醒换做法', { name })),
+      }),
+    )
   }
 
   forget(sessionId: string): void {
