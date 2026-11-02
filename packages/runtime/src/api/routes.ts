@@ -16,7 +16,7 @@ import {
   type SearchKind,
   type TaskStatus,
 } from 'pod-domain'
-import { getMessage, listAudit, updateHandoverNote } from 'pod-store'
+import { getMessage, listAudit, reportsFor, updateHandoverNote } from 'pod-store'
 import type { PodRuntime } from '../pod.ts'
 import type { ControlAction } from '../tasks/service.ts'
 import { get, post, type RouteSpec } from './router.ts'
@@ -131,6 +131,7 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
         events: pod.tasks.events(rootId),
         sessions: pod.tasks.tree(rootId).flatMap((task) => pod.registry.forTask(task.id)),
         waits: pod.waits.open().filter((wait) => wait.rootId === rootId),
+        reports: reportsFor(pod.db, snapshot.task.id, 20),
       })
     }),
     post('/task/control', (body) => {

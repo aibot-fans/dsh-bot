@@ -16,6 +16,7 @@ import type {
   RoomMessage,
   RoomSummary,
   TaskActivity,
+  TaskReport,
   TaskSnapshot,
   TabInfo,
   Wait,
@@ -77,6 +78,8 @@ export interface TaskDetail {
   readonly events: readonly TaskEvent[]
   readonly sessions: readonly PodSession[]
   readonly waits: readonly Wait[]
+  /** 这个任务的汇报，最近的在前（完整报告在任务页看）。 */
+  readonly reports: readonly TaskReport[]
 }
 
 export interface AuditEntry {

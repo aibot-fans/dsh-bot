@@ -15,6 +15,7 @@ import { Avatar, Badge, Button, Drawer, Empty, RelativeTime, clock } from '../..
 import { BotName } from '../../components/GroupMark.tsx'
 import { TaskCard, segmentTone } from '../../components/TaskCard.tsx'
 import { WaitView } from '../../components/WaitCard.tsx'
+import { TaskReports } from './TaskReports.tsx'
 import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 
@@ -59,6 +60,17 @@ const EVENT_LABELS: Readonly<Record<string, string>> = {
   'owner-talk': '你直接对任务说',
   stalled: '停滞',
   lesson: '记下经验',
+  task_opened: '开了任务',
+  task_ended: '任务结束',
+  task_reopened: '重新打开',
+  run_queued: '排队执行',
+  run_started: '开始执行',
+  run_ended: '执行结束',
+  report_recorded: '汇报',
+  reply_sent: '发了消息',
+  subtask_opened: '开了子任务',
+  team_room: '开了任务群',
+  watchdog: '看门狗提醒',
   'control.pause': '暂停',
   'control.resume': '继续',
   'control.stop': '停止',
@@ -156,6 +168,7 @@ export function TaskDetail(props: { readonly taskId: string; readonly bots: Read
       ) : (
         <div className="pod-stack">
           <TaskCard taskId={props.taskId} />
+          <TaskReports reports={detail.reports} bots={props.bots} />
           <Subtasks detail={detail} bots={props.bots} />
           {detail.snapshot.task.brief === '' ? null : (
             <section>
