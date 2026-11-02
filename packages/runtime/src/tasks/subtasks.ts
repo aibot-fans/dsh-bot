@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { PRIORITY, TICKET_STAGE_LABELS, childTaskFolder, fail, newAcceptance, newId, ok, t, truncate, type Bot, type PodResult, type PodSession, type Room, type Task, type TaskOrigin, type TaskReport } from 'pod-domain'
-import { latestDecisiveReport, runsFor, taskRoomOf, transaction } from 'pod-store'
+import { getMessage, latestDecisiveReport, runsFor, taskCardMessage, taskRoomOf, transaction } from 'pod-store'
 import { noticeSource } from '../agents/messages.ts'
 import type { BotService } from '../bots/service.ts'
 import type { RoomService } from '../chat/rooms.ts'
@@ -101,7 +101,11 @@ export class Subtasks {
     const topic = this.deps.engine.topics.ensureTeam(room.id, parent.id)
     this.deps.engine.topics.follow(parent.id, topic.id, 'own')
     if (existing === undefined) {
-      this.deps.rooms.milestone(parent.roomId, t('{name}为「{title}」开了任务群「{room}」，子任务的进展在那里', { name: this.name(leader), title: parent.title, room: room.title }), { taskId: parent.id, roomId: room.id })
+      // 原来的任务卡上多一个“打开群聊”，子任务的进展在那里；不另发里程碑。
+      const cardId = taskCardMessage(this.db, parent.id)
+      const card = cardId === undefined ? undefined : getMessage(this.db, cardId)
+      if (card !== undefined && card.roomId !== room.id) this.deps.rooms.patchMessage(card.id, { data: { ...card.data, roomId: room.id } })
+      this.deps.tasks.event(parent, 'team_room', leader, { roomId: room.id, title: room.title })
     }
     return room
   }
@@ -184,7 +188,6 @@ export class Subtasks {
         this.deps.engine.tickets.end(child.id, 'done', session.botId)
         this.deps.tasks.event(child, 'reviewed', session.botId, { pass: true, feedback: input.feedback })
       })
-      this.deps.rooms.milestone(child.roomId, t('「{title}」通过了验收', { title: child.title }), { taskId: child.id })
       return ok(`${t('已通过。')}\n${this.boardLine(leader.value)}`)
     }
     if (input.feedback === '') return fail('invalid-input', t('没通过要写清哪里没达到、要怎么改'))

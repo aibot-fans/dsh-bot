@@ -1,4 +1,5 @@
 import type { PodSession, Task } from 'pod-domain'
+import { getMessage } from 'pod-store'
 import type { ToolDefinition } from '../dsh.ts'
 import type { PodRuntime } from '../pod.ts'
 import { bool, failure, podTool, str, strList, success, text, texts, flag } from '../tools/define.ts'
@@ -53,6 +54,28 @@ export function handbackTool(pod: PodRuntime, session: PodSession): ToolDefiniti
       if (!result.ok) return failure(result.error.message)
       const tail = result.value.unfollowed ? '那个话题也不再跟进。' : ''
       return success(`已交还给前台。${tail}这次执行只是为它开的、没有别的要做，就用 report 报 waiting 结束。`)
+    },
+  })
+}
+
+/** 答复：用户在任务里问你（直通或转来的消息里的问题），回在问的那条下面。结果和问题走 report。 */
+export function answerTool(pod: PodRuntime, session: PodSession): ToolDefinition {
+  return podTool({
+    name: 'reply',
+    description:
+      '答复用户在这个任务里问你的话（直通或转来的消息里的问题，比如进度、某个细节）：回在那条消息下面，第一句就是答案，问什么答什么。结果不用它发，报 ready 时摘要会作为结果发出去；要用户拿主意用 report 的 blocked。',
+    properties: { to: str('回哪条消息（消息 id）'), text: str('要说的话') },
+    required: ['to', 'text'],
+    parse: (args) => (text(args, 'to') === '' || text(args, 'text') === '' ? '要写回哪条消息和要说的话' : { to: text(args, 'to'), body: text(args, 'text') }),
+    run: ({ to, body }) => {
+      const task = ticketOf(pod, session)
+      if (task === undefined) return failure('这条会话没有对应的任务')
+      const message = getMessage(pod.db, to)
+      if (message === undefined || message.deletedAt !== null) return failure(`找不到消息 ${to}`)
+      const asked = task.replyTo.some((target) => target.messageId === message.id) || pod.engine.topics.routes(message.id).some((route) => route.taskId === task.id)
+      if (!asked) return failure('这条消息没有交给这个任务；只能答复直通或转给你的消息')
+      const messageId = pod.taskReplies.answer(task, session.botId, session.id, message, body)
+      return success('已答复，回在那条消息下面。', { messageId })
     },
   })
 }

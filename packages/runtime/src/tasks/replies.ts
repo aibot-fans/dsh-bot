@@ -1,0 +1,99 @@
+import type { DatabaseSync } from 'node:sqlite'
+import { t, type RoomMessage, type Task, type TaskResult } from 'pod-domain'
+import { getMessage } from 'pod-store'
+import type { Replies } from '../chat/replies.ts'
+import type { RoomService } from '../chat/rooms.ts'
+
+export interface TaskRepliesDeps {
+  readonly db: DatabaseSync
+  readonly replies: Replies
+  readonly rooms: RoomService
+  /** 任务的任务卡。 */
+  readonly cardOf: (taskId: string) => RoomMessage | undefined
+}
+
+/** 结果消息：汇报的摘要，产出文件附在后面；不挂在任务卡下时带上任务标题，等你验收时说一句怎么收下。 */
+export function resultText(task: Task, result: TaskResult, onCard: boolean, completed: boolean): string {
+  const head = onCard ? result.summary : t('「{title}」做完了：{summary}', { title: task.title, summary: result.summary })
+  const files = result.files.length === 0 ? '' : `\n\n${t('文件：{files}', { files: result.files.map((file) => `\`${file}\``).join(t('、')) })}`
+  const accept = completed ? '' : `\n\n${t('有没核实的地方，看过后在任务卡上点“收下”。')}`
+  return `${head}${files}${accept}`
+}
+
+/**
+ * 任务对外说的话（都走回复队列）：结果回在每一处还没得到答复的提问下面；等你（受阻、失败、要你处理的故障）
+ * 由干活的 bot 回复任务卡；任务里被问到的话回在问的那条下面。
+ */
+export class TaskReplies {
+  private readonly deps: TaskRepliesDeps
+
+  constructor(deps: TaskRepliesDeps) {
+    this.deps = deps
+  }
+
+  /** 有人回在这条下面了，用途是答复或结果（排着还没发出去的也算）。 */
+  private answered(messageId: string): boolean {
+    const posted = this.deps.db
+      .prepare("SELECT 1 AS found FROM messages WHERE reply_to = ? AND deleted_at IS NULL AND json_extract(data, '$.purpose') IN ('answer', 'result') LIMIT 1")
+      .get(messageId)
+    if (posted !== undefined) return true
+    const queued = this.deps.db
+      .prepare("SELECT 1 AS found FROM effects WHERE kind = 'reply' AND json_extract(payload, '$.replyTo') = ? AND json_extract(payload, '$.purpose') IN ('answer', 'result') LIMIT 1")
+      .get(messageId)
+    return queued !== undefined
+  }
+
+  /**
+   * 结果：一个聊天室一条。任务卡所在的聊天室挂在任务卡下（之后又在那里问过、还没答的，挂在最近那条下面）；
+   * 单聊里任务卡那一行原地变成结果，之前的提问不另外回。别的聊天室里问过的，回在最近一条还没答的下面。
+   * 干活的 bot 不在那个聊天室也照样以它的名义发，看得出是谁做的。
+   */
+  result(task: Task, author: string, sessionId: string | null, body: (onCard: boolean) => string): number {
+    const card = this.deps.cardOf(task.id)
+    const roomIds = [...new Set([card?.roomId, ...task.replyTo.map((target) => target.roomId)].filter((id): id is string => typeof id === 'string'))]
+    let sent = 0
+    for (const roomId of roomIds) {
+      const room = this.deps.rooms.get(roomId)
+      if (room === undefined || room.archivedAt !== null) continue
+      const here = card?.roomId === roomId ? card : undefined
+      const asked = task.replyTo
+        .filter((target) => target.roomId === roomId && target.messageId !== null)
+        .map((target) => getMessage(this.deps.db, target.messageId ?? ''))
+        .filter((message): message is RoomMessage => message !== undefined && message.deletedAt === null && (here === undefined || message.seq > here.seq) && !this.answered(message.id))
+      const latest = asked.at(-1)
+      let anchor: string | null
+      if (here !== undefined) {
+        if (latest === undefined && room.kind === 'direct') continue
+        anchor = latest?.id ?? here.id
+      } else if (latest !== undefined) anchor = latest.id
+      else if (task.replyTo.some((target) => target.roomId === roomId && target.messageId === null)) anchor = null
+      else continue
+      this.deps.replies.send({ roomId, author, purpose: 'result', body: body(here !== undefined && anchor === here.id), replyTo: anchor, sessionId, taskId: task.id })
+      sent += 1
+    }
+    return sent
+  }
+
+  /** 等你：干活的 bot 回复任务卡，说卡在哪、要你做什么。 */
+  wait(task: Task, author: string, input: { readonly body: string; readonly kind?: 'text' | 'wait'; readonly sessionId?: string | null; readonly data?: Readonly<Record<string, unknown>> }): string | undefined {
+    const card = this.deps.cardOf(task.id)
+    const roomId = card?.roomId ?? task.roomId
+    if (roomId === null) return undefined
+    return this.deps.replies.send({
+      roomId,
+      author,
+      purpose: 'wait',
+      kind: input.kind ?? 'text',
+      body: input.body,
+      replyTo: card?.id ?? null,
+      sessionId: input.sessionId ?? null,
+      taskId: task.id,
+      ...(input.data === undefined ? {} : { data: input.data }),
+    })
+  }
+
+  /** 答复：任务里被问到时，回在问的那条下面。 */
+  answer(task: Task, author: string, sessionId: string, message: RoomMessage, body: string): string {
+    return this.deps.replies.send({ roomId: message.roomId, author, purpose: 'answer', body, replyTo: message.id, sessionId, taskId: task.id })
+  }
+}

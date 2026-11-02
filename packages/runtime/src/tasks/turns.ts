@@ -1,12 +1,12 @@
-import { PRIORITY, t, type PodSession, type Task } from 'pod-domain'
+import { POD, PRIORITY, t, type PodSession, type Task } from 'pod-domain'
 import { noticeSource } from '../agents/messages.ts'
 import type { TurnFailure } from '../agents/observer.ts'
 import type { SessionRegistry } from '../agents/registry.ts'
-import type { RoomService } from '../chat/rooms.ts'
 import { failureKind, failureReason } from '../chat/turn-errors.ts'
 import type { Dispatcher } from '../effects/delivery.ts'
 import { isTicket, type Engine } from '../engine/index.ts'
 import { nudgeText } from './brief.ts'
+import type { TaskReplies } from './replies.ts'
 import { ModelRetries, RETRY_DELAYS_MS } from './retries.ts'
 import type { TaskService } from './service.ts'
 
@@ -18,7 +18,8 @@ export interface TaskTurnsDeps {
   readonly engine: Engine
   readonly registry: SessionRegistry
   readonly dispatcher: Dispatcher
-  readonly rooms: RoomService
+  /** 等你：替任务回复任务卡（受阻、停下的原因）。 */
+  readonly replies: TaskReplies
   /** 会话还有几个命令在后台跑。 */
   readonly backgroundJobs: (sessionId: string) => number
   /** 任务会话上下文太长时换段；换了就不再提醒。 */
@@ -122,7 +123,7 @@ export class TaskTurns {
     this.block(task, t('模型服务连着出错，自动重试了 {count} 次都没成（{code}）。服务恢复后点重试', { count: RETRY_DELAYS_MS.length, code: failure.code }))
   }
 
-  /** 要你处理的故障：替任务记一条受阻的汇报（这次执行结束、名额让出），原因写进对话里那一行。 */
+  /** 要你处理的故障：替任务记一条受阻的汇报（这次执行结束、名额让出），原因以干活的 bot 的名义回复任务卡。 */
   private block(task: Task, reason: string): void {
     const outcome = this.deps.engine.runs.report({
       task,
@@ -137,7 +138,7 @@ export class TaskTurns {
       acceptance: [],
       data: {},
     })
-    this.deps.rooms.milestone(task.roomId, t('「{title}」受阻：{reason}', { title: task.title, reason }), { taskId: task.id })
+    this.deps.replies.wait(outcome.task, task.ownerBotId ?? POD, { body: reason })
     this.deps.notify({ ...outcome.task, note: reason }, 'stalled')
   }
 
@@ -158,7 +159,7 @@ export class TaskTurns {
       acceptance: [],
       data: {},
     })
-    this.deps.rooms.milestone(task.roomId, t('「{title}」多次提醒仍没有汇报，已停下', { title: task.title }), { taskId: task.id })
+    this.deps.replies.wait(outcome.task, task.ownerBotId ?? POD, { body: t('连续 {MAX_NUDGES} 次提醒都没有汇报，已停下。要接着做就点任务卡上的“重试”，不要了点“停止”。', { MAX_NUDGES }) })
     this.deps.tasks.tellRequester(outcome.task, `[任务停滞] 「${task.title}」连续 ${MAX_NUDGES} 次提醒都没有汇报，已经停下。可以重试、换人、拆小或者自己来做。`)
     this.deps.notify(outcome.task, 'stalled')
   }

@@ -38,6 +38,8 @@ export interface WaitServiceDeps {
   /** 工单的答复由任务接着做（开一次新的执行）；返回 true 就不再直接送进会话。 */
   readonly sendToTask?: (task: Task, text: string, quote: string) => boolean
   readonly notify: (wait: Wait) => void
+  /** 等你卡发到聊天室：干活的 bot 回复任务卡（走回复队列）。 */
+  readonly speak: (wait: Wait, task: Task | undefined) => void
 }
 
 export interface AskInput {
@@ -50,6 +52,8 @@ export interface AskInput {
   readonly data?: Readonly<Record<string, unknown>>
   /** 问题来自哪次汇报。 */
   readonly reportId?: string | null
+  /** 问题的几个选项，你点一下就是答复。 */
+  readonly options?: readonly string[]
 }
 
 /**
@@ -77,7 +81,7 @@ export class WaitService {
       status: input.bypassed ? 'bypassed' : 'open',
       title: truncate(input.title, 120),
       detail: input.detail,
-      data: input.data ?? {},
+      data: { ...input.data, ...(input.options === undefined || input.options.length === 0 ? {} : { options: input.options.map((option) => truncate(option, 60)) }) },
       taskId: task?.id ?? null,
       rootId: task?.rootId ?? null,
       sessionId: input.session.id,
@@ -86,9 +90,7 @@ export class WaitService {
       now: this.deps.now(),
     })
     if (input.reportId !== undefined && input.reportId !== null) this.db.prepare('UPDATE waits SET report_id = ? WHERE id = ?').run(input.reportId, wait.id)
-    if (roomId !== null) {
-      this.deps.rooms.post(roomId, { author: input.session.botId, kind: 'wait', body: wait.title, data: { waitId: wait.id, taskId: wait.taskId } })
-    }
+    if (roomId !== null) this.deps.speak(wait, task)
     if (task !== undefined && !input.bypassed) this.deps.setTaskWaiting(task, true)
     this.deps.audit.record('wait.create', input.session.botId, wait.id, { kind: wait.kind, title: wait.title, bypassed: input.bypassed })
     this.deps.bus.emit({ type: 'waits' })
@@ -168,7 +170,7 @@ export class WaitService {
       const stillBlocked = task !== undefined && this.blockingFor(task.id) > 0
       if (task !== undefined && task.status === 'waiting' && !stillBlocked) this.deps.setTaskWaiting(task, false)
     }
-    if (wait.roomId !== null) this.deps.rooms.milestone(wait.roomId, t('已处理：{title}', { title: wait.title }), { waitId: wait.id })
+    // 聊天室里的等你卡自己收成“已处理”一行，不再另发里程碑。
     this.deps.bus.emit({ type: 'waits' })
   }
 

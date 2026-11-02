@@ -20,6 +20,8 @@ const PLACEHOLDER: Readonly<Record<string, string>> = {
 export function WaitView(props: { readonly wait: Wait; readonly showTask?: boolean }) {
   const app = useApp()
   const { wait } = props
+  // bot 问问题时给的几个选项：点一下就是答复。
+  const options = Array.isArray(wait.data.options) ? wait.data.options.filter((option): option is string => typeof option === 'string' && option !== '') : []
   const [answer, setAnswer] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
@@ -66,6 +68,15 @@ export function WaitView(props: { readonly wait: Wait; readonly showTask?: boole
           {t('查看所属任务')}
         </button>
       ) : null}
+      {options.length === 0 ? null : (
+        <div className="pod-wait-options">
+          {options.map((option) => (
+            <Button key={option} small disabled={busy} onClick={() => act(() => api.answerWait(wait.id, option))}>
+              {option}
+            </Button>
+          ))}
+        </div>
+      )}
       <div className="pod-wait-answer">
         <textarea
           className="pod-textarea pod-textarea-small"

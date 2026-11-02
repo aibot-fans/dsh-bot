@@ -52,10 +52,22 @@ function asReport(decision) {
     return { ...decision, tool: 'report', args: { status: 'blocked', summary: args.question, report: args.detail || args.question, question: args.question, question_kind: args.kind } }
   }
   const summary = String(args.summary ?? '')
+  const files = args.files ?? []
+  const unverified = args.unverified ?? []
+  const head = summary.split('\n')[0].replace(/^- /, '')
+  // 报告按固定的小标题写，放任务页；摘要发到聊天里。
+  const report = [
+    `## 结论\n${head}`,
+    `## 改了什么\n${summary}`,
+    '## 怎么验证的\n测试模型没有真的验证',
+    `## 产出在哪\n${files.length === 0 ? '没有文件' : files.join('、')}`,
+    `## 遗留问题\n${unverified.length === 0 ? '无' : unverified.join('；')}`,
+    `## 要你做什么\n${unverified.length === 0 ? '看一下结果' : '看过没核实的地方再收下'}`,
+  ].join('\n\n')
   return {
     ...decision,
     tool: 'report',
-    args: { status: 'ready', summary: summary.split('\n')[0].replace(/^- /, ''), report: summary, files: args.files ?? [], assumptions: args.assumptions ?? [], unverified: args.unverified ?? [], skipped: args.skipped ?? [] },
+    args: { status: 'ready', summary: head, report, files, assumptions: args.assumptions ?? [], unverified, skipped: args.skipped ?? [] },
   }
 }
 
@@ -354,8 +366,11 @@ function decide(options) {
     }
     if (last?.role === 'tool' && calls.at(-1) === 'handback') return { tool: 'report', args: { status: 'waiting', summary: '交还了一条不归这个任务的消息' } }
     if (last?.role === 'tool' && calls.at(-1) === 'ack') {
+      // 直通消息里问问题（写着“测试答复”）：用 reply 答在那条下面，再报 waiting。
+      if (userText.includes('测试答复') && tools.has('reply')) return { tool: 'reply', args: { to: routedIds[0], text: '（测试模型）做到第 2 步了，再过几分钟交结果。' } }
       return { tool: 'complete_task', args: { summary: '- 按直通进来的消息改好了', files: ['shared/测试结果.md'], assumptions: [], unverified: [], skipped: [] } }
     }
+    if (last?.role === 'tool' && calls.at(-1) === 'reply' && tools.has('report')) return { tool: 'report', args: { status: 'waiting', summary: '答复了用户的问题，接着等' } }
     if (last?.role === 'tool' && calls.at(-1) === 'report') return { text: '已经汇报了。' }
     if (brief.includes('浏览器') && tools.has('browser_open')) return browserTask(brief, userText, messages, calls)
     if (brief.includes('后台命令') && tools.has('bash')) return backgroundTask(messages, calls)
@@ -376,6 +391,15 @@ function decide(options) {
     }
     if (brief.includes('需要登录') && !calls.includes('ask_owner') && tools.has('ask_owner')) {
       return { tool: 'ask_owner', args: { kind: 'login', question: '需要登录 example.com 才能看到价格', detail: '登录页在 https://example.com/login', bypassed: false } }
+    }
+    if (brief.includes('拿主意') && !userText.includes('开始新的一次执行') && !calls.includes('report') && tools.has('report')) {
+      return {
+        tool: 'report',
+        args: { status: 'blocked', summary: '有两种做法，要你选一个', report: '## 结论\n有两种做法，结果方向不同\n\n## 要你做什么\n选方案 A 或方案 B', question: '用方案 A（快）还是方案 B（全）？', question_kind: 'ambiguity', options: ['方案 A', '方案 B'] },
+      }
+    }
+    if (brief.includes('测试失败') && !userText.includes('开始新的一次执行') && !calls.includes('report') && tools.has('report')) {
+      return { tool: 'report', args: { status: 'failed', summary: '没做成：测试网站一直打不开。换个来源就点重试，不要了点停止。', report: '## 结论\n没做成，测试网站一直打不开\n\n## 怎么验证的\n试了 3 次都超时\n\n## 要你做什么\n换个来源就点重试，不要了点停止' } }
     }
     if (userText.includes('[组长打回]') || userText.includes('组长验收没通过')) {
       return { tool: 'complete_task', args: { summary: '- 按组长意见补上了主要限制', files: ['B.md'], assumptions: [], unverified: [], skipped: [] } }

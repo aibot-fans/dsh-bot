@@ -1,5 +1,5 @@
-import { OWNER, POD, maskSecrets, t, type Bot, type OriginQuote, type PodSession, type ReplyTarget, type RoomMessage, type Task } from 'pod-domain'
-import { getMessage, listMessages, transaction } from 'pod-store'
+import { OWNER, POD, t, type Bot, type OriginQuote, type PodSession, type ReplyTarget, type RoomMessage, type Task } from 'pod-domain'
+import { getMessage, transaction } from 'pod-store'
 import { ownerSource, relaySource } from '../agents/messages.ts'
 import type { JsonSchema, ToolDefinition } from '../dsh.ts'
 import { isTicket } from '../engine/index.ts'
@@ -205,12 +205,13 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
   const reply = podTool({
     name: 'reply',
     description:
-      '对用户说话：发一条消息到聊天室。写明回的是哪条消息（to）和用途：confirm 确认（开了、转了任务时只补任务卡上没有的，没有就不发）、answer 答复（第一句就是答案）。你在别处写的文字用户看不到，只有 reply 会发出去。',
+      '对用户说话：发一条消息到聊天室。写明回的是哪条消息（to）和用途：confirm 确认（开了、转了任务时只补任务卡上没有的，没有就不发）、answer 答复（第一句就是答案）。用户问任务的细节时只讲问的那部分，task 写那个任务，消息下面会附上报告。你在别处写的文字用户看不到，只有 reply 会发出去。',
     properties: {
       to: str('回哪条消息（消息 id）'),
       room: str('不回具体某条时，发到哪个聊天室（room id）'),
       purpose: oneOf('confirm 确认 / answer 答复', ['confirm', 'answer']),
       text: str('要说的话'),
+      task: str('附上哪个任务的报告（任务 id，可选）'),
     },
     required: ['purpose', 'text'],
     parse: (args) => {
@@ -219,31 +220,30 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
       const to = text(args, 'to')
       const room = text(args, 'room')
       if (to === '' && room === '') return '要写回哪条消息（to）或者发到哪个聊天室（room）'
-      return { to, room, purpose: text(args, 'purpose') === 'confirm' ? ('confirm' as const) : ('answer' as const), body }
+      return { to, room, purpose: text(args, 'purpose') === 'confirm' ? ('confirm' as const) : ('answer' as const), body, task: text(args, 'task') }
     },
-    run: ({ to, room, purpose, body }) => {
+    run: ({ to, room, purpose, body, task }) => {
       const replied = to === '' ? undefined : getMessage(pod.db, to)
       if (to !== '' && (replied === undefined || replied.deletedAt !== null)) return failure(`找不到消息 ${to}`)
       const target = pod.rooms.get(replied?.roomId ?? room)
       if (target === undefined || target.archivedAt !== null) return failure('找不到这个聊天室')
       const member = target.kind === 'direct' ? target.botId === session.botId : pod.rooms.members(target.id).some((item) => item.botId === session.botId)
       if (!member) return failure('你不在这个聊天室里')
-      // 单聊里回最新的那句不挂引用，对话照常往下走；群里都挂在回的那条下面。
-      const latest = target.kind === 'direct' ? listMessages(pod.db, target.id, { limit: 1 }).at(-1) : undefined
-      const quote = replied !== undefined && (target.kind !== 'direct' || latest?.id !== replied.id)
+      const about = task === '' ? undefined : pod.tasks.get(task)
+      if (task !== '' && about === undefined) return failure(`找不到任务 ${task}`)
       const pageId = typeof replied?.data.pageId === 'string' ? replied.data.pageId : undefined
-      const posted = pod.rooms.post(target.id, {
+      // 走回复队列：按顺序发、留回执；群里挂在回的那条下面，单聊里回的正是最新那句就不挂引用。
+      const messageId = pod.replies.send({
+        roomId: target.id,
         author: session.botId,
-        kind: 'text',
-        body: maskSecrets(body).text,
+        purpose,
+        body,
         sessionId: session.id,
-        replyTo: quote ? (replied?.id ?? null) : null,
-        data: { purpose, ...(pageId === undefined ? {} : { pageId }) },
+        replyTo: replied?.id ?? null,
+        data: { ...(pageId === undefined ? {} : { pageId }), ...(about === undefined ? {} : { reportTaskId: about.rootId }) },
       })
-      if (posted === undefined) return failure('没发出去')
       if (replied !== undefined && purpose === 'answer' && pod.engine.topics.awaiting(replied.id, session.botId)) pod.engine.topics.decide(replied.id, session.botId, 'answered')
-      pod.front.replied(session.botId, target.id)
-      return success(`已发到「${target.title}」`, { messageId: posted.id })
+      return success(`已发到「${target.title}」`, { messageId })
     },
   })
 

@@ -22,6 +22,8 @@ import { Launcher } from './effects/launch.ts'
 import { routeIn } from './tasks/routed.ts'
 import { TaskReporting } from './tasks/report.ts'
 import { Subtasks } from './tasks/subtasks.ts'
+import { TaskReplies } from './tasks/replies.ts'
+import { Replies } from './chat/replies.ts'
 import { TaskTurns } from './tasks/turns.ts'
 import { Dispatcher } from './effects/delivery.ts'
 import { noticeSource } from './agents/messages.ts'
@@ -126,6 +128,10 @@ export class PodRuntime {
   readonly watchdog: Watchdog
   readonly binder: AgentBinder
   readonly rooms: RoomService
+  /** 回复队列：bot 发到聊天室的话按顺序发、留回执。 */
+  readonly replies: Replies
+  /** 任务对外说的话：结果、等你、答复。 */
+  readonly taskReplies: TaskReplies
   /** 前台：每个 bot 一个，跨聊天室，交给它的消息成批送进去。 */
   readonly front: FrontDesk
   readonly teams: TeamService
@@ -297,6 +303,30 @@ export class PodRuntime {
       roomsOfBot: (botId) => this.roomsOfBot(botId),
     })
     this.pageLibrary = new PageLibrary({ db, pages: this.pages, bots: this.bots, rooms: this.rooms, now })
+    this.replies = new Replies({
+      db,
+      effects: this.effects,
+      rooms: this.rooms,
+      audit: this.audit,
+      sent: (input, message) => {
+        const task = input.taskId === null || input.taskId === undefined ? undefined : this.tasks.get(input.taskId)
+        if (task !== undefined) this.engine.tickets.event(task, 'reply_sent', input.author, { roomId: message.roomId, messageId: message.id, purpose: input.purpose })
+        if (input.purpose === 'confirm' || input.purpose === 'answer') this.front.replied(input.author, message.roomId)
+      },
+      stuck: (taskId) => {
+        this.engine.tickets.refresh(taskId)
+      },
+      paused: () => false,
+    })
+    this.taskReplies = new TaskReplies({
+      db,
+      replies: this.replies,
+      rooms: this.rooms,
+      cardOf: (taskId) => {
+        const id = taskCardMessage(db, taskId)
+        return id === undefined ? undefined : getMessage(db, id)
+      },
+    })
     this.engine = new Engine({ db, now, effects: this.effects, changed: (task) => this.tasks.touched(task), ended: (task) => this.intake.returnUnread(task) })
     this.tasks = new TaskService({
       db,
@@ -323,13 +353,15 @@ export class PodRuntime {
         if (kind === 'reviewed') this.evolutionKit.feedback.onReview(task, data.pass === true, typeof data.feedback === 'string' ? data.feedback : '')
       },
       forward: (task, message, by, note) => this.intake.forward(task, message, by, note),
+      stuckReply: (taskId) => this.replies.stuckFor(taskId),
+      retryReplies: (taskId) => this.replies.retryTask(taskId),
     })
     this.turns = new TaskTurns({
       tasks: this.tasks,
       engine: this.engine,
       registry: this.registry,
       dispatcher: this.dispatcher,
-      rooms: this.rooms,
+      replies: this.taskReplies,
       backgroundJobs: (sessionId) => this.observer.backgroundJobs(sessionId),
       shouldRotate: (session) => session.contextTokens >= this.settings.get().softContextTokens,
       rotateTask: (session, task) => this.rotateTaskSession(session, task),
@@ -341,18 +373,14 @@ export class PodRuntime {
       tasks: this.tasks,
       engine: this.engine,
       turns: this.turns,
-      rooms: this.rooms,
       bots: this.bots,
-      ask: (input) => this.waits.ask({ session: input.session, kind: input.kind, title: input.title, detail: input.detail, bypassed: false, reportId: input.reportId }),
+      ask: (input) => this.waits.ask({ session: input.session, kind: input.kind, title: input.title, detail: input.detail, bypassed: false, reportId: input.reportId, options: input.options }),
       notify: (task, event) => this.onTaskNotify(task, event),
       onRootStateChange: (rootId, change) => this.waits.onRootChange(rootId, change).map((wait) => WaitService.describe(wait)),
       onSubtaskStalled: (task, reason) => this.coordinator.onStalled(task, reason),
       learn: (session, task, lessons) => this.learnFromTask(session, task, lessons),
       markRead: (sessionId) => this.dispatcher.turnEnded(sessionId),
-      cardOf: (taskId) => {
-        const id = taskCardMessage(db, taskId)
-        return id === undefined ? undefined : getMessage(db, id)
-      },
+      replies: this.taskReplies,
       subtasks: this.subtasks,
     })
     this.launcher = new Launcher({
@@ -424,6 +452,14 @@ export class PodRuntime {
       notify: (wait) => {
         this.notifications.wait(wait)
         this.evolutionKit.feedback.onWait(wait)
+      },
+      speak: (wait, task) => {
+        const author = wait.botId ?? POD
+        if (task !== undefined && isTicket(task)) {
+          this.taskReplies.wait(task, author, { kind: 'wait', body: wait.title, sessionId: wait.sessionId, data: { waitId: wait.id } })
+          return
+        }
+        if (wait.roomId !== null) this.replies.send({ roomId: wait.roomId, author, purpose: 'wait', kind: 'wait', body: wait.title, sessionId: wait.sessionId, taskId: wait.taskId, data: { waitId: wait.id } })
       },
     })
     const turnErrors = new TurnErrors({
@@ -524,7 +560,8 @@ export class PodRuntime {
       onStall: (session, task, reason) => {
         this.audit.record('task.stall', 'pod', session.id, { reason, taskId: task?.id ?? null })
         if (task !== undefined) {
-          this.rooms.milestone(task.roomId, t('「{title}」{reason}', { title: task.title, reason }), { taskId: task.id })
+          // 看门狗的提醒记在任务页，不进聊天室。
+          this.tasks.event(task, 'watchdog', 'pod', { reason })
           this.tasks.touched(task)
         }
       },

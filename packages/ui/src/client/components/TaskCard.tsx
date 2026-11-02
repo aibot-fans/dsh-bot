@@ -11,6 +11,7 @@ import {
   stagesFor,
   t,
   tc,
+  type Bot,
   type Task,
   type TaskActivity,
   type TaskSnapshot,
@@ -204,25 +205,40 @@ function TaskTabs(props: { readonly snapshot: TaskSnapshot }) {
   )
 }
 
-/** 单聊里开的任务：在做时只是一行“在做”，做完原地变成结果；要你处理（验收、答复、重试）时展开成完整的卡。 */
-function InlineTask(props: { readonly snapshot: TaskSnapshot; readonly now: number; readonly control: (action: ControlAction) => void }) {
+/** 发不出去的消息：交不进会话的，或者发不到聊天室的回复；点重试马上再试。 */
+function Undelivered(props: { readonly snapshot: TaskSnapshot }) {
+  const { undelivered, task } = props.snapshot
+  if (undelivered === null || undelivered === undefined) return null
+  return (
+    <div className="pod-task-wait">
+      {t('消息没送到：{error}', { error: undelivered.error })}{' '}
+      <Button onClick={() => void api.redeliverTask(task.id)}>{t('重试')}</Button>
+    </div>
+  )
+}
+
+/** 单聊里开的任务：在做时只是一行“在做”，做完原地变成结果（标明是谁做的）；要你处理（验收、答复、重试）时展开成完整的卡。 */
+function InlineTask(props: { readonly snapshot: TaskSnapshot; readonly now: number; readonly control: (action: ControlAction) => void; readonly owner: Bot | undefined }) {
   const app = useApp()
   const { snapshot, now } = props
   const { task } = snapshot
   const sessionId = snapshot.sessionId ?? undefined
+  const done = task.status === 'done'
   const details = (
     <Button small kind="quiet" onClick={() => app.openTask(task.rootId)}>
-      {t('详情')}
+      {done ? t('看报告') : t('详情')}
     </Button>
   )
-  if (task.status === 'done') {
+  if (done) {
     return (
       <div className="pod-task-inline-done">
         <Delivery snapshot={snapshot} />
         <div className="pod-task-inline-meta">
+          {snapshot.ownerName === null ? null : <BotName bot={props.owner} fallback={snapshot.ownerName} size={14} />}
           <span>{t('「{title}」 · 用时 {elapsed}', { title: task.title, elapsed: elapsed(task, now) })}</span>
           {details}
         </div>
+        <Undelivered snapshot={snapshot} />
       </div>
     )
   }
@@ -264,7 +280,7 @@ export function TaskCard(props: { readonly taskId: string; readonly compact?: bo
   }
   const sessionId = snapshot.sessionId ?? undefined
   const inline = props.inline === true && !team && (task.status === 'done' || (snapshot.stage !== 'ended' && stageGroup(snapshot.stage) !== 'attention'))
-  if (inline) return <InlineTask snapshot={snapshot} now={now} control={control} />
+  if (inline) return <InlineTask snapshot={snapshot} now={now} control={control} owner={bots?.find((bot) => bot.id === task.ownerBotId)} />
   const stageLabel =
     snapshot.stage === 'ended' && task.endReason !== null
       ? t(END_REASON_LABELS[task.endReason])
@@ -285,7 +301,10 @@ export function TaskCard(props: { readonly taskId: string; readonly compact?: bo
         </span>
       </div>
       {finished ? (
-        <Delivery snapshot={snapshot} />
+        <>
+          <Delivery snapshot={snapshot} />
+          <Undelivered snapshot={snapshot} />
+        </>
       ) : (
         <>
           {team ? (
@@ -318,12 +337,7 @@ export function TaskCard(props: { readonly taskId: string; readonly compact?: bo
             ))}
           {task.note === '' ? null : <div className="pod-task-note">{t('进度说明：{note}', { note: task.note })}</div>}
           {snapshot.waits > 0 ? <div className="pod-task-wait">{t('等你处理：{waits} 件', { waits: snapshot.waits })}</div> : null}
-          {snapshot.undelivered === null || snapshot.undelivered === undefined ? null : (
-            <div className="pod-task-wait">
-              {t('消息没送到：{error}', { error: snapshot.undelivered.error })}{' '}
-              <Button onClick={() => void api.redeliverTask(task.id)}>{t('重试')}</Button>
-            </div>
-          )}
+          <Undelivered snapshot={snapshot} />
         </>
       )}
       <div className="pod-task-actions">

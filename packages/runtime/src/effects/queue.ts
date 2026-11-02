@@ -51,6 +51,8 @@ export interface EffectHandler {
   readonly quiet: (key: string) => boolean
   /** 在登记顺序之前的排序表达式，比如按待投消息的优先级。 */
   readonly order?: string
+  /** 这一行做完、往后排或者失败记下之后（失败次数已经加上）。 */
+  readonly settled?: (row: EffectRow, outcome: 'done' | 'later' | 'failed') => void
 }
 
 export interface EffectsDeps {
@@ -121,6 +123,7 @@ export class Effects {
       ordered,
       quiet: options.quiet ?? (() => false),
       ...(options.order === undefined ? {} : { order: options.order }),
+      ...(options.settled === undefined ? {} : { settled: options.settled }),
     })
     this.kick()
   }
@@ -246,6 +249,7 @@ export class Effects {
       failEffect(this.deps.db, identity, errorText(failure.error), this.deps.now() + delay)
     }
     this.report(kind)
+    handler.settled?.(row, failure === undefined ? 'done' : failure.error instanceof Later ? 'later' : 'failed')
   }
 
   /** 这一种的健康：不安静的行连续失败到门槛就记系统问题，都好了就恢复。 */

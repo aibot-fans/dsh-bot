@@ -430,6 +430,8 @@ export class RoomService {
   post(
     roomId: string,
     message: {
+      /** 事先定好的消息 id（回复队列用它当回执，重做时不会发两遍）。 */
+      readonly id?: string
       readonly author: string
       readonly kind: MessageKind
       readonly body: string
@@ -441,7 +443,7 @@ export class RoomService {
     if (this.get(roomId) === undefined) return undefined
     const posted = transaction(this.db, () =>
       appendMessage(this.db, {
-        id: newId('msg'),
+        id: message.id ?? newId('msg'),
         roomId,
         author: message.author,
         kind: message.kind,

@@ -16,6 +16,11 @@ export function answerable(message: RoomMessage, owner: boolean): boolean {
   return message.author !== POD && message.kind === 'text' && !owner && message.data.xEvent === undefined
 }
 
+/** 能请前台重新回答的：前台的答复。任务说的结果、等你和答复由任务自己管，不重新回答。 */
+export function regenerable(message: RoomMessage, owner: boolean): boolean {
+  return answerable(message, owner) && typeof message.data.taskId !== 'string'
+}
+
 export interface MessageSheetProps {
   readonly control: MenuControl
   readonly view: SheetView
@@ -87,7 +92,9 @@ export function MessageSheet(props: MessageSheetProps) {
           <MenuItem icon="reply" label={t('引用回复')} onClick={() => act(() => props.onReply(message))} />
           {answer ? (
             <>
-              <MenuItem icon="refresh" label={t('重新回答')} onClick={() => act(() => void api.regenerate(message.id).catch((reason: unknown) => window.alert(errorText(reason))))} />
+              {regenerable(message, props.owner) ? (
+                <MenuItem icon="refresh" label={t('重新回答')} onClick={() => act(() => void api.regenerate(message.id).catch((reason: unknown) => window.alert(errorText(reason))))} />
+              ) : null}
               <MenuItem icon="up" label={rating.current === 1 ? t('取消赞') : t('赞')} onClick={() => act(() => rating.rate(rating.current === 1 ? 0 : 1))} />
               <MenuItem
                 icon="down"

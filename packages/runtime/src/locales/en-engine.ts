@@ -91,4 +91,8 @@ export const RUNTIME_EN_ENGINE: Readonly<Record<string, string>> = {
   '子任务都结束了：合成结果，用 report 报 ready。': 'All subtasks have ended: combine the results and report ready.',
   '子任务还开着 {open} 个（共 {total} 个）：{titles}': '{open} of {total} subtasks are still open: {titles}',
   '子任务有了新进展': 'Subtask update',
+  '连续 {MAX_NUDGES} 次提醒都没有汇报，已停下。要接着做就点任务卡上的“重试”，不要了点“停止”。': 'No report after {MAX_NUDGES} reminders, so it stopped. Click "Retry" on the task card to continue, or "Stop" if you no longer need it.',
+  '聊天室不在了': 'The chat room no longer exists',
+  '「{title}」做完了：{summary}': '"{title}" is done: {summary}',
+  '有没核实的地方，看过后在任务卡上点“收下”。': 'Some points are unverified; after checking, click "Accept" on the task card.',
 }

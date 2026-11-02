@@ -43,6 +43,11 @@ export const CARDS_CSS = `
 .pod-wait-detail { margin: 0; white-space: pre-wrap; font-size: 13px; color: var(--dsw-alias-label-secondary); }
 .pod-wait-answer { display: flex; flex-direction: column; gap: 6px; }
 .pod-wait-actions { display: flex; gap: 6px; }
+.pod-wait-options { display: flex; gap: 6px; flex-wrap: wrap; }
+.pod-report { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--pod-line); border-radius: 10px; background: var(--dsw-alias-bg-layer-2); }
+.pod-report-older { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+.pod-report-older summary { cursor: pointer; font-size: 13px; color: var(--dsw-alias-label-secondary); }
+.pod-msg-task-link { align-self: flex-start; margin-top: 4px; font-size: 12px; }
 .pod-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
 .pod-card { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 12px; border: 1px solid var(--pod-line); background: var(--dsw-alias-bg-layer-2); }
 .pod-card-muted { opacity: .8; }

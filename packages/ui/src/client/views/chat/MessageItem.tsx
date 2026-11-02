@@ -20,7 +20,7 @@ import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 import { Attachment } from './Attachment.tsx'
 import { calledMentions } from './Calls.tsx'
-import { MessageSheet, answerable, type SheetView } from './MessageSheet.tsx'
+import { MessageSheet, answerable, regenerable, type SheetView } from './MessageSheet.tsx'
 import { RateButtons } from './Rating.tsx'
 import { readTurnError, TurnErrorLine } from './TurnErrorLine.tsx'
 import { WeeklyCard } from './WeeklyCard.tsx'
@@ -36,6 +36,14 @@ export interface MessageProps {
   readonly mentions: Mentions
   /** 你的消息：同一分钟里后面还有你的消息时，时间留给最后一条。 */
   readonly hideTime?: boolean
+}
+
+/** bot 的话下面附的任务链接：结果附报告，答复里提到的任务也附上。 */
+function taskLinkOf(message: RoomMessage): { readonly taskId: string; readonly label: string } | undefined {
+  if (message.kind !== 'text') return undefined
+  if (typeof message.data.reportTaskId === 'string') return { taskId: message.data.reportTaskId, label: t('看报告') }
+  if (typeof message.data.taskId !== 'string') return undefined
+  return { taskId: message.data.taskId, label: message.data.purpose === 'result' ? t('看报告') : t('任务详情') }
 }
 
 /** 你的这条消息直接送进了哪些任务（回复、引用了任务的话题）。 */
@@ -168,12 +176,6 @@ export function MessageItem(props: MessageProps) {
           ) : null}
         </MessageFrame>
       )
-    case 'wait':
-      return (
-        <div className="pod-msg-card">
-          <WaitCard waitId={String(message.data.waitId ?? '')} title={message.body} />
-        </div>
-      )
     case 'browser':
       return (
         <div className="pod-msg-card">
@@ -234,6 +236,7 @@ export function MessageItem(props: MessageProps) {
   const openBot = (): void => {
     if (bot !== undefined) app.showMember(bot.id)
   }
+  const taskLink = taskLinkOf(message)
   return (
     <MessageFrame {...props} owner={false} className={`pod-msg${message.kind === 'kickoff' ? ' pod-msg-kickoff' : ''}`}>
       <button type="button" className="pod-msg-avatar" onClick={openBot} aria-label={t('{authorName} 的详情', { authorName: authorName(message.author, bots) })}>
@@ -250,7 +253,19 @@ export function MessageItem(props: MessageProps) {
           <time>{clock(message.createdAt)}</time>
         </div>
         {quote}
-        {xEvent === undefined ? <Markdown text={message.body} mentions={calledMentions(message, props.mentions, false)} /> : <XEventCard view={xEvent} />}
+        {/* 等你卡也以发问的 bot 的名义挂在任务卡下面。 */}
+        {message.kind === 'wait' ? (
+          <WaitCard waitId={String(message.data.waitId ?? '')} title={message.body} />
+        ) : xEvent === undefined ? (
+          <Markdown text={message.body} mentions={calledMentions(message, props.mentions, false)} />
+        ) : (
+          <XEventCard view={xEvent} />
+        )}
+        {taskLink === undefined ? null : (
+          <button type="button" className="pod-link pod-msg-task-link" onClick={() => app.openTask(taskLink.taskId)}>
+            {taskLink.label}
+          </button>
+        )}
         {attachment === undefined ? null : <Attachment attachment={attachment} />}
         {run === undefined ? null : <RunSummaryLine run={run} />}
         {message.kind === 'kickoff' && typeof message.data.taskId === 'string' ? <KickoffActions taskId={message.data.taskId} /> : null}
@@ -306,7 +321,9 @@ function MessageActions(props: MessageProps & { readonly owner: boolean }) {
       <IconButton icon="reply" label={t('引用回复')} onClick={() => props.onReply(message)} />
       {reply ? (
         <>
-          <IconButton icon="refresh" label={t('重新回答')} onClick={() => void api.regenerate(message.id).catch((reason: unknown) => window.alert(errorText(reason)))} />
+          {regenerable(message, props.owner) ? (
+            <IconButton icon="refresh" label={t('重新回答')} onClick={() => void api.regenerate(message.id).catch((reason: unknown) => window.alert(errorText(reason)))} />
+          ) : null}
           <RateButtons roomId={message.roomId} messageId={message.id} />
         </>
       ) : null}

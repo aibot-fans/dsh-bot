@@ -82,6 +82,10 @@ export interface TaskServiceDeps {
   readonly onEvent?: (task: Task, kind: string, actor: string, data: Readonly<Record<string, unknown>>) => void
   /** 前台把你的一条消息转给工单：送进去并让它跟进那条所在的话题。 */
   readonly forward: (task: Task, message: RoomMessage, by: string, note: string) => PodResult<string>
+  /** 这个任务发不出去的回复（连续失败到门槛的那条）。 */
+  readonly stuckReply: (taskId: string) => { readonly error: string; readonly attempts: number; readonly since: number } | undefined
+  /** 这个任务排着的回复马上再试，返回几条。 */
+  readonly retryReplies: (taskId: string) => number
 }
 
 export interface DelegateInput {
@@ -106,15 +110,6 @@ export interface DelegateInput {
 
 /** 暂停是停下这次执行；继续开一次新的；停止、取消结束任务；重试再做一次；收下是你验收通过。 */
 export type ControlAction = 'pause' | 'resume' | 'stop' | 'cancel' | 'retry' | 'accept'
-
-const CONTROL_NOTES: Readonly<Record<ControlAction, string>> = {
-  pause: '「{title}」已暂停',
-  resume: '「{title}」已继续',
-  stop: '「{title}」已停止',
-  cancel: '「{title}」已取消',
-  retry: '「{title}」重新做一次',
-  accept: '「{title}」你收下了',
-}
 
 /**
  * 任务：派活、你的话转给任务、暂停继续停止重试收下、任务卡上的快照。
@@ -353,10 +348,9 @@ export class TaskService {
       }
     }
     if (action !== 'accept') this.deps.onRootStateChange(root.id, action === 'cancel' ? 'cancelled' : action === 'stop' ? 'stopped' : 'resumed')
+    // 记在任务页的决策链里；任务卡自己显示停了、继续了，聊天室里不另说。
     this.event(root, `control.${action}`, actor, why === undefined ? {} : { why })
     this.deps.audit.record(`task.${action}`, actor, root.id, { title: root.title })
-    const line = t(CONTROL_NOTES[action], { title: root.title })
-    this.deps.rooms.milestone(root.roomId, why === undefined ? line : t('{line}：{why}', { line, why }), { taskId: root.id })
     return ok(this.get(root.id) ?? root)
   }
 
@@ -519,27 +513,30 @@ export class TaskService {
       cost: usage.cost,
       tokens: usage.tokens,
       waits: this.deps.openWaits(task.rootId),
-      undelivered: this.undelivered(own?.id),
+      undelivered: this.undelivered(task.id, own?.id),
       stage: this.engine.tickets.stageOf(task),
       run: latestRun(this.db, task.id) ?? null,
       lastReport: latestReport(this.db, task.id) ?? null,
     }
   }
 
-  /** 交不出去的消息（连续失败到门槛的那条）。 */
-  private undelivered(sessionId: string | undefined): TaskSnapshot['undelivered'] {
+  /** 交不出去的消息、发不出去的回复（连续失败到门槛的那条）。 */
+  private undelivered(taskId: string, sessionId: string | undefined): TaskSnapshot['undelivered'] {
+    const reply = this.deps.stuckReply(taskId)
+    if (reply !== undefined) return { error: reply.error, attempts: reply.attempts, since: reply.since }
     if (sessionId === undefined) return null
     const stuck = stuckDelivery(this.db, sessionId, UNDELIVERED_AFTER)
     return stuck === undefined ? null : { error: stuck.error ?? '', attempts: stuck.attempts, since: stuck.createdAt }
   }
 
-  /** 你点了“重试”：交不出去的消息马上再交一次。 */
+  /** 你点了“重试”：交不出去的消息、发不出去的回复马上再试一次。 */
   redeliver(taskId: string): PodResult<Task> {
     const task = this.get(taskId)
     if (task === undefined) return fail('not-found', t('找不到这个任务'))
+    const replies = this.deps.retryReplies(task.id)
     const session = this.deps.registry.activeForTask(task.id, 'task') ?? this.deps.registry.activeForTask(task.id, 'coord')
-    if (session === undefined) return fail('not-found', t('这个任务现在没有在执行的会话'))
-    this.deps.dispatcher.retry(session.id)
+    if (session !== undefined) this.deps.dispatcher.retry(session.id)
+    else if (replies === 0) return fail('not-found', t('这个任务现在没有在执行的会话'))
     return ok(task)
   }
 
