@@ -191,7 +191,8 @@ export function TaskCard(props: { readonly taskId: string; readonly compact?: bo
     api.controlTask(task.id, action).catch((reason: unknown) => window.alert(errorText(reason)))
   }
   const owner = bots?.find((bot) => bot.id === task.ownerBotId)
-  const group = snapshot.groupRoomId
+  // 旧版运行时的快照没有这一项：当作没开群。
+  const group = snapshot.groupRoomId ?? null
   if (props.roomId !== undefined && group !== null) {
     if (task.parentId === null && props.roomId !== group) return <GroupEntry snapshot={snapshot} now={now} control={control} owner={owner} />
     if (task.parentId !== null && props.roomId === group) return <SubtaskLine snapshot={snapshot} now={now} owner={owner} />
