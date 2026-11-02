@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react'
 import {
+  END_REASON_LABELS,
+  REPORT_STATUS_LABELS,
   STAGE_LABELS,
   TASK_STATUS_LABELS,
+  TICKET_STAGE_LABELS,
   acceptanceProgress,
   formatCost,
+  stageGroup,
   stagesFor,
   t,
   tc,
   type Task,
   type TaskActivity,
   type TaskSnapshot,
+  type TicketStage,
 } from 'pod-domain'
 import { api } from '../api/endpoints.ts'
 import { errorText } from '../api/http.ts'
@@ -72,6 +77,45 @@ export function SegmentBar(props: { readonly snapshot: TaskSnapshot }) {
       ))}
     </div>
   )
+}
+
+type ControlAction = 'pause' | 'resume' | 'stop' | 'cancel' | 'retry' | 'accept'
+
+const ACTION_LABELS: Readonly<Record<ControlAction, string>> = { pause: '暂停', resume: '继续', stop: '停止', cancel: '取消', retry: '重试', accept: '收下' }
+const ACTION_ICONS: Readonly<Record<ControlAction, 'pause' | 'play' | 'stop' | undefined>> = { pause: 'pause', resume: 'play', stop: 'stop', cancel: 'stop', retry: 'play', accept: undefined }
+
+function stageTone(stage: TicketStage): 'ok' | 'warn' | 'danger' | 'info' {
+  if (stage === 'failed' || stage === 'undelivered') return 'danger'
+  if (stageGroup(stage) === 'attention') return 'warn'
+  return stage === 'ended' ? 'ok' : 'info'
+}
+
+/** 工单的按钮按阶段给：在做能暂停、停止；等新消息能继续；受阻、失败能重试；等你验收能收下；你停掉的能继续。 */
+function ticketActions(snapshot: TaskSnapshot): readonly ControlAction[] {
+  const running = snapshot.run !== null && snapshot.run.status === 'running'
+  switch (snapshot.stage) {
+    case 'running':
+    case 'queued':
+      return running ? ['pause', 'stop'] : ['stop']
+    case 'idle':
+      return ['resume', 'stop']
+    case 'blocked':
+    case 'failed':
+      return ['retry', 'stop']
+    case 'review':
+      return ['accept', 'retry', 'stop']
+    case 'waiting':
+    case 'undelivered':
+      return running ? ['pause', 'stop'] : ['stop']
+    case 'ended':
+      return snapshot.task.endReason === 'stopped' ? ['resume'] : []
+  }
+}
+
+function teamActions(task: Task): readonly ControlAction[] {
+  if (task.status === 'running' || task.status === 'waiting') return ['pause', 'stop']
+  if (task.status === 'paused' || task.status === 'stopped') return ['resume']
+  return []
 }
 
 function Stages(props: { readonly task: Task; readonly done: number; readonly total: number }) {
@@ -171,15 +215,17 @@ export function TaskCard(props: { readonly taskId: string; readonly compact?: bo
   const { task } = snapshot
   const progress = acceptanceProgress(task.acceptance)
   const finished = task.status === 'done'
-  const control = (action: 'pause' | 'resume' | 'stop' | 'cancel'): void => {
+  const team = task.level === 'L2' || task.level === 'L3'
+  const control = (action: ControlAction): void => {
     api.controlTask(task.id, action).catch((reason: unknown) => window.alert(errorText(reason)))
   }
   const sessionId = snapshot.sessionId ?? undefined
+  const stageLabel = snapshot.stage === 'ended' && task.endReason !== null ? t(END_REASON_LABELS[task.endReason]) : t(TICKET_STAGE_LABELS[snapshot.stage])
   return (
     <div className={`pod-task-card${finished ? ' pod-task-card-done' : ''}`}>
       <div className="pod-task-head">
         <div className="pod-task-title">
-          {finished ? <Badge tone="ok">{t('交付')}</Badge> : <Badge tone={task.status === 'waiting' ? 'warn' : task.status === 'failed' ? 'danger' : 'info'}>{t(TASK_STATUS_LABELS[task.status])}</Badge>}
+          {finished ? <Badge tone="ok">{t('交付')}</Badge> : <Badge tone={stageTone(snapshot.stage)}>{stageLabel}</Badge>}
           <strong>{task.title}</strong>
           {snapshot.ownerName === null || snapshot.children.length > 0 ? null : <BotName bot={bots?.find((bot) => bot.id === task.ownerBotId)} fallback={snapshot.ownerName} size={16} />}
         </div>
@@ -192,7 +238,12 @@ export function TaskCard(props: { readonly taskId: string; readonly compact?: bo
         <Delivery snapshot={snapshot} />
       ) : (
         <>
-          <Stages task={task} done={snapshot.children.length > 0 ? snapshot.children.filter((child) => child.status === 'done').length : progress.done} total={snapshot.children.length > 0 ? snapshot.children.length : progress.total} />
+          {team ? (
+            <Stages task={task} done={snapshot.children.length > 0 ? snapshot.children.filter((child) => child.status === 'done').length : progress.done} total={snapshot.children.length > 0 ? snapshot.children.length : progress.total} />
+          ) : null}
+          {snapshot.lastReport === null || snapshot.lastReport.status === 'progress' ? null : (
+            <div className="pod-task-note">{t('最近汇报（{status}）：{summary}', { status: t(REPORT_STATUS_LABELS[snapshot.lastReport.status]), summary: snapshot.lastReport.summary })}</div>
+          )}
           <SegmentBar snapshot={snapshot} />
           {props.compact === true || snapshot.children.length > 0 || task.acceptance.length === 0 ? null : (
             <ul className="pod-acceptance">
@@ -226,21 +277,11 @@ export function TaskCard(props: { readonly taskId: string; readonly compact?: bo
         </>
       )}
       <div className="pod-task-actions">
-        {task.status === 'running' || task.status === 'waiting' ? (
-          <>
-            <Button small kind="quiet" icon="pause" onClick={() => control('pause')}>
-              {t('暂停')}
-            </Button>
-            <Button small kind="quiet" icon="stop" onClick={() => control('stop')}>
-              {t('停止')}
-            </Button>
-          </>
-        ) : null}
-        {task.status === 'paused' || task.status === 'stopped' ? (
-          <Button small kind="quiet" icon="play" onClick={() => control('resume')}>
-            {t('继续')}
+        {(team ? teamActions(task) : ticketActions(snapshot)).map((action) => (
+          <Button key={action} small kind={action === 'accept' ? 'primary' : 'quiet'} icon={ACTION_ICONS[action]} onClick={() => control(action)}>
+            {t(ACTION_LABELS[action])}
           </Button>
-        ) : null}
+        ))}
         {sessionId === undefined ? null : (
           <Button small kind="quiet" icon="open" onClick={() => app.host.openSession(sessionId)}>
             {t('查看过程')}
