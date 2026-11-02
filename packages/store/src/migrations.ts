@@ -709,6 +709,12 @@ const MIGRATIONS: readonly string[] = [
       WHEN 'queued' THEN 'queued' WHEN 'running' THEN 'running' WHEN 'waiting' THEN 'waiting' WHEN 'review' THEN 'review'
       WHEN 'failed' THEN 'failed' WHEN 'paused' THEN 'idle' ELSE 'ended' END;
   `,
+  // v13：消息去向记下送进任务时的那次投递或执行（判断读没读过）；按话题找消息。
+  `
+  ALTER TABLE message_routes ADD COLUMN ref TEXT;
+  CREATE INDEX IF NOT EXISTS message_routes_by_ref ON message_routes (ref);
+  CREATE INDEX IF NOT EXISTS messages_by_topic ON messages (topic_id, created_at);
+  `,
 ]
 
 function readVersion(db: DatabaseSync): number {

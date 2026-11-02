@@ -178,6 +178,7 @@ interface MessageRow {
   readonly created_at: number
   readonly updated_at: number
   readonly deleted_at: number | null
+  readonly topic_id: string | null
 }
 
 function toMessage(row: MessageRow): RoomMessage {
@@ -196,6 +197,7 @@ function toMessage(row: MessageRow): RoomMessage {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     deletedAt: row.deleted_at,
+    topicId: row.topic_id ?? null,
   }
 }
 
@@ -231,6 +233,10 @@ export function appendMessage(db: DatabaseSync, input: NewMessage): RoomMessage 
     input.now,
     input.now,
   )
+  // 回复、引用了某个话题里的消息：这条也算进那个话题。
+  const parent = input.replyTo == null ? undefined : (db.prepare('SELECT topic_id FROM messages WHERE id = ?').get(input.replyTo) as { readonly topic_id: string | null } | undefined)
+  const topicId = parent?.topic_id ?? null
+  if (topicId !== null) db.prepare("UPDATE messages SET topic_id = ?, topic_via = 'reply' WHERE id = ?").run(topicId, input.id)
   return {
     id: input.id,
     roomId: input.roomId,
@@ -246,6 +252,7 @@ export function appendMessage(db: DatabaseSync, input: NewMessage): RoomMessage 
     createdAt: input.now,
     updatedAt: input.now,
     deletedAt: null,
+    topicId,
   }
 }
 
@@ -258,6 +265,14 @@ export function unansweredOwnerMessages(db: DatabaseSync, roomId: string, botId:
        ORDER BY seq DESC LIMIT ?`,
     )
     .all(roomId, roomId, botId, limit) as unknown as readonly MessageRow[]
+  return rows.map(toMessage).reverse()
+}
+
+/** 你在这个聊天室里最近说的话（最多 limit 条，旧的在前）。 */
+export function recentOwnerMessages(db: DatabaseSync, roomId: string, limit: number): readonly RoomMessage[] {
+  const rows = db
+    .prepare("SELECT * FROM messages WHERE room_id = ? AND author = 'owner' AND kind = 'text' AND deleted_at IS NULL ORDER BY seq DESC LIMIT ?")
+    .all(roomId, limit) as unknown as readonly MessageRow[]
   return rows.map(toMessage).reverse()
 }
 

@@ -60,6 +60,8 @@ export interface RoomMessage {
   readonly createdAt: number
   readonly updatedAt: number
   readonly deletedAt: number | null
+  /** 属于哪个话题（回复、引用串）；没有任务跟进的串不建话题。 */
+  readonly topicId?: string | null
 }
 
 export interface RoomSummary extends Room {

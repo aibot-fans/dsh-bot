@@ -15,4 +15,11 @@ export const DOMAIN_EN_ENGINE: Readonly<Record<string, string>> = {
   '无需处理': 'Not needed',
   '完成': 'Done',
   '你停掉了': 'Stopped by you',
+  '直通任务': 'Sent straight to a task',
+  '交给前台': 'Sent to the front',
+  '前台转给任务': 'Passed to a task by the front',
+  '任务确认': 'Confirmed by the task',
+  '任务交还': 'Handed back by the task',
+  '没读，退回前台': 'Unread, returned to the front',
+  '挡掉': 'Blocked',
 }
