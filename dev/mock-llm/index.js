@@ -109,6 +109,18 @@ function browserTask(brief, userText, messages, calls) {
   return done('- 浏览器任务完成')
 }
 
+/** 后台命令的剧本：放一个要跑一会儿的命令到后台就结束这一轮；跑完被 dsh 叫醒后读输出、提交。 */
+function backgroundTask(messages, calls) {
+  const since = messages.findLastIndex((message) => message.role === 'assistant')
+  const notice = messages.slice(since + 1).find((message) => message.role === 'user' && message.source?.kind === 'tool-jobs')
+  if (notice !== undefined) return { tool: 'job_output', args: { job_id: /background job (\S+)/.exec(textOf(notice.content))?.[1] ?? '' } }
+  if (calls.at(-1) === 'job_output') {
+    return { tool: 'complete_task', args: { summary: `- 后台命令跑完了：${lastToolText(messages).slice(0, 60)}`, files: [], assumptions: ['测试环境'], unverified: [], skipped: [] } }
+  }
+  if (!calls.includes('bash')) return { tool: 'bash', args: { description: '跑一个要一会儿的命令', command: 'sleep 8; echo 后台命令跑完了', run_in_background: true } }
+  return { text: '命令放到后台了，跑完再接着做。' }
+}
+
 /** 只看用户自己说的部分：去掉换段时的交接笔记前言和附在后面的相关记忆。 */
 /** 换段时消息前面有一段说明，真正的话在最后一个“[谁的新消息]”后面。 */
 function withoutPreface(text) {
@@ -247,6 +259,7 @@ function decide(options) {
     if (last?.role === 'tool' && calls.at(-1) === 'complete_task') return { text: '已经提交了。' }
     if (last?.role === 'tool' && calls.at(-1) === 'ask_owner') return { text: '已经请用户处理，等用户答复后接着做。' }
     if (brief.includes('浏览器') && tools.has('browser_open')) return browserTask(brief, userText, messages, calls)
+    if (brief.includes('后台命令') && tools.has('bash')) return backgroundTask(messages, calls)
     const pageKind = tools.has('save_page') ? wantedKind(brief) : undefined
     if (pageKind !== undefined && !calls.includes('save_page')) return newPage(pageKind)
     if (pageKind !== undefined && calls.at(-1) === 'save_page' && tools.has('complete_task')) {
@@ -389,8 +402,8 @@ function decide(options) {
       const named = /交给([^\s，。,]+)/.exec(userText)?.[1]
       const bot = named ?? firstRosterName(system) ?? '主管'
       const login = userText.includes('登录')
-      if (userText.includes('浏览器') || userText.includes('沉淀') || wantedKind(userText) !== undefined) {
-        const title = userText.includes('浏览器') ? '浏览器测试' : userText.includes('沉淀') ? '沉淀测试' : '做页面'
+      if (userText.includes('浏览器') || userText.includes('沉淀') || userText.includes('后台命令') || wantedKind(userText) !== undefined) {
+        const title = userText.includes('浏览器') ? '浏览器测试' : userText.includes('沉淀') ? '沉淀测试' : userText.includes('后台命令') ? '后台命令测试' : '做页面'
         return {
           tool: 'delegate',
           args: { bot, title, brief: userText, deliverable: title === '做页面' ? '页面' : 'shared/测试.md', acceptance: ['按说明做'], assumptions: ['测试环境'], reason: '测试', wait: false },

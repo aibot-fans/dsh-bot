@@ -283,6 +283,7 @@ export class PodRuntime {
       workspaceRoot: options.workspaceRoot,
       now,
       activity: (sessionId) => this.observer.activityOf(sessionId),
+      backgroundJobs: (sessionId) => this.observer.backgroundJobs(sessionId),
       openWaits: (rootId) => this.waits.openCountFor(rootId),
       onRootStateChange: (rootId, change) => {
         const moved = this.waits.onRootChange(rootId, change).map((wait) => WaitService.describe(wait))

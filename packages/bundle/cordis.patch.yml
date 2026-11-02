@@ -8,6 +8,8 @@
 #   由 pod-runtime 在 agent 创建时按会话装进 agent 作用域，不写在这里。
 #   预设里不放 ask_user、子代理和 goal：bot 找你一律走 Pod 的等你卡，协作只走 Pod。
 #   执行档带 dsh 的 plugin_manager：bot 不能直接改 dsh 目录里的文件（pod-runtime 拦着），装卸插件用它。
+#   执行档带 dsh 的后台命令（tool-jobs）：命令过了执行器的时限转到后台接着跑，跑完唤醒会话；
+#   研究档和对话档没有命令行，用不上。
 #
 # 安装：dsh plugin --profile web add link:<仓库>/packages/bundle
 - insert:
@@ -37,6 +39,8 @@
           - id: tool-pwsh
             name: '@deepseek-ai/dsh-tool-pwsh'
             disabled: !!js process.platform !== 'win32'
+          - id: tool-jobs
+            name: '@deepseek-ai/dsh-tool-jobs'
           - id: tool-fs
             name: '@deepseek-ai/dsh-tool-fs'
           - id: tool-fs-search

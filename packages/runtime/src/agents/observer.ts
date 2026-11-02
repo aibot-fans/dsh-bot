@@ -125,6 +125,8 @@ export class SessionObserver {
   private readonly queue: (() => void)[] = []
   /** 这一轮已经跑完的会话：再动起来时先换一份空白的进度。 */
   private readonly finished = new Set<string>()
+  /** 每条会话还没结束的 dsh 后台任务：命令一开始就登记，跑完、被停或会话关掉时结束。 */
+  private readonly jobs = new Map<string, ReadonlySet<string>>()
   private scheduled = false
   private readonly ctx: HostContext
   private readonly registry: SessionRegistry
@@ -174,6 +176,11 @@ export class SessionObserver {
 
   activityOf(sessionId: string): TaskActivity | undefined {
     return this.activity.get(sessionId)
+  }
+
+  /** 这条会话还有几个命令没跑完：一轮结束时还有的，就是转到后台的命令，跑完 dsh 会叫醒它。 */
+  backgroundJobs(sessionId: string): number {
+    return this.jobs.get(sessionId)?.size ?? 0
   }
 
   /** 看门狗或停滞检测改状态用。 */
@@ -276,6 +283,17 @@ export class SessionObserver {
       case 'llm/retry-started':
         this.update(session, { current: null })
         return
+      case 'job/registered':
+      case 'job/settled': {
+        const jobId = typeof data.jobId === 'string' ? data.jobId : ''
+        if (jobId === '') return
+        const next = new Set(this.jobs.get(session.id))
+        if (event.type === 'job/registered') next.add(jobId)
+        else next.delete(jobId)
+        if (next.size === 0) this.jobs.delete(session.id)
+        else this.jobs.set(session.id, next)
+        return
+      }
       case 'user/message': {
         const id = typeof data.id === 'string' ? data.id : ''
         if (id !== '') this.hooks.onDelivered?.(session, id)

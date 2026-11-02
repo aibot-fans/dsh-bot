@@ -59,6 +59,8 @@ export interface TaskServiceDeps {
   readonly workspaceRoot: string
   readonly now: () => number
   readonly activity: (sessionId: string) => TaskActivity | undefined
+  /** 会话还有几个命令在后台跑。 */
+  readonly backgroundJobs: (sessionId: string) => number
   readonly openWaits: (rootId: string) => number
   /** 根任务停止、继续、取消、交付时，等你事项跟着变；交付时返回要写进“前提和待确认”的已绕过事项。 */
   readonly onRootStateChange: (rootId: string, change: 'stopped' | 'resumed' | 'cancelled' | 'delivered') => readonly string[]
@@ -356,6 +358,8 @@ export class TaskService {
     if (reason === 'aborted' || reason === 'blocked') return
     const active = this.deps.registry.activeForTask(task.id, 'task')
     if (active?.id !== session.id) return
+    // 命令转到后台接着跑：跑完 dsh 会叫醒这条会话，这时不催，也不换段（换段会关掉会话，命令跟着停）。
+    if (this.deps.backgroundJobs(session.id) > 0) return
     if (this.deps.shouldRotate(session)) {
       void this.deps.rotateTask(session, task)
       return
