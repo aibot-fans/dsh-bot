@@ -77,6 +77,14 @@ export function getTask(db: DatabaseSync, id: string): Task | undefined {
   return row === undefined ? undefined : toTask(row)
 }
 
+/** 同一条会话从 since 起派过的同名任务（同一轮里重复调用 delegate 时认出来）。 */
+export function findDelegated(db: DatabaseSync, requesterSession: string, title: string, since: number): Task | undefined {
+  const row = db
+    .prepare('SELECT * FROM tasks WHERE requester_session = ? AND title = ? AND parent_id IS NULL AND created_at >= ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1')
+    .get(requesterSession, title, since) as TaskRow | undefined
+  return row === undefined ? undefined : toTask(row)
+}
+
 export function listTaskTree(db: DatabaseSync, rootId: string): readonly Task[] {
   const rows = db
     .prepare('SELECT * FROM tasks WHERE root_id = ? AND deleted_at IS NULL ORDER BY created_at ASC')

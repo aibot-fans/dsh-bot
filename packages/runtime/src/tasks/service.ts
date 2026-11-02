@@ -21,6 +21,7 @@ import {
 import {
   activeTasksForBot,
   appendTaskEvent,
+  findDelegated,
   getTask,
   stuckDelivery,
   insertTask,
@@ -151,6 +152,11 @@ export class TaskService {
   /** 某个 bot 手上和排队的任务数，分配打分和名片上用。 */
   activeLoad(botId: string): number {
     return activeTasksForBot(this.db, botId).length
+  }
+
+  /** 这条会话这一轮（从 since 起）已经派过同名的任务了吗：模型重复调用 delegate 时不再建第二个。 */
+  delegatedSince(requesterSession: string, title: string, since: number): Task | undefined {
+    return findDelegated(this.db, requesterSession, title, since)
   }
 
   events(rootId: string): readonly TaskEvent[] {

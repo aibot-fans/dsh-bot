@@ -174,6 +174,9 @@ export function leadTools(pod: PodRuntime, session: PodSession): readonly ToolDe
       const target = SELF_NAMES.has(args.bot.toLowerCase()) ? pod.bots.get(session.botId) : pod.bots.resolve(args.bot)
       if (target === undefined) return failure(`找不到 bot「${args.bot}」，先用 find_bots 查，或用 create_bot 新建`)
       const requester = pod.registry.get(session.id) ?? session
+      const turnStartedAt = pod.observer.activityOf(session.id)?.progress?.startedAt
+      const repeated = turnStartedAt === undefined ? undefined : pod.tasks.delegatedSince(requester.id, args.title, turnStartedAt)
+      if (repeated !== undefined) return success(`这一轮已经派过「${repeated.title}」了，没有再建一个；任务卡在对话里。`, { taskId: repeated.id, status: repeated.status })
       const created = await pod.tasks.delegate({
         requester,
         bot: target,
