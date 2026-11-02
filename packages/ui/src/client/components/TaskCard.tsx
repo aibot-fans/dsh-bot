@@ -90,8 +90,9 @@ function stageTone(stage: TicketStage): 'ok' | 'warn' | 'danger' | 'info' {
   return stage === 'ended' ? 'ok' : 'info'
 }
 
-/** 工单的按钮按阶段给：在做能暂停、停止；等新消息能继续；受阻、失败能重试；等你验收能收下；你停掉的能继续。 */
+/** 工单的按钮按阶段给：在做能暂停、停止；等新消息能继续；受阻、失败能重试；等你验收能收下；你停掉的能继续。子任务由组长验收，没有收下。 */
 function ticketActions(snapshot: TaskSnapshot): readonly ControlAction[] {
+  if (snapshot.task.parentId !== null && snapshot.stage === 'review') return ['stop']
   const running = snapshot.run !== null && snapshot.run.status === 'running'
   switch (snapshot.stage) {
     case 'running':
@@ -203,7 +204,49 @@ function TaskTabs(props: { readonly snapshot: TaskSnapshot }) {
   )
 }
 
-export function TaskCard(props: { readonly taskId: string; readonly compact?: boolean }) {
+/** 单聊里开的任务：在做时只是一行“在做”，做完原地变成结果；要你处理（验收、答复、重试）时展开成完整的卡。 */
+function InlineTask(props: { readonly snapshot: TaskSnapshot; readonly now: number; readonly control: (action: ControlAction) => void }) {
+  const app = useApp()
+  const { snapshot, now } = props
+  const { task } = snapshot
+  const sessionId = snapshot.sessionId ?? undefined
+  const details = (
+    <Button small kind="quiet" onClick={() => app.openTask(task.rootId)}>
+      {t('详情')}
+    </Button>
+  )
+  if (task.status === 'done') {
+    return (
+      <div className="pod-task-inline-done">
+        <Delivery snapshot={snapshot} />
+        <div className="pod-task-inline-meta">
+          <span>{t('「{title}」 · 用时 {elapsed}', { title: task.title, elapsed: elapsed(task, now) })}</span>
+          {details}
+        </div>
+      </div>
+    )
+  }
+  return (
+    <div className="pod-task-inline">
+      <span className="pod-task-inline-title">{t('在做：{title}', { title: task.title })}</span>
+      <span className="pod-muted-inline">{t('已用')} {elapsed(task, now)}</span>
+      {snapshot.activity?.running === true ? <ActivityLine activity={snapshot.activity} now={now} /> : null}
+      <span className="pod-task-inline-actions">
+        <Button small kind="quiet" icon="stop" onClick={() => props.control('stop')}>
+          {t('停止')}
+        </Button>
+        {sessionId === undefined ? null : (
+          <Button small kind="quiet" icon="open" onClick={() => app.host.openSession(sessionId)}>
+            {t('查看过程')}
+          </Button>
+        )}
+        {details}
+      </span>
+    </div>
+  )
+}
+
+export function TaskCard(props: { readonly taskId: string; readonly compact?: boolean; readonly inline?: boolean }) {
   const app = useApp()
   const now = useNow(5000)
   const { data: snapshot, error } = useResource(app.cache, `snapshot:${props.taskId}`, () => api.taskSnapshot(props.taskId))
@@ -220,7 +263,14 @@ export function TaskCard(props: { readonly taskId: string; readonly compact?: bo
     api.controlTask(task.id, action).catch((reason: unknown) => window.alert(errorText(reason)))
   }
   const sessionId = snapshot.sessionId ?? undefined
-  const stageLabel = snapshot.stage === 'ended' && task.endReason !== null ? t(END_REASON_LABELS[task.endReason]) : t(TICKET_STAGE_LABELS[snapshot.stage])
+  const inline = props.inline === true && !team && (task.status === 'done' || (snapshot.stage !== 'ended' && stageGroup(snapshot.stage) !== 'attention'))
+  if (inline) return <InlineTask snapshot={snapshot} now={now} control={control} />
+  const stageLabel =
+    snapshot.stage === 'ended' && task.endReason !== null
+      ? t(END_REASON_LABELS[task.endReason])
+      : task.parentId !== null && snapshot.stage === 'review'
+        ? t('等组长验收')
+        : t(TICKET_STAGE_LABELS[snapshot.stage])
   return (
     <div className={`pod-task-card${finished ? ' pod-task-card-done' : ''}`}>
       <div className="pod-task-head">

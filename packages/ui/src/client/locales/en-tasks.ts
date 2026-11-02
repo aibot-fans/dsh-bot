@@ -4,4 +4,7 @@ export const UI_EN_TASKS: Readonly<Record<string, string>> = {
   '最近汇报（{status}）：{summary}': 'Latest report ({status}): {summary}',
   '收下': 'Accept',
   '已直接送到任务「{title}」': 'Sent straight to the task "{title}"',
+  '「{title}」 · 用时 {elapsed}': '"{title}" · took {elapsed}',
+  '在做：{title}': 'Working on: {title}',
+  '等组长验收': 'Waiting for the team lead to review',
 }

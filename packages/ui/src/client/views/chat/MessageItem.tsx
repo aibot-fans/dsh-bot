@@ -140,11 +140,17 @@ export function MessageItem(props: MessageProps) {
     case 'milestone':
     case 'receipt': {
       const subject = typeof message.data.botId === 'string' ? bots.get(message.data.botId) : bots.get(message.author)
+      const elsewhere = typeof message.data.roomId === 'string' && message.data.roomId !== message.roomId ? message.data.roomId : undefined
       return (
         <div className={`pod-line pod-line-${message.kind}`}>
           <span className="pod-line-text">
             {subject === undefined ? null : <Avatar bot={subject} size={16} />}
             {message.body}
+            {elsewhere === undefined ? null : (
+              <button type="button" className="pod-link" onClick={() => app.openRoom(elsewhere)}>
+                {t('打开群聊')}
+              </button>
+            )}
           </span>
           <time>{clock(message.createdAt)}</time>
         </div>
@@ -154,7 +160,7 @@ export function MessageItem(props: MessageProps) {
       // 任务卡也能引用回复：回复它的话直接送进这个任务。
       return (
         <MessageFrame {...props} owner={false} className="pod-msg-card pod-msg-card-task">
-          <TaskCard taskId={String(message.data.taskId ?? '')} />
+          <TaskCard taskId={String(message.data.taskId ?? '')} inline={message.data.inline === true} />
           {typeof message.data.roomId === 'string' && message.data.roomId !== message.roomId ? (
             <button type="button" className="pod-link" onClick={() => app.openRoom(message.data.roomId as string)}>
               {t('打开群聊')}
