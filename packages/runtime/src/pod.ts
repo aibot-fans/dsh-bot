@@ -30,6 +30,7 @@ import { TextConverter } from './convert/index.ts'
 import { Auditor } from './core/audit.ts'
 import { PodBus } from './core/bus.ts'
 import type { CompatReport } from './core/compat.ts'
+import type { LockHolder } from './core/lock.ts'
 import { LiteLlm } from './core/lite.ts'
 import { Maintenance } from './core/maintenance.ts'
 import { LanguageService } from './core/language.ts'
@@ -78,6 +79,8 @@ export interface PodRuntimeOptions {
   /** dsh 自己的目录：bot 不能直接读写这里和 dataRoot 里的文件。不给就按 $DSH_HOME（默认 ~/.dsh）。 */
   readonly dshHome?: string
   readonly compat: CompatReport
+  /** 进程锁被另一个还在跑的进程占着：这里只读。 */
+  readonly lockedBy?: LockHolder | null
   readonly now?: () => number
 }
 
@@ -744,8 +747,10 @@ export class PodRuntime {
   }
 
   get readOnlyReason(): string | undefined {
-    const { compat } = this.options
-    return compat.readOnly ? t('当前 dsh（{version}）缺少 dsh-bot 需要的接口：{problems}。dsh-bot 进入只读模式。', { version: compat.dshVersion, problems: compat.problems.join(t('、')) }) : undefined
+    const { compat, lockedBy } = this.options
+    if (compat.readOnly) return t('当前 dsh（{version}）缺少 dsh-bot 需要的接口：{problems}。dsh-bot 进入只读模式。', { version: compat.dshVersion, problems: compat.problems.join(t('、')) })
+    if (lockedBy !== undefined && lockedBy !== null) return t('另一个 dsh-bot（进程 {pid}）正在用同一份数据，这里只读，免得两边同时写。关掉那一个以后重启 dsh web。', { pid: lockedBy.pid })
+    return undefined
   }
 
   /** 系统好不好：还没恢复的系统问题、副作用队列排着的和失败的。 */
@@ -758,8 +763,8 @@ export class PodRuntime {
     return {
       version: POD_VERSION,
       dshVersion: compat.dshVersion,
-      readOnly: compat.readOnly,
-      problems: compat.problems,
+      readOnly: this.readOnlyReason !== undefined,
+      problems: [...compat.problems, ...(this.options.lockedBy === undefined || this.options.lockedBy === null ? [] : [this.readOnlyReason ?? ''])],
       degraded: [
         ...compat.degraded,
         ...(this.browser.browser.executable === undefined ? [t('共用浏览器（没找到本机的 Chrome）')] : []),

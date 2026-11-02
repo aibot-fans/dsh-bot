@@ -15,6 +15,7 @@ import { aibotRoutes } from './api/aibot.ts'
 import { xRoutes } from './api/x.ts'
 import { updateRoutes } from './api/update.ts'
 import { checkCompat } from './core/compat.ts'
+import { acquireLock } from './core/lock.ts'
 import { every } from './core/timers.ts'
 import { resolveConfig } from './config.ts'
 import type { HostContext } from './dsh.ts'
@@ -41,10 +42,15 @@ export function apply(ctx: HostContext, rawConfig: unknown): void {
 
   const compat = checkCompat(ctx)
   if (compat.readOnly) ctx.logger.warn(`dsh-bot 进入只读模式，缺少接口：${compat.problems.join('、')}`)
+  // 同一份数据只让一个进程写：被另一个还在跑的 dsh-bot 占着就只读启动。
+  const lock = acquireLock(join(config.dataRoot, 'lock'), Date.now())
+  ctx.effect(() => () => lock.release(), 'pod: process lock')
+  if (!lock.held) ctx.logger.warn(`dsh-bot 进入只读模式：数据正被进程 ${lock.holder?.pid ?? '?'} 使用`)
+  const writable = !compat.readOnly && lock.held
 
-  const pod = new PodRuntime({ ctx, db, dataRoot: config.dataRoot, workspaceRoot: config.workspaceRoot, dshHome: config.dshHome, compat })
+  const pod = new PodRuntime({ ctx, db, dataRoot: config.dataRoot, workspaceRoot: config.workspaceRoot, dshHome: config.dshHome, compat, lockedBy: lock.holder })
   ctx.effect(() => ctx.provide('pod', pod), 'pod: service')
-  if (!compat.readOnly) ctx.effect(() => pod.start(), 'pod: runtime')
+  if (writable) ctx.effect(() => pod.start(), 'pod: runtime')
   // 只读模式下也查新版本：多半就是 dsh-bot 太旧、跟不上 dsh 了。
   ctx.effect(() => pod.updates.start(), 'pod: update check')
 
@@ -58,6 +64,10 @@ export function apply(ctx: HostContext, rawConfig: unknown): void {
     ctx.effect(() => ctx.connection.fetch.register(route), `pod: route ${route.path}`)
   }
 
+  if (!writable) {
+    ctx.logger.info(`dsh-bot 已启动（只读）：数据在 ${config.dataRoot}`)
+    return
+  }
   const warn = (error: unknown): void => ctx.logger.warn('dsh-bot 每日维护出错', error)
   every(ctx, 'pod: daily maintenance', HOUR, () => pod.maintenance.tick(pod.now()).then(() => undefined), warn)
   // 启动后稍等再做第一次检查，避开 dsh 启动时的忙碌期。
