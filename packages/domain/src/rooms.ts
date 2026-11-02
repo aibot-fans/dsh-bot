@@ -128,7 +128,7 @@ export function autoGroupName(names: readonly string[]): string {
 }
 
 /** 群里不认得主管现在的名字时，这些叫法也指主管。 */
-export const LEAD_ALIASES: readonly string[] = ['主管', '管理员']
+export const LEAD_ALIASES: readonly string[] = ['Super-agent', '主管', '管理员']
 
 /** 用户说一句话以后，bot 之间在群里最多互相点名几次；到了就先把结论回给用户。 */
 export const BOT_CALL_LIMIT = 6

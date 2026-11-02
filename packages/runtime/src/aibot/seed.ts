@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { EMPTY_CARD, LANGUAGE_NAMES, POD, currentLanguage, t, translate, type Bot, type BotCard, type BotDraft, type BotPatch, type Language, type Room } from 'pod-domain'
+import { EMPTY_CARD, LANGUAGE_NAMES, POD, currentLanguage, t, translate, type Bot, type BotCard, type BotDraft, type BotPatch, type Language, type Room, type SeedPersona, type SeedText } from 'pod-domain'
 import { getMessage, readState, writeState } from 'pod-store'
 import type { BotService } from '../bots/service.ts'
 import type { RoomService } from '../chat/rooms.ts'
@@ -38,45 +38,7 @@ function xPersona(writeLine: string): string {
   ].join('\n')
 }
 
-/** 以前各版 X 情报员的人设，和换成现在这版时记的原因。 */
-const OLD_PERSONAS: ReadonlyMap<string, string> = new Map([
-  [xPersona('Pod 的 X 工具只能读数据和管理监控，不能发推、点赞；用户要发推时，说明要用共用浏览器。'), '写操作的说明改了：会话里有别的 X 写工具时可以用'],
-  [
-    xPersona('Pod 自带的 twitter_ 工具只能读数据和管理监控。会话里有别的 X 写工具（发推、点赞、转推、关注）时，用户明确要求就直接用它们做；没有的话，说明发推要用共用浏览器。'),
-    '人设里的名字改成 dsh-bot',
-  ],
-  [
-    xPersona('dsh-bot 自带的 twitter_ 工具只能读数据和管理监控。会话里有别的 X 写工具（发推、点赞、转推、关注）时，用户明确要求就直接用它们做；没有的话，说明发推要用共用浏览器。'),
-    '写操作改用 x_ 工具（dsh-bot 浏览器里登录的 X 账号）',
-  ],
-  [
-    xPersonaEn(
-      "dsh-bot's built-in twitter_ tools can only read data and manage monitoring. If the session has other X write tools (post, like, repost, follow), use them when the user explicitly asks; otherwise explain that posting needs the shared browser.",
-    ),
-    '写操作改用 x_ 工具（dsh-bot 浏览器里登录的 X 账号）',
-  ],
-  [xPersona('要发推、回复、引用、删推、点赞、转推或关注时，用 x_ 开头的工具做，用的是用户在 dsh-bot 浏览器里登录的 X 账号；只在用户明确要求时做，按设置可能要用户先批准。没登录时请用户在 设置 → 通用 → X 账号 里登录。twitter_ 开头的工具只读数据和管理监控。'), '加上用 x_ 工具读私信和加密聊天，公开数据照旧用 twitter_ 工具'],
-  [
-    xPersonaEn(
-      "To post, reply, quote, delete a post, like, repost or follow, use the tools whose names start with x_; they act as the X account the user signed in to in dsh-bot's browser. Do it only when the user explicitly asks; depending on settings the user may need to approve first. If no account is signed in, ask the user to sign in under Settings → General → X account. The twitter_ tools only read data and manage monitoring.",
-    ),
-    '加上用 x_ 工具读私信和加密聊天，公开数据照旧用 twitter_ 工具',
-  ],
-  [
-    xPersona(
-      '要发推、回复、引用、删推、点赞、转推、关注这类改东西的事，或者要读私信、加密聊天、书签这类只有登录账号才看得到的内容，用 x_ 开头的工具，用的是用户在 dsh-bot 浏览器里登录的 X 账号；改东西只在用户明确要求时做，按设置可能要用户先批准。没登录时请用户在 设置 → 通用 → X 账号 里登录。公开的数据照旧用 twitter_ 开头的工具查，别拿用户的账号大量读。',
-    ),
-    'twitter_ 和 x_ 怎么分写进了会话的系统说明，人设里这行改短',
-  ],
-  [
-    xPersonaEn(
-      "To change things on X (post, reply, quote, delete a post, like, repost, follow) or to read what only the signed-in account can see (DMs, encrypted chats, bookmarks), use the tools whose names start with x_; they act as the X account the user signed in to in dsh-bot's browser. Change things only when the user explicitly asks; depending on settings the user may need to approve first. If no account is signed in, ask the user to sign in under Settings → General → X account. Keep using the twitter_ tools for public data, and don't do heavy reading with the user's account.",
-    ),
-    'twitter_ 和 x_ 怎么分写进了会话的系统说明，人设里这行改短',
-  ],
-])
-
-/** 以前的默认角色卡：人设换新版时，角色卡还是这些的也一起换。 */
+/** 以前的默认角色卡：X 情报员的角色卡还是其中哪一张的，换成现在的默认。 */
 const OLD_CARDS: readonly BotCard[] = [
   { duties: '查 X（推特）上的用户、推文、话题和趋势；管理账号监控', strengths: '搜推文、看时间线、整理某个账号或话题的动态', notResponsible: '发推、点赞这类写操作', askWho: '拿不准时问主管' },
   {
@@ -88,6 +50,18 @@ const OLD_CARDS: readonly BotCard[] = [
   { duties: '查 X（推特）上的用户、推文、话题和趋势；管理账号监控；按要求发推、点赞、转推、关注', strengths: '搜推文、看时间线、整理某个账号或话题的动态', notResponsible: '用户没要求的写操作', askWho: '拿不准时问主管' },
   {
     duties: 'Looks up users, posts, topics and trends on X (Twitter); manages account monitoring; posts, likes, reposts and follows when asked',
+    strengths: 'Searching posts, reading timelines, summarizing activity for an account or topic',
+    notResponsible: 'Write actions the user did not ask for',
+    askWho: 'Ask the Lead when unsure',
+  },
+  {
+    duties: '查 X（推特）上的用户、推文、话题和趋势；管理账号监控；按要求发推、点赞、转推、关注，读私信和加密聊天',
+    strengths: '搜推文、看时间线、整理某个账号或话题的动态',
+    notResponsible: '用户没要求的写操作',
+    askWho: '拿不准时问主管',
+  },
+  {
+    duties: 'Looks up users, posts, topics and trends on X (Twitter); manages account monitoring; posts, likes, reposts and follows, and reads DMs and encrypted chats, when asked',
     strengths: 'Searching posts, reading timelines, summarizing activity for an account or topic',
     notResponsible: 'Write actions the user did not ask for',
     askWho: 'Ask the Lead when unsure',
@@ -120,7 +94,7 @@ const X_BOT_EN: BotDraft = {
     duties: 'Looks up users, posts, topics and trends on X (Twitter); manages account monitoring; posts, likes, reposts and follows, and reads DMs and encrypted chats, when asked',
     strengths: 'Searching posts, reading timelines, summarizing activity for an account or topic',
     notResponsible: 'Write actions the user did not ask for',
-    askWho: 'Ask the Lead when unsure',
+    askWho: 'Ask Super-agent when unsure',
   },
   toolProfile: 'research',
 }
@@ -134,9 +108,47 @@ const X_BOT: BotDraft = {
     duties: '查 X（推特）上的用户、推文、话题和趋势；管理账号监控；按要求发推、点赞、转推、关注，读私信和加密聊天',
     strengths: '搜推文、看时间线、整理某个账号或话题的动态',
     notResponsible: '用户没要求的写操作',
-    askWho: '拿不准时问主管',
+    askWho: '拿不准时问 Super-agent',
   },
   toolProfile: 'research',
+}
+
+/**
+ * X 情报员的默认人设各版（第 1、2 版那时还没有英文）。人设还是哪一版原文的，出了新版就换上；改过的在 bot 详情里显示“默认已更新”。
+ */
+export const X_PERSONA: SeedPersona = {
+  id: 'x',
+  versions: [
+    same(xPersona('Pod 的 X 工具只能读数据和管理监控，不能发推、点赞；用户要发推时，说明要用共用浏览器。')),
+    same(xPersona('Pod 自带的 twitter_ 工具只能读数据和管理监控。会话里有别的 X 写工具（发推、点赞、转推、关注）时，用户明确要求就直接用它们做；没有的话，说明发推要用共用浏览器。')),
+    {
+      zh: xPersona('dsh-bot 自带的 twitter_ 工具只能读数据和管理监控。会话里有别的 X 写工具（发推、点赞、转推、关注）时，用户明确要求就直接用它们做；没有的话，说明发推要用共用浏览器。'),
+      en: xPersonaEn(
+        "dsh-bot's built-in twitter_ tools can only read data and manage monitoring. If the session has other X write tools (post, like, repost, follow), use them when the user explicitly asks; otherwise explain that posting needs the shared browser.",
+      ),
+    },
+    {
+      zh: xPersona('要发推、回复、引用、删推、点赞、转推或关注时，用 x_ 开头的工具做，用的是用户在 dsh-bot 浏览器里登录的 X 账号；只在用户明确要求时做，按设置可能要用户先批准。没登录时请用户在 设置 → 通用 → X 账号 里登录。twitter_ 开头的工具只读数据和管理监控。'),
+      en: xPersonaEn(
+        "To post, reply, quote, delete a post, like, repost or follow, use the tools whose names start with x_; they act as the X account the user signed in to in dsh-bot's browser. Do it only when the user explicitly asks; depending on settings the user may need to approve first. If no account is signed in, ask the user to sign in under Settings → General → X account. The twitter_ tools only read data and manage monitoring.",
+      ),
+    },
+    {
+      zh: xPersona(
+        '要发推、回复、引用、删推、点赞、转推、关注这类改东西的事，或者要读私信、加密聊天、书签这类只有登录账号才看得到的内容，用 x_ 开头的工具，用的是用户在 dsh-bot 浏览器里登录的 X 账号；改东西只在用户明确要求时做，按设置可能要用户先批准。没登录时请用户在 设置 → 通用 → X 账号 里登录。公开的数据照旧用 twitter_ 开头的工具查，别拿用户的账号大量读。',
+      ),
+      en: xPersonaEn(
+        "To change things on X (post, reply, quote, delete a post, like, repost, follow) or to read what only the signed-in account can see (DMs, encrypted chats, bookmarks), use the tools whose names start with x_; they act as the X account the user signed in to in dsh-bot's browser. Change things only when the user explicitly asks; depending on settings the user may need to approve first. If no account is signed in, ask the user to sign in under Settings → General → X account. Keep using the twitter_ tools for public data, and don't do heavy reading with the user's account.",
+      ),
+    },
+    { zh: xPersona(WRITE_LINE), en: xPersonaEn(WRITE_LINE_EN) },
+  ],
+  released: 6,
+}
+
+/** 那时只有中文的版本：英文也记成同一段。 */
+function same(text: string): SeedText {
+  return { zh: text, en: text }
 }
 
 function xBotDraft(language: Language = currentLanguage()): BotDraft {
@@ -154,7 +166,7 @@ export interface XSeed {
  */
 export function seedX(db: DatabaseSync, bots: BotService, rooms: RoomService): XSeed {
   const record = readState<SeedRecord | null>(db, SEED_KEY, null)
-  if (record?.done === true) return { bot: upgradePersona(bots, bots.activeBot(record.botId)), room: rooms.get(record.roomId) }
+  if (record?.done === true) return { bot: upgradeCard(bots, bots.activeBot(record.botId)), room: rooms.get(record.roomId) }
   const bot = bots.active().find((item) => item.name === X_BOT.name || item.name === X_BOT_EN.name) ?? bots.createFromDraft(xBotDraft(), { source: 'seed', actor: POD })
   const created = rooms.createGroup({ name: xRoomTitle(), memberIds: [bot.id] }, POD)
   const room = created.ok ? created.value : undefined
@@ -164,13 +176,10 @@ export function seedX(db: DatabaseSync, bots: BotService, rooms: RoomService): X
   return { bot, room }
 }
 
-/** 之前建的 X 情报员，人设还是以前哪一版原样的换成现在这个语言的（记一版配置，能回滚），角色卡还是旧默认的一起换；改过的不动。 */
-function upgradePersona(bots: BotService, bot: Bot | undefined): Bot | undefined {
-  const reason = bot === undefined ? undefined : OLD_PERSONAS.get(bot.persona)
-  if (bot === undefined || reason === undefined) return bot
-  const wanted = xBotDraft()
-  const card = OLD_CARDS.some((old) => sameCard(bot.card, old)) ? { card: wanted.card ?? EMPTY_CARD } : {}
-  const result = bots.applyPatch(bot.id, { persona: wanted.persona, ...card }, { source: 'seed', actor: POD, reason })
+/** 之前建的 X 情报员，角色卡还是以前哪一版默认的换成现在这个语言的（记一版配置，能回滚）；改过的不动。人设按版本换，见 bots/seeds.ts。 */
+function upgradeCard(bots: BotService, bot: Bot | undefined): Bot | undefined {
+  if (bot === undefined || !OLD_CARDS.some((old) => sameCard(bot.card, old))) return bot
+  const result = bots.applyPatch(bot.id, { card: xBotDraft().card ?? EMPTY_CARD }, { source: 'seed', actor: POD, reason: t('换成现在的默认角色卡') })
   return result.ok ? result.value : bot
 }
 
@@ -202,13 +211,12 @@ const sameList = (a: readonly string[] | undefined, b: readonly string[] | undef
 const sameCard = (a: BotCard | undefined, b: BotCard | undefined): boolean =>
   (Object.keys(EMPTY_CARD) as (keyof BotCard)[]).every((key) => (a ?? EMPTY_CARD)[key] === (b ?? EMPTY_CARD)[key])
 
-/** 种子 X bot 还是默认值的部分（名字、角色、人设、能力标签、角色卡）换成这个语言的版本；改过的不动。 */
+/** 种子 X bot 还是默认值的部分（名字、角色、能力标签、角色卡）换成这个语言的版本；改过的不动。人设按版本换，见 bots/seeds.ts。 */
 function seedPatch(bot: Bot, wanted: BotDraft): BotPatch {
   const drafts = [X_BOT, X_BOT_EN]
   return {
     ...(swappable(bot.name, wanted.name, drafts.map((draft) => draft.name)) ? { name: wanted.name } : {}),
     ...(swappable(bot.title, wanted.title, drafts.map((draft) => draft.title)) ? { title: wanted.title } : {}),
-    ...(swappable(bot.persona, wanted.persona, drafts.map((draft) => draft.persona)) ? { persona: wanted.persona } : {}),
     ...(swappable(bot.capabilities, wanted.capabilities ?? [], drafts.map((draft) => draft.capabilities ?? []), sameList) ? { capabilities: wanted.capabilities ?? [] } : {}),
     ...(swappable(bot.card, wanted.card ?? EMPTY_CARD, drafts.map((draft) => draft.card ?? EMPTY_CARD), sameCard) ? { card: wanted.card ?? EMPTY_CARD } : {}),
   }

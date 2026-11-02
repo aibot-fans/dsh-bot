@@ -473,7 +473,7 @@ export class TaskService {
       this.deps.rooms.post(from.roomId ?? '', { author: 'pod', kind: 'receipt', body: t('已转达给「{title}」', { title: task.title }), data: { taskId: task.id } })
       return ok(this.get(task.id) ?? task)
     }
-    const text = `[用户补充，经${this.deps.bots.get(from.botId)?.name ?? '主管'}转达]\n[用户原话] ${ownerQuote}${message === '' ? '' : `\n说明：${message}`}`
+    const text = `[用户补充，经${this.deps.bots.get(from.botId)?.name ?? 'Super-agent'}转达]\n[用户原话] ${ownerQuote}${message === '' ? '' : `\n说明：${message}`}`
     const sent = this.sendToTask(task, text, relaySource(from.id), ownerQuote)
     if (!sent.ok) return sent
     this.event(task, 'relayed', from.botId, { quote: ownerQuote, message })

@@ -6,6 +6,7 @@ import { asRecord } from './input.ts'
 import { isLanguageSetting, t, type LanguageSetting } from './i18n.ts'
 import { DEFAULT_SITE_RULES, type SiteMode, type SiteRule } from './policy.ts'
 import { fail, ok, type PodResult } from './result.ts'
+import { EMPTY_TEAM_NOTES, readTeamNotesPatch, type TeamNotes } from './team-notes.ts'
 import { isRecord } from './text.ts'
 
 /** 授权档位：放手是发完开工说明直接开工；谨慎是开工前先给你看计划。 */
@@ -87,6 +88,8 @@ export interface PodSettings {
   readonly paused: boolean
   /** X 监控事件的规则：值得做的开后台任务。 */
   readonly xRules: XRules
+  /** 团队说明（沟通、任务范围、交付要求）里你改过的块，没改过的是 null。 */
+  readonly teamNotes: TeamNotes
 }
 
 export const DEFAULT_SETTINGS: PodSettings = {
@@ -113,6 +116,7 @@ export const DEFAULT_SETTINGS: PodSettings = {
   language: 'auto',
   paused: false,
   xRules: { enabled: true, types: [], accounts: [], keywords: [], draft: true, version: 1 },
+  teamNotes: EMPTY_TEAM_NOTES,
 }
 
 const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/
@@ -244,6 +248,10 @@ function oneChange(key: string, raw: unknown, current: PodSettings): Change {
       return briefChange(raw, current.dailyBrief)
     case 'xRules':
       return xRulesChange(raw, current.xRules)
+    case 'teamNotes': {
+      const notes = readTeamNotesPatch(raw, current.teamNotes)
+      return typeof notes === 'string' ? { ok: false, message: notes } : { ok: true, value: { teamNotes: notes } }
+    }
     case 'siteRules':
       return siteRulesChange(raw)
     case 'allowedHosts':

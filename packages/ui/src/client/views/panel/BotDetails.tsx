@@ -2,8 +2,9 @@ import { useState, type ReactNode } from 'react'
 import { BOT_PERSONA_MAX, CARD_FIELD_MAX, TOOL_PROFILE_LABELS, botThreads, inputLimit, t, type Bot, type BotCard, type ModelChoice, type NotifyLevel, type ToolProfile } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
-import { Button, Segmented, Switch } from '../../components/common.tsx'
+import { Badge, Button, Segmented, Switch } from '../../components/common.tsx'
 import { Icon } from '../../components/Icon.tsx'
+import { LineDiff } from '../../components/LineDiff.tsx'
 import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 
@@ -68,11 +69,13 @@ export function BotDetails(props: { readonly bot: Bot }) {
   const [card, setCard] = useState<BotCard>(bot.card)
   const [editingPersona, setEditingPersona] = useState(false)
   const [persona, setPersona] = useState(bot.persona)
+  const [seedDiff, setSeedDiff] = useState(false)
   const { data: catalog } = useResource(app.cache, 'models', () => api.models())
   const { data: memories } = useResource(app.cache, `memory:list:bot:${bot.id}`, () => api.memories('bot', bot.id))
   const { data: skills } = useResource(app.cache, 'skills', () => api.skills())
   const { data: evolution } = useResource(app.cache, 'evolution', () => api.evolution())
   const { data: rooms } = useResource(app.cache, 'rooms', () => api.rooms())
+  const { data: seed } = useResource(app.cache, `bot:seed:${bot.id}`, () => api.botSeed(bot.id))
   const lead = bot.role === 'lead'
 
   const save = (patch: Readonly<Record<string, unknown>>, done?: () => void): void => {
@@ -81,7 +84,19 @@ export function BotDetails(props: { readonly bot: Bot }) {
       .updateBot(bot.id, patch)
       .then(() => {
         app.cache.invalidate('bots')
+        app.cache.invalidate(`bot:seed:${bot.id}`)
         done?.()
+      })
+      .catch((reason: unknown) => setProblem(errorText(reason)))
+  }
+
+  /** 默认人设出了新版：保留你的，或者换成新默认。 */
+  const settleSeed = (work: Promise<unknown>): void => {
+    setProblem(undefined)
+    work
+      .then(() => {
+        app.cache.invalidate('bots')
+        app.cache.invalidate(`bot:seed:${bot.id}`)
       })
       .catch((reason: unknown) => setProblem(errorText(reason)))
   }
@@ -152,7 +167,15 @@ export function BotDetails(props: { readonly bot: Bot }) {
         title={t('人设')}
         action={
           editingPersona ? null : (
-            <Button small kind="quiet" icon="edit" onClick={() => setEditingPersona(true)}>
+            <Button
+              small
+              kind="quiet"
+              icon="edit"
+              onClick={() => {
+                setPersona(bot.persona)
+                setEditingPersona(true)
+              }}
+            >
               {t('编辑')}
             </Button>
           )
@@ -182,6 +205,26 @@ export function BotDetails(props: { readonly bot: Bot }) {
           <div className="pod-box-pad">
             <p className="pod-persona-text">{bot.persona}</p>
             <span className="pod-muted-inline">{t(PERSONA_SOURCE[bot.personaSource])}</span>
+            {seed === undefined || seed === null ? null : (
+              <div className="pod-seed-update">
+                <div className="pod-row">
+                  <Badge tone="warn">{t('默认已更新')}</Badge>
+                  <span className="pod-muted-inline">{t('你改过这段人设以后，默认人设出了新版（第 {base} 版 → 第 {latest} 版）', { base: seed.base, latest: seed.latest })}</span>
+                </div>
+                {seedDiff ? <LineDiff before={seed.before} after={seed.after} /> : null}
+                <div className="pod-row">
+                  <Button small kind="quiet" onClick={() => setSeedDiff(!seedDiff)}>
+                    {seedDiff ? t('收起差异') : t('看差异')}
+                  </Button>
+                  <Button small kind="quiet" onClick={() => settleSeed(api.keepSeed(bot.id))}>
+                    {t('保留我的')}
+                  </Button>
+                  <Button small kind="primary" onClick={() => settleSeed(api.adoptSeed(bot.id))}>
+                    {t('换成新默认')}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </Section>

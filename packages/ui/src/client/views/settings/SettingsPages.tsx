@@ -201,7 +201,7 @@ export function AdvancedPage(props: { readonly settings: PodSettings; readonly u
       <Row label={t('换段长度（token）')} hint={t('一段对话超过这个长度，就整理成摘要换一段继续')}>
         <input className="pod-input pod-input-number" type="number" min={16000} step={1000} aria-label={t('换段长度')} value={settings.softContextTokens} onChange={(event) => update({ softContextTokens: Number(event.target.value) })} />
       </Row>
-      <Row label={t('你的档案')} hint={t('主管记下的关于你的事：偏好、习惯、约定')}>
+      <Row label={t('你的档案')} hint={t('Super-agent 记下的关于你的事：偏好、习惯、约定')}>
         <Button small onClick={() => app.openDrawer({ kind: 'memory', scope: 'owner', scopeId: '', label: t('你的档案') })}>
           {t('打开')}
         </Button>

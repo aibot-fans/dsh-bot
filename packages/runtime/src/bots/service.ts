@@ -72,6 +72,8 @@ export interface ChangeOrigin {
   /** 审计里记的操作者：owner 或 bot id 或 pod。 */
   readonly actor: string
   readonly reason?: string
+  /** 换上的人设是默认原文时记成默认人设（不管是谁换的）。 */
+  readonly personaSource?: PersonaSource
 }
 
 export const OWNER_ORIGIN: ChangeOrigin = { source: 'user', actor: 'owner' }
@@ -190,9 +192,8 @@ export class BotService {
   }
 
   /**
-   * 主管还是默认值的部分（人设来源是 seed：你和自我优化都没改过；名字、角色、能力标签还是默认的）换成现在的版本：
-   * 默认人设出了新版，或者语言换了，都靠它跟上（记一版配置，能回滚）。
-   * 来源一旦变成 user 或 auto 就不会再变回 seed，所以改过的人设不会被换掉。
+   * Super-agent 还是默认值的名字、角色、能力标签换成现在这个语言的版本（改名、换语言都靠它，记一版配置，能回滚）；改过的不动。
+   * 人设按版本换，见 seeds.ts。
    */
   syncLeadSeed(): void {
     const lead = this.activeBot(LEAD_BOT_ID)
@@ -250,7 +251,7 @@ export class BotService {
 
   lead(): Bot {
     const lead = this.bots.get(LEAD_BOT_ID)
-    if (lead === undefined) throw new Error('主管不存在，数据库可能被手动改过')
+    if (lead === undefined) throw new Error('Super-agent 不存在，数据库可能被手动改过')
     return lead
   }
 
@@ -312,7 +313,7 @@ export class BotService {
     const after: BotConfig = { ...before, ...patch }
     const changes = describeConfigChange(before, after)
     if (changes.length === 0) return ok(current)
-    const personaSource = patch.persona === undefined ? current.personaSource : personaSourceFor(origin, current.personaSource)
+    const personaSource = patch.persona === undefined ? current.personaSource : (origin.personaSource ?? personaSourceFor(origin, current.personaSource))
     return this.writeConfig(current, after, personaSource, origin, origin.reason ?? t('修改了{changes}', { changes: changes.map((change) => tc(change, '配置')).join(t('、')) }))
   }
 
@@ -339,7 +340,7 @@ export class BotService {
   archiveById(id: string, actor: string): PodResult<Bot> {
     const current = this.activeBot(id)
     if (current === undefined) return fail('not-found', t('找不到这个 bot'))
-    if (current.role === 'lead') return fail('lead-protected', t('主管不能归档'))
+    if (current.role === 'lead') return fail('lead-protected', t('Super-agent 不能归档'))
     if (!setBotArchived(this.db, id, this.deps.now(), this.deps.now())) return fail('not-found', t('找不到这个 bot'))
     this.deps.audit.record('bot.archive', actor, id, { name: current.name })
     return this.reload(id)

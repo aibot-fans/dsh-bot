@@ -6,7 +6,7 @@ import { ResourceCache } from './resource.ts'
 
 export type BotTab = 'details' | 'pages' | 'library' | 'automations' | 'browser'
 export type GroupTab = 'details' | 'pages' | 'library' | 'automations' | 'tasks' | 'browser'
-export type SettingsTab = 'general' | 'usage' | 'automations' | 'models' | 'browser' | 'archive' | 'recycle' | 'advanced'
+export type SettingsTab = 'general' | 'notes' | 'usage' | 'automations' | 'models' | 'browser' | 'archive' | 'recycle' | 'advanced'
 
 /**
  * 右侧面板：bot 详情、群聊详情、bot 的浏览器、页面库，同一时间只开一个。

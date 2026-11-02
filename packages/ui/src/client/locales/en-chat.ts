@@ -138,7 +138,7 @@ export const UI_EN_CHAT: Readonly<Record<string, string>> = {
   '添加图片或文件': 'Add images or files',
   '停止回答': 'Stop answering',
   '发送': 'Send',
-  '正在打开和主管的对话…': 'Opening your chat with the Lead…',
+  '正在打开和 Super-agent 的对话…': 'Opening your chat with Super-agent…',
   '开始': 'Start',
   '打开这个群聊': 'Open this group',
   '收起': 'Collapse',

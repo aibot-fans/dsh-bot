@@ -17,6 +17,7 @@ import { V5_CSS } from './v5.ts'
 import { V6_CSS } from './v6.ts'
 import { V8_CSS } from './v8.ts'
 import { V9_CSS } from './v9.ts'
+import { V10_CSS } from './v10.ts'
 
 const STYLE_ID = 'pod-ui/app'
 
@@ -28,7 +29,7 @@ export function injectStyles(): () => void {
   const tag = document.createElement('style')
   tag.dataset.plugin = 'pod-ui'
   tag.dataset.pluginCss = STYLE_ID
-  tag.textContent = [BASE_CSS, LAYOUT_CSS, CHAT_CSS, EDITOR_CSS, CARDS_CSS, BROWSER_CSS, PANEL_CSS, V3_CSS, V5_CSS, PAGES_CSS, V6_CSS, PINS_CSS, BUTTONS_CSS, AIBOT_CSS, PROGRESS_CSS, UPDATE_CSS, V8_CSS, V9_CSS, MOBILE_CSS].join('\n')
+  tag.textContent = [BASE_CSS, LAYOUT_CSS, CHAT_CSS, EDITOR_CSS, CARDS_CSS, BROWSER_CSS, PANEL_CSS, V3_CSS, V5_CSS, PAGES_CSS, V6_CSS, PINS_CSS, BUTTONS_CSS, AIBOT_CSS, PROGRESS_CSS, UPDATE_CSS, V8_CSS, V9_CSS, V10_CSS, MOBILE_CSS].join('\n')
   document.head.appendChild(tag)
   return () => {
     tag.remove()

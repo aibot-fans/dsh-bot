@@ -87,6 +87,15 @@ export class SessionFactory {
     throw lastError
   }
 
+  /** 改会话在 dsh 里的标题（bot 改了名）：失败只告警。 */
+  async retitle(sessionId: string, title: string): Promise<void> {
+    try {
+      await this.deps.sessions.rename({ sessionId, title })
+    } catch (error) {
+      this.deps.warn(`给会话起标题失败：${errorText(error)}`)
+    }
+  }
+
   /** 标题和模型是锦上添花：失败只告警，不影响会话本身。 */
   private async decorate(sessionId: string, options: CreateSessionOptions): Promise<void> {
     if (options.title !== undefined) {

@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { join } from 'node:path'
-import { OWNER, POD, POD_VERSION, PRIORITY, botFolder, composePersona, roomFolder, fail, sessionBrowses, sessionMakesPages, t, withLanguage, worthSummary, type Bot, type BotStats, type Language, type PodEvent, type PodResult, type PodSession, type Room, type Task, type TaskTeam, type TeamTemplate, triggerSource } from 'pod-domain'
+import { LEAD_BOT_ID, LEAD_PERSONA, OWNER, POD, POD_VERSION, PRIORITY, botFolder, composePersona, roomFolder, fail, sessionBrowses, sessionMakesPages, t, withLanguage, worthSummary, type Bot, type BotStats, type Language, type PodEvent, type PodResult, type PodSession, type Room, type Task, type TaskTeam, type TeamTemplate, triggerSource } from 'pod-domain'
 import { afterCommit, deliveryByMessageId, getMessage, inTransaction, onAfterCommitError, pinnedMessages, raiseProblem, resolveProblem, runningTasksByRoom, taskCardMessage, teamsOfBot } from 'pod-store'
 import { SegmentManager } from './agents/segments.ts'
 import { AibotService } from './aibot/service.ts'
@@ -13,12 +13,11 @@ import { SleepGuard } from './core/sleep.ts'
 import { NotificationService } from './notify/service.ts'
 import { DailyBrief, type BriefData } from './routines/brief.ts'
 import { readPageOverHttp } from './routines/page.ts'
-import { RoutineReplies } from './routines/replies.ts'
 import { migrateRoutines } from './routines/migrate.ts'
 import { RoutineService, type PageContent } from './routines/service.ts'
 import { TriggerClock } from './engine/triggers.ts'
 import { XSource } from './aibot/source.ts'
-import { xBot } from './aibot/seed.ts'
+import { X_PERSONA, xBot } from './aibot/seed.ts'
 import { AgentBinder } from './agents/binder.ts'
 import { Engine, isTicket } from './engine/index.ts'
 import { Intake } from './engine/intake.ts'
@@ -35,6 +34,7 @@ import { SessionObserver } from './agents/observer.ts'
 import { SessionRegistry } from './agents/registry.ts'
 import { Watchdog } from './agents/watchdog.ts'
 import { WatchdogJudge } from './agents/judge.ts'
+import { SeedPersonas } from './bots/seeds.ts'
 import { BotService } from './bots/service.ts'
 import { ChatExtras } from './chat/extras.ts'
 import { TurnErrors } from './chat/turn-errors.ts'
@@ -124,6 +124,8 @@ export class PodRuntime {
   readonly settings: SettingsService
   readonly language: LanguageService
   readonly bots: BotService
+  /** Super-agent、X 情报员的默认人设怎么跟上新版。 */
+  readonly seeds: SeedPersonas
   readonly sessions: SessionFactory
   readonly registry: SessionRegistry
   /** 副作用队列：开工、送达、通知……命令提交后才对外做。 */
@@ -217,6 +219,9 @@ export class PodRuntime {
     this.language = new LanguageService(db, () => this.settings.get())
     this.models = new ModelResolver({ ctx, settings: () => this.settings.get(), effortFor: (botId) => this.evolutionKit.tuner.effortFor(botId) })
     this.bots = new BotService({ db, bus: this.bus, audit: this.audit, now })
+    this.seeds = new SeedPersonas({ db, bots: this.bots, language: () => this.language.get() })
+    this.seeds.register(LEAD_PERSONA, () => LEAD_BOT_ID)
+    this.seeds.register(X_PERSONA, () => xBot(db, this.bots)?.id)
     this.teams = new TeamService({ db, bus: this.bus, bots: this.bots, audit: this.audit, now })
     this.notifications = new NotificationService({ db, bus: this.bus, settings: () => this.settings.get(), room: (roomId) => this.rooms.get(roomId), now })
     this.sessions = new SessionFactory({
@@ -492,18 +497,6 @@ export class PodRuntime {
       botName: (botId) => this.bots.get(botId)?.name ?? 'bot',
       now,
     })
-    const routineReplies = new RoutineReplies({
-      post: (session, text, pageId) => this.rooms.postBotText(session, text, pageId === undefined ? undefined : { pageId }),
-      notify: (session, text) => {
-        if (session.roomId === null) return
-        this.notifications.notify({ kind: 'routine', title: t('例程结果：{value}', { value: this.rooms.get(session.roomId)?.title ?? '' }), body: text.slice(0, 200), roomId: session.roomId })
-      },
-    })
-    // 例程这一轮攒着的话发出去，执行摘要记在最后一条上。
-    const flushRoutine = (session: PodSession): void => {
-      const posted = session.kind === 'routine' ? routineReplies.flush(session) : undefined
-      if (posted !== undefined) this.lastReplies.set(session.id, { id: posted.id, at: posted.createdAt })
-    }
     this.observer = new SessionObserver(
       ctx,
       this.registry,
@@ -511,8 +504,6 @@ export class PodRuntime {
         onAssistantText: (session, text) => {
           // 在回页面修改要求的这一轮，说的话归到那个页面下面（页面旁边的修改对话里看得到）。
           const pageId = this.pages.threadOf(session.id)
-          // 例程的话这一轮结束再发：跟上次比没有新东西（回了 NO_CHANGE）就整轮都不发。
-          if (session.kind === 'routine') routineReplies.hold(session.id, text, pageId)
           if (session.kind === 'chat') {
             const posted = this.rooms.postBotText(session, text, pageId === undefined ? undefined : { pageId })
             if (posted !== undefined) this.lastReplies.set(session.id, { id: posted.id, at: posted.createdAt })
@@ -528,7 +519,6 @@ export class PodRuntime {
           ctx.logger.warn(`dsh-bot：${this.bots.get(session.botId)?.name ?? session.botId} 这一轮出错结束（${failure.code}${failure.status === undefined ? '' : ` ${failure.status}`}）`)
         },
         onTurnEnd: (session, reason, failure) => {
-          flushRoutine(session)
           this.dispatcher.turnEnded(session.id)
           this.dispatcher.setRunning(session.id, false)
           this.pages.onTurnEnd(session.id)
@@ -543,7 +533,6 @@ export class PodRuntime {
         },
         onUsage: (session, usage) => this.meter.recordAgent(session, usage),
         onRunEnd: (session, run) => {
-          flushRoutine(session)
           const reply = this.lastReplies.get(session.id)
           this.lastReplies.delete(session.id)
           if (reply !== undefined && reply.at >= run.startedAt && worthSummary(run)) this.rooms.attachRun(reply.id, run)
@@ -874,9 +863,11 @@ export class PodRuntime {
       this.updates.settingsChanged(next, previous)
       if (next.paused !== previous.paused) this.pausedChanged(next.paused)
     })
+    this.bots.onChange((bot) => this.front.retitle(bot))
     this.language.onChange(() => {
       this.bots.syncLeadSeed()
       this.aibot.languageChanged()
+      this.seeds.sync()
       this.refreshExposure()
       // 默认 bot 的名字、例程说明、各种状态提示是读的时候按语言翻的，页面要全部重新拉。
       this.bus.emit({ type: 'resync' })
@@ -1038,8 +1029,7 @@ export class PodRuntime {
       timezone: settings.timezone,
       autonomy: settings.autonomy,
       ...(room === undefined ? {} : { roomTitle: room.title }),
-      // 群聊里的聊天会话知道自己在群里、群里有谁，才会用 mention_member 点名别人。
-      ...(room === undefined || room.kind === 'direct' || session.kind !== 'chat' ? {} : { group: { title: room.title, members: this.rooms.memberBots(room) } }),
+      teamNotes: settings.teamNotes,
       memory: this.memory.coreBlocks(session),
       browser: sessionBrowses(session),
       x: this.aibot.coversX(session),
@@ -1072,6 +1062,7 @@ export class PodRuntime {
       folder: '.',
       timezone: settings.timezone,
       autonomy: settings.autonomy,
+      teamNotes: settings.teamNotes,
     })
     return withLanguage(fallback, this.language.get())
   }

@@ -44,6 +44,18 @@ export function baseRoutes(pod: PodRuntime): readonly RouteSpec[] {
     post('/bot/restore', (body) => pod.bots.restore(body)),
     post('/bot/rollback', (body) => pod.bots.rollback(body)),
     get('/bot/versions', (query) => pod.bots.versions(query)),
+    get('/bot/seed', (query) => {
+      const id = readId(query, 'id')
+      return id === undefined ? fail('invalid-input', t('缺少 bot 的 id')) : ok(pod.seeds.update(id) ?? null)
+    }),
+    post('/bot/seed/keep', (body) => {
+      const id = readId(body, 'id')
+      return id === undefined ? fail('invalid-input', t('缺少 bot 的 id')) : pod.seeds.keep(id)
+    }),
+    post('/bot/seed/adopt', (body) => {
+      const id = readId(body, 'id')
+      return id === undefined ? fail('invalid-input', t('缺少 bot 的 id')) : pod.seeds.adopt(id)
+    }),
     get('/recycle', () => ok({ bots: pod.bots.recycleBin(), teams: pod.teams.all().filter((team) => team.archivedAt !== null) })),
 
     get('/teams', () => ok(pod.teams.list())),

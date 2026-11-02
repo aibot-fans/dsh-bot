@@ -130,7 +130,7 @@ export class Launcher {
   /** 完整的任务说明；不是新任务时（会话是新开的，要先补上说明）不写“开工原因：新任务”。 */
   private kickoff(task: Task, run: TaskRun, newTask: boolean): string {
     const requester = task.requesterSession === null ? undefined : this.deps.registry.get(task.requesterSession)
-    const fromName = requester === undefined ? '用户' : (this.deps.bots.get(requester.botId)?.name ?? '主管')
+    const fromName = requester === undefined ? '用户' : (this.deps.bots.get(requester.botId)?.name ?? 'Super-agent')
     const assumptions = Array.isArray(run.detail.assumptions) ? run.detail.assumptions.filter((item): item is string => typeof item === 'string') : []
     // 等别的子任务就绪才开工的：带上它们的结果。
     const upstream = task.dependsOn.flatMap((id) => {

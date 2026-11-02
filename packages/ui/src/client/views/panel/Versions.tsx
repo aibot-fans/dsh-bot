@@ -8,7 +8,7 @@ import { useResource } from '../../state/resource.ts'
 
 const SOURCE_LABELS: Readonly<Record<string, string>> = {
   user: '你改的',
-  lead: '主管改的',
+  lead: 'Super-agent 改的',
   auto: '自我优化',
   rollback: '回滚',
   seed: '初始',

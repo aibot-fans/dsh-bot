@@ -157,6 +157,11 @@ export class SessionRegistry {
     return record
   }
 
+  /** 改会话在 dsh 里的标题。 */
+  retitle(id: string, title: string): Promise<void> {
+    return this.deps.factory.retitle(id, title)
+  }
+
   retire(id: string): void {
     const current = this.sessions.get(id)
     if (current === undefined) return

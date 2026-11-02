@@ -239,7 +239,7 @@ export function Automations(props: { readonly match?: (routine: RoutineView) => 
   const list = (routines ?? []).filter((routine) => props.match === undefined || props.match(routine))
   return (
     <div className="pod-stack">
-      {routines !== undefined && list.length === 0 && !creating ? <Empty title={t('还没有自动化')}>{props.empty ?? t('也可以直接跟主管说“每天 8 点给我整理资讯”。')}</Empty> : null}
+      {routines !== undefined && list.length === 0 && !creating ? <Empty title={t('还没有自动化')}>{props.empty ?? t('也可以直接跟 Super-agent 说“每天 8 点给我整理资讯”。')}</Empty> : null}
       {list.length === 0 ? null : (
         <div className="pod-auto-list">
           {list.map((routine) => (

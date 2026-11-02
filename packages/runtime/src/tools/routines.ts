@@ -116,7 +116,7 @@ export function routineTools(pod: PodRuntime, session: PodSession): readonly Too
     run: (args) => {
       const routine = pod.routines.get(args.id)
       if (routine === undefined) return failure(`找不到例程 ${args.id}：用 list_routines 看 id`)
-      if (!mine(routine.botId)) return failure(`「${routine.title}」不在你名下，改不了；要改请找主管或者用户。`)
+      if (!mine(routine.botId)) return failure(`「${routine.title}」不在你名下，改不了；要改请找 Super-agent 或者用户。`)
       const target = args.bot === '' ? undefined : pod.bots.resolve(args.bot)
       if (args.bot !== '' && (target === undefined || target.archivedAt !== null)) return failure(`找不到 bot「${args.bot}」`)
       const room = args.room === '' ? undefined : resolveRoom(args.room, target?.id ?? routine.botId)
@@ -198,7 +198,7 @@ export function routineTools(pod: PodRuntime, session: PodSession): readonly Too
     parse: (args) => ({ id: text(args, 'routine') }),
     run: ({ id }) => {
       const routine = pod.routines.get(id)
-      if (routine !== undefined && !mine(routine.botId)) return failure(`「${routine.title}」不在你名下，删不了；要删请找主管或者用户。`)
+      if (routine !== undefined && !mine(routine.botId)) return failure(`「${routine.title}」不在你名下，删不了；要删请找 Super-agent 或者用户。`)
       const result = pod.routines.remove({ id }, current().botId)
       return result.ok ? success('已删除。') : failure(result.error.message)
     },

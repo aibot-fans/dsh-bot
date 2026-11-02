@@ -321,7 +321,7 @@ export class RoomService {
     const found = this.groupAndBot(input)
     if (!found.ok) return found
     const { room, bot } = found.value
-    if (bot.role === 'lead') return fail('lead-protected', t('主管要留在群里，负责分派和组织'))
+    if (bot.role === 'lead') return fail('lead-protected', t('Super-agent 要留在群里，负责分派和组织'))
     removeRoomMember(this.db, room.id, bot.id)
     const session = this.deps.registry.activeForRoom(room.id, bot.id)
     if (session !== undefined) {

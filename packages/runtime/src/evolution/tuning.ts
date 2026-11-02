@@ -133,7 +133,7 @@ export class Tuner {
       kind: 'calibration',
       botId: LEAD_BOT_ID,
       subject: LEAD_BOT_ID,
-      summary: advice === '' ? t('主管定前提的分寸恢复默认') : t('调整了主管定前提的分寸（找你 {asks} 次/任务，被改 {edits} 次/任务）', { asks: asks.toFixed(1), edits: edits.toFixed(1) }),
+      summary: advice === '' ? t('Super-agent 定前提的分寸恢复默认') : t('调整了 Super-agent 定前提的分寸（找你 {asks} 次/任务，被改 {edits} 次/任务）', { asks: asks.toFixed(1), edits: edits.toFixed(1) }),
       before: { text: current },
       after: { text: advice },
       reason: t('按最近两周的自治效果统计'),

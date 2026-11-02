@@ -137,13 +137,13 @@ export function coordTools(pod: PodRuntime, session: PodSession): readonly ToolD
 
   const requestStaff = podTool({
     name: 'request_staff',
-    description: '人手不够时向主管要人：说明需要什么能力、做哪个子任务。主管会新建或调配 bot，之后你用 reassign_task 派给它。',
+    description: '人手不够时向 Super-agent 要人：说明需要什么能力、做哪个子任务。Super-agent 会新建或调配 bot，之后你用 reassign_task 派给它。',
     properties: { need: str('需要什么样的人、做什么') },
     required: ['need'],
     parse: (args) => (text(args, 'need') === '' ? '要写清需要什么样的人' : { need: text(args, 'need') }),
     run: ({ need }) => {
       const task = root()
-      if (task === undefined || task.requesterSession === null) return failure('找不到可以要人的主管会话')
+      if (task === undefined || task.requesterSession === null) return failure('找不到可以要人的 Super-agent 会话')
       pod.dispatcher.enqueue({
         sessionId: task.requesterSession,
         mode: 'followup',
@@ -151,7 +151,7 @@ export function coordTools(pod: PodRuntime, session: PodSession): readonly ToolD
         text: `[组长要人] 任务「${task.title}」的组长说：${need}\n可以用 create_bot 新建，或从现有 bot 里挑一个，告诉组长名字。`,
         source: relaySource(current().id),
       })
-      return success('已经告诉主管。')
+      return success('已经告诉 Super-agent。')
     },
   })
 

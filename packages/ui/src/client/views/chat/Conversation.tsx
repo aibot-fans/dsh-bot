@@ -54,7 +54,7 @@ export function Conversation() {
   if (room === undefined) {
     return (
       <main className={`pod-convo pod-width-${width}`}>
-        <Empty title={t('正在打开和主管的对话…')} />
+        <Empty title={t('正在打开和 Super-agent 的对话…')} />
       </main>
     )
   }

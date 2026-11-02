@@ -38,7 +38,7 @@ export function Onboarding(props: { readonly settings: PodSettings }) {
         {step === 0 ? (
           <div className="pod-stack">
             <h2>{t('欢迎使用 dsh-bot')}</h2>
-            <p>{t('dsh-bot 是你的一群 bot。你只需要跟“主管”说要做的事：简单的它自己做，复杂的它交给合适的 bot，或者临时组个小组、交给正式团队。')}</p>
+            <p>{t('dsh-bot 是你的一群 bot。你只需要跟 Super-agent 说要做的事：简单的它自己做，复杂的它交给合适的 bot，或者临时组个小组、交给正式团队。')}</p>
             <p>{t('默认自治：bot 自己判断、直接推进，只在四种情况找你——需要登录或验证码、要做不可撤回的对外操作、被安全规则拦下、遇到没有默认值的歧义。')}</p>
             <p>{t('做的过程都在“任务”里，可以随时暂停、停止，或直接对任务说话。自我优化的改动都记在“进化日志”里，可以一键回滚。')}</p>
             <AibotIntro />
@@ -47,7 +47,7 @@ export function Onboarding(props: { readonly settings: PodSettings }) {
         {step === 1 ? (
           <div className="pod-stack">
             <h2>{t('建一个团队（可选）')}</h2>
-            <p>{t('经常做的同类事情可以组成正式团队。也可以先跳过，让主管按需要临时组队。')}</p>
+            <p>{t('经常做的同类事情可以组成正式团队。也可以先跳过，让 Super-agent 按需要临时组队。')}</p>
             <div className="pod-grid">
               {(templates ?? []).map((template) => (
                 <article key={template.id} className="pod-card">

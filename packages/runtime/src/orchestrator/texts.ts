@@ -112,7 +112,7 @@ export function coordContext(plan: TeamPlan, board: string): string {
 
 export function changeEvent(rootTitle: string, quote: string, message: string, board: string): string {
   return [
-    `[用户要改需求，经主管转达] 任务「${rootTitle}」`,
+    `[用户要改需求，经 Super-agent 转达] 任务「${rootTitle}」`,
     `[用户原话] ${quote}`,
     message === '' ? undefined : `说明：${message}`,
     '请评估后用 revise_plan 出新版计划：纠正前提时只重做依赖它的子任务，已完成且不受影响的保留。',

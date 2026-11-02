@@ -59,6 +59,7 @@ export function startRuntime(pod: PodRuntime): () => void {
   })
   pod.rooms.ensureLeadRoom()
   const stopAibot = pod.aibot.start()
+  pod.seeds.sync()
   // 上次没交出的接着交，交了没收进历史的查过再重交；没结束的执行记成被打断、各开一次新的；然后副作用队列开始干活。
   pod.dispatcher.recover()
   pod.engine.tickets.refreshOpen()

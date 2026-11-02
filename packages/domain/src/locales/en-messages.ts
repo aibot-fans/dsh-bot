@@ -107,4 +107,10 @@ export const DOMAIN_EN_MESSAGES: Readonly<Record<string, string>> = {
   'X 监控规则格式不对': 'The X monitor rules are malformed',
   '事件类型、账号、关键词各最多 100 个': 'At most 100 event types, accounts and keywords each',
   '不认识的事件类型：{type}': 'Unknown event type: {type}',
+  '沟通': 'Communication',
+  '任务范围': 'Task scope',
+  '交付要求': 'Delivery',
+  '团队说明格式不对': 'Team notes are in the wrong format',
+  '没有「{key}」这块团队说明': 'There is no team notes section called "{key}"',
+  '每块团队说明最多 {max} 字': 'Each team notes section can be at most {max} characters',
 }

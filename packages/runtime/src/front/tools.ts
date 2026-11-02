@@ -106,7 +106,7 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
     if (name === '' || SELF_NAMES.has(name.toLowerCase()) || name === self.name) return self
     const bot = pod.bots.resolve(name)
     if (bot === undefined || bot.archivedAt !== null) return `找不到 bot「${name}」，先用 find_bots 查，或用 create_bot 新建`
-    if (self.role !== 'lead' && bot.id !== self.id) return `你只能开给自己；要${bot.name}干活，请用户找 Super-agent 或者点它的名`
+    if (self.role !== 'lead' && bot.id !== self.id) return `你只能开给自己；要${bot.name}干活，请用户找${pod.bots.lead().name}或者点它的名`
     return bot
   }
 

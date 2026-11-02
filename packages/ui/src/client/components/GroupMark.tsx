@@ -4,7 +4,7 @@ import { Avatar, nameColor } from './common.tsx'
 
 /** 还不知道成员时的群图标：领导加一个万能助手。 */
 const PAIR: readonly IconBot[] = [
-  { id: 'pair-lead', name: '主管', avatar: iconAvatar('lead'), role: 'lead' },
+  { id: 'pair-lead', name: 'Super-agent', avatar: iconAvatar('lead'), role: 'lead' },
   { id: 'pair-member', name: '成员', avatar: iconAvatar('member') },
 ]
 

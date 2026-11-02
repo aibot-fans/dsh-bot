@@ -70,7 +70,7 @@ export const UI_EN_EXTRA: Readonly<Record<string, string>> = {
   '交给 bot 的一件件事：有分工、进度和验收，做完交付成果。': 'Work handed to bots, with roles, progress and checks, ending in a deliverable.',
   '群里的 bot 打开的网页，和你在这里开的网页：可以看实时画面，也可以接管。': 'Pages opened by bots in the group or by you here. Watch live or take over.',
   '你改的': 'By you',
-  '主管改的': 'By the Lead',
+  'Super-agent 改的': 'By Super-agent',
   '自我优化': 'Self-tuning',
   '初始': 'Initial',
   '通用': 'General',

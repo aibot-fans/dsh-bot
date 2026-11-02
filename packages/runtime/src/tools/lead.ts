@@ -123,14 +123,14 @@ export function orgTools(pod: PodRuntime, session: PodSession): readonly ToolDef
       if (similar.length > 0 && flag(args, 'force') !== true) {
         return failure(`已有相似的 bot：${similar.map(botLabel).join('、')}。先考虑复用；确实要新建就设 force=true，并在开工说明里写明为什么不用它们。`)
       }
-      const created = pod.bots.createFromDraft(draft.value, { source: 'lead', actor: session.botId, reason: text(args, 'reason') || t('主管新建') })
+      const created = pod.bots.createFromDraft(draft.value, { source: 'lead', actor: session.botId, reason: text(args, 'reason') || t('Super-agent 新建') })
       return success(`已新建「${created.name}」${created.temporary ? '（临时）' : ''}`, { bot: card(pod, created) })
     },
   })
 
   const archive = podTool({
     name: 'archive',
-    description: '归档临时 bot（进回收站，30 天内可恢复）。主管不能被归档。',
+    description: '归档临时 bot（进回收站，30 天内可恢复）。Super-agent 不能被归档。',
     properties: { bot: str('bot 的名字或 id') },
     required: ['bot'],
     parse: (args) => ({ bot: text(args, 'bot') }),

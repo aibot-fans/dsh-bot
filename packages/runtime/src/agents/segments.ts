@@ -4,6 +4,11 @@ import { insertHandover, listHandovers, listMessages, setHandoverTarget, type Ha
 import type { LiteLlm } from '../core/lite.ts'
 import type { SessionRegistry } from './registry.ts'
 
+/** 前台会话在 dsh 里的标题：第一段不写段数。 */
+export function frontTitle(name: string, segment: number): string {
+  return segment <= 1 ? t('dsh-bot · {name} · 前台', { name }) : t('dsh-bot · {name} · 前台第 {segment} 段', { name, segment })
+}
+
 /** 空闲超过多久，下次说话时换段。 */
 const IDLE_ROTATE_MS = 6 * 3_600_000
 
@@ -194,7 +199,7 @@ export class SegmentManager {
       roomId: null,
       taskId: null,
       folder: old.folder,
-      title: t('dsh-bot · {name} · 前台第 {segment} 段', { name: bot.name, segment: old.segment + 1 }),
+      title: frontTitle(bot.name, old.segment + 1),
       segment: old.segment + 1,
       ceiling: 'talk',
     })

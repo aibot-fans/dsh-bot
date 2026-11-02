@@ -203,7 +203,7 @@ export function Sidebar() {
         <button type="button" className="pod-round" aria-label={t('搜索')} title={t('搜索')} onClick={() => app.openSearch('')}>
           <Icon name="search" size={18} />
         </button>
-        <button type="button" className="pod-round" aria-label={t('和主管开新对话')} title={t('和主管开新对话（和别的 bot 开新对话：在对话顶部点同样的按钮）')} onClick={startNew}>
+        <button type="button" className="pod-round" aria-label={t('和 Super-agent 开新对话')} title={t('和 Super-agent 开新对话（和别的 bot 开新对话：在对话顶部点同样的按钮）')} onClick={startNew}>
           <Icon name="compose" size={18} />
         </button>
         <button type="button" className="pod-round" aria-label={t('临时对话：不进列表、不写记忆')} title={t('临时对话：不进列表、不写记忆，离开就删')} onClick={() => lead !== undefined && app.startTemporary(lead.id)}>
@@ -260,7 +260,7 @@ export function Sidebar() {
             </button>
           }
         />
-        {sections.groups.length === 0 && !collapsed ? <p className="pod-side-empty">{t('主管组队干活时会自动建群，也可以点 + 自己拉群。')}</p> : null}
+        {sections.groups.length === 0 && !collapsed ? <p className="pod-side-empty">{t('Super-agent 组队干活时会自动建群，也可以点 + 自己拉群。')}</p> : null}
         {groupList.shown.map(row(SIDEBAR_GROUPS))}
         {moreButton(groupList.hidden, more.groups, () => setMore({ ...more, groups: !more.groups }))}
       </div>

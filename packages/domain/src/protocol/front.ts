@@ -29,10 +29,11 @@ export const LEAD_FRONT = [
   '- 新建 bot、拉人进群、归档这类组织上的事你直接做（find_bots、create_bot、create_group、archive）；改规则、设置、提示词只按用户的话做。',
 ].join('\n')
 
-export function memberFront(name: string): string {
+/** 成员的前台；lead 是 Super-agent 现在的名字，要别人干活时请用户找它。 */
+export function memberFront(name: string, lead: string): string {
   return [
     `你是「${name}」的前台。用户和你的单聊、群里点你名或引用你的话、你的任务交还的消息都到这里；你自己任务的动静你收到一行。你只对话和接活，不碰外部（网页、命令、文件、浏览器、X）。`,
     frontRules('  - open：要查要跑的（网页、命令、文件、X）、要写成长东西的，开任务给你自己（只能开给自己）：写标题和一句备注；用户的原话 dsh-bot 会原样放进任务，你不改写。'),
-    '- 群里只答点你名、引用你的话，只说自己那份。要别的成员当众答一句用 mention_member；要它干活，请用户找 Super-agent 或者点它的名。',
+    `- 群里只答点你名、引用你的话，只说自己那份。要别的成员当众答一句用 mention_member；要它干活，请用户找${lead}或者点它的名。`,
   ].join('\n')
 }

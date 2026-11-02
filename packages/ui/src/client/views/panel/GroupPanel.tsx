@@ -168,7 +168,7 @@ function Members(props: { readonly room: RoomSummary; readonly members: readonly
           <button key={bot.id} type="button" className="pod-member-tile" onClick={() => app.showBot(bot.id, 'details', props.room.id)} title={bot.card.duties || bot.title}>
             <Avatar bot={bot} size={44} />
             <span className="pod-member-name">{bot.name}</span>
-            {bot.role === 'lead' && bot.name !== t('主管') ? <span className="pod-member-role">{t('主管')}</span> : null}
+            {bot.role === 'lead' && bot.name !== 'Super-agent' ? <span className="pod-member-role">Super-agent</span> : null}
           </button>
         ))}
         <button type="button" className="pod-member-tile pod-member-add" onClick={() => setAdding(true)}>
@@ -191,7 +191,7 @@ function GroupTasks(props: { readonly room: RoomSummary; readonly bots: readonly
   const running = mine.filter((snapshot) => !['done', 'failed', 'cancelled'].includes(snapshot.task.status))
   const finished = mine.filter((snapshot) => ['done', 'failed', 'cancelled'].includes(snapshot.task.status))
   if (error !== undefined) return <p className="pod-form-error">{error}</p>
-  if (tasks !== undefined && mine.length === 0) return <Empty title={t('这个群还没有任务')}>{t('在群里交代一件事，主管会安排。')}</Empty>
+  if (tasks !== undefined && mine.length === 0) return <Empty title={t('这个群还没有任务')}>{t('在群里交代一件事，Super-agent 会安排。')}</Empty>
   return (
     <div className="pod-stack">
       {running.length === 0 ? null : <div className="pod-section-title">{t('进行中')}</div>}

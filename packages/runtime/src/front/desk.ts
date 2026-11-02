@@ -4,7 +4,7 @@ import { getDelivery, getMessage, lastChatBreak, listMessages, listRoomMembers, 
 import { noticeSource, ownerSource } from '../agents/messages.ts'
 import type { TurnFailure } from '../agents/observer.ts'
 import type { SessionRegistry } from '../agents/registry.ts'
-import type { SegmentManager } from '../agents/segments.ts'
+import { frontTitle, type SegmentManager } from '../agents/segments.ts'
 import type { BotService } from '../bots/service.ts'
 import type { PreparingState } from '../chat/rooms.ts'
 import { failureKind, failureReason } from '../chat/turn-errors.ts'
@@ -51,6 +51,8 @@ interface Flight {
  */
 export class FrontDesk {
   private readonly opening = new Map<string, Promise<PodSession>>()
+  /** 这次运行里给每条前台会话设过的标题：名字没变就不再改。 */
+  private readonly titles = new Map<string, string>()
   private readonly cursors = new Map<string, ActivityCursor>()
   /** 每段前台会话在各聊天室看到了哪条（seq）。 */
   private readonly seen = new Map<string, Map<string, number>>()
@@ -78,6 +80,18 @@ export class FrontDesk {
     transaction(this.deps.db, () => {
       for (const botId of this.deps.engine.topics.frontsWithQueue()) this.deps.effects.enqueue('front', botId)
     })
+    // dsh-bot 没开时可能改过名（比如主管改叫 Super-agent），前台会话的标题跟上。
+    for (const bot of this.deps.bots.active()) this.retitle(bot)
+  }
+
+  /** bot 改了名：它前台会话在 dsh 里的标题跟着改；名字没变不动。 */
+  retitle(bot: Bot): void {
+    const session = this.deps.registry.activeFront(bot.id)
+    if (session === undefined) return
+    const title = frontTitle(bot.name, session.segment)
+    if (this.titles.get(session.id) === title) return
+    this.titles.set(session.id, title)
+    void this.deps.registry.retitle(session.id, title)
   }
 
   dispose(): void {
@@ -102,7 +116,11 @@ export class FrontDesk {
     const inflight = this.opening.get(bot.id)
     if (inflight !== undefined) return inflight
     const opening = this.deps.registry
-      .open({ bot, kind: 'front', roomId: null, taskId: null, folder: botFolder(bot), title: t('dsh-bot · {name} · 前台', { name: bot.name }), ceiling: 'talk' })
+      .open({ bot, kind: 'front', roomId: null, taskId: null, folder: botFolder(bot), title: frontTitle(bot.name, 1), ceiling: 'talk' })
+      .then((session) => {
+        this.titles.set(session.id, frontTitle(bot.name, session.segment))
+        return session
+      })
       .finally(() => this.opening.delete(bot.id))
     this.opening.set(bot.id, opening)
     return opening

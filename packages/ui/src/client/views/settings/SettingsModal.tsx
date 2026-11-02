@@ -12,10 +12,12 @@ import { RecycleBin } from './RecycleBin.tsx'
 import { Automations, type RoutineView } from './Routines.tsx'
 import { Row, type Update } from './Row.tsx'
 import { AdvancedPage, BrowserPage, GeneralPage, ModelsPage } from './SettingsPages.tsx'
+import { TeamNotesPage } from './TeamNotesPage.tsx'
 import { UsagePage } from './UsagePage.tsx'
 
 const TABS: readonly (readonly [SettingsTab, string])[] = [
   ['general', '通用'],
+  ['notes', '团队说明'],
   ['usage', '用量'],
   ['automations', '自动化'],
   ['models', '模型'],
@@ -51,7 +53,7 @@ function AutomationsPage(props: { readonly settings: PodSettings; readonly updat
       />
       {briefShown ? (
         <div className="pod-settings-body">
-          <Row label={t('每日简报')} hint={t('主管每天把进展、需要你的事和花费发到和主管的单聊')}>
+          <Row label={t('每日简报')} hint={t('Super-agent 每天把进展、需要你的事和花费发到和它的单聊')}>
             <input
               className="pod-input pod-input-time"
               type="time"
@@ -69,7 +71,7 @@ function AutomationsPage(props: { readonly settings: PodSettings; readonly updat
   )
 }
 
-/** 设置弹窗：从侧栏底部打开，分八页（含归档和回收站）；左栏最下面是“停止所有任务”。改动立即生效。 */
+/** 设置弹窗：从侧栏底部打开，分九页（含团队说明、归档和回收站）；左栏最下面是“停止所有任务”。改动立即生效。 */
 export function SettingsModal() {
   const app = useApp()
   const nav = useNav()
@@ -129,6 +131,7 @@ export function SettingsModal() {
           ) : (
             <>
               {tab === 'general' ? <GeneralPage settings={settings} update={update} /> : null}
+              {tab === 'notes' ? <TeamNotesPage settings={settings} update={update} /> : null}
               {tab === 'usage' ? <UsagePage /> : null}
               {tab === 'automations' ? <AutomationsPage settings={settings} update={update} /> : null}
               {tab === 'models' ? <ModelsPage settings={settings} update={update} /> : null}

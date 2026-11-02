@@ -28,6 +28,7 @@ import type {
   Wait,
   EvolutionEntry,
   Scorecard,
+  SeedUpdate,
   SidebarPrefs,
   Skill,
 } from 'pod-domain'
@@ -324,6 +325,10 @@ export const api = {
   restoreBot: (id: string) => apiPost<Bot>('/bot/restore', { id }),
   rollbackBot: (id: string, version: number) => apiPost<Bot>('/bot/rollback', { id, version }),
   botVersions: (id: string) => apiGet<readonly BotVersion[]>('/bot/versions', { id }),
+  /** 你改过的默认人设、默认在那之后出了新版：两版默认的原文；没有是 null。 */
+  botSeed: (id: string) => apiGet<SeedUpdate | null>('/bot/seed', { id }),
+  keepSeed: (id: string) => apiPost<null>('/bot/seed/keep', { id }),
+  adoptSeed: (id: string) => apiPost<Bot>('/bot/seed/adopt', { id }),
   recycle: () => apiGet<{ readonly bots: readonly Bot[]; readonly teams: readonly Team[] }>('/recycle'),
 
   teams: () => apiGet<readonly Team[]>('/teams'),
