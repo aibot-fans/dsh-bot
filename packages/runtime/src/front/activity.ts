@@ -2,6 +2,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { TICKET_STAGE_LABELS, isTerminal, oneLine, truncate, type Bot, type Task } from 'pod-domain'
 import { getTask, lastTaskEventId, openRootTasks, routesSince, taskEventsAfter } from 'pod-store'
 import { isTicket } from '../engine/index.ts'
+import { CARD_LIMITS, clipCard } from '../core/cards.ts'
 
 /** 批开头最多列几个在忙的任务、几件动静。 */
 const TASKS_LISTED = 15
@@ -97,7 +98,8 @@ export class FrontActivity {
     if (kind === 'report_recorded') {
       const word = typeof data.status === 'string' ? REPORT_WORDS[data.status] : undefined
       if (word === undefined) return undefined
-      const summary = typeof data.summary === 'string' && data.summary !== '' ? `：${truncate(oneLine(data.summary), 120)}` : ''
+      const reportId = typeof data.reportId === 'string' ? data.reportId : null
+      const summary = typeof data.summary === 'string' && data.summary !== '' ? `：${clipCard(oneLine(data.summary), CARD_LIMITS.line, reportId)}` : ''
       return `- ${this.label(task)} ${word}${summary}`
     }
     const reason = typeof data.reason === 'string' ? data.reason : ''

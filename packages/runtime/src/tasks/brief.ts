@@ -1,11 +1,12 @@
 import { REPORT_STATUS_LABELS, type RoutedMessage, type Task, type TaskReport, type TaskRun } from 'pod-domain'
+import { CARD_LIMITS, clipCard } from '../core/cards.ts'
 
 export interface BriefContext {
   readonly fromName: string
   readonly assumptions: readonly string[]
   readonly conventions: readonly string[]
   /** 上游子任务的结果摘要和文件路径。 */
-  readonly upstream: readonly { readonly title: string; readonly summary: string; readonly files: readonly string[] }[]
+  readonly upstream: readonly { readonly taskId?: string; readonly title: string; readonly summary: string; readonly files: readonly string[] }[]
   readonly workspaceRoot: string
 }
 
@@ -13,45 +14,81 @@ function numbered(items: readonly string[]): string {
   return items.map((item, index) => `${index + 1}. ${item}`).join('\n')
 }
 
-/** 来由里你的原话，每条带消息 id；太长截断，留着 id 能读回全文。 */
-const QUOTE_LIMIT = 600
+/** 开工说明里一段收短后最少留多少字。 */
+const PART_MIN = 60
 
-function originLines(task: Task): string | undefined {
+/** 来由里你的原话，每条带消息 id；太长截断，留着 id 能读回全文。limit 是这一段一共多少字。 */
+function originLines(task: Task, limit: number = CARD_LIMITS.message): string {
   const quotes = task.origin?.quotes ?? []
-  if (quotes.length === 0) return undefined
-  const lines = quotes.map((quote) => {
-    const text = quote.text.length > QUOTE_LIMIT ? `${quote.text.slice(0, QUOTE_LIMIT)}…（截断了）` : quote.text
-    return `- ${quote.author}${quote.messageId === null ? '' : `（${quote.messageId}）`}：${text}`
-  })
+  if (quotes.length === 0) return ''
+  const each = Math.max(PART_MIN, Math.floor(limit / quotes.length) - 20)
+  const lines = quotes.map((quote) => `- ${quote.author}${quote.messageId === null ? '' : `（${quote.messageId}）`}：${clipCard(quote.text, each, quote.messageId)}`)
   return `来由（原话）：\n${lines.join('\n')}`
+}
+
+/** 开工说明的一段：固定的直接是文字；能收短的给出收短的办法（截断处留 id）。 */
+interface BriefPart {
+  readonly text: string
+  readonly shrink?: (limit: number) => string
+}
+
+/** 拼成一张；超过上限时按 order 依次收短能收短的段，最后才动你的原话。 */
+function fitParts(parts: readonly BriefPart[], order: readonly number[], limit: number): string {
+  const join = (texts: readonly string[]): string => texts.filter((text) => text !== '').join('\n\n')
+  const fitted = order.reduce<readonly string[]>(
+    (texts, index) => {
+      const over = join(texts).length - limit
+      const part = parts[index]
+      const current = texts[index] ?? ''
+      if (over <= 0 || part?.shrink === undefined || current === '') return texts
+      const shrink = part.shrink
+      return texts.map((text, at) => (at === index ? shrink(Math.max(PART_MIN, current.length - over)) : text))
+    },
+    parts.map((part) => part.text),
+  )
+  return join(fitted)
+}
+
+function bulletList(title: string, items: readonly string[], limit: number): string {
+  if (items.length === 0) return ''
+  const each = Math.max(PART_MIN, Math.floor(limit / items.length) - 4)
+  return `${title}\n${items.map((item) => `- ${clipCard(item, each, null)}`).join('\n')}`
 }
 
 const REPORT_HOWTO =
   '做完、卡住、做不成都用 report 汇报：做完是 ready（写报告，勾验收项），缺东西做不下去是 blocked（附一个问题），试过做不成是 failed，这一步做完等后续消息是 waiting，看过了不用做是 dismissed；中途想更新任务卡就报 progress。'
 
-/** 交给任务会话的第一条消息：任务说明、交付物、验收项、文件夹和上游结果。 */
+/**
+ * 交给任务会话的第一条消息：任务说明、交付物、验收项、文件夹和上游结果。整张不超过开工说明的上限：
+ * 太长时依次收短上游结果、约定、前提、说明，最后才收短你的原话；截断处都留着 id，能用 read 读回全文。
+ */
 export function composeBrief(task: Task, context: BriefContext): string {
-  const sections = [
-    `[${context.fromName}交给你的任务]`,
-    `任务：${task.title}（${task.id}）`,
-    originLines(task),
-    task.brief === '' ? undefined : `说明：\n${task.brief}`,
-    task.deliverable === '' ? undefined : `交付物：${task.deliverable}`,
-    task.acceptance.length === 0
-      ? '还没有验收项：先按用户的原话列出 2–5 条，作为第一次汇报（report 的 acceptance，状态 progress）。'
-      : `验收项（就绪时在 report 的 checks 里勾上，编号从 1 开始）：\n${numbered(task.acceptance.map((item) => item.text))}`,
-    context.assumptions.length === 0 ? undefined : `已定下的前提：\n${context.assumptions.map((item) => `- ${item}`).join('\n')}`,
-    context.conventions.length === 0 ? undefined : `任务约定（所有子任务都照着做）：\n${context.conventions.map((item) => `- ${item}`).join('\n')}`,
-    context.upstream.length === 0
-      ? undefined
-      : `上游结果：\n${context.upstream
-          .map((item) => `- ${item.title}：${item.summary}${item.files.length === 0 ? '' : `（文件：${item.files.join('、')}）`}`)
-          .join('\n')}`,
-    `任务文件夹：${context.workspaceRoot}/${task.folder}/（过程文件和产出都放这里）`,
-    '开工原因：新任务。',
-    REPORT_HOWTO,
+  const upstream = (limit: number): string => {
+    if (context.upstream.length === 0) return ''
+    const each = Math.max(PART_MIN, Math.floor(limit / context.upstream.length) - 30)
+    const lines = context.upstream.map((item) => `- ${item.title}：${clipCard(item.summary, each, item.taskId ?? null)}${item.files.length === 0 ? '' : `（文件：${item.files.join('、')}）`}`)
+    return `上游结果：\n${lines.join('\n')}`
+  }
+  const parts: readonly BriefPart[] = [
+    { text: `[${context.fromName}交给你的任务]` },
+    { text: `任务：${task.title}（${task.id}）` },
+    { text: originLines(task), shrink: (limit) => originLines(task, limit) },
+    { text: task.brief === '' ? '' : `说明：\n${task.brief}`, shrink: (limit) => `说明：\n${clipCard(task.brief, limit - 4, task.id)}` },
+    { text: task.deliverable === '' ? '' : `交付物：${task.deliverable}` },
+    {
+      text:
+        task.acceptance.length === 0
+          ? '还没有验收项：先按用户的原话列出 2–5 条，作为第一次汇报（report 的 acceptance，状态 progress）。'
+          : `验收项（就绪时在 report 的 checks 里勾上，编号从 1 开始）：\n${numbered(task.acceptance.map((item) => item.text))}`,
+    },
+    { text: bulletList('已定下的前提：', context.assumptions, 600), shrink: (limit) => bulletList('已定下的前提：', context.assumptions, limit) },
+    { text: bulletList('任务约定（所有子任务都照着做）：', context.conventions, 600), shrink: (limit) => bulletList('任务约定（所有子任务都照着做）：', context.conventions, limit) },
+    { text: upstream(CARD_LIMITS.message), shrink: upstream },
+    { text: `任务文件夹：${context.workspaceRoot}/${task.folder}/（过程文件和产出都放这里）` },
+    { text: '开工原因：新任务。' },
+    { text: REPORT_HOWTO },
   ]
-  return sections.filter((section): section is string => section !== undefined).join('\n\n')
+  return fitParts(parts, [8, 7, 6, 3, 2], CARD_LIMITS.kickoff)
 }
 
 export interface RunBriefContext {
@@ -116,7 +153,7 @@ export function runBrief(task: Task, run: TaskRun, context: RunBriefContext): st
         const last = context.lastReport
         return [
           '开工原因：用户让你重试。',
-          last === undefined ? '' : `上次汇报（${REPORT_STATUS_LABELS[last.status]}）：${last.summary}${last.report === '' ? '' : `\n${last.report.slice(0, 1200)}`}`,
+          last === undefined ? '' : `上次汇报 ${last.id}（${REPORT_STATUS_LABELS[last.status]}）：${last.summary}${last.report === '' ? '' : `\n${clipCard(last.report, CARD_LIMITS.report, last.id)}`}`,
         ]
           .filter(Boolean)
           .join('\n')

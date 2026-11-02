@@ -8,6 +8,7 @@ import type { Auditor } from '../core/audit.ts'
 import type { Dispatcher } from '../effects/delivery.ts'
 import { isTicket, type Engine } from '../engine/index.ts'
 import type { TaskService } from './service.ts'
+import { CARD_LIMITS, clipCard } from '../core/cards.ts'
 
 /** 子任务验收没通过最多返工几次。 */
 export const MAX_REWORKS = 2
@@ -278,22 +279,25 @@ export class Subtasks {
     })
   }
 
+  /** 送给组长的汇报：汇报 id、状态、摘要、问题，摘要和问题太长截断留 id；报告全文只给 id。 */
   private noticeText(child: Task, input: SubtaskReport): string | undefined {
     const { report } = input
     const label = this.label(child)
+    const summary = clipCard(report.summary, CARD_LIMITS.report - 200, report.id)
+    const question = clipCard(input.question, 200, report.id)
     switch (report.status) {
       case 'ready': {
         const files = input.files.length === 0 ? '' : `；文件：${input.files.join('、')}`
-        return `[子任务就绪] ${label}：${report.summary}\n报告 ${report.id}（用 read 读全文）${files}\n用 review_subtask 验收：通过，或者写清要改什么打回（最多返工 ${MAX_REWORKS} 次）。`
+        return `[子任务就绪] ${label}：${summary}\n报告 ${report.id}（用 read 读全文）${files}\n用 review_subtask 验收：通过，或者写清要改什么打回（最多返工 ${MAX_REWORKS} 次）。`
       }
       case 'blocked':
         return input.toOwner
-          ? `[子任务等用户] ${label}：${input.question}（已经交给用户处理，用户答复后它接着做）`
-          : `[子任务受阻] ${label}：${report.summary}\n问题：${input.question}\n用 tell_subtask 答复它，它会接着做；也可以改派、自己做或者 stop_subtask 停掉。`
+          ? `[子任务等用户] ${label}：${question}（汇报 ${report.id}，已经交给用户处理，用户答复后它接着做）`
+          : `[子任务受阻] ${label}：${summary}\n问题：${question}\n汇报 ${report.id}。用 tell_subtask 答复它，它会接着做；也可以改派、自己做或者 stop_subtask 停掉。`
       case 'failed':
-        return `[子任务没做成] ${label}：${report.summary}\n你来定：tell_subtask 换个做法再试、改派、自己做，或者 stop_subtask 停掉。`
+        return `[子任务没做成] ${label}：${summary}\n汇报 ${report.id}。你来定：tell_subtask 换个做法再试、改派、自己做，或者 stop_subtask 停掉。`
       case 'dismissed':
-        return `[子任务无需处理] ${label}：${report.summary}`
+        return `[子任务无需处理] ${label}：${summary}（汇报 ${report.id}）`
       default:
         return undefined
     }

@@ -334,6 +334,12 @@ function toTaskEvent(row: TaskEventRow): TaskEvent {
   }
 }
 
+/** 按 id 取一条任务事件（看门狗和诊断里引用的 #12）。 */
+export function getTaskEvent(db: DatabaseSync, id: number): TaskEvent | undefined {
+  const row = db.prepare('SELECT * FROM task_events WHERE id = ?').get(id) as TaskEventRow | undefined
+  return row === undefined ? undefined : toTaskEvent(row)
+}
+
 export function listTaskEvents(db: DatabaseSync, rootId: string): readonly TaskEvent[] {
   const rows = db.prepare('SELECT * FROM task_events WHERE root_id = ? ORDER BY id ASC').all(rootId) as unknown as readonly TaskEventRow[]
   return rows.map(toTaskEvent)

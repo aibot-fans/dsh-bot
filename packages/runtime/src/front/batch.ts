@@ -1,7 +1,8 @@
 import { OWNER, POD, oneLine, truncate, type Room, type RoomMessage } from 'pod-domain'
+import { CARD_LIMITS, clipCard } from '../core/cards.ts'
 
 /** 新消息每条最多带多少字；截断的留 id，用 read 读全文。 */
-export const BATCH_MESSAGE_LIMIT = 600
+export const BATCH_MESSAGE_LIMIT = CARD_LIMITS.message
 
 /** 最近几条（上下文）每条最多多少字。 */
 const RECENT_LIMIT = 160
@@ -34,12 +35,6 @@ export interface BatchInput {
   readonly quoted: (id: string) => RoomMessage | undefined
 }
 
-function clip(text: string, limit: number, id?: string): string {
-  const flat = text.trim()
-  if (flat.length <= limit) return flat
-  return `${flat.slice(0, limit)}…${id === undefined ? '' : `（全文：read ${id}）`}`
-}
-
 function roomHeader(group: BatchRoom): string {
   const { room } = group
   if (room.kind === 'direct') return `== 单聊「${room.title}」（${room.id}）==`
@@ -65,7 +60,7 @@ function itemLine(item: BatchItem, input: BatchInput): string {
           ? `（回复任务卡 ${String(quoted.data.taskId ?? '')}「${quoted.body}」）`
           : `（回复 ${input.speaker(quoted.author)} 的 ${quoted.id}：「${truncate(oneLine(quoted.body), 40)}」）`
   const note = item.note === '' ? '' : `\n  ${item.note}`
-  return `- ${message.id} ${input.speaker(message.author)}${reply}：${clip(message.body, BATCH_MESSAGE_LIMIT, message.id)}${note}`
+  return `- ${message.id} ${input.speaker(message.author)}${reply}：${clipCard(message.body, BATCH_MESSAGE_LIMIT, message.id)}${note}`
 }
 
 /** 送进前台的一批：开头是在忙的任务和攒下的动静，后面按聊天室分组，每组带最近几条和新消息。 */

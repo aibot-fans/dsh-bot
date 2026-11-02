@@ -6,6 +6,7 @@ import type { SessionRegistry } from '../agents/registry.ts'
 import type { BotService } from '../bots/service.ts'
 import type { Engine } from '../engine/index.ts'
 import { isTicket } from '../engine/index.ts'
+import { CARD_LIMITS, clipCard } from '../core/cards.ts'
 import { composeBrief, runBrief } from '../tasks/brief.ts'
 import type { Dispatcher } from './delivery.ts'
 import { Later, type Effects } from './queue.ts'
@@ -124,7 +125,7 @@ export class Launcher {
       // 等别的子任务就绪才开工的：带上它们的结果。
       const upstream = task.dependsOn.flatMap((id) => {
         const before = this.deps.engine.tickets.get(id)
-        return before?.result == null ? [] : [{ title: before.title, summary: before.result.summary, files: before.result.files }]
+        return before?.result == null ? [] : [{ taskId: before.id, title: before.title, summary: before.result.summary, files: before.result.files }]
       })
       return composeBrief(task, { fromName, assumptions, conventions: [], upstream, workspaceRoot: this.deps.workspaceRoot })
     }
@@ -144,7 +145,7 @@ export class Launcher {
           id: message.id,
           author: message.author === OWNER ? '用户' : (this.deps.bots.get(message.author)?.name ?? message.author),
           replyTo: message.replyTo,
-          text: message.body.length > 600 ? `${message.body.slice(0, 600)}…（截断了）` : message.body,
+          text: clipCard(message.body, CARD_LIMITS.message, message.id),
         })),
       )
   }

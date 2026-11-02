@@ -1,5 +1,6 @@
 /**
  * 前台的剧本：消息成批送来（[新消息] 开头，按聊天室分组），每条按内容记去向，一步调一个工具：
+ * - “读一下 id [part=…] [page=…] [size=…]”：先 read，再把读到的 reply 出去。
  * - “交给主管/某某 …”或“委派”：open 开任务（交给谁写谁；成员只能开给自己；标题按关键词取）。
  * - “转达给任务 task_x：…”：forward 转过去，再 reply 一句“接着「…」做”。
  * - “停掉任务 task_x”：stop。
@@ -120,6 +121,14 @@ function stepsFor(item, context) {
     ]
   }
   if (speaker !== '用户') return [reply(item, `（测试模型）我是${self}，收到${speaker}的话：${body.slice(0, 80)}`)]
+  const reading = /读一下 (\S+)(?: part=(\w+))?(?: page=(\d+))?(?: size=(\d+))?/.exec(body)
+  if (reading !== null && tools.has('read')) {
+    const [, target, part, page, size] = reading
+    return [
+      () => ({ tool: 'read', args: { id: target, ...(part === undefined ? {} : { part }), ...(page === undefined ? {} : { page: Number(page) }), ...(size === undefined ? {} : { size: Number(size) }) } }),
+      (result) => ({ tool: 'reply', args: { to: id, purpose: 'answer', text: `读到了：\n${result.slice(0, 3000)}` } }),
+    ]
+  }
   if (/交给|委派/.test(body)) {
     const named = /交给([^\s，。,]+)/.exec(body)?.[1]
     const bot = member || named === undefined ? '自己' : named

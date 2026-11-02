@@ -1,12 +1,13 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { fail, ok, t, type PodResult, type RoomMessage, type RoutedMessage, type Task } from 'pod-domain'
 import { getDelivery, getMessage, getRun, transaction } from 'pod-store'
+import { CARD_LIMITS, clipCard } from '../core/cards.ts'
 import type { Effects } from '../effects/queue.ts'
 import { isTicket } from './facts.ts'
 import type { Topics } from './topics.ts'
 
 /** 直通的消息每条最多带多少字；截断的留着 id，能读回全文。 */
-export const ROUTED_LIMIT = 600
+export const ROUTED_LIMIT = CARD_LIMITS.message
 
 export interface IntakeDeps {
   readonly db: DatabaseSync
@@ -28,8 +29,7 @@ export interface IntakeDeps {
 
 /** 送进任务会话的那条消息：带 id、谁说的、回的是哪条，正文截断。 */
 export function routedOf(message: Pick<RoomMessage, 'id' | 'body' | 'replyTo'>, author: string): RoutedMessage {
-  const text = message.body.length > ROUTED_LIMIT ? `${message.body.slice(0, ROUTED_LIMIT)}…（截断了，按 id 能读全文）` : message.body
-  return { id: message.id, author, replyTo: message.replyTo, text }
+  return { id: message.id, author, replyTo: message.replyTo, text: clipCard(message.body, ROUTED_LIMIT, message.id) }
 }
 
 /**
