@@ -148,7 +148,7 @@ export class RoomService {
     return this.createDirect(lead, { topic: '', pinned: true, incognito: false })
   }
 
-  private createDirect(bot: Bot, options: { readonly topic: string; readonly pinned: boolean; readonly incognito: boolean }): Room {
+  private createDirect(bot: Bot, options: { readonly topic: string; readonly pinned: boolean; readonly incognito: boolean; readonly taskId?: string }): Room {
     const now = this.deps.now()
     const room = transaction(this.db, () => {
       const created = insertRoom(this.db, {
@@ -156,6 +156,7 @@ export class RoomService {
         kind: 'direct',
         title: options.topic === '' ? bot.name : truncate(options.topic, ROOM_TITLE_MAX),
         botId: bot.id,
+        taskId: options.taskId ?? null,
         topic: options.topic,
         pinned: options.pinned,
         incognito: options.incognito,
@@ -166,6 +167,11 @@ export class RoomService {
     })
     this.deps.bus.emit({ type: 'rooms' })
     return room
+  }
+
+  /** 任务单聊：把任务交给这个 bot 时和它另开的一段单聊，标题是任务名，进它的对话记录。 */
+  createTaskChat(bot: Bot, title: string, taskId: string): Room {
+    return this.createDirect(bot, { topic: title, pinned: false, incognito: false, taskId })
   }
 
   /** 你和一个 bot 的每一段对话（单聊），最近的在前；不含临时对话和删掉的。 */
@@ -403,7 +409,8 @@ export class RoomService {
           running: running.get(room.id) ?? 0,
           waits: this.deps.openWaits(room.id),
           memberIds: listRoomMembers(this.db, room.id).map((member) => member.botId),
-          subject: room.kind === 'direct' ? chatSubject(subjects.get(room.id) ?? '') : '',
+          // 任务单聊的题目就是任务名；别的单聊取你说的第一句。
+          subject: room.kind !== 'direct' ? '' : room.taskId !== null && room.topic !== '' ? room.topic : chatSubject(subjects.get(room.id) ?? ''),
         }
       }),
     )

@@ -187,6 +187,8 @@ export interface TaskSnapshot {
   readonly lastReport: TaskReport | null
   /** 挂着的触发器里最近要叫醒的那个；没有是 null。 */
   readonly trigger: TriggerSummary | null
-  /** 任务群（开了子任务的任务才有）：主对话里的任务卡变成进群的入口。 */
+  /** 任务群（几个 bot 一起的任务才有）。 */
   readonly groupRoomId: string | null
+  /** 任务自己的对话（交给别的 bot 时另开的单聊，或者任务群）；就在原来的对话里干的任务是 null。 */
+  readonly conversationId: string | null
 }

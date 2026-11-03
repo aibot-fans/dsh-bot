@@ -1,7 +1,7 @@
 /**
  * 前台的剧本：消息成批送来（[新消息] 开头，按聊天室分组），每条按内容记去向，一步调一个工具：
  * - “读一下 id [part=…] [page=…] [size=…]”：先 read，再把读到的 reply 出去。
- * - “交给主管/某某 …”或“委派”：open 开任务（交给谁写谁；成员只能开给自己；标题按关键词取）。
+ * - “交给主管/某某 …”或“委派”：open 开任务（交给谁写谁；成员只能开给自己；标题按关键词取；说了组个团队再叫上一个成员）。
  * - “转达给任务 task_x：…”：forward 转过去，再 reply 一句“接着「…」做”。
  * - “停掉任务 task_x”：stop。
  * - “谢谢”：ignore。
@@ -140,7 +140,9 @@ function stepsFor(item, context) {
   if (/交给|委派/.test(body)) {
     const named = /交给([^\s，。,]+)/.exec(body)?.[1]
     const bot = member || named === undefined ? '自己' : named
-    return [dispatch(id, { action: 'open', title: openTitle(body), bot, brief: briefOf(body) })]
+    // 组个团队：再叫上名册里另一个 bot，开成任务群。
+    const partner = /组个团队|组队/.test(body) && !member ? context.roster.find((name) => name !== self && name !== bot) : undefined
+    return [dispatch(id, { action: 'open', title: openTitle(body), bot, brief: briefOf(body), ...(partner === undefined ? {} : { members: [partner] }) })]
   }
   if (body.includes('进度') && tools.has('task_status')) return [() => ({ tool: 'task_status', args: {} }), (result) => ({ tool: 'reply', args: { to: id, purpose: 'answer', text: `进度：${result.slice(0, 300)}` } })]
   if (body.includes('记住') && tools.has('remember')) {

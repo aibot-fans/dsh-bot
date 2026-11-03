@@ -16,6 +16,7 @@ import {
   type PodResult,
   type PodSession,
   type ReplyTarget,
+  type Room,
   type RoomMessage,
   type RoutedMessage,
   type Task,
@@ -41,6 +42,7 @@ import {
   openTriggersOf,
   recentOwnerMessages,
   stuckDelivery,
+  taskConversationOf,
   taskRoomOf,
   transaction,
   unansweredOwnerMessages,
@@ -59,6 +61,7 @@ import type { AgentRegistry, MessageSource } from '../dsh.ts'
 import type { Dispatcher } from '../effects/delivery.ts'
 import { isTicket, type Engine } from '../engine/index.ts'
 import type { UsageMeter } from '../usage/meter.ts'
+import { composeBrief } from './brief.ts'
 import { snapshotText } from './snapshot.ts'
 
 /** 给任务的消息连续交不出去几次，任务卡上显示“消息没送到”。 */
@@ -119,7 +122,15 @@ export interface DelegateInput {
   readonly card?: Readonly<Record<string, unknown>>
   /** false：先不排第一次执行（带了触发器，到点再开工）。 */
   readonly start?: boolean
+  /** 任务对话；不给就在派活的对话里干，结果也回在那里。 */
+  readonly conversation?: TaskConversation
 }
+
+/**
+ * 任务对话：chat 和干活的 bot 另开一段单聊，group 开任务群（members 是负责的 bot 以外的成员）。
+ * 不开的（Super-agent 自己干的、你在 bot 单聊里让它干的、例程）就在派活的那段对话里干。
+ */
+export type TaskConversation = { readonly kind: 'chat' } | { readonly kind: 'group'; readonly members: readonly Bot[] }
 
 /** 暂停是停下这次执行；继续开一次新的；停止、取消结束任务；重试再做一次；收下是你验收通过。 */
 export type ControlAction = 'pause' | 'resume' | 'stop' | 'cancel' | 'retry' | 'accept'
@@ -276,12 +287,38 @@ export class TaskService {
       return this.get(id) ?? opened
     })
     this.deps.audit.record('task.delegate', requester.botId, id, { to: bot.id, title: input.title, reason: input.reason })
+    const conversation = input.conversation === undefined ? undefined : this.openConversation(task, bot, input.conversation, requester.botId)
     if (task.roomId !== null) {
-      const card = this.deps.rooms.post(task.roomId, { author: requester.botId, kind: 'task-card', body: input.title, data: { ...input.card, taskId: id, rootId: id } })
+      const card = this.deps.rooms.post(task.roomId, {
+        author: requester.botId,
+        kind: 'task-card',
+        body: input.title,
+        data: { ...input.card, taskId: id, rootId: id, ...(conversation === undefined ? {} : { roomId: conversation.id }) },
+      })
       // 任务卡也是自带的话题：回复、引用任务卡的话直接进任务。
       if (card !== undefined) this.engine.topics.followMessage(id, card.id, 'own')
     }
     return Promise.resolve(ok(task))
+  }
+
+  /**
+   * 开任务对话：建单聊或任务群，整个对话是这个任务的话题（你在里面说的话直接到它）。第一条是派活的 bot 写的交代，
+   * 就是干活的 bot 收到的那条；群里先 @ 负责的 bot（负责的就是派活的 bot 自己时不 @）。
+   */
+  private openConversation(task: Task, owner: Bot, conversation: TaskConversation, author: string): Room {
+    const room =
+      conversation.kind === 'chat'
+        ? this.deps.rooms.createTaskChat(owner, task.title, task.id)
+        : this.deps.rooms.createTaskRoom(task.title, task.id, [owner.id, ...conversation.members.map((member) => member.id)], null)
+    const brief = composeBrief(task, { assumptions: [], conventions: [], upstream: [] })
+    transaction(this.db, () => {
+      // 先有话题再发交代：交代算进话题，回复它的话也直接到任务。
+      this.engine.topics.follow(task.id, this.engine.topics.ensureTeam(room.id, task.id).id, 'own')
+      const body = conversation.kind === 'group' && owner.id !== author ? `@${owner.name} ${brief}` : brief
+      this.deps.rooms.post(room.id, { author, kind: 'text', body, data: { purpose: 'brief', taskId: task.id } })
+      if (conversation.kind === 'group') this.event(task, 'team_room', author, { roomId: room.id, title: room.title })
+    })
+    return room
   }
 
   /** 任务会话所属的任务。 */
@@ -558,6 +595,7 @@ export class TaskService {
       lastReport: latestReport(this.db, task.id) ?? null,
       trigger: this.triggerSummary(task.id),
       groupRoomId: taskRoomOf(this.db, task.rootId)?.id ?? null,
+      conversationId: taskConversationOf(this.db, task.rootId)?.id ?? null,
     }
   }
 

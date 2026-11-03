@@ -18,7 +18,7 @@ export function subtaskTools(pod: PodRuntime, session: PodSession): readonly Too
     name: 'subtask',
     description: [
       '把一部分活派出去：开一个子任务交给某个 bot（也可以写“自己”），它在自己的会话和文件夹里做，跟别的子任务同时跑；',
-      '第一个子任务开出来时 dsh-bot 建任务群、把参与的 bot 拉进来。写标题、说明（要做什么、交什么、放哪）和 1–5 条验收项；',
+      '群里会显示成你 @ 它说要做什么，不在群里的 bot 会拉进群。写标题、说明（要做什么、交什么、放哪）和 1–5 条验收项；',
       '要等另一个子任务就绪再开工，after 写那个子任务的 id。开完立刻返回，子任务的汇报会送给你；都开好了就报 waiting 结束这一轮。',
     ].join(''),
     properties: {

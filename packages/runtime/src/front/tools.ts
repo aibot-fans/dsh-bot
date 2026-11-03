@@ -4,6 +4,7 @@ import { ownerSource, relaySource } from '../agents/messages.ts'
 import type { JsonSchema, ToolDefinition } from '../dsh.ts'
 import { isTicket } from '../engine/index.ts'
 import type { PodRuntime } from '../pod.ts'
+import type { TaskConversation } from '../tasks/service.ts'
 import { bool, failure, oneOf, podTool, str, success, text } from '../tools/define.ts'
 import { TRIGGER_PROPS, readTriggerArgs, sourceFor } from '../tools/triggers.ts'
 
@@ -22,6 +23,8 @@ interface Item {
   readonly bot: string
   /** open 的交代、forward 的完整后续：干活的 bot 在任务对话里看到的那条。 */
   readonly brief: string
+  /** open：一起做的其他成员（写了就开成任务群）。 */
+  readonly members: readonly string[]
   readonly note: string
   readonly task: string
   readonly reason: string
@@ -40,6 +43,7 @@ const ITEM_SCHEMA: JsonSchema = {
     brief: str(
       'open：交代全文，就是干活的 bot 在任务对话里看到的第一条（用户也看得到）。它看不到这边的对话，要单独能看懂：先引用户原话，再写要做成什么、它不知道的背景和用户定过的要求、要弄清的几点、给谁看、要多细；不写怎么做，不写 id、文件夹、验收项。forward：一条完整的后续：用户又说了什么（引原话）、要改什么、哪些不动',
     ),
+    members: { type: 'array', items: { type: 'string' }, description: 'open：要几个 bot 一起做时，写负责的 bot 以外的成员（名字或 id），开成任务群；一个 bot 能做完的不写' },
     task: str('forward、stop：任务 id'),
     reason: str('ignore：一句原因'),
     urgent: bool('open：用户说了急'),
@@ -69,6 +73,7 @@ function readItems(args: Readonly<Record<string, unknown>>): readonly Item[] | s
       title: text(entry, 'title'),
       bot: text(entry, 'bot'),
       brief: text(entry, 'brief'),
+      members: Array.isArray(entry.members) ? entry.members.filter((name): name is string => typeof name === 'string' && name.trim() !== '').map((name) => name.trim()) : [],
       note: text(entry, 'note'),
       task: text(entry, 'task'),
       reason: text(entry, 'reason'),
@@ -115,11 +120,29 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
     return bot
   }
 
+  /** 任务群里负责的 bot 以外的成员；找不到的、成员前台想拉别人的说清为什么。 */
+  const groupMembers = (names: readonly string[], owner: Bot): readonly Bot[] | string => {
+    const found: Bot[] = []
+    for (const name of names) {
+      const self = me()
+      const bot = self !== undefined && (SELF_NAMES.has(name.toLowerCase()) || name === self.name) ? self : pod.bots.resolve(name)
+      if (bot === undefined || bot.archivedAt !== null) return `找不到 bot「${name}」，先用 find_bots 查，或用 create_bot 新建`
+      if (self?.role !== 'lead' && bot.id !== self?.id) return `你只能开给自己；要${bot.name}一起做，请用户找${pod.bots.lead().name}`
+      if (bot.id !== owner.id && !found.some((member) => member.id === bot.id)) found.push(bot)
+    }
+    return found
+  }
+
   const open = async (item: Item, messages: readonly RoomMessage[]): Promise<string> => {
     const bot = target(item.bot)
     if (typeof bot === 'string') return bot
+    const members = groupMembers(item.members, bot)
+    if (typeof members === 'string') return members
     const spec: TriggerSpec | string | undefined = item.trigger === undefined ? undefined : readTriggerArgs(pod, item.trigger)
     if (typeof spec === 'string') return `trigger 写得不对：${spec}`
+    // 任务对话：几个 bot 一起的开任务群，交给别的 bot 的和它另开一段单聊；自己干的、例程就在这里干，结果回在这里。
+    const standing = spec !== undefined && recurring(spec)
+    const conversation: TaskConversation | undefined = standing ? undefined : members.length > 0 ? { kind: 'group', members } : bot.id === session.botId ? undefined : { kind: 'chat' }
     const first = messages[0]
     const room = first === undefined ? undefined : pod.rooms.get(first.roomId)
     if (first === undefined || room === undefined) return '找不到消息所在的聊天室'
@@ -144,8 +167,9 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
       quotes,
       replyTo,
       // 例程（重复的触发器）的任务卡不内联：每次的结果回在卡下面。
-      card: { ...(room.kind === 'direct' && (spec === undefined || !recurring(spec)) ? { inline: true } : {}), ...(spec !== undefined && recurring(spec) ? { standing: true } : {}), ...(pageId === undefined ? {} : { pageId }) },
+      card: { ...(room.kind === 'direct' && !standing ? { inline: true } : {}), ...(standing ? { standing: true } : {}), ...(pageId === undefined ? {} : { pageId }) },
       start: spec === undefined,
+      ...(conversation === undefined ? {} : { conversation }),
     })
     if (!created.ok) return created.error.message
     let when = ''
@@ -160,7 +184,8 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
     transaction(pod.db, () => {
       for (const message of messages) pod.engine.topics.decide(message.id, session.botId, 'opened', created.value.id, item.note)
     })
-    return `开了任务 ${created.value.id}「${created.value.title}」，交给${bot.name}${when}`
+    const where = conversation === undefined ? '' : conversation.kind === 'group' ? `，开了任务群（${[bot, ...members].map((member) => member.name).join('、')}）` : '，和它另开了一段单聊'
+    return `开了任务 ${created.value.id}「${created.value.title}」，交给${bot.name}${where}${when}`
   }
 
   const forward = (item: Item, messages: readonly RoomMessage[], task: Task): string => {

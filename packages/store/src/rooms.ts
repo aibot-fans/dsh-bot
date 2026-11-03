@@ -61,6 +61,14 @@ export function taskRoomOf(db: DatabaseSync, taskId: string): Room | undefined {
   return row === undefined ? undefined : toRoom(row)
 }
 
+/** 任务自己的对话：交给别的 bot 时和它另开的单聊，或者几个 bot 一起的任务群；就在原来的对话里干的任务没有。 */
+export function taskConversationOf(db: DatabaseSync, taskId: string): Room | undefined {
+  const row = db
+    .prepare("SELECT * FROM rooms WHERE task_id = ? AND kind IN ('direct', 'task') AND purged_at IS NULL AND archived_at IS NULL ORDER BY created_at LIMIT 1")
+    .get(taskId) as RoomRow | undefined
+  return row === undefined ? undefined : toRoom(row)
+}
+
 export function findDirectRooms(db: DatabaseSync, botId: string): readonly Room[] {
   const rows = db
     .prepare(

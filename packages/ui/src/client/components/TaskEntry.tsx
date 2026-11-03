@@ -74,8 +74,8 @@ export function GroupChip(props: { readonly roomId: string; readonly title: stri
 }
 
 /**
- * 对话里的任务记号：状态图标加标题，不写用时、花费、进展，也不带按钮。点一下进这个任务的群；
- * 没开群的（单个 bot 做的）打开「过程」。要你定的事是 bot 在对话里说的那句话，按钮挂在那句话后面。
+ * 对话里的任务记号：状态图标加标题，不写用时、花费、进展，也不带按钮。点一下进这个任务的对话（另开的单聊、任务群）；
+ * 就在这里干的打开「过程」。要你定的事是 bot 在对话里说的那句话，按钮挂在那句话后面。
  */
 export function TaskChip(props: { readonly taskId: string; readonly roomId: string }) {
   const app = useApp()
@@ -83,9 +83,9 @@ export function TaskChip(props: { readonly taskId: string; readonly roomId: stri
   if (snapshot === undefined) return <span className="pod-task-chip pod-task-chip-loading">{error ?? t('正在读取任务…')}</span>
   const { task } = snapshot
   const bucket = bucketOf(snapshot)
-  const group = snapshot.groupRoomId ?? null
+  const conversation = snapshot.conversationId ?? null
   const label = bucketLabel(snapshot, bucket)
-  const open = (): void => (group !== null && group !== props.roomId ? app.openRoom(group) : app.openTask(task.id))
+  const open = (): void => (conversation !== null && conversation !== props.roomId ? app.openRoom(conversation) : app.openTask(task.id))
   return (
     <span className="pod-task-chip-wrap">
       <button type="button" className={`pod-task-chip pod-task-chip-${bucket}`} onClick={open} title={label} aria-label={t('{label}：{title}', { label, title: task.title })}>

@@ -19,7 +19,7 @@ import {
   type Wait,
   type WaitKind,
 } from 'pod-domain'
-import { getMessage, getWait, insertWait, listWaits, setRootWaitStatus, setWaitStatus, taskRoomOf, waitsForRoot } from 'pod-store'
+import { getMessage, getWait, insertWait, listWaits, setRootWaitStatus, setWaitStatus, taskConversationOf, waitsForRoot } from 'pod-store'
 import type { Dispatcher } from '../effects/delivery.ts'
 import type { RoomService } from '../chat/rooms.ts'
 import type { Auditor } from '../core/audit.ts'
@@ -74,9 +74,9 @@ export class WaitService {
 
   ask(input: AskInput): Wait {
     const task = input.session.taskId === null ? undefined : this.deps.task(input.session.taskId)
-    // 开了群的根任务在群里问，提醒和未读也落在群上。
-    const group = task === undefined || task.parentId !== null ? undefined : taskRoomOf(this.db, task.id)?.id
-    const roomId = group ?? task?.roomId ?? input.session.roomId
+    // 有任务对话（另开的单聊、任务群）的根任务在那里问，提醒和未读也落在那里。
+    const conversation = task === undefined || task.parentId !== null ? undefined : taskConversationOf(this.db, task.id)?.id
+    const roomId = conversation ?? task?.roomId ?? input.session.roomId
     const wait = insertWait(this.db, {
       id: newId('wait'),
       kind: input.kind,
