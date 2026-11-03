@@ -51,8 +51,7 @@ export class TaskReplies {
 
   /**
    * 结果：一个聊天室一条。任务卡所在的聊天室挂在任务卡下（之后又在那里问过、还没答的，挂在最近那条下面）；
-   * 单聊里任务卡那一行原地变成结果，之前的提问不另外回。别的聊天室里问过的，回在最近一条还没答的下面。
-   * 干活的 bot 不在那个聊天室也照样以它的名义发，看得出是谁做的。
+   * 别的聊天室里问过的，回在最近一条还没答的下面。干活的 bot 不在那个聊天室也照样以它的名义发，看得出是谁做的。
    */
   result(task: Task, author: string, sessionId: string | null, body: (onCard: boolean) => string): number {
     const card = this.deps.cardOf(task.id)
@@ -68,11 +67,8 @@ export class TaskReplies {
         .filter((message): message is RoomMessage => message !== undefined && message.deletedAt === null && (here === undefined || message.seq > here.seq) && !this.answered(message.id))
       const latest = asked.at(-1)
       let anchor: string | null
-      if (here !== undefined) {
-        // 单聊里的内联任务卡原地变成结果；例程、简报这类常开任务的卡不是内联的，每次结果回在卡下面。
-        if (latest === undefined && room.kind === 'direct' && here.data.inline === true) continue
-        anchor = latest?.id ?? here.id
-      } else if (latest !== undefined) anchor = latest.id
+      if (here !== undefined) anchor = latest?.id ?? here.id
+      else if (latest !== undefined) anchor = latest.id
       else if (task.replyTo.some((target) => target.roomId === roomId && target.messageId === null)) anchor = null
       else continue
       this.deps.replies.send({ roomId, author, purpose: 'result', body: body(here !== undefined && anchor === here.id), replyTo: anchor, sessionId, taskId: task.id })
