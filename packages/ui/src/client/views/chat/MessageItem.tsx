@@ -9,13 +9,13 @@ import { Avatar, Button, IconButton, Modal, clock, nameColor } from '../../compo
 import { BotName } from '../../components/GroupMark.tsx'
 import { Icon } from '../../components/Icon.tsx'
 import { useLongPress } from '../../components/longPress.ts'
+import { FoldText } from '../../components/FoldText.tsx'
 import { Markdown } from '../../components/Markdown.tsx'
 import { useTouch } from '../../components/media.ts'
 import type { Mentions } from '../../components/mentions.tsx'
 import { MenuItem, MenuPanel, useMenu } from '../../components/Menu.tsx'
 import { RunSummaryLine } from '../../components/Progress.tsx'
-import { TaskCard } from '../../components/TaskCard.tsx'
-import { GroupChip } from '../../components/TaskEntry.tsx'
+import { GroupChip, TaskChip } from '../../components/TaskEntry.tsx'
 import { useSnapshot } from '../../components/taskParts.tsx'
 import { WaitCard } from '../../components/WaitCard.tsx'
 import { PageCard, PageChip } from '../pages/PageCard.tsx'
@@ -205,11 +205,12 @@ export function MessageItem(props: MessageProps) {
       )
     }
     case 'task-card':
-      // 任务卡也能引用回复：回复它的话直接送进这个任务。
-      // 开了群的任务在群外只是一个进群的入口，子任务在任务群里只占一行（见 TaskCard）。
+      // 任务群里的子任务就是组长 @ 成员说要做什么的一句话，成员的结果回在它下面。
+      if (props.quiet === true && typeof message.data.parentId === 'string') return <SubtaskAsk {...props} taskId={String(message.data.taskId ?? '')} />
+      // 别处只是一行任务记号；也能引用回复：回复它的话直接送进这个任务。
       return (
-        <MessageFrame {...props} owner={false} className="pod-msg-card pod-msg-card-task">
-          <TaskCard taskId={String(message.data.taskId ?? '')} inline={message.data.inline === true} roomId={message.roomId} />
+        <MessageFrame {...props} owner={false} className="pod-msg-card pod-msg-card-chip">
+          <TaskChip taskId={String(message.data.taskId ?? '')} roomId={message.roomId} />
         </MessageFrame>
       )
     case 'browser':
@@ -306,6 +307,42 @@ export function MessageItem(props: MessageProps) {
         {attachment === undefined ? null : <Attachment attachment={attachment} />}
         {run === undefined || !stepsOpen ? null : <RunSummaryLine run={run} />}
         {message.kind === 'kickoff' && typeof message.data.taskId === 'string' ? <KickoffActions taskId={message.data.taskId} /> : null}
+      </div>
+    </MessageFrame>
+  )
+}
+
+/** 任务群里的派活：组长 @ 成员，说要做什么（子任务的标题，说明长的先折起来）；不再单独画一行子任务。 */
+function SubtaskAsk(props: MessageProps & { readonly taskId: string }) {
+  const app = useApp()
+  const { message, bots } = props
+  const { snapshot } = useSnapshot(props.taskId)
+  const lead = bots.get(message.author)
+  const ownerId = snapshot?.task.ownerBotId ?? null
+  const owner = ownerId === null ? undefined : bots.get(ownerId)
+  const name = owner?.name ?? snapshot?.ownerName ?? null
+  const brief = snapshot === undefined || snapshot.task.brief === snapshot.task.title ? '' : snapshot.task.brief
+  const openBot = (): void => {
+    if (lead !== undefined) app.showMember(lead.id)
+  }
+  return (
+    <MessageFrame {...props} owner={false} className="pod-msg">
+      <button type="button" className="pod-msg-avatar" onClick={openBot} aria-label={t('{authorName} 的详情', { authorName: authorName(message.author, bots) })}>
+        <Avatar bot={lead} size={28} />
+      </button>
+      <div className="pod-msg-main">
+        <div className="pod-msg-head">
+          <button type="button" className={`pod-msg-author${lead === undefined ? '' : ' pod-bot-name'}`} style={nameColor(lead)} onClick={openBot}>
+            {authorName(message.author, bots)}
+          </button>
+          <time>{clock(message.createdAt)}</time>
+        </div>
+        <Markdown text={name === null ? message.body : `@${name} ${message.body}`} mentions={props.mentions} />
+        {brief === '' ? null : (
+          <div className="pod-subtask-brief">
+            <FoldText text={brief} limit={160} />
+          </div>
+        )}
       </div>
     </MessageFrame>
   )

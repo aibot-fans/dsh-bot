@@ -9,7 +9,6 @@ import {
   stagesFor,
   t,
   tc,
-  type Bot,
   type Task,
   type TaskActivity,
   type TaskSnapshot,
@@ -22,7 +21,6 @@ import { useResource } from '../state/resource.ts'
 import { Badge, Button, useNow } from './common.tsx'
 import { BotName } from './GroupMark.tsx'
 import { ProgressBlock } from './Progress.tsx'
-import { GroupEntry, SubtaskLine } from './TaskEntry.tsx'
 import { ActionButtons, Delivery, ReportLine, Undelivered, actionsFor, elapsed, isTeamTask, useSnapshot, type ControlAction } from './taskParts.tsx'
 import { TaskQuestion } from './TaskQuestion.tsx'
 import { TriggerLine } from './TriggerLine.tsx'
@@ -129,55 +127,10 @@ function TaskTabs(props: { readonly snapshot: TaskSnapshot }) {
 }
 
 /**
- * 单聊里开的任务：在做时只是一行“在做”和最近一句进展，过程在详情里；做完原地变成结果（标明是谁做的）；
- * 要你处理（验收、答复、重试）时展开成完整的卡。
+ * 「过程」页顶上的任务卡：阶段、分段进度条、验收项、正在做什么、等你的事；
+ * 任务完成后变成交付卡：要点、文件、用时、花费、前提和待确认。对话里只放一行任务记号（见 TaskChip）。
  */
-function InlineTask(props: { readonly snapshot: TaskSnapshot; readonly now: number; readonly control: (action: ControlAction) => void; readonly owner: Bot | undefined }) {
-  const app = useApp()
-  const { snapshot, now } = props
-  const { task } = snapshot
-  const done = task.status === 'done'
-  const details = (
-    <Button small kind="quiet" onClick={() => app.openTask(task.rootId)}>
-      {done ? t('看报告') : t('详情')}
-    </Button>
-  )
-  if (done) {
-    return (
-      <div className="pod-task-inline-done">
-        <Delivery snapshot={snapshot} />
-        <div className="pod-task-inline-meta">
-          {snapshot.ownerName === null ? null : <BotName bot={props.owner} fallback={snapshot.ownerName} size={14} />}
-          <span>{t('「{title}」 · 用时 {elapsed}', { title: task.title, elapsed: elapsed(task, now) })}</span>
-          {details}
-        </div>
-        <Undelivered snapshot={snapshot} />
-      </div>
-    )
-  }
-  return (
-    <div className="pod-task-inline">
-      <span className="pod-task-inline-title">{snapshot.stage === 'scheduled' ? t('等到点：{title}', { title: task.title }) : t('在做：{title}', { title: task.title })}</span>
-      {snapshot.stage === 'scheduled' ? <TriggerLine snapshot={snapshot} /> : <span className="pod-muted-inline">{t('已用')} {elapsed(task, now)}</span>}
-      {snapshot.lastReport !== null && snapshot.lastReport.status === 'progress' && (snapshot.run === null || snapshot.lastReport.createdAt >= snapshot.run.queuedAt) ? (
-        <span className="pod-task-inline-progress">{snapshot.lastReport.summary}</span>
-      ) : null}
-      <span className="pod-task-inline-actions">
-        <Button small kind="quiet" icon="stop" onClick={() => props.control('stop')}>
-          {t('停止')}
-        </Button>
-        {details}
-      </span>
-    </div>
-  )
-}
-
-/**
- * 原地刷新的任务卡：阶段、分段进度条、验收项、正在做什么、等你的事；
- * 任务完成后变成交付卡：要点、文件、用时、花费、前提和待确认。
- * 放在聊天里时（给了 roomId）：开了群的任务在群外只是一个进群的入口，子任务在任务群里只占一行。
- */
-export function TaskCard(props: { readonly taskId: string; readonly compact?: boolean; readonly inline?: boolean; readonly roomId?: string }) {
+export function TaskCard(props: { readonly taskId: string }) {
   const app = useApp()
   const now = useNow(5000)
   const { snapshot, error } = useSnapshot(props.taskId)
@@ -191,15 +144,7 @@ export function TaskCard(props: { readonly taskId: string; readonly compact?: bo
     api.controlTask(task.id, action).catch((reason: unknown) => window.alert(errorText(reason)))
   }
   const owner = bots?.find((bot) => bot.id === task.ownerBotId)
-  // 旧版运行时的快照没有这一项：当作没开群。
-  const group = snapshot.groupRoomId ?? null
-  if (props.roomId !== undefined && group !== null) {
-    if (task.parentId === null && props.roomId !== group) return <GroupEntry snapshot={snapshot} now={now} control={control} owner={owner} />
-    if (task.parentId !== null && props.roomId === group) return <SubtaskLine snapshot={snapshot} now={now} owner={owner} />
-  }
   const sessionId = snapshot.sessionId ?? undefined
-  const inline = props.inline === true && !team && (task.status === 'done' || (snapshot.stage !== 'ended' && stageGroup(snapshot.stage) !== 'attention'))
-  if (inline) return <InlineTask snapshot={snapshot} now={now} control={control} owner={owner} />
   const stageLabel =
     snapshot.stage === 'ended' && task.endReason !== null
       ? t(END_REASON_LABELS[task.endReason])
@@ -234,7 +179,7 @@ export function TaskCard(props: { readonly taskId: string; readonly compact?: bo
           <ReportLine snapshot={snapshot} />
           <TriggerLine snapshot={snapshot} />
           <SegmentBar snapshot={snapshot} />
-          {props.compact === true || snapshot.children.length > 0 || task.acceptance.length === 0 ? null : (
+          {snapshot.children.length > 0 || task.acceptance.length === 0 ? null : (
             <ul className="pod-acceptance">
               {task.acceptance.map((item, index) => (
                 <li key={index} className={item.done ? 'pod-acceptance-done' : ''}>
@@ -271,9 +216,6 @@ export function TaskCard(props: { readonly taskId: string; readonly compact?: bo
             {t('查看过程')}
           </Button>
         )}
-        <Button small kind="quiet" onClick={() => app.openTask(task.rootId)}>
-          {t('详情')}
-        </Button>
         {finished ? null : <TaskTabs snapshot={snapshot} />}
       </div>
     </div>

@@ -2,13 +2,11 @@ import { END_REASON_LABELS, TICKET_STAGE_LABELS, stageGroup, t, type Bot, type T
 import { api } from '../api/endpoints.ts'
 import { useApp } from '../state/app.ts'
 import { useResource } from '../state/resource.ts'
-import { Button } from './common.tsx'
-import { BotName, GroupMark } from './GroupMark.tsx'
+import { GroupMark } from './GroupMark.tsx'
 import { Icon } from './Icon.tsx'
-import { TaskQuestion } from './TaskQuestion.tsx'
-import { ActionButtons, Delivery, ReportLine, Undelivered, actionsFor, elapsed, type ControlAction } from './taskParts.tsx'
+import { Undelivered, useSnapshot } from './taskParts.tsx'
 
-/** 任务对你来说只有四种状态：在做、等你、做完了、结束了（你停掉的、无需处理的）。 */
+/** 任务对你来说只有三种状态：进行中、等你、完成；完成里分做完了和结束了（你停掉的、无需处理的）。 */
 export type TaskBucket = 'working' | 'attention' | 'done' | 'ended'
 
 export function bucketOf(snapshot: TaskSnapshot): TaskBucket {
@@ -29,6 +27,26 @@ export function bucketLabel(snapshot: TaskSnapshot, bucket: TaskBucket): string 
   if (stage === 'idle' && snapshot.children.some((child) => child.endedAt === null)) return t('进行中')
   if (bucket === 'attention' || stage === 'scheduled' || stage === 'idle') return t(TICKET_STAGE_LABELS[stage])
   return t('进行中')
+}
+
+/** 进行中的任务是不是真的在动：排队、在做、等子任务交上来转圈；等到点、等新消息只画一个圈。 */
+function moving(snapshot: TaskSnapshot): boolean {
+  if (snapshot.stage === 'queued' || snapshot.stage === 'running') return true
+  return snapshot.stage === 'idle' && snapshot.children.some((child) => child.endedAt === null)
+}
+
+/** 任务的状态图标：转圈是进行中，红点是等你，勾是完成（你停掉的、无需处理的是灰勾）。 */
+export function TaskStateIcon(props: { readonly snapshot: TaskSnapshot }) {
+  const bucket = bucketOf(props.snapshot)
+  if (bucket === 'attention') return <span className="pod-state-icon pod-state-attention" aria-hidden />
+  if (bucket === 'done' || bucket === 'ended') {
+    return (
+      <span className={`pod-state-icon pod-state-${bucket}`} aria-hidden>
+        <Icon name="check" size={12} />
+      </span>
+    )
+  }
+  return moving(props.snapshot) ? <span className="pod-spinner pod-state-icon" aria-hidden /> : <span className="pod-state-icon pod-state-still" aria-hidden />
 }
 
 function useGroupMembers(roomId: string): readonly Bot[] {
@@ -56,79 +74,25 @@ export function GroupChip(props: { readonly roomId: string; readonly title: stri
 }
 
 /**
- * 主对话里开了群的任务：只放一个进群的入口，一行写清是哪件事、现在怎样，过程都在群里。
- * 要你处理时下面带上要做的事（问题、收下、重试）；做完了原地变成结果。
+ * 对话里的任务记号：状态图标加标题，不写用时、花费、进展，也不带按钮。点一下进这个任务的群；
+ * 没开群的（单个 bot 做的）打开「过程」。要你定的事是 bot 在对话里说的那句话，按钮挂在那句话后面。
  */
-export function GroupEntry(props: { readonly snapshot: TaskSnapshot; readonly now: number; readonly control: (action: ControlAction) => void; readonly owner: Bot | undefined }) {
+export function TaskChip(props: { readonly taskId: string; readonly roomId: string }) {
   const app = useApp()
-  const { snapshot, now } = props
+  const { snapshot, error } = useSnapshot(props.taskId)
+  if (snapshot === undefined) return <span className="pod-task-chip pod-task-chip-loading">{error ?? t('正在读取任务…')}</span>
   const { task } = snapshot
-  const roomId = snapshot.groupRoomId ?? ''
-  const members = useGroupMembers(roomId)
   const bucket = bucketOf(snapshot)
-  const open = (): void => app.openRoom(roomId)
-  if (bucket === 'done') {
-    return (
-      <div className="pod-task-inline-done">
-        <Delivery snapshot={snapshot} />
-        <div className="pod-task-inline-meta">
-          {snapshot.ownerName === null ? null : <BotName bot={props.owner} fallback={snapshot.ownerName} size={14} />}
-          <span>{t('「{title}」 · 用时 {elapsed}', { title: task.title, elapsed: elapsed(task, now) })}</span>
-          <Button small kind="quiet" onClick={open}>
-            {t('进群聊')}
-          </Button>
-          <Button small kind="quiet" onClick={() => app.openTask(task.rootId)}>
-            {t('看报告')}
-          </Button>
-        </div>
-        <Undelivered snapshot={snapshot} />
-      </div>
-    )
-  }
-  const actions = bucket === 'working' ? [] : actionsFor(snapshot)
+  const group = snapshot.groupRoomId ?? null
+  const label = bucketLabel(snapshot, bucket)
+  const open = (): void => (group !== null && group !== props.roomId ? app.openRoom(group) : app.openTask(task.id))
   return (
-    <div className="pod-entry-wrap">
-      <button type="button" className={`pod-entry pod-entry-${bucket}`} onClick={open} title={t('打开这个任务的群聊')}>
-        <span className="pod-entry-dot" aria-hidden />
-        <GroupMark members={members} size={22} />
-        <span className="pod-entry-title">{task.title}</span>
-        <span className="pod-entry-status">
-          {bucketLabel(snapshot, bucket)}
-          {bucket === 'working' && snapshot.stage !== 'scheduled' ? ` · ${elapsed(task, now)}` : ''}
-        </span>
-        <span className="pod-entry-go">
-          {t('进群聊')}
-          <Icon name="forward" size={12} />
-        </span>
+    <span className="pod-task-chip-wrap">
+      <button type="button" className={`pod-task-chip pod-task-chip-${bucket}`} onClick={open} title={label} aria-label={t('{label}：{title}', { label, title: task.title })}>
+        <TaskStateIcon snapshot={snapshot} />
+        <span className="pod-task-chip-title">{task.title}</span>
       </button>
-      {bucket !== 'attention' ? null : <ReportLine snapshot={snapshot} />}
-      {bucket === 'attention' && snapshot.question !== null && snapshot.question !== undefined ? <TaskQuestion wait={snapshot.question} more={Math.max(0, snapshot.waits - 1)} /> : null}
-      {actions.length === 0 ? null : (
-        <div className="pod-task-actions">
-          <ActionButtons actions={actions} control={props.control} />
-        </div>
-      )}
       <Undelivered snapshot={snapshot} />
-    </div>
-  )
-}
-
-/** 任务群里的子任务：一行写谁做哪件、现在怎样；做完的结果是成员回在它下面的话。点开看详情。 */
-export function SubtaskLine(props: { readonly snapshot: TaskSnapshot; readonly now: number; readonly owner: Bot | undefined }) {
-  const app = useApp()
-  const { snapshot, now } = props
-  const { task } = snapshot
-  const bucket = bucketOf(snapshot)
-  const time = bucket === 'working' && snapshot.stage !== 'scheduled' ? ` · ${elapsed(task, now)}` : bucket === 'done' ? ` · ${t('用时')} ${elapsed(task, now)}` : ''
-  return (
-    <button type="button" className={`pod-subtask-line pod-entry-${bucket}`} onClick={() => app.openTask(task.id)} title={t('详情')}>
-      <span className="pod-entry-dot" aria-hidden />
-      {snapshot.ownerName === null ? null : <BotName bot={props.owner} fallback={snapshot.ownerName} size={16} />}
-      <span className="pod-entry-title">{task.title}</span>
-      <span className="pod-entry-status">
-        {bucketLabel(snapshot, bucket)}
-        {time}
-      </span>
-    </button>
+    </span>
   )
 }
