@@ -6,14 +6,13 @@ import { useNarrow } from '../../components/media.ts'
 import { useApp, useNav } from '../../state/app.ts'
 import { useChatWidth } from '../../state/chatWidth.ts'
 import { useResource } from '../../state/resource.ts'
-import { TaskRail } from '../home/TaskRail.tsx'
 import { ChatBody, useChatBots } from './ChatBody.tsx'
 import { ChatHeader } from './ChatHeader.tsx'
 import { PinnedBar } from './PinnedBar.tsx'
 
 /**
  * 中间的对话：顶部是对象（有置顶消息时下面一条置顶条），中间是时间线，底部是输入框；群里不放状态条，状态在群详情里；
- * 宽窄按设置里的“聊天区宽度”。默认打开和主管的单聊。和 Super-agent 的单聊是主对话，右边是任务栏（手机上不放）。
+ * 宽窄按设置里的“聊天区宽度”。默认打开和主管的单聊（主对话）；任务的状态在左侧列表每一行的右边，主对话右边不放任务栏。
  * 进了任务对话，右边默认打开干活的 bot 或任务群的详情（手机上不自动打开）。
  */
 export function Conversation() {
@@ -53,19 +52,11 @@ export function Conversation() {
   }
   const memberIds = (members?.members ?? []).map((member) => member.botId)
   const memberBots = memberIds.map((id) => bots.get(id)).filter((bot): bot is Bot => bot !== undefined)
-  const main = (
+  return (
     <main className={`pod-convo pod-width-${width}`}>
       <ChatHeader room={room} bots={bots} memberIds={memberIds} />
       <PinnedBar room={room} bots={authors} />
       <ChatBody room={room} bots={bots} authors={authors} members={memberBots} lead={lead} />
     </main>
-  )
-  const home = !narrow && lead !== undefined && room.kind === 'direct' && room.botId === lead.id && room.taskId === null
-  if (!home) return main
-  return (
-    <div className="pod-home">
-      {main}
-      <TaskRail />
-    </div>
   )
 }

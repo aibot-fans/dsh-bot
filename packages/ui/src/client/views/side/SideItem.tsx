@@ -3,8 +3,9 @@ import { BOT_NAME_MAX, ROOM_TITLE_MAX, addSidebarFolder, archiveSidebarItem, inp
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { useClipped } from '../../components/clipped.ts'
-import { Avatar, Badge, listTime, nameColor } from '../../components/common.tsx'
+import { Avatar, listTime, nameColor } from '../../components/common.tsx'
 import { GroupMark } from '../../components/GroupMark.tsx'
+import { Icon } from '../../components/Icon.tsx'
 import { useLongPress } from '../../components/longPress.ts'
 import { useNarrow } from '../../components/media.ts'
 import { MenuDivider, MenuItem, MenuPanel, useMenu } from '../../components/Menu.tsx'
@@ -12,11 +13,13 @@ import { RenameInput } from '../../components/RenameInput.tsx'
 import { useApp, useNav } from '../../state/app.ts'
 import type { RowDrag } from './drag.ts'
 import { folderId, type SidebarStore } from './prefs.ts'
+import type { SideStatus } from './sideStatus.ts'
 
 export interface SideItemProps {
   readonly item: SidebarItem
   readonly members: readonly Bot[]
-  readonly busy: boolean
+  /** 它手上任务的状态，见 sideStatus。 */
+  readonly status: SideStatus | null
   readonly collapsed: boolean
   readonly store: SidebarStore
   readonly onError: (message: string) => void
@@ -29,6 +32,38 @@ function UnreadBadge(props: { readonly count: number }) {
   return (
     <span className="pod-side-badge" aria-label={t('{count} 条未读', { count: props.count })}>
       {props.count > 99 ? '99+' : props.count}
+    </span>
+  )
+}
+
+function statusLabel(status: SideStatus, running: number): string {
+  switch (status) {
+    case 'waiting':
+      return t('需要你')
+    case 'failed':
+      return t('有任务没做成')
+    case 'working':
+      return running > 0 ? t('在跑 {count} 个任务', { count: running }) : t('正在工作')
+    case 'done':
+      return t('做完了，还没点开看')
+  }
+}
+
+/** 状态和任务记号、卡片上的图标一样。 */
+const STATUS_CLASS: Readonly<Record<SideStatus, string>> = {
+  waiting: 'pod-state-attention',
+  failed: 'pod-state-failed',
+  working: 'pod-spinner',
+  done: 'pod-state-done',
+}
+
+/** 行右边的状态：转圈在做，红点等你，红叉没做成，绿勾做完了还没点开看；悬停写是什么。 */
+function StatusMark(props: { readonly status: SideStatus; readonly running: number }) {
+  const label = statusLabel(props.status, props.running)
+  const mark = props.status === 'done' ? <Icon name="check" size={9} /> : props.status === 'failed' ? <Icon name="close" size={8} /> : null
+  return (
+    <span className={`pod-side-status pod-state-icon ${STATUS_CLASS[props.status]}`} role="img" aria-label={label} title={label}>
+      {mark}
     </span>
   )
 }
@@ -47,7 +82,8 @@ function previewOf(item: SidebarItem, members: readonly Bot[]): string {
 
 /**
  * 侧栏的一行：点开对话，拖动排顺序；右键（触屏上长按）在那个位置弹出菜单：置顶、改名、移到分组、归档、删除。
- * 主管固定置顶，菜单里没有置顶、移到分组和归档。手机上是两行：名字和时间，下面是最近一条消息和未读。
+ * 主管固定置顶，菜单里没有置顶、移到分组和归档。右边是它手上任务的状态，没有时是未读条数。
+ * 手机上是两行：名字和时间，下面是最近一条消息和状态（或未读）。
  */
 export function SideItem(props: SideItemProps) {
   const app = useApp()
@@ -69,7 +105,6 @@ export function SideItem(props: SideItemProps) {
   const placed = store.prefs.placement[item.key]
   const lead = bot?.role === 'lead'
   const unread = item.rooms.reduce((sum, thread) => sum + (thread.id === nav.roomId ? 0 : thread.unread), 0)
-  const waits = item.rooms.reduce((sum, thread) => sum + thread.waits, 0)
   const drag = renaming ? undefined : props.drag
 
   const run = (work: Promise<unknown>, after?: () => void): void => {
@@ -130,14 +165,9 @@ export function SideItem(props: SideItemProps) {
   const press = useLongPress((x, y) => menu.openAt(x, y), menuable)
   const iconSize = narrow ? 44 : props.collapsed ? 28 : 24
   const icon = item.kind === 'bot' ? <Avatar bot={bot} size={iconSize} /> : <GroupMark members={props.members} size={iconSize} />
-  const flag = waits > 0 && !props.collapsed ? <Badge tone="warn">{t('需要你')}</Badge> : unread > 0 ? <UnreadBadge count={unread} /> : null
-  // 在干活的 bot 和群聊旁亮一个蓝点：有任务在它的对话里跑，或者它正在回答；悬停看在跑几个任务。
+  // 右边一个位置：有任务状态放状态，没有时放未读条数。
   const running = item.rooms.reduce((sum, thread) => sum + (thread.running ?? 0), 0)
-  const working = running > 0 ? t('在跑 {count} 个任务', { count: running }) : t('正在工作')
-  const busy =
-    props.busy || running > 0 ? (
-      <span className="pod-side-busy" role="img" aria-label={working} title={working} />
-    ) : null
+  const flag = props.status !== null ? <StatusMark status={props.status} running={running} /> : unread > 0 ? <UnreadBadge count={unread} /> : null
   const lastAt = item.room?.lastMessageAt ?? null
   return (
     <div
@@ -170,7 +200,6 @@ export function SideItem(props: SideItemProps) {
               <span className={`pod-side-row-title${bot === undefined ? '' : ' pod-bot-name'}`} style={nameColor(bot)}>
                 {title}
               </span>
-              {busy}
               {lastAt === null ? null : <time className="pod-side-row-time">{listTime(lastAt, Date.now())}</time>}
             </span>
             <span className="pod-side-row-line">
@@ -188,7 +217,6 @@ export function SideItem(props: SideItemProps) {
             </span>
           )}
           {flag}
-          {busy}
         </button>
       )}
       <MenuPanel control={menu} label={t('「{title}」的操作', { title })}>

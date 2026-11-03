@@ -28,6 +28,7 @@ import { UpdateButton } from '../update/UpdateButton.tsx'
 import { useSideDrag, type HeadDrag } from './drag.ts'
 import { useSidebarPrefs, type SidebarStore } from './prefs.ts'
 import { SideItem } from './SideItem.tsx'
+import { mostUrgent, roomStatuses, type SideStatus } from './sideStatus.ts'
 
 /** Bot 和群聊默认各显示几条，其余点“更多”。 */
 const SHOWN = 5
@@ -116,7 +117,7 @@ function limit(items: readonly SidebarItem[], expanded: boolean, roomId: string 
 }
 
 /**
- * 左侧栏：顶部是搜索、新对话、临时对话，最右边是收起按钮；下面是概览入口、置顶（主管总在第一个）、你建的分组、Bot、群聊，
+ * 左侧栏：顶部是搜索、新对话、临时对话，最右边是收起按钮；下面是置顶（主管总在第一个）、你建的分组、Bot、群聊，每一行右边是它手上任务的状态，
  * Bot 和群聊默认各显示 5 条，拖动可以排顺序；归档的不在侧栏里，在设置的“归档”里看；最底下是设置，有新版本时旁边有提醒。
  * 手机上它就是列表页：占满整屏、不能收起、全部显示；触屏上不能拖，排顺序用菜单里的置顶和移到分组。
  */
@@ -130,6 +131,7 @@ export function Sidebar() {
   const store = useSidebarPrefs()
   const { data: bots } = useResource(app.cache, 'bots', () => api.bots())
   const { data: rooms } = useResource(app.cache, 'rooms', () => api.rooms())
+  const { data: tasks } = useResource(app.cache, 'tasks', () => api.tasks())
   const [problem, setProblem] = useState<string | undefined>(undefined)
   const [more, setMore] = useState<{ readonly bots: boolean; readonly groups: boolean }>({ bots: false, groups: false })
   const collapsed = nav.sidebarCollapsed && !narrow
@@ -137,6 +139,7 @@ export function Sidebar() {
   const drag = useSideDrag(sections, store, setProblem)
   const byId = new Map((bots ?? []).map((bot) => [bot.id, bot]))
   const lead = (bots ?? []).find((bot) => bot.role === 'lead')
+  const statuses = roomStatuses(rooms ?? [], tasks ?? [], live, nav.roomId)
 
   /** 新对话：和主管开一段空白的新对话，之前的在对话记录里。和别的 bot 开新对话在对话顶部。 */
   const startNew = (): void => {
@@ -155,8 +158,9 @@ export function Sidebar() {
     (section: string) =>
     (item: SidebarItem): ReactNode => {
       const members = item.kind === 'group' ? (item.room?.memberIds ?? []).map((id) => byId.get(id)).filter((bot): bot is Bot => bot !== undefined) : []
-      const busy = item.rooms.some((thread) => live.has(thread.id) || thread.busy)
-      return <SideItem key={item.key} item={item} members={members} busy={busy} collapsed={collapsed} store={store} onError={setProblem} drag={touch ? undefined : drag.row(section, item)} />
+      // bot 的几段对话（和你的单聊、交给它的任务对话）里最要紧的那个。
+      const status = mostUrgent(item.rooms.map((thread) => statuses.get(thread.id)).filter((value): value is SideStatus => value !== undefined))
+      return <SideItem key={item.key} item={item} members={members} status={status} collapsed={collapsed} store={store} onError={setProblem} drag={touch ? undefined : drag.row(section, item)} />
     }
   const moreButton = (hidden: number, expanded: boolean, toggle: () => void): ReactNode =>
     collapsed || (hidden === 0 && !expanded) ? null : (

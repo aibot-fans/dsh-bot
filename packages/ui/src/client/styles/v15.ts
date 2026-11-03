@@ -63,6 +63,14 @@ export const V15_CSS = `
 .pod-activity-minis > .pod-avatar + .pod-avatar { margin-left: -8px; box-shadow: 0 0 0 1.5px var(--pod-bot-bubble); }
 @keyframes pod-shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
 @keyframes pod-dot { 0%, 80%, 100% { opacity: .35; } 40% { opacity: 1; } }
+/* 任务的状态图标：做完是圈住的勾，没做成是圈住的叉，转圈是干活的蓝色；侧栏每一行右边用的是同一套，侧栏收起时贴在头像右上角。 */
+.pod-state-done, .pod-state-ended, .pod-state-failed { border: 1.5px solid currentColor; }
+.pod-state-failed { color: var(--pod-danger); }
+.pod-state-icon .pod-icon { stroke-width: 3.2; }
+.pod-spinner.pod-state-icon { border-color: color-mix(in srgb, var(--pod-working) 22%, transparent); border-top-color: var(--pod-working); }
+.pod-side-collapsed .pod-side-status { position: absolute; top: 3px; right: 4px; margin: 0; box-shadow: 0 0 0 2px var(--pod-side-bg); }
+.pod-side-collapsed .pod-side-status:not(.pod-state-attention) { background: var(--pod-side-bg); }
+
 @media (prefers-reduced-motion: reduce) {
   .pod-activity-text { animation: none; background: none; color: var(--dsw-alias-label-tertiary); }
   .pod-activity-dots i { animation: none; opacity: .6; }

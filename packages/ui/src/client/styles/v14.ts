@@ -1,10 +1,8 @@
 /**
  * 全屏的任务对话：顶上的任务名和下面一行小字、详情收起后留着的任务状态，
- * 右边「详情」最上面的任务和进展；侧栏里在干活的 bot 和群聊旁的蓝点。
+ * 右边「详情」最上面的任务和进展。
  */
 export const V14_CSS = `
-.pod-side-busy { background: var(--pod-working); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pod-working) 18%, transparent); }
-
 .pod-convo-titles { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; line-height: 1.3; text-align: left; }
 .pod-convo-titles strong { max-width: 100%; font-size: 15px; }
 .pod-convo-sub { max-width: 100%; color: var(--dsw-alias-label-tertiary); font-size: 12.5px; font-weight: 400; }

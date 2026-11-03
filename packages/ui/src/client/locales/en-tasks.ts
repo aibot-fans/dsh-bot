@@ -39,7 +39,6 @@ export const UI_EN_TASKS: Readonly<Record<string, string>> = {
   '任务文件夹里还没有文件。': 'No files in the task folder yet.',
   '在跑 {count} 个任务': '{count} tasks running',
   '答复': 'Answer',
-  '现在没有在做的任务。': 'No tasks in progress.',
   '新任务': 'new task',
   '你的新消息': 'your new message',
   '触发器': 'trigger',

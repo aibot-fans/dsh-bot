@@ -24,7 +24,7 @@ export const CHAT_CSS = `
 .pod-live-line { display: inline-flex; align-items: center; gap: 8px; margin-top: 2px; font-size: 12.5px; color: var(--dsw-alias-label-tertiary); }
 .pod-spinner { flex: none; width: 12px; height: 12px; border: 2px solid var(--pod-line); border-top-color: var(--pod-info); border-radius: 50%; corner-shape: round; animation: pod-spin .9s linear infinite; }
 @keyframes pod-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .pod-spinner, .pod-side-busy { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .pod-spinner { animation: none; } }
 .pod-focused > * { animation: pod-flash 2.4s ease-out; border-radius: 10px; }
 @keyframes pod-flash { 0%, 40% { background: color-mix(in srgb, var(--pod-warn) 22%, transparent); } 100% { background: transparent; } }
 .pod-kickoff-actions { display: flex; gap: 6px; margin-top: 6px; }
