@@ -1,5 +1,6 @@
 /**
- * 任务对话：主对话里 Super-agent 那句话下面的任务卡片、转告下面的任务记号，主对话右边的任务栏（照 Comma 主页）。
+ * 任务对话：主对话里 Super-agent 那句话下面的任务卡片、转告下面的任务记号，主对话右边的任务栏（照 Comma 主页），
+ * 点卡片和记号打开的右边小窗。
  */
 export const V13_CSS = `
 .pod-app { --pod-working: var(--dsw-alias-link, #4d6bfe); }
@@ -32,7 +33,7 @@ export const V13_CSS = `
 .pod-task-chip .pod-task-chip-title { font-weight: 600; }
 .pod-task-chip.pod-task-chip-attention { border-color: var(--pod-line); }
 
-.pod-home { display: flex; min-width: 0; min-height: 0; }
+.pod-home { position: relative; display: flex; min-width: 0; min-height: 0; }
 .pod-home > .pod-convo { flex: 1; }
 .pod-rail { flex: none; display: flex; flex-direction: column; width: 288px; min-height: 0; border-left: 1px solid var(--pod-line); background: var(--dsw-alias-bg-layer-1, #fff); }
 .pod-rail-head { flex: none; display: flex; align-items: center; gap: 6px; min-height: 56px; padding: 10px 10px 10px 18px; }
@@ -63,10 +64,24 @@ export const V13_CSS = `
 .pod-rail-unfold:focus-visible { outline: 2px solid var(--pod-info); outline-offset: 1px; }
 .pod-rail-count { position: absolute; top: -3px; right: -5px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--pod-info); color: #fff; font-size: 10.5px; line-height: 16px; text-align: center; }
 .pod-rail-count-ask { background: var(--pod-danger); }
-@media (max-width: 1360px) {
-  .pod-layout-panel .pod-rail { display: none; }
-}
-@media (max-width: 960px) {
-  .pod-rail { display: none; }
-}
+.pod-rail.pod-rail-float { position: absolute; top: 0; right: 0; bottom: 0; z-index: 20; box-shadow: -8px 0 24px color-mix(in srgb, #000 12%, transparent); }
+
+.pod-twin { background: var(--dsw-alias-bg-layer-1, #fff); }
+.pod-twin-head { flex: none; display: flex; align-items: center; gap: 2px; min-height: 56px; padding: 8px 10px; border-bottom: 1px solid var(--pod-line); }
+.pod-twin-tabs { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; margin-right: 4px; overflow-x: auto; scrollbar-width: none; }
+.pod-twin-tabs::-webkit-scrollbar { display: none; }
+.pod-twin-tab { flex: none; display: inline-flex; align-items: center; max-width: 220px; border-radius: 10px; color: var(--dsw-alias-label-secondary); }
+.pod-twin-tab:hover { background: var(--pod-soft); }
+.pod-twin-tab-on, .pod-twin-tab-on:hover { background: color-mix(in srgb, var(--dsw-alias-label-primary) 7%, transparent); color: var(--dsw-alias-label-primary); }
+.pod-twin-tab-main { appearance: none; display: inline-flex; align-items: center; gap: 7px; min-width: 0; padding: 7px 4px 7px 10px; border: 0; border-radius: 10px; background: none; color: inherit; font: inherit; font-size: 13.5px; cursor: pointer; }
+.pod-twin-tab-on .pod-twin-tab-main { font-weight: 600; }
+.pod-twin-tab-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pod-twin-tab-close { appearance: none; flex: none; display: inline-grid; place-items: center; width: 22px; height: 22px; margin-right: 4px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--dsw-alias-label-tertiary); cursor: pointer; }
+.pod-twin-tab-close:hover { background: color-mix(in srgb, var(--dsw-alias-label-primary) 8%, transparent); color: var(--dsw-alias-label-primary); }
+.pod-twin-tab-main:focus-visible, .pod-twin-tab-close:focus-visible { outline: 2px solid var(--pod-info); outline-offset: -2px; }
+.pod-twin-tab .pod-spinner { border-top-color: var(--pod-working); }
+.pod-twin-tab .pod-state-still { border-color: var(--pod-working); }
+.pod-twin-chat { flex: 1; }
+.pod-twin .pod-timeline-inner { padding: 8px 16px 16px; }
+.pod-twin .pod-composer { padding: 0 14px 14px; }
 `

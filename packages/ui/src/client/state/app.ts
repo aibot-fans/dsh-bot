@@ -9,7 +9,8 @@ export type GroupTab = 'details' | 'pages' | 'library' | 'automations' | 'tasks'
 export type SettingsTab = 'general' | 'notes' | 'usage' | 'automations' | 'models' | 'browser' | 'computer' | 'archive' | 'recycle' | 'advanced'
 
 /**
- * 右侧面板：bot 详情、群聊详情、bot 的浏览器、电脑（bot 在用的应用窗口）、页面库，同一时间只开一个。
+ * 右侧面板：bot 详情、群聊详情、bot 的浏览器、电脑（bot 在用的应用窗口）、页面库、任务小窗，同一时间只开一个。
+ * 任务小窗是在对话里点任务卡片或记号打开的任务对话：一个任务一个标签页，taskIds 是开着的几个，active 是正在看的那个。
  * 在群里点成员时 bot 详情带着 from（群的 id）：显示成员卡片，可以返回群聊详情；
  * 从成员卡片点“完整资料”时带着 back（群的 id）：完整资料左上角能返回那张成员卡片。
  * 从群聊或 bot 详情的浏览器页放大看一个网页时，浏览器带着 back（来的那个面板）：左上角和 Esc 回到那里。
@@ -20,6 +21,7 @@ export type PanelState =
   | { readonly kind: 'browser'; readonly tabId: string | null; readonly botId: string | null; readonly roomId?: string; readonly back?: PanelState }
   | { readonly kind: 'computer' }
   | { readonly kind: 'pages' }
+  | { readonly kind: 'tasks'; readonly taskIds: readonly string[]; readonly active: string }
   | null
 
 /** 中间换成页面查看器时看的页面；version 是正在预览的旧版本，不给是最新版。 */
@@ -89,6 +91,9 @@ export interface HostActions {
 }
 
 const NAV_KEY = 'pod-ui.nav.v2'
+
+/** 任务小窗最多同时开这么多个标签页，再开新的把最早开的那个挤掉。 */
+const TASK_TABS_MAX = 8
 
 const CLOSED: Omit<NavState, 'roomId' | 'sidebarCollapsed'> = { panel: null, drawer: null, settings: null, search: null, taskId: null, overview: false, focus: null, page: null, update: false }
 
@@ -260,6 +265,30 @@ export class AppState {
 
   closePanel(): void {
     this.navigate({ panel: null })
+  }
+
+  /** 在右边的任务小窗打开一个任务的对话：小窗开着就多一个标签页（开过的直接切过去），没开就开小窗。 */
+  openTaskWindow(taskId: string): void {
+    const panel = this.nav.panel
+    const open = panel?.kind === 'tasks' ? panel.taskIds : []
+    const taskIds = open.includes(taskId) ? open : [...open, taskId].slice(-TASK_TABS_MAX)
+    this.navigate({ panel: { kind: 'tasks', taskIds, active: taskId } })
+  }
+
+  /** 任务小窗里换到另一个标签页。 */
+  selectTaskTab(taskId: string): void {
+    const panel = this.nav.panel
+    if (panel?.kind === 'tasks' && panel.taskIds.includes(taskId)) this.navigate({ panel: { ...panel, active: taskId } })
+  }
+
+  /** 关掉任务小窗里的一个标签页：关的是正在看的，换到它右边那个（没有就左边那个）；最后一个关掉，小窗也关上。 */
+  closeTaskTab(taskId: string): void {
+    const panel = this.nav.panel
+    if (panel?.kind !== 'tasks') return
+    const index = panel.taskIds.indexOf(taskId)
+    const taskIds = panel.taskIds.filter((id) => id !== taskId)
+    const active = panel.active === taskId ? taskIds[Math.min(index, taskIds.length - 1)] : panel.active
+    this.navigate({ panel: active === undefined ? null : { kind: 'tasks', taskIds, active } })
   }
 
   /** 右侧打开页面库。 */

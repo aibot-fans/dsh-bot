@@ -4,6 +4,7 @@ import { useApp, type AppState } from '../state/app.ts'
 import { useResource } from '../state/resource.ts'
 import { GroupMark } from './GroupMark.tsx'
 import { Icon } from './Icon.tsx'
+import { NARROW_QUERY, matches } from './media.ts'
 import { Undelivered, useSnapshot } from './taskParts.tsx'
 import { TaskPeople, useTaskPeople } from './TaskPeople.tsx'
 
@@ -75,18 +76,19 @@ export function GroupChip(props: { readonly roomId: string; readonly title: stri
 }
 
 /**
- * 打开任务的对话（另开的单聊、任务群）；就在原来的对话里干的、或者正在它自己的对话里，打开「过程」。
- * from 是点的地方所在的对话。
+ * 打开任务的对话（另开的单聊、任务群）。在对话里点的（from 是点的地方所在的对话）在右边小窗打开，手机上直接进去；
+ * 从任务栏这些地方点的（不给 from）整页打开。就在原来的对话里干的、或者正在它自己的对话里，打开「过程」。
  */
 export function openTaskConversation(app: AppState, snapshot: TaskSnapshot, from?: string): void {
   const conversation = snapshot.conversationId ?? null
-  if (conversation !== null && conversation !== from) app.openRoom(conversation)
-  else app.openTask(snapshot.task.id)
+  if (conversation === null || conversation === from) app.openTask(snapshot.task.id)
+  else if (from !== undefined && !matches(NARROW_QUERY)) app.openTaskWindow(snapshot.task.id)
+  else app.openRoom(conversation)
 }
 
 /**
  * 对话里的任务记号：Super-agent 转告问题、交结论的那句话下面挂的，是干活的 bot 的头像加任务名，不写状态、用时、进展。
- * 点一下进这个任务的对话。
+ * 点一下在右边小窗打开这个任务的对话。
  */
 export function TaskChip(props: { readonly taskId: string; readonly roomId: string }) {
   const app = useApp()

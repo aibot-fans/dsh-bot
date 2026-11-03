@@ -49,4 +49,11 @@ export const UI_EN_V4: Readonly<Record<string, string>> = {
   '收起任务栏': 'Hide tasks',
   '{label} {count}': '{label} {count}',
   '任务分组': 'Task groups',
+  '关掉这个标签页': 'Close this tab',
+  '关掉「{title}」': 'Close "{title}"',
+  '任务对话': 'Task chat',
+  '打开的任务': 'Open tasks',
+  '打开任务': 'Open task',
+  '关掉小窗': 'Close side chat',
+  '这个任务没有自己的对话': "This task doesn't have its own chat",
 }

@@ -10,6 +10,7 @@ import { ProgressBlock } from '../../components/Progress.tsx'
 import { isPreparing, useApp, useLive, useNav, usePodEvent, type LiveStatus, type LiveStream } from '../../state/app.ts'
 import { arrange, shownInChat } from './arrange.ts'
 import { MessageItem } from './MessageItem.tsx'
+import { useOpenBot } from './openBot.ts'
 
 const PAGE = 50
 
@@ -181,6 +182,7 @@ export function Timeline(props: TimelineProps) {
   const live = useLive(room.id)
   const app = useApp()
   const nav = useNav()
+  const showBot = useOpenBot()
   const focus = nav.focus?.roomId === room.id ? nav.focus : null
 
   const reloadAll = useCallback(() => {
@@ -313,8 +315,8 @@ export function Timeline(props: TimelineProps) {
   }, [props.followAt])
 
   const mentions = useMemo(
-    () => buildMentions([...props.bots.values()].filter((bot) => bot.archivedAt === null).map((bot) => ({ name: bot.name, bot, onOpen: () => app.showMember(bot.id) }))),
-    [props.bots, app],
+    () => buildMentions([...props.bots.values()].filter((bot) => bot.archivedAt === null).map((bot) => ({ name: bot.name, bot, onOpen: () => showBot(bot.id) }))),
+    [props.bots, showBot],
   )
   const now = Date.now()
   const byId = new Map(messages.map((message) => [message.id, message]))
@@ -368,7 +370,7 @@ export function Timeline(props: TimelineProps) {
         bot={props.bots.get(reply.botId)}
         stream={reply.stream}
         status={reply.status}
-        onOpenBot={() => app.showMember(reply.botId)}
+        onOpenBot={() => showBot(reply.botId)}
         mentions={mentions}
         onReport={() => report(reply.botId)}
         onStop={stopReply}

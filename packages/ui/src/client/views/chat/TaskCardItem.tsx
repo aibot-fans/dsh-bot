@@ -46,7 +46,7 @@ function CardStatus(props: { readonly snapshot: TaskSnapshot }) {
 
 /**
  * Super-agent 开任务时那句话下面的任务卡片：干活的 bot 的头像、任务名、状态；在做的时候第二行写它这一步在做什么，
- * 等你和完成只有一行。点一下打开任务的对话。
+ * 等你和完成只有一行。点一下在右边小窗打开任务的对话。
  */
 export function TaskCardItem(props: { readonly taskId: string; readonly roomId: string }) {
   const app = useApp()

@@ -24,6 +24,7 @@ import { Attachment } from './Attachment.tsx'
 import { calledMentions } from './Calls.tsx'
 import { MessageRoutes } from './MessageRoutes.tsx'
 import { MessageSheet, answerable, regenerable, type SheetView } from './MessageSheet.tsx'
+import { useOpenBot } from './openBot.ts'
 import { RateButtons } from './Rating.tsx'
 import { TaskCardItem } from './TaskCardItem.tsx'
 import { readTurnError, TurnErrorLine } from './TurnErrorLine.tsx'
@@ -101,6 +102,7 @@ function Folded(props: { readonly message: RoomMessage }) {
 /** 时间线里的一条：你的气泡、bot 的发言、一行提示、任务记号、页面卡片、等你处理的那句话或折叠内容。 */
 export function MessageItem(props: MessageProps) {
   const app = useApp()
+  const showBot = useOpenBot()
   // 这一轮的步骤（用时、几步）平时不显示，从消息的“更多”里展开。
   const [stepsOpen, setStepsOpen] = useState(false)
   const { message, bots } = props
@@ -181,7 +183,7 @@ export function MessageItem(props: MessageProps) {
     )
   }
   const openBot = (): void => {
-    if (bot !== undefined) app.showMember(bot.id)
+    if (bot !== undefined) showBot(bot.id)
   }
   const steps = run === undefined ? undefined : { open: stepsOpen, toggle: () => setStepsOpen((value) => !value) }
   return (
@@ -234,7 +236,7 @@ export function MessageItem(props: MessageProps) {
 
 /** 任务群里的派活：组长 @ 成员，说要做什么（子任务的标题，说明长的先折起来）；不再单独画一行子任务。 */
 function SubtaskAsk(props: MessageProps & { readonly taskId: string }) {
-  const app = useApp()
+  const showBot = useOpenBot()
   const { message, bots } = props
   const { snapshot } = useSnapshot(props.taskId)
   const lead = bots.get(message.author)
@@ -243,7 +245,7 @@ function SubtaskAsk(props: MessageProps & { readonly taskId: string }) {
   const name = owner?.name ?? snapshot?.ownerName ?? null
   const brief = snapshot === undefined || snapshot.task.brief === snapshot.task.title ? '' : snapshot.task.brief
   const openBot = (): void => {
-    if (lead !== undefined) app.showMember(lead.id)
+    if (lead !== undefined) showBot(lead.id)
   }
   return (
     <MessageFrame {...props} owner={false} className="pod-msg">

@@ -3,9 +3,10 @@ import { BotPanel } from './BotPanel.tsx'
 import { BrowserPanel } from './BrowserPanel.tsx'
 import { ComputerPanel } from './ComputerPanel.tsx'
 import { GroupPanel } from './GroupPanel.tsx'
+import { TaskWindow } from './TaskWindow.tsx'
 import { PageLibraryPanel } from '../pages/PageLibrary.tsx'
 
-/** 右侧面板：bot 详情（或群里的成员卡片）、群聊详情、bot 的浏览器、电脑、页面库，同一时间只开一个。 */
+/** 右侧面板：bot 详情（或群里的成员卡片）、群聊详情、bot 的浏览器、电脑、页面库、任务小窗，同一时间只开一个。 */
 export function RightPanel() {
   const { panel } = useNav()
   if (panel === null) return null
@@ -20,5 +21,7 @@ export function RightPanel() {
       return <ComputerPanel />
     case 'pages':
       return <PageLibraryPanel />
+    case 'tasks':
+      return <TaskWindow taskIds={panel.taskIds} active={panel.active} />
   }
 }

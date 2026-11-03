@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { t, type Bot, type TaskSnapshot } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { Avatar, IconButton, listTime, useNow } from '../../components/common.tsx'
@@ -20,6 +20,12 @@ const EMPTY_TEXT: Readonly<Record<RailGroup, string>> = { working: '现在没有
 /** 完成和没做成的只列最近这么多件。 */
 const ENDED_SHOWN = 30
 
+/** 任务栏的宽度，和样式里的一致。 */
+const RAIL_WIDTH = 288
+
+/** 旁边的主对话至少要这么宽；放不下（比如右边开着任务小窗）时任务栏自己收成一条，点开浮在主对话上面。 */
+const CHAT_MIN = 520
+
 function loadCollapsed(): boolean {
   try {
     return globalThis.localStorage?.getItem(COLLAPSED_KEY) === '1'
@@ -34,6 +40,21 @@ function saveCollapsed(collapsed: boolean): void {
   } catch {
     // 隐私模式下 localStorage 不可用：这次照样收起，下次打开不记得。
   }
+}
+
+/** 主对话这一块（对话加任务栏）有多宽：跟着窗口、侧栏、右边的面板变。还没量到是 null。 */
+function useHomeWidth(rail: RefObject<HTMLElement>): number | null {
+  const [width, setWidth] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    const home = rail.current?.parentElement
+    if (home === null || home === undefined) return
+    const measure = (): void => setWidth(home.clientWidth)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(home)
+    return () => observer.disconnect()
+  }, [rail])
+  return width
 }
 
 /** 进行中：要你定的在前，再是在动的，再按最近有动静的；完成和没做成按最近的在前。 */
@@ -87,6 +108,7 @@ function RailCard(props: { readonly snapshot: TaskSnapshot; readonly bots: Reado
 /**
  * 主对话右边的任务栏（照 Comma 主页）：底下切换进行中、完成、没做成，一次看一组；来了新任务自己跳到它那一组。
  * 例程、盯网页这类常开任务不放这里。能从边上收起来，收起来时只留一个按钮，有在做的写个数。
+ * 旁边放不下（右边开着任务小窗、窗口窄）时自己收起来，这时点开是浮在主对话上面的，不改你收没收起来的设置。
  */
 export function TaskRail() {
   const app = useApp()
@@ -96,6 +118,26 @@ export function TaskRail() {
   const groups = useMemo(() => arrange(snapshots ?? []), [snapshots])
   const [collapsed, setCollapsed] = useState(loadCollapsed)
   const [group, setGroup] = useState<RailGroup>('working')
+  const rail = useRef<HTMLElement>(null)
+  const floater = useRef<HTMLElement>(null)
+  const width = useHomeWidth(rail)
+  const tight = width !== null && width < RAIL_WIDTH + CHAT_MIN
+  /** 放不下时点开的那个浮着的任务栏。 */
+  const [floating, setFloating] = useState(false)
+  useEffect(() => {
+    if (!tight) setFloating(false)
+  }, [tight])
+  // 浮着的任务栏：点它外面就收回去。
+  useEffect(() => {
+    if (!floating) return
+    const onDown = (event: PointerEvent): void => {
+      const target = event.target as Node | null
+      if (target !== null && (floater.current?.contains(target) === true || rail.current?.contains(target) === true)) return
+      setFloating(false)
+    }
+    document.addEventListener('pointerdown', onDown)
+    return () => document.removeEventListener('pointerdown', onDown)
+  }, [floating])
   // 认得的任务：第一次拉到的不算新来的。
   const known = useRef<ReadonlySet<string> | null>(null)
   useEffect(() => {
@@ -111,23 +153,12 @@ export function TaskRail() {
     setCollapsed(value)
     saveCollapsed(value)
   }
-  if (collapsed) {
-    const asking = groups.working.some((snapshot) => bucketOf(snapshot) === 'attention')
-    return (
-      <aside className="pod-rail pod-rail-collapsed" aria-label={t('任务')}>
-        <button type="button" className="pod-rail-unfold" onClick={() => fold(false)} title={t('展开任务栏')} aria-label={t('展开任务栏')}>
-          <Icon name="tasks" size={16} />
-          {groups.working.length === 0 ? null : <span className={`pod-rail-count${asking ? ' pod-rail-count-ask' : ''}`}>{groups.working.length}</span>}
-        </button>
-      </aside>
-    )
-  }
   const list = groups[group]
-  return (
-    <aside className="pod-rail" aria-label={t('任务')}>
+  const full = (floated: boolean) => (
+    <aside ref={floated ? floater : rail} className={`pod-rail${floated ? ' pod-rail-float' : ''}`} aria-label={t('任务')}>
       <header className="pod-rail-head">
         <strong className="pod-grow">{t('任务')}</strong>
-        <IconButton icon="sidebar" label={t('收起任务栏')} onClick={() => fold(true)} />
+        <IconButton icon="sidebar" label={t('收起任务栏')} onClick={() => (floated ? setFloating(false) : fold(true))} />
       </header>
       <div className="pod-rail-body">
         {snapshots === undefined ? (
@@ -151,5 +182,18 @@ export function TaskRail() {
         })}
       </footer>
     </aside>
+  )
+  if (!collapsed && !tight) return full(false)
+  const asking = groups.working.some((snapshot) => bucketOf(snapshot) === 'attention')
+  return (
+    <>
+      <aside ref={rail} className="pod-rail pod-rail-collapsed" aria-label={t('任务')}>
+        <button type="button" className="pod-rail-unfold" onClick={() => (tight ? setFloating((value) => !value) : fold(false))} title={t('展开任务栏')} aria-label={t('展开任务栏')} aria-expanded={tight ? floating : false}>
+          <Icon name="tasks" size={16} />
+          {groups.working.length === 0 ? null : <span className={`pod-rail-count${asking ? ' pod-rail-count-ask' : ''}`}>{groups.working.length}</span>}
+        </button>
+      </aside>
+      {floating ? full(true) : null}
+    </>
   )
 }
