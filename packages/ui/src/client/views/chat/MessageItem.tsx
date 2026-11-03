@@ -307,14 +307,12 @@ function MessageFrame(props: MessageProps & { readonly owner: boolean; readonly 
 
 /**
  * 消息的操作：平时不显示，鼠标移到消息上时在右上角浮出一小排按钮，不占地方。
- * bot 的回复有复制、引用、重新回答、赞、踩，置顶、这一轮的步骤和查看过程收在“…”里；你自己的消息有复制、引用和“…”。
+ * bot 的回复有复制、引用、重新回答、赞、踩，置顶和这一轮的步骤收在“…”里；你自己的消息有复制、引用和“…”。
  * 触屏上不用它，长按弹出 MessageSheet。
  */
 function MessageActions(props: MessageProps & { readonly owner: boolean; readonly steps?: Steps }) {
-  const app = useApp()
   const { message } = props
   const menu = useMenu('start')
-  const sessionId = message.sessionId
   const reply = answerable(message, props.owner)
   return (
     <div className={`pod-msg-actions${props.owner ? ' pod-msg-actions-owner' : ''}${menu.open ? ' pod-msg-actions-open' : ''}`} role="toolbar" aria-label={t('消息操作')}>
@@ -347,16 +345,6 @@ function MessageActions(props: MessageProps & { readonly owner: boolean; readonl
             onClick={() => {
               menu.close()
               props.steps?.toggle()
-            }}
-          />
-        )}
-        {sessionId === null ? null : (
-          <MenuItem
-            icon="open"
-            label={t('在 dsh 里查看过程')}
-            onClick={() => {
-              menu.close()
-              app.host.openSession(sessionId)
             }}
           />
         )}

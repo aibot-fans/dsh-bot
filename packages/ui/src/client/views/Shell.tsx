@@ -4,7 +4,7 @@ import { api } from '../api/endpoints.ts'
 import { Button } from '../components/common.tsx'
 import { useNarrow } from '../components/media.ts'
 import { TooltipLayer } from '../components/Tooltip.tsx'
-import { AppContext, AppState, useApp, useNav, type HostActions } from '../state/app.ts'
+import { AppContext, AppState, useApp, useNav } from '../state/app.ts'
 import { pruneDrafts } from '../state/drafts.ts'
 import { useKeyboardInset } from '../state/keyboard.ts'
 import { useLanguage, type HostLocale } from '../state/language.ts'
@@ -136,8 +136,8 @@ function Layout() {
 }
 
 /** Pod 页面的外壳：左侧栏、中间对话（或页面查看器）、右侧面板，加上设置弹窗、更新弹窗、搜索和抽屉。没有顶部导航。 */
-export function PodApp(props: { readonly host: HostActions; readonly locale: HostLocale }) {
-  const [app] = useState(() => new AppState(props.host))
+export function PodApp(props: { readonly locale: HostLocale }) {
+  const [app] = useState(() => new AppState())
   useEffect(() => () => app.dispose(), [app])
   // 换语言时整页按新语言重画一遍（导航和数据在 AppState 里，不会丢）。
   const language = useLanguage(app, props.locale)

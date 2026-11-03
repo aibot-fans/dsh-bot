@@ -81,11 +81,6 @@ export function isPreparing(sessionId: string): boolean {
   return sessionId.startsWith('pending:') || sessionId.startsWith('route:')
 }
 
-export interface HostActions {
-  /** 在 dsh 自己的会话视图里打开某条会话（“查看过程”）。 */
-  readonly openSession: (sessionId: string) => void
-}
-
 const NAV_KEY = 'pod-ui.nav.v2'
 
 /** 任务小窗最多同时开这么多个标签页，再开新的把最早开的那个挤掉。 */
@@ -118,7 +113,6 @@ function without<K, V>(map: ReadonlyMap<K, V>, key: K): ReadonlyMap<K, V> {
 export class AppState {
   readonly cache = new ResourceCache()
   readonly events = new PodEvents()
-  readonly host: HostActions
   private nav: NavState = loadNav()
   private readonly navListeners = new Set<() => void>()
   /** 每个对话里每条会话的打字流：群聊里几个 bot 可以同时在说。 */
@@ -129,8 +123,7 @@ export class AppState {
   private readonly roots = new Map<string, string>()
   private readonly stopEvents: () => void
 
-  constructor(host: HostActions) {
-    this.host = host
+  constructor() {
     this.stopEvents = this.events.subscribe((event) => this.handle(event))
     // 先拉一次设置，弹通知时要看开关。
     void this.cache.load('settings', () => api.settings())

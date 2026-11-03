@@ -11,7 +11,6 @@ const PATHS: Readonly<Record<string, string>> = {
   pause: 'M8 6v12M16 6v12',
   play: 'M8 5l11 7-11 7z',
   close: 'M6 6l12 12M18 6L6 18',
-  open: 'M14 5h5v5M19 5l-8 8M18 14v5H5V6h5',
   pin: 'M9 4h6l-1 6 3 3H7l3-3zM12 13v7',
   reply: 'M10 8L5 12l5 4M5 12h9a5 5 0 0 1 5 5',
   history: 'M4 12a8 8 0 1 0 2.3-5.7M4 4v4h4M12 8v4l3 2',

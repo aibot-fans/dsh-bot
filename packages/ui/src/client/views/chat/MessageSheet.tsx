@@ -5,7 +5,6 @@ import { errorText } from '../../api/http.ts'
 import { copyText } from '../../components/clipboard.ts'
 import { Button } from '../../components/common.tsx'
 import { MenuDivider, MenuItem, MenuPanel, type MenuControl } from '../../components/Menu.tsx'
-import { useApp } from '../../state/app.ts'
 import { useRating } from './Rating.tsx'
 
 /** 长按面板的两页：操作列表，和踩的时候写原因。 */
@@ -65,14 +64,12 @@ function DownReason(props: { readonly onSubmit: (reason: string) => void; readon
 
 /**
  * 触屏上长按一条消息弹出的操作（手机上从底下升起）：复制、选择文字、引用回复；
- * bot 的回答还有重新回答、赞、踩；最后是置顶、这一轮的步骤和在 dsh 里查看过程。
+ * bot 的回答还有重新回答、赞、踩；最后是置顶和这一轮的步骤。
  */
 export function MessageSheet(props: MessageSheetProps) {
-  const app = useApp()
   const { control, message } = props
   const rating = useRating(message.roomId, message.id)
   const answer = answerable(message, props.owner)
-  const sessionId = message.sessionId
   const act = (work: () => void): void => {
     control.close()
     work()
@@ -109,7 +106,6 @@ export function MessageSheet(props: MessageSheetProps) {
           <MenuDivider />
           <MenuItem icon={message.pinned ? 'unpin' : 'pin'} label={message.pinned ? t('取消置顶') : t('置顶这条消息')} onClick={() => act(() => void api.pinMessage(message.id, !message.pinned).then(props.onPinned))} />
           {props.steps === undefined ? null : <MenuItem icon="history" label={props.steps.open ? t('收起这一轮的步骤') : t('这一轮的步骤')} onClick={() => act(props.steps?.toggle ?? (() => {}))} />}
-          {sessionId === null ? null : <MenuItem icon="open" label={t('在 dsh 里查看过程')} onClick={() => act(() => app.host.openSession(sessionId))} />}
         </>
       )}
     </MenuPanel>

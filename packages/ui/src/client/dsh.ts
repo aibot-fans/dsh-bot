@@ -2,8 +2,7 @@ import type { ComponentType } from 'react'
 
 /**
  * Pod 页面用到的 dsh 浏览器端服务，写成最小的结构类型。
- * 对应 dsh 0.2.1 的 slots（侧栏面板列表和主区 keyed slot）、
- * dsh-client-ui-layout（ctx.layout）和 dsh-client-ui-workspace（ctx.uiWorkspace）。
+ * 对应 dsh 0.2.1 的 slots（侧栏面板列表和主区 keyed slot）和 dsh-client-ui-layout（ctx.layout）。
  */
 
 export type Disposer = () => void
@@ -34,10 +33,6 @@ export interface Layout {
   selectPanel(id: string | null): void
 }
 
-export interface UiWorkspace {
-  openSession(sessionId: string): void
-}
-
 /** dsh-client-locale 提供的 ctx.locale：dsh 现在的界面语言和变化通知。 */
 export interface LocaleRuntime {
   getLocale(): { readonly active: string }
@@ -48,7 +43,6 @@ export interface ClientContext {
   effect(execute: () => Disposer, label?: string): unknown
   get(name: string): unknown
   readonly slots: Slots
-  readonly uiWorkspace: UiWorkspace
 }
 
 /** 侧栏行图标拿到的 props：外壳决定尺寸。 */

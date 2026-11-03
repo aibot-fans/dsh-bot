@@ -150,7 +150,6 @@ export const UI_EN_CHAT: Readonly<Record<string, string>> = {
   '这条消息的更多操作': 'More actions for this message',
   '取消置顶': 'Unpin',
   '置顶这条消息': 'Pin this message',
-  '在 dsh 里查看过程': 'View the process in dsh',
   '哪里不好？可以不写': 'What was wrong? Optional',
   '踩的原因': 'Reason for thumbs down',
   '提交': 'Submit',

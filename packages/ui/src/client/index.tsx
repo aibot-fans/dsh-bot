@@ -1,5 +1,4 @@
 import { addEnglish } from 'pod-domain'
-import type { HostActions } from './state/app.ts'
 import type { HostLocale } from './state/language.ts'
 import type { ClientContext, Layout, LocaleRuntime } from './dsh.ts'
 import { UI_EN } from './locales/en.ts'
@@ -14,7 +13,7 @@ const PANEL_ID = 'pod'
 /** 在侧栏全局面板里的位置：插件页是 0，定时是 10。 */
 const PANEL_ORDER = 30
 
-export const inject = ['slots', 'uiWorkspace']
+export const inject = ['slots']
 
 function isLayout(value: unknown): value is Layout {
   return typeof value === 'object' && value !== null && typeof (value as Layout).selectPanel === 'function'
@@ -32,14 +31,6 @@ addEnglish(UI_EN)
  */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => injectStyles(), 'pod-ui: styles')
-
-  const host: HostActions = {
-    openSession(sessionId) {
-      ctx.uiWorkspace.openSession(sessionId)
-      const layout = ctx.get('layout')
-      if (isLayout(layout)) layout.selectPanel(null)
-    },
-  }
 
   // dsh 的界面语言（dsh-client-locale）：dsh-bot 的语言设置是“跟随 dsh”时照它显示。
   const locale: HostLocale = {
@@ -61,7 +52,7 @@ export function apply(ctx: ClientContext): void {
     'pod-ui: sidebar entry',
   )
   ctx.effect(
-    () => ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: PANEL_ID, inject: () => ({ host, locale }) }, PodApp)),
+    () => ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: PANEL_ID, inject: () => ({ locale }) }, PodApp)),
     'pod-ui: main panel',
   )
   ctx.effect(
