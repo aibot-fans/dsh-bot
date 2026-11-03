@@ -15,12 +15,15 @@ import {
   type SearchKind,
   type TaskStatus,
 } from 'pod-domain'
-import { getMessage, listAudit, reportsFor, updateHandoverNote } from 'pod-store'
+import { getMessage, listAudit, progressOfTree, reportsFor, updateHandoverNote } from 'pod-store'
 import type { PodRuntime } from '../pod.ts'
 import type { ControlAction } from '../tasks/service.ts'
 import { followViews, taskTimeline } from '../tasks/timeline.ts'
 import { get, post, type RouteSpec } from './router.ts'
 import { overviewOf, routesOf, taskOfMessage, triggerViews } from './views.ts'
+
+/** 任务对话的「进展」最多列几条。 */
+const PROGRESS_LIMIT = 12
 
 /** 设置、bot 管理、回收站、审计和维护这些基础接口。 */
 export function baseRoutes(pod: PodRuntime): readonly RouteSpec[] {
@@ -138,6 +141,11 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
         follows: followViews(pod.db, snapshot.task),
         triggers: triggerViews(pod, snapshot.task.id),
       })
+    }),
+    get('/task/progress', (query) => {
+      const id = readId(query, 'id')
+      const task = id === undefined ? undefined : pod.tasks.get(id)
+      return task === undefined ? fail('not-found', t('找不到这个任务')) : ok(progressOfTree(pod.db, task.rootId, PROGRESS_LIMIT))
     }),
     post('/task/control', (body) => {
       const taskId = readId(body, 'taskId')

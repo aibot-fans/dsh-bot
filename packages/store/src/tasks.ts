@@ -128,17 +128,21 @@ export function openTasksOf(db: DatabaseSync, botId: string): readonly Task[] {
   return rows.map(toTask)
 }
 
-/** 每个聊天室里在跑（进行中、排队中）的任务有几个，侧栏标在聊天室旁；任务群也算上它那个根任务。按缓存的阶段数。 */
+/**
+ * 每个聊天室里在跑（进行中、排队中）的任务有几个，侧栏据此在 bot 和群聊旁亮蓝点。按缓存的阶段数。
+ * 有自己对话的任务（另开的单聊、任务群）连同子任务只算在那个对话上，不算在派活的地方：活是在那里干的。
+ */
 export function runningTasksByRoom(db: DatabaseSync): ReadonlyMap<string, number> {
   const rows = db
     .prepare(
       `SELECT room, COUNT(*) AS n FROM (
-         SELECT room_id AS room FROM tasks
-         WHERE room_id IS NOT NULL AND ended_at IS NULL AND deleted_at IS NULL AND stage_cache IN ('running', 'queued')
-         UNION ALL
-         SELECT r.id AS room FROM rooms r JOIN tasks t ON t.id = r.task_id
-         WHERE t.ended_at IS NULL AND t.deleted_at IS NULL AND t.stage_cache IN ('running', 'queued') AND (t.room_id IS NULL OR t.room_id != r.id)
-       ) GROUP BY room`,
+         SELECT COALESCE(
+           (SELECT r.id FROM rooms r WHERE r.task_id = t.root_id AND r.kind IN ('direct', 'task') AND r.purged_at IS NULL AND r.archived_at IS NULL ORDER BY r.created_at LIMIT 1),
+           t.room_id
+         ) AS room
+         FROM tasks t
+         WHERE t.ended_at IS NULL AND t.deleted_at IS NULL AND t.stage_cache IN ('running', 'queued')
+       ) WHERE room IS NOT NULL GROUP BY room`,
     )
     .all() as unknown as readonly { readonly room: string; readonly n: number }[]
   return new Map(rows.map((row) => [row.room, row.n]))
