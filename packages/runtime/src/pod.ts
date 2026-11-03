@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { join } from 'node:path'
 import { LEAD_BOT_ID, LEAD_PERSONA, OWNER, POD, POD_VERSION, PRIORITY, botFolder, composePersona, roomFolder, fail, sessionBrowses, sessionMakesPages, t, withLanguage, worthSummary, type Bot, type BotStats, type Language, type PodEvent, type PodResult, type PodSession, type Room, type Task, type TaskTeam, type TeamTemplate, triggerSource } from 'pod-domain'
-import { afterCommit, deliveryByMessageId, getMessage, inTransaction, onAfterCommitError, pinnedMessages, raiseProblem, resolveProblem, runningTasksByRoom, taskCardMessage, taskRoomOf, teamsOfBot } from 'pod-store'
+import { afterCommit, deliveryByMessageId, getMessage, inTransaction, onAfterCommitError, pinnedMessages, raiseProblem, resolveProblem, runningTasksByRoom, taskCardMessage, taskConversationOf, taskRoomOf, teamsOfBot } from 'pod-store'
 import { SegmentManager } from './agents/segments.ts'
 import { AibotService } from './aibot/service.ts'
 import { MemoryExtractor } from './memory/extract.ts'
@@ -1178,11 +1178,12 @@ export class PodRuntime {
     return readPageOverHttp(url, this.settings.get().allowedHosts)
   }
 
-  /** 会话发卡片（浏览器、页面）的对话：任务会话没有自己的房间，卡片放进任务的群聊，L1 任务放进发起任务的那个对话。 */
+  /** 会话发卡片（浏览器、电脑、页面）的对话：任务有自己的对话（另开的单聊、任务群）就发在那里，就在原来对话里干的发进开任务的那个对话。 */
   cardRoomOf(session: PodSession): string | null {
     const task = session.taskId === null ? undefined : this.tasks.get(this.tasks.rootOf(session.taskId) ?? session.taskId)
+    const conversation = task === undefined ? undefined : taskConversationOf(this.db, task.id)
     const requester = task?.requesterSession == null ? undefined : this.registry.get(task.requesterSession)
-    return session.roomId ?? task?.roomId ?? requester?.roomId ?? null
+    return session.roomId ?? conversation?.id ?? task?.roomId ?? requester?.roomId ?? null
   }
 
   /** 会话产出文件的文件夹（绝对路径）：任务会话是任务文件夹，其他是会话自己的文件夹。 */
