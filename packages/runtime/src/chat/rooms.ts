@@ -34,6 +34,7 @@ import {
   type RoomMessage,
   type RoomSummary,
   type RunSummary,
+  type TurnProgress,
 } from 'pod-domain'
 import {
   addRoomMember,
@@ -73,11 +74,12 @@ export function chatSubject(text: string, max = 24): string {
   return truncate(oneLine(text).replace(/^\/\S+\s*/, ''), max)
 }
 
-/** 你的话还没交到 bot 手上时，页面上那一行“正在……”在哪个房间、是谁、在做什么。 */
+/** 你的话还没交到 bot 手上时，页面上那一行“正在……”在哪个房间、是谁、在做什么；前台在看这个房间的消息时带上它这一轮的进度。 */
 export interface PreparingState {
   readonly roomId: string
   readonly botId: string
   readonly label: string
+  readonly progress?: TurnProgress | null
 }
 
 export interface RoomServiceDeps {

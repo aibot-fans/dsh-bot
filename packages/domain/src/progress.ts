@@ -106,16 +106,26 @@ export function stopThinking(progress: TurnProgress, at: number): TurnProgress {
   return { ...progress, thinking: null, thinkingSince: null, thoughtMs: progress.thoughtMs + Math.max(0, at - progress.thinkingSince) }
 }
 
-/** 思考流的最后一句（最多 80 字）：最后一截太短就带上前一句。 */
+/** 思考只显示一行：长了留结尾，前面加省略号。 */
+const THOUGHT_CHARS = 140
+
+/** 一行思考去掉 Markdown 的记号：标题、列表、引用的开头，加粗和代码的符号。 */
+function plainThought(line: string): string {
+  return line
+    .replace(/^\s*(?:#{1,6}\s+|[-*+]\s+|>\s*|\d+[.)]\s+)/, '')
+    .replace(/\*\*|__|`/g, '')
+    .trim()
+}
+
+/** 思考流的最后一行（最多 140 字，长了留结尾）：对话最底下那一行灰气泡里显示的就是它。 */
 export function lastThought(text: string): string {
-  const pieces = text
-    .split(/(?<=[。！？!?；;])|\n+|(?<=\.)\s+/)
-    .map((piece) => piece.trim())
-    .filter((piece) => piece !== '')
-  const last = pieces.at(-1) ?? ''
-  const previous = pieces.at(-2)
-  const line = last.length < 8 && previous !== undefined ? `${previous} ${last}` : last
-  return line.length > 80 ? `…${line.slice(-80)}` : line
+  const line =
+    text
+      .split('\n')
+      .map(plainThought)
+      .filter((piece) => piece !== '')
+      .at(-1) ?? ''
+  return line.length > THOUGHT_CHARS ? `…${line.slice(-THOUGHT_CHARS)}` : line
 }
 
 /** 正在想：tail 是思考流最后一段。 */

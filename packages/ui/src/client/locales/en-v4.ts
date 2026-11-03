@@ -61,4 +61,10 @@ export const UI_EN_V4: Readonly<Record<string, string>> = {
   '查看详情': 'View details',
   '给 {name} 发消息，输入 @ 点名别的成员': 'Message {name}, or type @ to address another member',
   '打开它的任务对话': 'Open its task chat',
+  '输入中': 'Typing',
+  '和': ' and ',
+  '{first}等 {count} 个': '{first} and others',
+  '{names}正在处理': '{names} are working on it',
+  '「{title}」进行中': '"{title}" in progress',
+  '「{title}」等 {count} 个任务进行中': '{count} tasks in progress, including "{title}"',
 }

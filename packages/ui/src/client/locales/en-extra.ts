@@ -4,7 +4,6 @@
  */
 export const UI_EN_EXTRA: Readonly<Record<string, string>> = {
   '已完成': 'Done',
-  '还没开始': 'Not started',
   '登录好之后写一句“已登录”就行；不需要写密码': 'After signing in, just write “Signed in”. No password needed',
   '你的答复': 'Your reply',
   '认识 dsh-bot': 'Meet dsh-bot',
@@ -20,8 +19,6 @@ export const UI_EN_EXTRA: Readonly<Record<string, string>> = {
   '再加 web 搜索、工作区读写': 'Plus web search and workspace read/write',
   '再加沙箱 shell；浏览器写操作仍要审批': 'Plus a sandboxed shell; browser write actions still need approval',
   '等你批准': 'Awaiting approval',
-  '汇报一下进展：现在做到哪了、遇到了什么问题、接下来打算怎么做。说完接着做。':
-    'Give me a progress update: where you are now, what problems you have hit, and what you plan to do next. Then keep going.',
   '你说的': 'From you',
   'bot 记下的': 'Noted by a bot',
   '来自网页': 'From the web',

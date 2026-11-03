@@ -37,32 +37,6 @@ export function workLine(snapshot: TaskSnapshot, bots: ReadonlyMap<string, Bot>)
   return snapshot.ownerName === null ? what : t('{name} · {step}', { name: snapshot.ownerName, step: what })
 }
 
-/** 任务对话里正在干活的那个 bot：从什么时候开始的这一轮，这一步在做什么。 */
-export interface WorkingNow {
-  readonly botId: string | null
-  readonly name: string
-  readonly since: number
-  readonly step: string
-}
-
-/**
- * 输入框上面那行「正在处理」写谁：任务自己在跑写负责的 bot；负责的 bot 在等子任务时写正在干活的成员。
- * 这一步写它手上正在做的动作，两步之间写它报的那句进展。没有谁在跑是 undefined。
- */
-export function workingNow(snapshot: TaskSnapshot, bots: ReadonlyMap<string, Bot>): WorkingNow | undefined {
-  const { task, activity } = snapshot
-  if (activity?.running === true) {
-    return { botId: task.ownerBotId, name: snapshot.ownerName ?? t('干活的 bot'), since: activity.progress?.startedAt ?? task.startedAt ?? task.createdAt, step: activity.current ?? task.note }
-  }
-  for (const child of snapshot.children) {
-    const busy = snapshot.childActivity[child.id]
-    const bot = bots.get(child.ownerBotId ?? '')
-    if (child.endedAt !== null || busy?.running !== true || bot === undefined) continue
-    return { botId: bot.id, name: bot.name, since: busy.progress?.startedAt ?? child.startedAt ?? child.createdAt, step: busy.current ?? child.note }
-  }
-  return undefined
-}
-
 /** 任务栏卡片上的那行话：要你定的（红字）、在做的（蓝字）、做完和没做成的（灰字）。 */
 export interface RailLine {
   readonly tone: 'ask' | 'work' | 'quiet'

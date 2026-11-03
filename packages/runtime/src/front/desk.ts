@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { OWNER, POD, PRIORITY, botFolder, t, truncate, oneLine, type Bot, type PodSession, type Room, type RoomMessage, type Task } from 'pod-domain'
+import { OWNER, POD, PRIORITY, botFolder, t, truncate, oneLine, type Bot, type PodSession, type Room, type RoomMessage, type Task, type TurnProgress } from 'pod-domain'
 import { getDelivery, getMessage, lastChatBreak, listMessages, listRoomMembers, missedFrontRoutes, pendingFor, transaction } from 'pod-store'
 import { noticeSource, ownerSource } from '../agents/messages.ts'
 import type { TurnFailure } from '../agents/observer.ts'
@@ -184,9 +184,18 @@ export class FrontDesk {
     for (const entry of left) this.deps.confirm({ roomId: entry.roomId, author: botId, sessionId: entry.sessionId, replyTo: entry.messageId, body: entry.body })
   }
 
-  /** 前台说了话（reply）：这个聊天室的“正在……”收掉。 */
+  /** 前台说了话（reply）：这个聊天室的“正在……”收掉，这一轮后面的进度也不再写到这里。 */
   replied(botId: string, roomId: string): void {
     this.deps.preparing(this.key(botId, roomId), null)
+    const flight = this.flights.get(botId)
+    if (flight !== undefined) this.flights.set(botId, { ...flight, rooms: flight.rooms.filter((id) => id !== roomId) })
+  }
+
+  /** 前台这一轮在想什么、在做哪一步：它在看、还没回话的那几个聊天室最底下那一行跟着变。 */
+  progressed(session: PodSession, label: string, progress: TurnProgress | null): void {
+    const flight = this.flightOf(session)
+    if (flight === undefined) return
+    for (const roomId of flight.rooms) this.deps.preparing(this.key(session.botId, roomId), { roomId, botId: session.botId, label: label === '' ? t('看消息') : label, progress })
   }
 
   private key(botId: string, roomId: string): string {

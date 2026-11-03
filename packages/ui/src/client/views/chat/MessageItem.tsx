@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { OWNER, POD, isUploadNote, readRunSummary, t, type Bot, type RoomMessage } from 'pod-domain'
+import { OWNER, POD, isUploadNote, t, type Bot, type RoomMessage } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { copyText } from '../../components/clipboard.ts'
@@ -12,7 +12,6 @@ import { Markdown } from '../../components/Markdown.tsx'
 import { useTouch } from '../../components/media.ts'
 import type { Mentions } from '../../components/mentions.tsx'
 import { MenuItem, MenuPanel, useMenu } from '../../components/Menu.tsx'
-import { RunSummaryLine } from '../../components/Progress.tsx'
 import { decidedText } from '../../components/TaskDecision.tsx'
 import { GroupChip, TaskChip } from '../../components/TaskEntry.tsx'
 import { useSnapshot } from '../../components/taskParts.tsx'
@@ -101,8 +100,6 @@ function Folded(props: { readonly message: RoomMessage }) {
 /** 时间线里的一条：你的气泡、bot 的发言、一行提示、任务记号、页面卡片、等你处理的那句话或折叠内容。 */
 export function MessageItem(props: MessageProps) {
   const showBot = useOpenBot()
-  // 这一轮的步骤（用时、几步）平时不显示，从消息的“更多”里展开。
-  const [stepsOpen, setStepsOpen] = useState(false)
   const { message, bots } = props
   switch (message.kind) {
     case 'notice': {
@@ -157,8 +154,6 @@ export function MessageItem(props: MessageProps) {
   const pageId = typeof message.data.pageId === 'string' ? message.data.pageId : undefined
   const xEvent = readXEvent(message.data.xEvent)
   const decided = decidedText(message.data.decided)
-  // 这一轮跑完记下的执行过程：用时、几步，点开看每一步。
-  const run = readRunSummary(message.data.run)
   const quote =
     quoted === undefined ? null : (
       <div className="pod-quote">
@@ -183,9 +178,8 @@ export function MessageItem(props: MessageProps) {
   const openBot = (): void => {
     if (bot !== undefined) showBot(bot.id)
   }
-  const steps = run === undefined ? undefined : { open: stepsOpen, toggle: () => setStepsOpen((value) => !value) }
   return (
-    <MessageFrame {...props} owner={false} steps={steps} className="pod-msg">
+    <MessageFrame {...props} owner={false} className="pod-msg">
       <button type="button" className="pod-msg-avatar" onClick={openBot} aria-label={t('{authorName} 的详情', { authorName: authorName(message.author, bots) })}>
         <Avatar bot={bot} size={28} />
       </button>
@@ -216,7 +210,6 @@ export function MessageItem(props: MessageProps) {
         ) : null}
         {/* 以前在这句话后面点过的“收下”“重试”这些，留一行小字。 */}
         {decided === undefined ? null : <div className="pod-ask-done">{decided}</div>}
-        {run === undefined || !stepsOpen ? null : <RunSummaryLine run={run} />}
         {message.kind === 'kickoff' && typeof message.data.taskId === 'string' ? <KickoffActions taskId={message.data.taskId} /> : null}
       </div>
     </MessageFrame>
@@ -259,17 +252,11 @@ function SubtaskAsk(props: MessageProps & { readonly taskId: string }) {
   )
 }
 
-/** 这一轮记下的执行过程：从“更多”里展开或收起。 */
-interface Steps {
-  readonly open: boolean
-  readonly toggle: () => void
-}
-
 /**
  * 你的或 bot 的一条消息的外框。有鼠标时操作是悬停浮出的一小排按钮；
  * 触屏上没有悬停，长按弹出操作面板（手机上从底下升起），按着的那条垫一层底色。
  */
-function MessageFrame(props: MessageProps & { readonly owner: boolean; readonly className: string; readonly children: ReactNode; readonly steps?: Steps }) {
+function MessageFrame(props: MessageProps & { readonly owner: boolean; readonly className: string; readonly children: ReactNode }) {
   const touch = useTouch()
   const [view, setView] = useState<SheetView>('main')
   const [selecting, setSelecting] = useState(false)
@@ -282,7 +269,7 @@ function MessageFrame(props: MessageProps & { readonly owner: boolean; readonly 
     <div className={`${props.className}${touch && menu.open ? ' pod-msg-pressed' : ''}`} {...press}>
       {props.children}
       {touch ? (
-        <MessageSheet control={menu} view={view} onView={setView} message={props.message} owner={props.owner} onReply={props.onReply} onPinned={props.onPinned} onSelect={() => setSelecting(true)} steps={props.steps} />
+        <MessageSheet control={menu} view={view} onView={setView} message={props.message} owner={props.owner} onReply={props.onReply} onPinned={props.onPinned} onSelect={() => setSelecting(true)} />
       ) : (
         <MessageActions {...props} />
       )}
@@ -297,10 +284,10 @@ function MessageFrame(props: MessageProps & { readonly owner: boolean; readonly 
 
 /**
  * 消息的操作：平时不显示，鼠标移到消息上时在右上角浮出一小排按钮，不占地方。
- * bot 的回复有复制、引用、重新回答、赞、踩，置顶和这一轮的步骤收在“…”里；你自己的消息有复制、引用和“…”。
+ * bot 的回复有复制、引用、重新回答、赞、踩，置顶收在“…”里；你自己的消息有复制、引用和“…”。
  * 触屏上不用它，长按弹出 MessageSheet。
  */
-function MessageActions(props: MessageProps & { readonly owner: boolean; readonly steps?: Steps }) {
+function MessageActions(props: MessageProps & { readonly owner: boolean }) {
   const { message } = props
   const menu = useMenu('start')
   const reply = answerable(message, props.owner)
@@ -328,16 +315,6 @@ function MessageActions(props: MessageProps & { readonly owner: boolean; readonl
             void api.pinMessage(message.id, !message.pinned).then(props.onPinned)
           }}
         />
-        {props.steps === undefined ? null : (
-          <MenuItem
-            icon="history"
-            label={props.steps.open ? t('收起这一轮的步骤') : t('这一轮的步骤')}
-            onClick={() => {
-              menu.close()
-              props.steps?.toggle()
-            }}
-          />
-        )}
       </MenuPanel>
     </div>
   )

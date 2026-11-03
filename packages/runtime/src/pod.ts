@@ -84,7 +84,7 @@ const PREPARING_MAX_MS = 2 * 60_000
 
 /** “正在……”按实时动态发给页面：还在挑人时 botId 是空串。 */
 function preparingEvent(key: string, state: PreparingState, running: boolean): PodEvent {
-  return { type: 'activity', sessionId: key, taskId: null, roomId: state.roomId, botId: state.botId, running, label: state.label, progress: null }
+  return { type: 'activity', sessionId: key, taskId: null, roomId: state.roomId, botId: state.botId, running, label: state.label, progress: state.progress ?? null }
 }
 
 export interface PodRuntimeOptions {
@@ -984,28 +984,40 @@ export class PodRuntime {
     return this.options.dataRoot
   }
 
-  /** 实时动态事件：聊天会话带上房间、是否在跑和正在做的事，页面直接显示“正在……”。 */
+  /**
+   * 实时动态事件：带上房间、是否在跑、正在做的事和这一轮的进度，页面在那个对话最底下写一行“正在……”。
+   * 聊天会话是它的聊天室；任务和协调会话是任务自己的对话，就在原来对话里干的是开任务的那个对话。
+   */
   private activityEvent(session: PodSession): PodEvent {
     const current = this.registry.get(session.id) ?? session
     const activity = this.observer.activityOf(current.id)
+    const roomId = current.kind === 'chat' ? current.roomId : current.kind === 'task' || current.kind === 'coord' ? this.cardRoomOf(current) : null
     return {
       type: 'activity',
       sessionId: current.id,
       taskId: current.taskId,
-      roomId: current.kind === 'chat' ? current.roomId : null,
+      roomId,
       botId: current.botId,
       running: activity?.running === true,
       label: activity?.current ?? '',
-      ...(current.kind === 'chat' ? { progress: activity?.progress ?? null } : {}),
+      ...(roomId === null ? {} : { progress: activity?.progress ?? null }),
     }
+  }
+
+  /** 推一次实时动态；前台会话没有自己的房间，它在看的那几个聊天室的“正在……”跟着它这一轮的进度变。 */
+  private publishActivity(session: PodSession): void {
+    this.bus.emit(this.activityEvent(session))
+    if (session.kind !== 'front') return
+    const activity = this.observer.activityOf(session.id)
+    if (activity?.running === true) this.front.progressed(session, activity.current ?? '', activity.progress ?? null)
   }
 
   private emitActivity(session: PodSession): void {
     if (this.activityTimers.has(session.id)) return
-    this.bus.emit(this.activityEvent(session))
+    this.publishActivity(session)
     const timer = setTimeout(() => {
       this.activityTimers.delete(session.id)
-      this.bus.emit(this.activityEvent(session))
+      this.publishActivity(session)
     }, ACTIVITY_THROTTLE_MS)
     timer.unref()
     this.activityTimers.set(session.id, timer)

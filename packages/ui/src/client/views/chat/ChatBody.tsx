@@ -6,7 +6,6 @@ import { isPreparing, useApp, useLive } from '../../state/app.ts'
 import { readDraft, saveDraftReply } from '../../state/drafts.ts'
 import { useResource } from '../../state/resource.ts'
 import { Composer } from './Composer.tsx'
-import { TaskWorking } from './TaskWorking.tsx'
 import { Timeline } from './Timeline.tsx'
 
 /**
@@ -70,7 +69,6 @@ export function ChatBody(props: ChatBodyProps) {
   return (
     <>
       <Timeline room={room} bots={props.authors} members={props.members} onReply={chooseReply} readSeqAtOpen={readAtOpen?.roomId === room.id ? readAtOpen.seq : room.readSeq} followAt={sentAt} />
-      {room.taskId === null ? null : <TaskWorking taskId={room.taskId} bots={props.bots} />}
       <Composer
         key={room.id}
         room={room}

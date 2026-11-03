@@ -30,8 +30,6 @@ export interface MessageSheetProps {
   readonly onPinned: (message: RoomMessage) => void
   /** 打开能自己选一段的原文。 */
   readonly onSelect: () => void
-  /** 这一轮记下了执行过程：展开或收起它的步骤（平时不显示）。 */
-  readonly steps?: { readonly open: boolean; readonly toggle: () => void }
 }
 
 /** 踩的原因：可以不写，直接提交。 */
@@ -105,7 +103,6 @@ export function MessageSheet(props: MessageSheetProps) {
           ) : null}
           <MenuDivider />
           <MenuItem icon={message.pinned ? 'unpin' : 'pin'} label={message.pinned ? t('取消置顶') : t('置顶这条消息')} onClick={() => act(() => void api.pinMessage(message.id, !message.pinned).then(props.onPinned))} />
-          {props.steps === undefined ? null : <MenuItem icon="history" label={props.steps.open ? t('收起这一轮的步骤') : t('这一轮的步骤')} onClick={() => act(props.steps?.toggle ?? (() => {}))} />}
         </>
       )}
     </MenuPanel>

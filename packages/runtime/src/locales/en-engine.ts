@@ -13,6 +13,10 @@ export const RUNTIME_EN_ENGINE: Readonly<Record<string, string>> = {
   '另一个 dsh-bot（进程 {pid}）正在用同一份数据，这里只读，免得两边同时写。关掉那一个以后重启 dsh web。':
     'Another dsh-bot (process {pid}) is using the same data, so this one is read-only to avoid two writers. Close the other one, then restart dsh web.',
   '更新任务卡': 'Updating the task card',
+  '安排消息的去向': 'Routing the messages',
+  '回复': 'Replying',
+  '给任务补一句': 'Adding a note to the task',
+  '让任务不再跟进话题': 'Unfollowing a topic for the task',
   '汇报：等后续消息': 'Reporting: waiting for messages',
   '汇报没做成': 'Reporting a failure',
   '汇报无需处理': 'Reporting not needed',

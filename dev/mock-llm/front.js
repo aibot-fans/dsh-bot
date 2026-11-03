@@ -14,11 +14,19 @@
  * - “拉个群「…」”：create_group（只有 Super-agent 有），再 reply。
  * - “每天”：open 开一个挂着“每天 08:00”触发器的常开任务（例程），任务卡放在这个聊天室。
  * - “测试漏掉”：一直不记去向（追问一次，再没有就记成漏掉）；“测试追问”：第一次不记，被追问后再答。
+ * - 话里有“想一想”：第一步之前先想一会儿（思考流一点点吐），主对话最底下那一行写着想的最后一句。
  * - 其余：reply 直接答。
  * 这一批的工具都调完了，说一句收尾（前台的文字不发到聊天室）。
  */
 
 import { wantedKind } from './pages.js'
+
+/** “想一想”时前台想的内容：几行，最后一行带 Markdown 记号，页面上应该只显示去掉记号的最后一行。 */
+const THINK = [
+  '用户想知道 10 月的订单一共有多少，还要和 9 月比一比。',
+  '上次导出过 9 月的数据，放在任务文件夹里；10 月的还没有导出过，得重新跑一遍。',
+  '- **这件事要跑命令、要等一会儿**，交给对口的 bot 去做比较稳妥，我先回一句交代清楚。',
+].join('\n')
 
 const BATCH_HEAD = '[新消息]'
 const RELAY_HEAD = '[转告]'
@@ -217,5 +225,6 @@ export function frontDecision(context) {
   if (!nudged && !retry && !userText.startsWith(BATCH_HEAD)) return { text: '（前台）收到。' }
   const next = steps[context.calls]
   if (next === undefined) return { text: steps.length === 0 ? '（前台）这批先不处理。' : '（前台）这批处理完了。' }
-  return next(context.result)
+  const decision = next(context.result)
+  return context.calls === 0 && items.some((item) => item.body.includes('想一想')) ? { ...decision, think: THINK } : decision
 }

@@ -55,7 +55,7 @@ export const MOBILE_CSS = `
   .pod-convo { padding-bottom: var(--pod-keyboard, 0px); }
 
   .pod-timeline-inner { padding: 8px 12px 16px; }
-  .pod-msg-card, .pod-line, .pod-folded, .pod-msg-routing { padding-left: 0; }
+  .pod-msg-card, .pod-line, .pod-folded { padding-left: 0; }
   .pod-msg-card > * { max-width: 100%; }
   .pod-bubble { max-width: 88%; }
   .pod-jump-latest { bottom: 12px; width: 44px; height: 44px; }
@@ -64,7 +64,6 @@ export const MOBILE_CSS = `
   .pod-composer-row .pod-icon-button, .pod-send { width: 40px; height: 40px; }
   .pod-mentions { left: 8px; right: 8px; width: auto; }
   .pod-mentions button { min-height: 44px; font-size: 15px; }
-  .pod-progress { max-width: none; }
 
   .pod-panel, .pod-panel-wide { left: 0; width: auto; border-left: 0; box-shadow: none; }
   .pod-panel-top { padding: 6px 8px 0; }

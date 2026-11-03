@@ -2,12 +2,13 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { OWNER, intlLocale, isTemporaryRoom, t, type Bot, type Room, type RoomMessage } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
-import { Avatar, clock, nameColor } from '../../components/common.tsx'
+import { Avatar, clock } from '../../components/common.tsx'
 import { Icon } from '../../components/Icon.tsx'
-import { Markdown } from '../../components/Markdown.tsx'
-import { buildMentions, type Mentions } from '../../components/mentions.tsx'
-import { ProgressBlock } from '../../components/Progress.tsx'
-import { isPreparing, useApp, useLive, useNav, usePodEvent, type LiveStatus, type LiveStream } from '../../state/app.ts'
+import { buildMentions } from '../../components/mentions.tsx'
+import { isMoving } from '../../components/TaskEntry.tsx'
+import { isPreparing, useApp, useLive, useNav, usePodEvent } from '../../state/app.ts'
+import { useResource } from '../../state/resource.ts'
+import { ActivityLine, type Responding } from './ActivityLine.tsx'
 import { arrange, shownInChat } from './arrange.ts'
 import { MessageItem } from './MessageItem.tsx'
 import { useOpenBot } from './openBot.ts'
@@ -107,48 +108,6 @@ function Intro(props: { readonly room: Room; readonly bots: ReadonlyMap<string, 
   )
 }
 
-/** bot 正在回答：有文字就显示正在输入的文字，还没有文字就显示它在做什么。 */
-/** 「让它汇报」发出去的话：说完接着做，不是让它停下。 */
-const REPORT_ASK = '汇报一下进展：现在做到哪了、遇到了什么问题、接下来打算怎么做。说完接着做。'
-
-function LiveReply(props: {
-  readonly bot: Bot | undefined
-  readonly stream: LiveStream | undefined
-  readonly status: LiveStatus | undefined
-  readonly onOpenBot: () => void
-  readonly mentions: Mentions
-  readonly onReport: () => void
-  readonly onStop: () => void
-}) {
-  const label = props.status === undefined ? '' : props.status.label
-  return (
-    <div className="pod-msg pod-msg-live" aria-live="polite">
-      <button type="button" className="pod-msg-avatar" onClick={props.onOpenBot} aria-label={t('{value} 的详情', { value: props.bot?.name ?? 'bot' })}>
-        <Avatar bot={props.bot} size={28} />
-      </button>
-      <div className="pod-msg-main">
-        <div className="pod-msg-head">
-          <button type="button" className={`pod-msg-author${props.bot === undefined ? '' : ' pod-bot-name'}`} style={nameColor(props.bot)} onClick={props.onOpenBot}>
-            {props.bot?.name ?? 'bot'}
-          </button>
-        </div>
-        {props.stream === undefined ? null : <Markdown text={props.stream.text} mentions={props.mentions} />}
-        <ProgressBlock progress={props.status?.progress ?? null} label={label} streaming={props.stream !== undefined} onReport={props.onReport} onStop={props.onStop} />
-      </div>
-    </div>
-  )
-}
-
-/** 普通群聊没点名、还在挑谁来接：没有头像和名字，只有一行“正在找合适的成员来接”。 */
-function RoutingReply(props: { readonly label: string }) {
-  return (
-    <div className="pod-msg pod-msg-live pod-msg-routing" aria-live="polite">
-      <span className="pod-spinner" aria-hidden />
-      <span>{t('正在{label}', { label: props.label })}</span>
-    </div>
-  )
-}
-
 export interface TimelineProps {
   readonly room: Room
   readonly bots: ReadonlyMap<string, Bot>
@@ -164,8 +123,8 @@ export interface TimelineProps {
 /**
  * 时间线：一次加载 50 条，往上滚加载更早的，往下滚到头时补上更新的；新消息按 id 合并进来（卡片原地更新也是同一条）。
  * 在底部附近时新消息自动滚到底；你发出消息时不管翻到哪都回到最新。往上翻远了底部中间出现圆形的“回到最新”，角上是这期间来的新消息条数。
- * bot 在回答时显示它正在做什么和正在输入的文字。群聊里“开新对话”留下一条分隔线，以前单聊这样留下的也照常显示。
- * 同一段回复里先显示文字，页面、任务卡这些卡片和状态行放在下面（见 arrange）；bot 还在回答时，正在输入的文字也排在这段的卡片上面。
+ * bot 在回答时最底下一行灰气泡写它这一刻在做什么（见 ActivityLine），说完整条回复一下子出来，不一个字一个字地打。
+ * 群聊里“开新对话”留下一条分隔线，以前单聊这样留下的也照常显示。同一段回复里先显示文字，页面、任务卡这些卡片和状态行放在下面（见 arrange）。
  */
 export function Timeline(props: TimelineProps) {
   const { room } = props
@@ -184,6 +143,12 @@ export function Timeline(props: TimelineProps) {
   const nav = useNav()
   const showBot = useOpenBot()
   const focus = nav.focus?.roomId === room.id ? nav.focus : null
+  const { data: snapshots } = useResource(app.cache, 'tasks', () => api.tasks())
+  // 从这个对话交出去、在别的 bot 自己的对话里做着的任务：没有 bot 在回答时，最底下那一行写“「任务名」进行中”。
+  const working = (snapshots ?? []).filter(
+    (snapshot) =>
+      snapshot.task.roomId === room.id && snapshot.task.parentId === null && !snapshot.standing && snapshot.conversationId !== null && snapshot.conversationId !== room.id && isMoving(snapshot),
+  )
 
   const reloadAll = useCallback(() => {
     api
@@ -261,11 +226,10 @@ export function Timeline(props: TimelineProps) {
   }
 
   const last = messages.at(-1)
-  const streamText = live.streams.map((stream) => stream.text.length).join(',')
   useLayoutEffect(() => {
     const element = scroller.current
     if (element !== null && nearBottom.current) element.scrollTop = element.scrollHeight
-  }, [messages.length, last?.id, last?.version, streamText, live.statuses.length])
+  }, [messages.length, last?.id, last?.version, live.streams.length, live.statuses.length, working.length])
 
   useEffect(() => {
     if (last === undefined || last.seq <= room.readSeq) return
@@ -325,7 +289,7 @@ export function Timeline(props: TimelineProps) {
   const firstUnread = unread[0]
   // 每个正在回答的会话一段：有打字流的按打字流，只有状态的显示“正在……”。
   // 你的话还没交到 bot 手上时也先有一段“正在接收消息”；同一个 bot 真的那段出来了就只留真的。
-  const sessions = [...new Set([...live.statuses.map((status) => status.sessionId), ...live.streams.map((stream) => stream.sessionId)])].map((sessionId) => {
+  const sessions = [...new Set([...live.statuses.map((status) => status.sessionId), ...live.streams.map((stream) => stream.sessionId)])].map((sessionId): Responding => {
     const stream = live.streams.find((item) => item.sessionId === sessionId)
     const status = live.statuses.find((item) => item.sessionId === sessionId)
     return { sessionId, stream, status, botId: stream?.botId ?? status?.botId ?? '' }
@@ -350,34 +314,8 @@ export function Timeline(props: TimelineProps) {
             .map((message) => message.id),
         ),
   )
-  // 最后一段回复的 bot 还在说：正在输入的文字排在这段的卡片上面，说完不跳位置。
-  const tail = blocks.at(-1)
-  const inline = tail?.author === undefined || tail.cards.length === 0 ? undefined : replies.find((reply) => reply.botId === tail.author)
-  const inlineBefore = inline === undefined ? undefined : tail?.cards[0]?.id
-  // 让它汇报：在群里要 @ 到它，不然会按分工交给别的成员。
-  const report = (botId: string): void => {
-    const name = props.bots.get(botId)?.name
-    const text = room.kind === 'direct' || name === undefined ? t(REPORT_ASK) : `@${name} ${t(REPORT_ASK)}`
-    api.send(room.id, text).catch((reason: unknown) => setError(errorText(reason)))
-  }
-  const stopReply = (): void => {
-    api.stopReply(room.id).catch((reason: unknown) => setError(errorText(reason)))
-  }
-  const liveReply = (reply: (typeof replies)[number]) =>
-    reply.botId === '' ? (
-      <RoutingReply key={reply.sessionId} label={reply.status?.label ?? ''} />
-    ) : (
-      <LiveReply
-        key={reply.sessionId}
-        bot={props.bots.get(reply.botId)}
-        stream={reply.stream}
-        status={reply.status}
-        onOpenBot={() => showBot(reply.botId)}
-        mentions={mentions}
-        onReport={() => report(reply.botId)}
-        onStop={stopReply}
-      />
-    )
+  // 几个人说话的对话（群、任务对话）：气泡上面写是谁说的。
+  const named = room.kind !== 'direct' || room.taskId !== null
 
   const arrived = awayFrom === null ? 0 : messages.filter((message) => message.seq > awayFrom && message.author !== 'owner').length + (behind ? room.lastSeq - (last?.seq ?? 0) : 0)
   return (
@@ -396,7 +334,6 @@ export function Timeline(props: TimelineProps) {
             const newDay = previous === undefined || startOfDay(previous.createdAt) !== startOfDay(message.createdAt)
             return (
               <Fragment key={message.id}>
-                {inline !== undefined && message.id === inlineBefore ? liveReply(inline) : null}
                 {newDay ? (
                   <div className="pod-day" role="separator">
                     <span>{dayLabel(message.createdAt, now)}</span>
@@ -425,7 +362,7 @@ export function Timeline(props: TimelineProps) {
               </Fragment>
             )
           })}
-          {replies.filter((reply) => reply !== inline).map(liveReply)}
+          <ActivityLine replies={replies} working={working} bots={props.bots} named={named} onOpenBot={showBot} />
         </div>
       </div>
       {awayFrom === null && !(behind && !nearBottom.current) ? null : (

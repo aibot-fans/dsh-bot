@@ -57,7 +57,5 @@ export const UI_EN_TASKS: Readonly<Record<string, string>> = {
   '进群聊': 'Open group',
   '打开这个任务的群聊': "Open this task's group chat",
   '{label} · 进群聊': '{label} · Open group',
-  '这一轮的步骤': 'Steps in this turn',
-  '收起这一轮的步骤': 'Hide steps in this turn',
   '子任务 {done}/{total}': 'Subtasks {done}/{total}',
 }
