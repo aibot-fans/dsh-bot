@@ -67,4 +67,5 @@ export const UI_EN_V4: Readonly<Record<string, string>> = {
   '{names}正在处理': '{names} are working on it',
   '「{title}」进行中': '"{title}" in progress',
   '「{title}」等 {count} 个任务进行中': '{count} tasks in progress, including "{title}"',
+  '{name}：{text}': '{name}: {text}',
 }

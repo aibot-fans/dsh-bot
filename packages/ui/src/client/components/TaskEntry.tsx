@@ -6,7 +6,6 @@ import { GroupMark } from './GroupMark.tsx'
 import { Icon } from './Icon.tsx'
 import { NARROW_QUERY, matches } from './media.ts'
 import { Undelivered, useSnapshot } from './taskParts.tsx'
-import { TaskPeople, useTaskPeople } from './TaskPeople.tsx'
 
 /** 任务对你来说只有三种状态：进行中、等你、完成；完成里分做完了和结束了（你停掉的、无需处理的）。 */
 export type TaskBucket = 'working' | 'attention' | 'done' | 'ended'
@@ -94,13 +93,12 @@ export function openTaskById(app: AppState, taskId: string): Promise<void> {
 }
 
 /**
- * 对话里的任务记号：Super-agent 转告问题、交结论的那句话下面挂的，是干活的 bot 的头像加任务名，不写状态、用时、进展。
- * 点一下在右边小窗打开这个任务的对话。
+ * 对话里的任务记号，放在说到这个任务的气泡开头：状态图标加任务名，图标跟着状态变（转圈在做，红点等你，勾是做完），
+ * 不写用时、进展。点一下在右边小窗打开这个任务的对话。
  */
 export function TaskChip(props: { readonly taskId: string; readonly roomId: string }) {
   const app = useApp()
   const { snapshot, error } = useSnapshot(props.taskId)
-  const people = useTaskPeople(snapshot)
   if (snapshot === undefined) return <span className="pod-task-chip pod-task-chip-loading">{error ?? t('正在读取任务…')}</span>
   const { task } = snapshot
   const bucket = bucketOf(snapshot)
@@ -114,9 +112,8 @@ export function TaskChip(props: { readonly taskId: string; readonly roomId: stri
         title={label}
         aria-label={t('{label}：{title}', { label, title: task.title })}
       >
-        {people.length === 0 ? <TaskStateIcon snapshot={snapshot} /> : <TaskPeople people={people} size={18} />}
+        <TaskStateIcon snapshot={snapshot} />
         <span className="pod-task-chip-title">{task.title}</span>
-        <Icon name="forward" size={12} />
       </button>
       <Undelivered snapshot={snapshot} />
     </span>

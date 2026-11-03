@@ -1,8 +1,8 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { OWNER, intlLocale, isTemporaryRoom, t, type Bot, type Room, type RoomMessage } from 'pod-domain'
+import { OWNER, isTemporaryRoom, t, type Bot, type Room, type RoomMessage } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
-import { Avatar, clock } from '../../components/common.tsx'
+import { Avatar } from '../../components/common.tsx'
 import { Icon } from '../../components/Icon.tsx'
 import { buildMentions } from '../../components/mentions.tsx'
 import { isMoving } from '../../components/TaskEntry.tsx'
@@ -10,6 +10,7 @@ import { isPreparing, useApp, useLive, useNav, usePodEvent } from '../../state/a
 import { useResource } from '../../state/resource.ts'
 import { ActivityLine, type Responding } from './ActivityLine.tsx'
 import { arrange, shownInChat } from './arrange.ts'
+import { answersRightAbove, layoutOf } from './bubbles.ts'
 import { MessageItem } from './MessageItem.tsx'
 import { useOpenBot } from './openBot.ts'
 
@@ -52,26 +53,6 @@ function UnreadSummary(props: { readonly messages: readonly RoomMessage[]; reado
       </div>
     </div>
   )
-}
-
-/** 你连着发的几条在同一分钟里：时间只写在最后一条下面。 */
-function sameMinuteAsNext(message: RoomMessage, next: RoomMessage | undefined): boolean {
-  return next !== undefined && next.author === OWNER && message.author === OWNER && startOfDay(next.createdAt) === startOfDay(message.createdAt) && clock(next.createdAt) === clock(message.createdAt)
-}
-
-function startOfDay(time: number): number {
-  const date = new Date(time)
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
-}
-
-/** 日期分隔线上的字：今天、昨天，再早的写几月几日周几（跨年带年份）。 */
-function dayLabel(time: number, now: number): string {
-  const days = Math.round((startOfDay(now) - startOfDay(time)) / 86_400_000)
-  if (days === 0) return t('今天')
-  if (days === 1) return t('昨天')
-  const date = new Date(time)
-  const year = date.getFullYear() === new Date(now).getFullYear() ? undefined : 'numeric'
-  return date.toLocaleDateString(intlLocale(), { year, month: 'long', day: 'numeric', weekday: 'short' })
 }
 
 /** 还没有消息时：介绍一下这是谁（或群里有谁），告诉你怎么开始。 */
@@ -302,18 +283,18 @@ export function Timeline(props: TimelineProps) {
     ...blocks.flatMap((block) => block.texts.filter((message) => block.cards.some((card) => card.id === message.replyTo)).map((message) => message.id)),
     ...ordered.filter((message, index) => message.replyTo !== null && ordered[index - 1]?.id === message.replyTo && ordered[index - 1]?.kind === 'task-card').map((message) => message.id),
   ])
-  // 说到任务的话挂那个任务的记号（点一下在右边小窗打开任务对话）；任务卡只在开任务那句下面出现一次，紧跟着它的那句不再挂，
-  // 任务自己的对话里也不挂。
+  // 说到任务的话，气泡开头挂那个任务的记号（点一下在右边小窗打开任务对话）；任务卡只在开任务那句下面出现一次。任务自己的对话里不挂。
   const chipped = new Set(
-    room.taskId !== null
-      ? []
-      : blocks.flatMap((block) =>
-          block.texts
-            .filter((message) => message.author !== OWNER && message.kind === 'text' && typeof message.data.taskId === 'string')
-            .filter((message) => !block.cards.some((card) => card.kind === 'task-card' && card.data.taskId === message.data.taskId))
-            .map((message) => message.id),
-        ),
+    room.taskId !== null ? [] : ordered.filter((message) => message.author !== OWNER && message.kind === 'text' && typeof message.data.taskId === 'string').map((message) => message.id),
   )
+  // 回的那句话不在旁边（中间隔了别人的话）才在气泡上面引一小段。
+  const quotes = new Map(
+    ordered.flatMap((message, index): [string, RoomMessage][] => {
+      const target = message.replyTo === null || unquoted.has(message.id) || answersRightAbove(ordered, index) ? undefined : byId.get(message.replyTo)
+      return target === undefined ? [] : [[message.id, target]]
+    }),
+  )
+  const layout = layoutOf(ordered, (message) => quotes.has(message.id), room.taskId !== null, now)
   // 几个人说话的对话（群、任务对话）：气泡上面写是谁说的。
   const named = room.kind !== 'direct' || room.taskId !== null
 
@@ -329,16 +310,15 @@ export function Timeline(props: TimelineProps) {
               {t('加载更早的消息')}
             </button>
           ) : null}
-          {ordered.map((message, index) => {
-            const previous = ordered[index - 1]
-            const newDay = previous === undefined || startOfDay(previous.createdAt) !== startOfDay(message.createdAt)
+          {ordered.map((message) => {
+            const place = layout.get(message.id)
             return (
               <Fragment key={message.id}>
-                {newDay ? (
-                  <div className="pod-day" role="separator">
-                    <span>{dayLabel(message.createdAt, now)}</span>
+                {place === undefined || place.stamp === null ? null : (
+                  <div className="pod-stamp" role="separator">
+                    {place.stamp}
                   </div>
-                ) : null}
+                )}
                 <div id={`pod-msg-${message.id}`} className={focus?.messageId === message.id ? 'pod-focused' : undefined}>
                   {showSummary && firstUnread?.id === message.id ? (
                     <UnreadSummary
@@ -350,13 +330,15 @@ export function Timeline(props: TimelineProps) {
                   <MessageItem
                     message={message}
                     bots={props.bots}
-                    quoted={message.replyTo === null || unquoted.has(message.id) ? undefined : byId.get(message.replyTo)}
+                    quoted={quotes.get(message.id)}
                     onReply={props.onReply}
                     onPinned={(updated) => setMessages((current) => merge(current, [updated]))}
                     mentions={mentions}
-                    hideTime={sameMinuteAsNext(message, ordered[index + 1])}
                     quiet={room.taskId !== null}
                     chip={chipped.has(message.id)}
+                    named={named}
+                    first={place?.first ?? true}
+                    last={place?.last ?? true}
                   />
                 </div>
               </Fragment>

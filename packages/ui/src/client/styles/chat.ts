@@ -14,16 +14,9 @@ export const CHAT_CSS = `
 .pod-load-older { align-self: center; margin-bottom: 8px; }
 .pod-msg { position: relative; display: flex; gap: 10px; padding: 6px 0; }
 .pod-msg-avatar { appearance: none; flex: none; height: fit-content; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
-.pod-msg-avatar:focus-visible, .pod-msg-author:focus-visible { outline: 2px solid var(--pod-info); outline-offset: 2px; }
-.pod-msg-main { flex: 1; min-width: 0; }
-.pod-msg-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; font-size: 13px; }
-.pod-msg-author { appearance: none; padding: 0; border: 0; background: none; color: var(--dsw-alias-label-primary); font: inherit; font-weight: 600; cursor: pointer; }
-.pod-msg-author:hover { text-decoration: underline; }
-.pod-msg-head time { font-size: 11px; color: var(--dsw-alias-label-tertiary); }
+.pod-msg-avatar:focus-visible { outline: 2px solid var(--pod-info); outline-offset: 2px; }
 .pod-msg-owner { flex-direction: column; align-items: flex-end; gap: 0; }
 .pod-bubble { max-width: min(78%, 620px); padding: 8px 14px; border-radius: 18px; background: var(--pod-bubble); }
-.pod-msg-owner > .pod-msg-time { margin: 3px 8px 0 0; font-size: 11px; line-height: 1.2; color: var(--dsw-alias-label-tertiary); }
-.pod-bubble .pod-quote { border-left-color: color-mix(in srgb, var(--dsw-alias-label-primary) 20%, transparent); }
 .pod-msg-actions { position: absolute; top: -12px; right: 4px; z-index: 3; display: flex; align-items: center; gap: 0; padding: 2px; border: 1px solid var(--pod-line); border-radius: 10px; background: var(--dsw-alias-bg-layer-1, #fff); box-shadow: 0 2px 10px color-mix(in srgb, #000 10%, transparent); opacity: 0; pointer-events: none; transition: opacity .12s; }
 .pod-msg-actions .pod-icon-button { width: 28px; height: 28px; border-radius: 8px; color: var(--dsw-alias-label-tertiary); }
 .pod-msg-actions .pod-icon-button:hover { color: var(--dsw-alias-label-primary); }
@@ -38,7 +31,6 @@ export const CHAT_CSS = `
 .pod-msg-card { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 4px 0 4px 38px; }
 .pod-msg-card > * { width: 100%; max-width: var(--pod-card-max); }
 .pod-msg-card > .pod-link { width: auto; }
-.pod-quote { margin: 2px 0 4px; padding: 2px 8px; border-left: 2px solid var(--pod-line); font-size: 12px; color: var(--dsw-alias-label-tertiary); }
 .pod-line { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 2px 0 2px 38px; font-size: 12px; color: var(--dsw-alias-label-tertiary); }
 .pod-line time { flex: none; }
 .pod-line-receipt { color: var(--pod-info); }

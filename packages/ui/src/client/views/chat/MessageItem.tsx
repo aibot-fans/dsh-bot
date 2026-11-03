@@ -1,10 +1,9 @@
 import { useState, type ReactNode } from 'react'
-import { OWNER, POD, isUploadNote, t, type Bot, type RoomMessage } from 'pod-domain'
+import { OWNER, isUploadNote, t, type Bot, type RoomMessage } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { copyText } from '../../components/clipboard.ts'
-import { Avatar, Button, IconButton, Modal, clock, nameColor } from '../../components/common.tsx'
-import { BotName } from '../../components/GroupMark.tsx'
+import { Avatar, Button, IconButton, Modal, clock } from '../../components/common.tsx'
 import { Icon } from '../../components/Icon.tsx'
 import { useLongPress } from '../../components/longPress.ts'
 import { FoldText } from '../../components/FoldText.tsx'
@@ -20,9 +19,9 @@ import { PageCard, PageChip } from '../pages/PageCard.tsx'
 import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 import { Attachment } from './Attachment.tsx'
+import { BotBubble, OwnerBubble, rowClass } from './Bubble.tsx'
 import { calledMentions } from './Calls.tsx'
 import { MessageSheet, answerable, regenerable, type SheetView } from './MessageSheet.tsx'
-import { useOpenBot } from './openBot.ts'
 import { RateButtons } from './Rating.tsx'
 import { TaskCardItem } from './TaskCardItem.tsx'
 import { readTurnError, TurnErrorLine } from './TurnErrorLine.tsx'
@@ -37,18 +36,15 @@ export interface MessageProps {
   readonly onPinned: (message: RoomMessage) => void
   /** 消息里能认出来的 @bot：带图标、可以点。 */
   readonly mentions: Mentions
-  /** 你的消息：同一分钟里后面还有你的消息时，时间留给最后一条。 */
-  readonly hideTime?: boolean
   /** 任务群：子任务的任务卡显示成组长派活的那句话。 */
   readonly quiet?: boolean
-  /** 这句话说到了任务（不是紧跟着那张任务卡的）：下面挂任务记号。 */
+  /** 这句话说到了任务：气泡开头挂任务记号。 */
   readonly chip?: boolean
-}
-
-function authorName(author: string, bots: ReadonlyMap<string, Bot>): string {
-  if (author === OWNER) return t('你')
-  if (author === POD) return 'dsh-bot'
-  return bots.get(author)?.name ?? t('已删除的 bot')
+  /** 几个人说话的对话：一组话的第一条上面写名字。 */
+  readonly named?: boolean
+  /** 一组话的第一条和最后一条：名字写在第一条上面，尾巴和头像只给最后一条。 */
+  readonly first?: boolean
+  readonly last?: boolean
 }
 
 /** 组长开场：谨慎档等你点“开始”或“先不”；开工以后就是一句普通的话，停下、改要求都在群里说。 */
@@ -99,7 +95,6 @@ function Folded(props: { readonly message: RoomMessage }) {
 
 /** 时间线里的一条：你的气泡、bot 的发言、一行提示、任务记号、页面卡片、等你处理的那句话或折叠内容。 */
 export function MessageItem(props: MessageProps) {
-  const showBot = useOpenBot()
   const { message, bots } = props
   switch (message.kind) {
     case 'notice': {
@@ -148,106 +143,65 @@ export function MessageItem(props: MessageProps) {
       break
   }
   const owner = message.author === OWNER
-  const bot = owner ? undefined : bots.get(message.author)
   const attachment = typeof message.data.attachment === 'object' && message.data.attachment !== null ? (message.data.attachment as Record<string, unknown>) : undefined
-  const quoted = props.quoted
   const pageId = typeof message.data.pageId === 'string' ? message.data.pageId : undefined
   const xEvent = readXEvent(message.data.xEvent)
   const decided = decidedText(message.data.decided)
-  const quote =
-    quoted === undefined ? null : (
-      <div className="pod-quote">
-        {quoted.author === OWNER || quoted.author === POD ? authorName(quoted.author, bots) : <BotName bot={bots.get(quoted.author)} size={14} />}{t('：{body}', { body: quoted.body.slice(0, 120) })}
-      </div>
-    )
+  const pinned = message.pinned ? <span className="pod-badge pod-badge-muted pod-msg-pinned">{t('已置顶')}</span> : null
   if (owner) {
     return (
-      <MessageFrame {...props} owner className="pod-msg pod-msg-owner">
-        <div className="pod-bubble">
+      <MessageFrame {...props} owner className={rowClass('pod-msg pod-msg-owner', props)}>
+        <OwnerBubble message={message} bots={bots} last={props.last !== false} quoted={props.quoted}>
           {pageId === undefined ? null : <PageChip pageId={pageId} />}
-          {quote}
           {attachment !== undefined && isUploadNote(message.body, String(attachment.name ?? '')) ? null : <Markdown text={message.body} mentions={calledMentions(message, props.mentions, true)} />}
           {attachment === undefined ? null : <Attachment attachment={attachment} />}
           {message.data.via === 'dsh' ? <div className="pod-muted-inline">{t('来自 dsh 会话视图')}</div> : null}
-        </div>
-        {message.pinned ? <span className="pod-badge pod-badge-muted pod-msg-pinned">{t('已置顶')}</span> : null}
-        {props.hideTime === true ? null : <time className="pod-msg-time">{clock(message.createdAt)}</time>}
+        </OwnerBubble>
+        {pinned}
       </MessageFrame>
     )
   }
-  const openBot = (): void => {
-    if (bot !== undefined) showBot(bot.id)
-  }
+  // 等你：发问的 bot 说的那句话，后面带按钮；X 上的事件是一张卡片。这两种不套灰气泡。
+  const card = message.kind === 'wait' ? <WaitCard message={message} /> : xEvent === undefined ? undefined : <XEventCard view={xEvent} />
   return (
-    <MessageFrame {...props} owner={false} className="pod-msg">
-      <button type="button" className="pod-msg-avatar" onClick={openBot} aria-label={t('{authorName} 的详情', { authorName: authorName(message.author, bots) })}>
-        <Avatar bot={bot} size={28} />
-      </button>
-      <div className="pod-msg-main">
-        <div className="pod-msg-head">
-          <button type="button" className={`pod-msg-author${bot === undefined ? '' : ' pod-bot-name'}`} style={nameColor(bot)} onClick={openBot}>
-            {authorName(message.author, bots)}
-          </button>
-          {message.pinned ? <span className="pod-badge pod-badge-muted">{t('已置顶')}</span> : null}
-          {pageId === undefined ? null : <PageChip pageId={pageId} />}
-          <time>{clock(message.createdAt)}</time>
-        </div>
-        {quote}
-        {/* 等你：发问的 bot 说的那句话，后面带按钮。 */}
-        {message.kind === 'wait' ? (
-          <WaitCard message={message} />
-        ) : xEvent === undefined ? (
-          <Markdown text={message.body} mentions={calledMentions(message, props.mentions, false)} />
-        ) : (
-          <XEventCard view={xEvent} />
-        )}
-        {attachment === undefined ? null : <Attachment attachment={attachment} />}
-        {/* 说到任务的话（转告、交来的回答、转给任务后的确认）：下面挂那个任务的记号，点一下在右边小窗打开任务对话。 */}
+    <MessageFrame {...props} owner={false} className={rowClass('pod-msg pod-msg-bot', props)}>
+      <BotBubble message={message} bots={bots} named={props.named === true} first={props.first !== false} last={props.last !== false} quoted={props.quoted} card={card}>
+        {/* 说到任务的话（开任务时的那句、交来的回答、转告）：气泡开头是那个任务的记号，点一下在右边小窗打开任务对话。 */}
         {props.chip === true && typeof message.data.taskId === 'string' ? (
-          <div className="pod-msg-chips">
+          <span className="pod-bubble-chip">
             <TaskChip taskId={message.data.taskId} roomId={message.roomId} />
-          </div>
+          </span>
         ) : null}
-        {/* 以前在这句话后面点过的“收下”“重试”这些，留一行小字。 */}
-        {decided === undefined ? null : <div className="pod-ask-done">{decided}</div>}
-        {message.kind === 'kickoff' && typeof message.data.taskId === 'string' ? <KickoffActions taskId={message.data.taskId} /> : null}
-      </div>
+        {pageId === undefined ? null : <PageChip pageId={pageId} />}
+        <Markdown text={message.body} mentions={calledMentions(message, props.mentions, false)} />
+        {attachment === undefined ? null : <Attachment attachment={attachment} />}
+      </BotBubble>
+      {pinned}
+      {/* 以前在这句话后面点过的“收下”“重试”这些，留一行小字。 */}
+      {decided === undefined ? null : <div className="pod-ask-done">{decided}</div>}
+      {message.kind === 'kickoff' && typeof message.data.taskId === 'string' ? <KickoffActions taskId={message.data.taskId} /> : null}
     </MessageFrame>
   )
 }
 
 /** 任务群里的派活：组长 @ 成员，说要做什么（子任务的标题，说明长的先折起来）；不再单独画一行子任务。 */
 function SubtaskAsk(props: MessageProps & { readonly taskId: string }) {
-  const showBot = useOpenBot()
   const { message, bots } = props
   const { snapshot } = useSnapshot(props.taskId)
-  const lead = bots.get(message.author)
   const ownerId = snapshot?.task.ownerBotId ?? null
   const owner = ownerId === null ? undefined : bots.get(ownerId)
   const name = owner?.name ?? snapshot?.ownerName ?? null
   const brief = snapshot === undefined || snapshot.task.brief === snapshot.task.title ? '' : snapshot.task.brief
-  const openBot = (): void => {
-    if (lead !== undefined) showBot(lead.id)
-  }
   return (
-    <MessageFrame {...props} owner={false} className="pod-msg">
-      <button type="button" className="pod-msg-avatar" onClick={openBot} aria-label={t('{authorName} 的详情', { authorName: authorName(message.author, bots) })}>
-        <Avatar bot={lead} size={28} />
-      </button>
-      <div className="pod-msg-main">
-        <div className="pod-msg-head">
-          <button type="button" className={`pod-msg-author${lead === undefined ? '' : ' pod-bot-name'}`} style={nameColor(lead)} onClick={openBot}>
-            {authorName(message.author, bots)}
-          </button>
-          <time>{clock(message.createdAt)}</time>
-        </div>
+    <MessageFrame {...props} owner={false} className={rowClass('pod-msg pod-msg-bot', props)}>
+      <BotBubble message={message} bots={bots} named={props.named === true} first={props.first !== false} last={props.last !== false} quoted={props.quoted}>
         <Markdown text={name === null ? message.body : `@${name} ${message.body}`} mentions={props.mentions} />
         {brief === '' ? null : (
           <div className="pod-subtask-brief">
             <FoldText text={brief} limit={160} />
           </div>
         )}
-      </div>
+      </BotBubble>
     </MessageFrame>
   )
 }

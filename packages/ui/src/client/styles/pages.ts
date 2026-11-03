@@ -17,7 +17,6 @@ export const PAGES_CSS = `
 .pod-page-chip:hover:not(:disabled) { background: color-mix(in srgb, var(--pod-info) 18%, transparent); }
 .pod-page-chip:disabled { cursor: default; color: var(--dsw-alias-label-tertiary); background: var(--pod-soft); }
 .pod-bubble > .pod-page-chip { margin: 2px 0 4px; }
-.pod-msg-head .pod-page-chip { align-self: center; }
 .pod-page-library { padding-top: 14px; }
 .pod-page-group-head { display: flex; align-items: center; gap: 6px; min-width: 0; margin: 4px 0 2px; font-size: 12px; font-weight: 600; color: var(--dsw-alias-label-tertiary); }
 .pod-page-row { display: flex; align-items: center; gap: 2px; padding-right: 4px; border-radius: 10px; }

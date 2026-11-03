@@ -26,7 +26,6 @@ export const V13_CSS = `
 .pod-tcard-step { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--pod-working); font-size: 12.5px; }
 .pod-tcard-loading { padding: 6px 0; color: var(--dsw-alias-label-tertiary); font-size: 12.5px; }
 
-.pod-msg-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .pod-task-chip { gap: 6px; padding: 3px 10px 3px 4px; }
 .pod-task-chip:not(:has(> .pod-avatar, > .pod-group-mark)) { padding-left: 9px; }
 .pod-task-chip > .pod-icon { flex: none; color: var(--dsw-alias-label-tertiary); }

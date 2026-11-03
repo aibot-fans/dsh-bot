@@ -43,8 +43,6 @@ export const V3_CSS = `
 .pod-mention .pod-avatar { align-self: center; }
 .pod-mention-plain, .pod-mention-plain:hover { padding: 0 2px 0 0; background: none; font-weight: 500; }
 .pod-line-text { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
-.pod-day { display: flex; justify-content: center; margin: 14px 0 6px; }
-.pod-day span { padding: 2px 10px; border-radius: 999px; background: var(--pod-soft); font-size: 11.5px; color: var(--dsw-alias-label-tertiary); }
 .pod-intro { display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 440px; margin: 56px auto 16px; text-align: center; }
 .pod-intro strong { font-size: 17px; }
 .pod-intro p { margin: 0; font-size: 14px; line-height: 1.6; color: var(--dsw-alias-label-secondary); }
