@@ -43,9 +43,14 @@ function roomHeader(group: BatchRoom): string {
   return `== 群聊「${room.title}」（${room.id}）${members} ==`
 }
 
+/** 说的是哪个任务（结果、转告、确认这些话带着任务 id）。 */
+function taskOf(message: RoomMessage): string {
+  return typeof message.data.taskId === 'string' ? `，任务 ${message.data.taskId}` : ''
+}
+
 function recentLine(message: RoomMessage, speaker: (author: string) => string): string {
   if (message.kind === 'task-card') return `  [任务卡 ${String(message.data.taskId ?? '')}「${message.body}」] ${message.id}`
-  return `  ${speaker(message.author)}（${message.id}）：${truncate(oneLine(message.body), RECENT_LIMIT)}`
+  return `  ${speaker(message.author)}（${message.id}${taskOf(message)}）：${truncate(oneLine(message.body), RECENT_LIMIT)}`
 }
 
 function itemLine(item: BatchItem, input: BatchInput): string {
@@ -58,7 +63,7 @@ function itemLine(item: BatchItem, input: BatchInput): string {
         ? `（回复 ${message.replyTo}）`
         : quoted.kind === 'task-card'
           ? `（回复任务卡 ${String(quoted.data.taskId ?? '')}「${quoted.body}」）`
-          : `（回复 ${input.speaker(quoted.author)} 的 ${quoted.id}：「${truncate(oneLine(quoted.body), 40)}」）`
+          : `（回复 ${input.speaker(quoted.author)} 的 ${quoted.id}${taskOf(quoted)}：「${truncate(oneLine(quoted.body), 40)}」）`
   const note = item.note === '' ? '' : `\n  ${item.note}`
   return `- ${message.id} ${input.speaker(message.author)}${reply}：${clipCard(message.body, BATCH_MESSAGE_LIMIT, message.id)}${note}`
 }

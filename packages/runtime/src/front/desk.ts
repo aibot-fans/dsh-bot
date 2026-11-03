@@ -38,9 +38,19 @@ export interface FrontDeskDeps {
   readonly preparing: (key: string, state: PreparingState | null) => void
   /** dsh-bot 在聊天室里说一句（前台出错没处理成时）。 */
   readonly notice: (roomId: string, body: string, data: Readonly<Record<string, unknown>>) => void
+  /** 以前台的名义回一句确认（开了任务却没回话时补上的那句）。 */
+  readonly confirm: (input: { readonly roomId: string; readonly author: string; readonly sessionId: string; readonly replyTo: string; readonly body: string }) => void
   /** 前台漏掉消息记成系统问题；detail 为 null 时恢复。 */
   readonly problem: (detail: string | null) => void
   readonly warn: (message: string, error?: unknown) => void
+}
+
+/** 前台开了任务、还没回用户的那一句：回在哪条下面、没回就补哪句。 */
+export interface Unconfirmed {
+  readonly roomId: string
+  readonly messageId: string
+  readonly sessionId: string
+  readonly body: string
 }
 
 /** 送进前台、还在等结果的那几批。 */
@@ -65,6 +75,8 @@ export class FrontDesk {
   private readonly flights = new Map<string, Flight>()
   /** 追问过的消息：再没有去向就记成漏掉。 */
   private readonly nudged = new Map<string, ReadonlySet<string>>()
+  /** 每个前台这一轮开了任务、还没在那个聊天室回话的。 */
+  private readonly unconfirmed = new Map<string, readonly Unconfirmed[]>()
   private readonly retries = new ModelRetries()
   private readonly activity: FrontActivity
   private readonly startedAt: number
@@ -151,6 +163,25 @@ export class FrontDesk {
       text: `[转告] 「${task.title}」（${task.id}，${owner}在做）${RELAY_HEADS[kind]}：\n${truncate(body, RELAY_LIMIT)}\n用 reply 在「${room.title}」（${room.id}）转告用户：purpose 写 relay，room 写 ${room.id}，task 写 ${task.id}。`,
       source: noticeSource(t('转告「{title}」的动静', { title: task.title })),
     })
+  }
+
+  /** 前台开了任务：记下来，这一轮结束还没在那个聊天室回话，就替它补一句，任务卡挂在这句下面。 */
+  opened(botId: string, entry: Unconfirmed): void {
+    this.unconfirmed.set(botId, [...(this.unconfirmed.get(botId) ?? []), entry])
+  }
+
+  /** 前台在这个聊天室回了话：开任务那句算回过了。 */
+  confirmed(botId: string, roomId: string): void {
+    const left = (this.unconfirmed.get(botId) ?? []).filter((entry) => entry.roomId !== roomId)
+    if (left.length === 0) this.unconfirmed.delete(botId)
+    else this.unconfirmed.set(botId, left)
+  }
+
+  /** 一轮结束还没回的：以前台的名义补上那一句。 */
+  private confirmLeft(botId: string): void {
+    const left = this.unconfirmed.get(botId) ?? []
+    this.unconfirmed.delete(botId)
+    for (const entry of left) this.deps.confirm({ roomId: entry.roomId, author: botId, sessionId: entry.sessionId, replyTo: entry.messageId, body: entry.body })
   }
 
   /** 前台说了话（reply）：这个聊天室的“正在……”收掉。 */
@@ -273,9 +304,10 @@ export class FrontDesk {
     return routes.length
   }
 
-  /** 前台一轮结束：收掉“正在……”，查没去向的；有排着的消息就送下一批。 */
+  /** 前台一轮结束：开了任务没回话的补一句，收掉“正在……”，查没去向的；有排着的消息就送下一批。 */
   onTurnEnd(session: PodSession, reason: string, failure?: TurnFailure): void {
     if (session.kind !== 'front') return
+    this.confirmLeft(session.botId)
     const flight = this.flightOf(session)
     if (flight !== undefined) {
       for (const roomId of flight.rooms) this.deps.preparing(this.key(session.botId, roomId), null)

@@ -338,6 +338,18 @@ export function Timeline(props: TimelineProps) {
     ...blocks.flatMap((block) => block.texts.filter((message) => block.cards.some((card) => card.id === message.replyTo)).map((message) => message.id)),
     ...ordered.filter((message, index) => message.replyTo !== null && ordered[index - 1]?.id === message.replyTo && ordered[index - 1]?.kind === 'task-card').map((message) => message.id),
   ])
+  // 说到任务的话挂那个任务的记号（点一下在右边小窗打开任务对话）；任务卡只在开任务那句下面出现一次，紧跟着它的那句不再挂，
+  // 任务自己的对话里也不挂。
+  const chipped = new Set(
+    room.taskId !== null
+      ? []
+      : blocks.flatMap((block) =>
+          block.texts
+            .filter((message) => message.author !== OWNER && message.kind === 'text' && typeof message.data.taskId === 'string')
+            .filter((message) => !block.cards.some((card) => card.kind === 'task-card' && card.data.taskId === message.data.taskId))
+            .map((message) => message.id),
+        ),
+  )
   // 最后一段回复的 bot 还在说：正在输入的文字排在这段的卡片上面，说完不跳位置。
   const tail = blocks.at(-1)
   const inline = tail?.author === undefined || tail.cards.length === 0 ? undefined : replies.find((reply) => reply.botId === tail.author)
@@ -407,6 +419,7 @@ export function Timeline(props: TimelineProps) {
                     mentions={mentions}
                     hideTime={sameMinuteAsNext(message, ordered[index + 1])}
                     quiet={room.taskId !== null}
+                    chip={chipped.has(message.id)}
                   />
                 </div>
               </Fragment>

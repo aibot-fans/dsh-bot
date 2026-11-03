@@ -42,6 +42,8 @@ export interface MessageProps {
   readonly hideTime?: boolean
   /** 任务群：子任务的任务卡显示成组长派活的那句话。 */
   readonly quiet?: boolean
+  /** 这句话说到了任务（不是紧跟着那张任务卡的）：下面挂任务记号。 */
+  readonly chip?: boolean
 }
 
 function authorName(author: string, bots: ReadonlyMap<string, Bot>): string {
@@ -206,8 +208,8 @@ export function MessageItem(props: MessageProps) {
           <XEventCard view={xEvent} />
         )}
         {attachment === undefined ? null : <Attachment attachment={attachment} />}
-        {/* Super-agent 转告任务的问题、原样交来的回答，转给任务后的确认：话下面挂那个任务的记号，点一下在右边小窗打开任务对话。 */}
-        {(message.data.purpose === 'relay' || message.data.purpose === 'confirm' || message.data.relayed === true) && typeof message.data.taskId === 'string' ? (
+        {/* 说到任务的话（转告、交来的回答、转给任务后的确认）：下面挂那个任务的记号，点一下在右边小窗打开任务对话。 */}
+        {props.chip === true && typeof message.data.taskId === 'string' ? (
           <div className="pod-msg-chips">
             <TaskChip taskId={message.data.taskId} roomId={message.roomId} />
           </div>

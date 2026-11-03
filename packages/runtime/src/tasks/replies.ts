@@ -59,8 +59,9 @@ export class TaskReplies {
 
   /**
    * 结果就是干活的 bot 交的那条回答。有任务对话的根任务发在那里；最近一次是在派活的地方问的，再以开任务的前台的名义
-   * 原样回在那句话上（两处是同一段话）。没有任务对话的一个聊天室一条：任务卡所在的聊天室挂在任务卡下（之后又在那里问过、
-   * 还没答的，挂在最近那条下面）；别的聊天室里问过的，回在最近一条还没答的下面。干活的 bot 不在那个聊天室也照样以它的名义发。
+   * 原样回在那句话上（两处是同一段话）。没有任务对话的一个聊天室一条，回在那里最近一句还没得到答复的话上（开任务的那句、
+   * 之后接着问的）；都答过了挂在任务卡下。常开任务每次的结果挂在任务卡下（之后又在那里问过、还没答的，挂在最近那条下面）。
+   * 干活的 bot 不在那个聊天室也照样以它的名义发。
    */
   result(task: Task, author: string, sessionId: string | null, body: string): number {
     const conversation = this.conversationOf(task)
@@ -75,10 +76,11 @@ export class TaskReplies {
       const room = this.deps.rooms.get(roomId)
       if (room === undefined || room.archivedAt !== null) continue
       const here = card?.roomId === roomId ? card : undefined
+      const standing = here?.data.standing === true
       const asked = task.replyTo
         .filter((target) => target.roomId === roomId && target.messageId !== null)
         .map((target) => getMessage(this.deps.db, target.messageId ?? ''))
-        .filter((message): message is RoomMessage => message !== undefined && message.deletedAt === null && (here === undefined || message.seq > here.seq) && !this.answered(message.id))
+        .filter((message): message is RoomMessage => message !== undefined && message.deletedAt === null && (!standing || message.seq > (here?.seq ?? 0)) && !this.answered(message.id))
       const latest = asked.at(-1)
       let anchor: string | null
       if (here !== undefined) anchor = latest?.id ?? here.id

@@ -172,20 +172,25 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
       ...(conversation === undefined ? {} : { conversation }),
     })
     if (!created.ok) return created.error.message
-    let when = ''
+    let starts = ''
     if (spec !== undefined) {
       const set = pod.triggers.set(created.value, { spec, note: item.note, createdBy: session.botId, state: { source: sourceFor(spec, 'open'), ...(recurring(spec) ? { offPeak: true } : {}) } })
       if (typeof set === 'string') {
         pod.engine.tickets.end(created.value.id, 'stopped', session.botId)
         return `trigger 没挂上：${set}`
       }
-      when = `，${pod.triggers.describe(set)}开工`
+      starts = pod.triggers.describe(set)
     }
     transaction(pod.db, () => {
       for (const message of messages) pod.engine.topics.decide(message.id, session.botId, 'opened', created.value.id, item.note)
     })
+    // 开了任务先回用户一句，任务卡挂在这句下面；这一轮结束还没回，dsh-bot 以你的名义补上这句。
+    const asked = messages.filter((message) => message.roomId === room.id).at(-1) ?? first
+    const fallback = starts !== '' ? t('好，{when}开工，结果发在这里。', { when: starts }) : bot.id === session.botId ? t('我来做，做好了直接发你。') : t('交给{name}了，结果出来我直接发你。', { name: bot.name })
+    pod.front.opened(session.botId, { roomId: room.id, messageId: asked.id, sessionId: session.id, body: fallback })
     const where = conversation === undefined ? '' : conversation.kind === 'group' ? `，开了任务群（${[bot, ...members].map((member) => member.name).join('、')}）` : '，和它另开了一段单聊'
-    return `开了任务 ${created.value.id}「${created.value.title}」，交给${bot.name}${where}${when}`
+    const when = starts === '' ? '' : `，${starts}开工`
+    return `开了任务 ${created.value.id}「${created.value.title}」，交给${bot.name}${where}${when}\n现在用 reply（confirm，to 写 ${asked.id}）回用户一句：交给谁了、取了哪种理解，任务卡挂在这句下面`
   }
 
   /**
@@ -347,6 +352,7 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
         data: { ...(pageId === undefined ? {} : { pageId }), ...(about === undefined || purpose !== 'answer' ? {} : { reportTaskId: about.rootId }) },
       })
       if (replied !== undefined && purpose === 'answer' && pod.engine.topics.awaiting(replied.id, session.botId)) pod.engine.topics.decide(replied.id, session.botId, 'answered')
+      pod.front.confirmed(session.botId, target.id)
       return success(`已发到「${target.title}」`, { messageId })
     },
   })

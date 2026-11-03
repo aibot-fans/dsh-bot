@@ -662,6 +662,9 @@ export class PodRuntime {
       notice: (roomId, body, data) => {
         this.rooms.post(roomId, { author: POD, kind: 'notice', body, data })
       },
+      confirm: (input) => {
+        this.replies.send({ ...input, purpose: 'confirm' })
+      },
       problem: (detail) => {
         if (detail === null && !resolveProblem(db, 'front:missed', now())) return
         if (detail !== null) raiseProblem(db, 'front:missed', detail, 1, now())
