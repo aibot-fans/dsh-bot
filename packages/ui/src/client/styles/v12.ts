@@ -1,5 +1,6 @@
 /**
- * V4：对话里只有对话。任务在对话里只是一行记号（状态图标加标题），任务群里派活是组长的一句话。
+ * V4：对话里只有对话。任务在对话里只是一行记号（状态图标加标题），任务群里派活是组长的一句话，
+ * 要你定的事是 bot 那句话后面的两个按钮，答完留一行小字。
  */
 export const V12_CSS = `
 .pod-msg-card-chip { position: relative; padding-top: 2px; padding-bottom: 2px; }
@@ -19,4 +20,14 @@ export const V12_CSS = `
 .pod-state-still { width: 10px; height: 10px; margin: 0 2px; border: 1.5px solid var(--pod-info); }
 .pod-spinner.pod-state-icon { width: 10px; height: 10px; margin: 0 2px; }
 .pod-subtask-brief { margin-top: 2px; color: var(--dsw-alias-label-secondary); font-size: 13px; white-space: pre-wrap; }
+.pod-ask { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.pod-ask > * { max-width: 100%; }
+.pod-ask-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
+.pod-ask-more { font-size: 12.5px; }
+.pod-ask-detail { color: var(--dsw-alias-label-secondary); font-size: 13px; }
+.pod-ask-detail > summary { cursor: pointer; color: var(--dsw-alias-label-tertiary); font-size: 12.5px; }
+.pod-ask-reply { display: flex; align-items: flex-end; gap: 6px; width: 100%; max-width: var(--pod-card-max); }
+.pod-ask-reply .pod-textarea { flex: 1; }
+.pod-ask-done { color: var(--dsw-alias-label-tertiary); font-size: 12.5px; }
+.pod-ask-closed { gap: 2px; }
 `

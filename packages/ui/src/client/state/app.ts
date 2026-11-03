@@ -510,6 +510,11 @@ export class AppState {
 
   private readonly focusListeners = new Set<(roomId: string) => void>()
 
+  /** 叫这个对话的输入框拿焦点（比如点了“再改改”，引用好了等你写要改哪里）。 */
+  focusComposer(roomId: string): void {
+    for (const listener of this.focusListeners) listener(roomId)
+  }
+
   onFocusComposer(listener: (roomId: string) => void): () => void {
     this.focusListeners.add(listener)
     return () => {

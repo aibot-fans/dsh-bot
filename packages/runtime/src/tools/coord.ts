@@ -94,7 +94,7 @@ export function coordTools(pod: PodRuntime, session: PodSession): readonly ToolD
 
   const post = podTool({
     name: 'post_message',
-    description: '在任务的群聊里发一条消息：结论、阶段性说明、评审总结。不要用来闲聊或刷进度，进度会自动显示在任务卡上。',
+    description: '在任务的群聊里发一条消息：结论、阶段性说明、评审总结。不要用来闲聊或刷进度，用户要看进度会去任务页。',
     properties: { text: str('消息正文，支持 Markdown') },
     required: ['text'],
     parse: (args) => (text(args, 'text') === '' ? '消息不能为空' : { body: text(args, 'text') }),

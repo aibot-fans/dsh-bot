@@ -168,7 +168,7 @@ export class TaskTurns {
       acceptance: [],
       data: {},
     })
-    this.deps.replies.wait(outcome.task, task.ownerBotId ?? POD, { body: t('连续 {MAX_NUDGES} 次提醒都没有汇报，已停下。要接着做就点任务卡上的“重试”，不要了点“停止”。', { MAX_NUDGES }) })
+    this.deps.replies.wait(outcome.task, task.ownerBotId ?? POD, { body: t('连续 {MAX_NUDGES} 次提醒都没有汇报，已停下。要接着做就点下面的“重试”，不要了点“不做了”。', { MAX_NUDGES }) })
     this.deps.tasks.tellRequester(outcome.task, `[任务停滞] 「${task.title}」连续 ${MAX_NUDGES} 次提醒都没有汇报，已经停下。可以重试、换人、拆小或者自己来做。`)
     this.deps.notify(outcome.task, 'stalled')
   }

@@ -13,6 +13,7 @@ import { useTouch } from '../../components/media.ts'
 import type { Mentions } from '../../components/mentions.tsx'
 import { MenuItem, MenuPanel, useMenu } from '../../components/Menu.tsx'
 import { RunSummaryLine } from '../../components/Progress.tsx'
+import { TaskDecision, decidedText } from '../../components/TaskDecision.tsx'
 import { GroupChip, TaskChip } from '../../components/TaskEntry.tsx'
 import { useSnapshot } from '../../components/taskParts.tsx'
 import { WaitCard } from '../../components/WaitCard.tsx'
@@ -40,6 +41,8 @@ export interface MessageProps {
   readonly hideTime?: boolean
   /** 任务群：子任务的任务卡显示成组长派活的那句话。 */
   readonly quiet?: boolean
+  /** 这是任务要你定的最近那句话（交上来等验收、受阻、没做成）：后面带两个按钮。 */
+  readonly decision?: boolean
 }
 
 function authorName(author: string, bots: ReadonlyMap<string, Bot>): string {
@@ -152,6 +155,7 @@ export function MessageItem(props: MessageProps) {
   const quoted = props.quoted
   const pageId = typeof message.data.pageId === 'string' ? message.data.pageId : undefined
   const xEvent = readXEvent(message.data.xEvent)
+  const decided = decidedText(message.data.decided)
   // 这一轮跑完记下的执行过程：用时、几步，点开看每一步。
   const run = readRunSummary(message.data.run)
   const quote =
@@ -194,15 +198,26 @@ export function MessageItem(props: MessageProps) {
           <time>{clock(message.createdAt)}</time>
         </div>
         {quote}
-        {/* 等你卡也以发问的 bot 的名义挂在任务卡下面。 */}
+        {/* 等你：发问的 bot 说的那句话，后面带按钮。 */}
         {message.kind === 'wait' ? (
-          <WaitCard waitId={String(message.data.waitId ?? '')} title={message.body} />
+          <WaitCard message={message} />
         ) : xEvent === undefined ? (
           <Markdown text={message.body} mentions={calledMentions(message, props.mentions, false)} />
         ) : (
           <XEventCard view={xEvent} />
         )}
         {attachment === undefined ? null : <Attachment attachment={attachment} />}
+        {decided !== undefined ? (
+          <div className="pod-ask-done">{decided}</div>
+        ) : props.decision === true && typeof message.data.taskId === 'string' ? (
+          <TaskDecision
+            taskId={message.data.taskId}
+            onRevise={() => {
+              props.onReply(message)
+              app.focusComposer(message.roomId)
+            }}
+          />
+        ) : null}
         {run === undefined || !stepsOpen ? null : <RunSummaryLine run={run} />}
         {message.kind === 'kickoff' && typeof message.data.taskId === 'string' ? <KickoffActions taskId={message.data.taskId} /> : null}
       </div>

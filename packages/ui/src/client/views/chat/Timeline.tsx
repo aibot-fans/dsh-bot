@@ -330,6 +330,16 @@ export function Timeline(props: TimelineProps) {
   })
   const replies = sessions.filter((reply) => !isPreparing(reply.sessionId) || !sessions.some((other) => !isPreparing(other.sessionId) && other.botId === reply.botId))
   const blocks = arrange(messages.filter((message) => shownInChat(message, room.taskId !== null)))
+  // 每个任务要你定的最近那句话（结果、受阻、没做成）：按钮只挂在它后面。
+  const decisions = new Set(
+    [
+      ...new Map(
+        messages
+          .filter((message) => message.kind === 'text' && typeof message.data.taskId === 'string' && (message.data.purpose === 'result' || message.data.purpose === 'wait'))
+          .map((message) => [String(message.data.taskId), message.id]),
+      ).values(),
+    ],
+  )
   const ordered = blocks.flatMap((block) => [...block.texts, ...block.cards])
   // 最后一段回复的 bot 还在说：正在输入的文字排在这段的卡片上面，说完不跳位置。
   const tail = blocks.at(-1)
@@ -400,6 +410,7 @@ export function Timeline(props: TimelineProps) {
                     mentions={mentions}
                     hideTime={sameMinuteAsNext(message, ordered[index + 1])}
                     quiet={room.taskId !== null}
+                    decision={decisions.has(message.id)}
                   />
                 </div>
               </Fragment>

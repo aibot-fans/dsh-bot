@@ -19,7 +19,7 @@ import {
   type Wait,
   type WaitKind,
 } from 'pod-domain'
-import { getWait, insertWait, listWaits, setRootWaitStatus, setWaitStatus, waitsForRoot } from 'pod-store'
+import { getMessage, getWait, insertWait, listWaits, setRootWaitStatus, setWaitStatus, waitsForRoot } from 'pod-store'
 import type { Dispatcher } from '../effects/delivery.ts'
 import type { RoomService } from '../chat/rooms.ts'
 import type { Auditor } from '../core/audit.ts'
@@ -165,6 +165,7 @@ export class WaitService {
   }
 
   private afterChange(wait: Wait): void {
+    this.settleMessages(wait)
     if (wait.taskId !== null) {
       const task = this.deps.task(wait.taskId)
       const stillBlocked = task !== undefined && this.blockingFor(task.id) > 0
@@ -172,6 +173,17 @@ export class WaitService {
     }
     // 聊天室里的等你卡自己收成“已处理”一行，不再另发里程碑。
     this.deps.bus.emit({ type: 'waits' })
+  }
+
+  /** 对话里问的那句话记下怎么处理的：页面上按钮收起，留一行“你批准了”这样的小字。 */
+  private settleMessages(wait: Wait): void {
+    const rows = this.db
+      .prepare("SELECT id FROM messages WHERE kind = 'wait' AND json_extract(data, '$.waitId') = ? AND deleted_at IS NULL")
+      .all(wait.id) as unknown as readonly { readonly id: string }[]
+    for (const row of rows) {
+      const message = getMessage(this.db, row.id)
+      if (message !== undefined) this.deps.rooms.patchMessage(message.id, { data: { ...message.data, settled: { status: wait.status, answer: wait.answer } } })
+    }
   }
 
   private blockingFor(taskId: string): number {

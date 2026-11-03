@@ -102,6 +102,8 @@ export interface RoomServiceDeps {
   readonly onOwnerText?: (message: RoomMessage) => void
   /** 接收：你的话在有任务跟进的话题里就直通那些任务（任务群里 @ 了成员的先看它的子任务），返回直通了几个；0 才交给前台。 */
   readonly intake?: (message: RoomMessage, mentioned: readonly Bot[]) => number
+  /** 引用回复的是还开着的等你：这句话就是答复；答上了返回 true。 */
+  readonly answerWait?: (waitId: string, answer: string) => boolean
   /** 交给这几个 bot 的前台（每个 bot 一个，跨聊天室）；note 是交给前台时附的说明。 */
   readonly front: (message: RoomMessage, bots: readonly Bot[], note: string) => void
   /** 这个 bot 现在的前台。 */
@@ -506,6 +508,9 @@ export class RoomService {
     if (message === undefined) return fail('not-found', t('找不到这个房间'))
     markRoomRead(this.db, roomId, message.seq)
     this.deps.onOwnerText?.(message)
+    // 引用了等你的那句话回字：就是答复，答复照常转回给问的任务。
+    const quoted = replyTo === null ? undefined : getMessage(this.db, replyTo)
+    if (quoted?.kind === 'wait' && typeof quoted.data.waitId === 'string' && this.deps.answerWait?.(quoted.data.waitId, masked.text) === true) return ok(message)
     // 回复、引用的是有任务跟进的话题（比如任务卡）：直接送进那些任务，不再交给前台。
     if ((this.deps.intake?.(message, mentioned) ?? 0) > 0) return ok(message)
     this.toFronts(room, message, '')

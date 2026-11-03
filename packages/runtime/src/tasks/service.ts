@@ -8,6 +8,7 @@ import {
   newAcceptance,
   newId,
   ok,
+  OWNER,
   rootTaskFolder,
   t,
   type Bot,
@@ -23,12 +24,14 @@ import {
   type TaskResult,
   type TaskSnapshot,
   type TaskStatus,
+  type TicketStage,
   type TriggerSummary,
 } from 'pod-domain'
 import {
   activeTasksForBot,
   appendTaskEvent,
   findDelegated,
+  getMessage,
   getTask,
   latestReport,
   latestRun,
@@ -63,6 +66,9 @@ const UNDELIVERED_AFTER = 3
 
 /** 派活时最多把你的几句原话放进来由。 */
 const ORIGIN_QUOTES = 5
+
+/** 要你定的阶段：交上来等你验收、受阻、没做成，那句话后面带按钮。 */
+const DECIDING: ReadonlySet<TicketStage> = new Set(['review', 'blocked', 'failed'])
 
 export interface TaskServiceDeps {
   readonly db: DatabaseSync
@@ -353,8 +359,10 @@ export class TaskService {
   control(taskId: string, action: ControlAction, actor: string, why?: string): PodResult<Task> {
     const root = this.get(this.rootOf(taskId) ?? taskId)
     if (root === undefined) return fail('not-found', t('找不到这个任务'))
+    const deciding = DECIDING.has(this.engine.tickets.stageOf(root))
     const result = isTicket(root) ? this.controlTicket(root, action, actor) : this.controlTeam(root, action)
     if (!result.ok) return result
+    if (deciding && actor === OWNER && action !== 'pause') this.settleDecision(root.id, action)
     // 停掉，或者停下工单的这次执行：正在跑的一轮也停下，排着的消息撤掉。
     if (action === 'stop' || action === 'cancel' || (action === 'pause' && isTicket(root))) {
       const sessions = this.tree(root.id)
@@ -370,6 +378,18 @@ export class TaskService {
     this.event(root, `control.${action}`, actor, why === undefined ? {} : { why })
     this.deps.audit.record(`task.${action}`, actor, root.id, { title: root.title })
     return ok(this.get(root.id) ?? root)
+  }
+
+  /** 任务要你定的那句话（每个聊天室最近一条）记下你怎么定的：页面上按钮收起，留一行“你收下了”这样的小字。 */
+  private settleDecision(rootId: string, action: ControlAction): void {
+    const rows = this.db
+      .prepare("SELECT id, room_id FROM messages WHERE kind = 'text' AND json_extract(data, '$.taskId') = ? AND json_extract(data, '$.purpose') IN ('result', 'wait') AND deleted_at IS NULL ORDER BY seq")
+      .all(rootId) as unknown as readonly { readonly id: string; readonly room_id: string }[]
+    const latest = new Map(rows.map((row) => [row.room_id, row.id]))
+    for (const id of latest.values()) {
+      const message = getMessage(this.db, id)
+      if (message !== undefined && message.data.decided === undefined) this.deps.rooms.patchMessage(id, { data: { ...message.data, decided: { action } } })
+    }
   }
 
   private controlTicket(task: Task, action: ControlAction, actor: string): PodResult<Task> {

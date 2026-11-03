@@ -298,6 +298,7 @@ export class PodRuntime {
       leaderFor: (room) => this.leaderForRoom(room),
       onOwnerText: (message) => this.evolutionKit.feedback.observeOwner(message),
       intake: (message, mentioned) => this.intake.owner(message, mentioned.map((bot) => bot.id)).length,
+      answerWait: (waitId, answer) => this.waits.get(waitId)?.status === 'open' && this.waits.answer({ waitId, answer }).ok,
       stopSession: (sessionId) => {
         this.dispatcher.cancelPending(sessionId)
         ctx.agents.get(sessionId)?.cancel({ kind: 'user' })
@@ -604,7 +605,7 @@ export class PodRuntime {
       },
       block: (session, task, reason) => {
         ctx.agents.get(session.id)?.cancel({ kind: 'hook', reason: 'pod: watchdog' }, { keepInbox: true })
-        this.turns.stalled(task, t('看门狗判断这个任务做不下去了：{reason}。处理好以后点任务卡上的“重试”，或者回复任务卡告诉它怎么做。', { reason }))
+        this.turns.stalled(task, t('看门狗判断这个任务做不下去了：{reason}。处理好以后点下面的“重试”，或者引用这句话告诉它怎么做。', { reason }))
       },
       settled: (session, judgment) => {
         if (judgment.verdict === 'continue') this.observer.markStalled(session.id, false)
