@@ -1,4 +1,4 @@
-/** V4 界面（对话里只有对话、等你的按钮、群详情、概览的任务列表，主对话的任务卡片）新加的界面文字的英文译文。 */
+/** V4 界面（对话里只有对话、等你的按钮、群详情、概览的任务列表，主对话的任务卡片和任务栏）新加的界面文字的英文译文。 */
 export const UI_EN_V4: Readonly<Record<string, string>> = {
   '{label}：{title}': '{label}: {title}',
   '先不': 'Not now',
@@ -29,8 +29,24 @@ export const UI_EN_V4: Readonly<Record<string, string>> = {
   '等你（{count}）': 'Needs you ({count})',
   '完成（{count}）': 'Done ({count})',
   '{name} · {step}': '{name} · {step}',
+  '干活的 bot': 'The bot',
+  '{reason}：{note}': '{reason}: {note}',
+  '{name}没做成': "{name} couldn't get it done",
+  '{name}没做成：{note}': "{name} couldn't get it done: {note}",
+  '{name}在问：{question}': '{name} asks: {question}',
+  '{name}交上来了，有没核实的地方，等你收下': '{name} handed it in with unverified parts; accept it when you have checked',
+  '{name}卡住了': '{name} is stuck',
+  '{name}卡住了：{note}': '{name} is stuck: {note}',
+  '消息没送到{name}那里': "The message didn't reach {name}",
   '完成': 'Done',
   '没做成': 'Not done',
   '等你': 'Needs you',
   '进行中 · {time}': 'Working · {time}',
+  '还没有做完的任务。': 'No finished tasks yet.',
+  '没有失败或停掉的任务。': 'No failed or stopped tasks.',
+  '更新于 {time}': 'Updated {time}',
+  '展开任务栏': 'Show tasks',
+  '收起任务栏': 'Hide tasks',
+  '{label} {count}': '{label} {count}',
+  '任务分组': 'Task groups',
 }

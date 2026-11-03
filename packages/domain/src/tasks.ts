@@ -191,4 +191,6 @@ export interface TaskSnapshot {
   readonly groupRoomId: string | null
   /** 任务自己的对话（交给别的 bot 时另开的单聊，或者任务群）；就在原来的对话里干的任务是 null。 */
   readonly conversationId: string | null
+  /** 常开任务（例程、盯网页这类挂着重复触发器的）：结果发到设好的聊天室，不放进主对话的任务栏。 */
+  readonly standing: boolean
 }

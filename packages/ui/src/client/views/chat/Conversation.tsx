@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { t, type Bot, type RoomMessage } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { Empty } from '../../components/common.tsx'
+import { useNarrow } from '../../components/media.ts'
 import { isPreparing, useApp, useLive, useNav } from '../../state/app.ts'
 import { useChatWidth } from '../../state/chatWidth.ts'
 import { readDraft, saveDraftReply } from '../../state/drafts.ts'
 import { useResource } from '../../state/resource.ts'
+import { TaskRail } from '../home/TaskRail.tsx'
 import { ChatHeader } from './ChatHeader.tsx'
 import { Composer } from './Composer.tsx'
 import { PinnedBar } from './PinnedBar.tsx'
@@ -13,12 +15,13 @@ import { Timeline } from './Timeline.tsx'
 
 /**
  * 中间的对话：顶部是对象（有置顶消息时下面一条置顶条），中间是时间线，底部是输入框；群里不放状态条，状态在群详情里；
- * 宽窄按设置里的“聊天区宽度”。默认打开和主管的单聊。
+ * 宽窄按设置里的“聊天区宽度”。默认打开和主管的单聊。和 Super-agent 的单聊是主对话，右边是任务栏（手机上不放）。
  */
 export function Conversation() {
   const app = useApp()
   const nav = useNav()
   const width = useChatWidth()
+  const narrow = useNarrow()
   const { data: rooms, loading: roomsLoading } = useResource(app.cache, 'rooms', () => api.rooms())
   const { data: botList } = useResource(app.cache, 'bots', () => api.bots())
   const bots = useMemo(() => new Map((botList ?? []).map((bot) => [bot.id, bot])), [botList])
@@ -63,7 +66,7 @@ export function Conversation() {
   const memberIds = (members?.members ?? []).map((member) => member.botId)
   const memberBots = memberIds.map((id) => bots.get(id)).filter((bot): bot is Bot => bot !== undefined)
   const responder = room.kind === 'direct' ? bots.get(room.botId ?? '') : lead
-  return (
+  const main = (
     <main className={`pod-convo pod-width-${width}`}>
       <ChatHeader room={room} bots={bots} memberIds={memberIds} />
       <PinnedBar room={room} bots={authors} />
@@ -81,5 +84,13 @@ export function Conversation() {
         replying={live.statuses.some((status) => !isPreparing(status.sessionId))}
       />
     </main>
+  )
+  const home = !narrow && lead !== undefined && room.kind === 'direct' && room.botId === lead.id && room.taskId === null
+  if (!home) return main
+  return (
+    <div className="pod-home">
+      {main}
+      <TaskRail />
+    </div>
   )
 }

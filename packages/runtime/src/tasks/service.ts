@@ -34,6 +34,7 @@ import {
   findDelegated,
   getMessage,
   getTask,
+  isStanding,
   latestReport,
   latestRun,
   listRootTasks,
@@ -596,6 +597,7 @@ export class TaskService {
       trigger: this.triggerSummary(task.id),
       groupRoomId: taskRoomOf(this.db, task.rootId)?.id ?? null,
       conversationId: taskConversationOf(this.db, task.rootId)?.id ?? null,
+      standing: isStanding(this.db, task.rootId),
     }
   }
 
