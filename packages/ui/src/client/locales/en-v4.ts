@@ -55,4 +55,6 @@ export const UI_EN_V4: Readonly<Record<string, string>> = {
   '{name}：{text}': '{name}: {text}',
   '有任务没做成': "A task didn't get done",
   '做完了，还没点开看': 'Done, not opened yet',
+  '更新于 {time}': 'Updated {time}',
+  '{label}：{text}': '{label}: {text}',
 }

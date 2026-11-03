@@ -36,14 +36,21 @@ export function isMoving(snapshot: TaskSnapshot): boolean {
   return snapshot.stage === 'idle' && snapshot.children.some((child) => child.endedAt === null)
 }
 
-/** 任务的状态图标：转圈是进行中，红点是等你，勾是完成（你停掉的、无需处理的是灰勾）。 */
+/** 任务的状态图标：转圈是进行中，红点是等你，红叉是没做成，圈住的勾是完成（你停掉的、无需处理的是灰勾）。 */
 export function TaskStateIcon(props: { readonly snapshot: TaskSnapshot }) {
   const bucket = bucketOf(props.snapshot)
+  if (bucket === 'attention' && props.snapshot.stage === 'failed') {
+    return (
+      <span className="pod-state-icon pod-state-failed" aria-hidden>
+        <Icon name="close" size={8} />
+      </span>
+    )
+  }
   if (bucket === 'attention') return <span className="pod-state-icon pod-state-attention" aria-hidden />
   if (bucket === 'done' || bucket === 'ended') {
     return (
       <span className={`pod-state-icon pod-state-${bucket}`} aria-hidden>
-        <Icon name="check" size={12} />
+        <Icon name="check" size={9} />
       </span>
     )
   }
