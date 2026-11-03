@@ -94,9 +94,9 @@ export function endsRun(status: ReportStatus): boolean {
   return status !== 'progress'
 }
 
-/** 这几种必须写报告。 */
+/** 这几种必须写报告：卡在哪、试过什么。就绪交的回答就在摘要里，不另写报告。 */
 export function needsReport(status: ReportStatus): boolean {
-  return status === 'ready' || status === 'blocked' || status === 'failed'
+  return status === 'blocked' || status === 'failed'
 }
 
 export interface TaskReport {
@@ -104,9 +104,9 @@ export interface TaskReport {
   readonly runId: string | null
   readonly taskId: string
   readonly status: ReportStatus
-  /** 一句摘要，先写结论；就绪时作为结果发到聊天室。 */
+  /** 发到对话里的话：就绪时是给用户的完整回答，失败时是原因，进展时是现在在做什么。 */
   readonly summary: string
-  /** 完整报告，放任务页。 */
+  /** 受阻、失败时卡在哪、试过什么，不发到对话里。 */
   readonly report: string
   /** 最多一个问题；受阻必填，进等你。 */
   readonly question: string

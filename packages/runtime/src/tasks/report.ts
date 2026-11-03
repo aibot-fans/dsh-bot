@@ -33,13 +33,10 @@ export interface ReportArgs {
   readonly options: readonly string[]
   readonly aboutMessage: string | null
   readonly replyMessage: string | null
-  /** 勾的验收项，编号从 1 开始。 */
+  /** 勾的验收项（组长给子任务写的），编号从 1 开始。 */
   readonly checks: readonly number[]
-  readonly acceptance: readonly string[]
+  /** 要的东西本身是文件时，文件的路径。 */
   readonly files: readonly string[]
-  readonly assumptions: readonly string[]
-  readonly unverified: readonly string[]
-  readonly skipped: readonly string[]
   readonly lessons: string
 }
 
@@ -68,8 +65,8 @@ export interface ReportingDeps {
 }
 
 /**
- * 汇报的后续：引擎记下汇报、改执行和阶段，这里做对外的事——就绪的摘要作为结果发出去、受阻的问题进等你、
- * 失败由干活的 bot 回复任务卡说原因；进展、等消息和无需处理不说话（只更新任务卡，报告在任务页）。
+ * 汇报的后续：引擎记下汇报、改执行和阶段，这里做对外的事——就绪的回答作为结果发出去、受阻的问题进等你、
+ * 失败由干活的 bot 回复任务卡说原因；进展、等消息和无需处理不说话（只更新任务卡）。
  * 团队子任务按旧的提交、找你、停滞走。
  */
 export class TaskReporting {
@@ -87,8 +84,9 @@ export class TaskReporting {
     return isTicket(task) ? this.ticket(session, task, args) : this.subtask(session, task, args)
   }
 
+  /** 交的结果就是那条回答；假设、没核实的、跳过的都写在回答里，这里只记被绕过的几项。 */
   private result(args: ReportArgs, extra: readonly string[] = []): TaskResult {
-    return { summary: args.summary, files: args.files, assumptions: args.assumptions, unverified: [...args.unverified, ...extra], skipped: args.skipped }
+    return { summary: args.summary, files: args.files, assumptions: [], unverified: extra, skipped: [] }
   }
 
   private record(session: PodSession, task: Task, args: ReportArgs): ReturnType<Engine['runs']['report']> {
@@ -102,8 +100,8 @@ export class TaskReporting {
       aboutMessage: args.aboutMessage,
       replyMessage: args.replyMessage,
       checks: args.checks.map((index) => index - 1),
-      acceptance: args.acceptance,
-      data: { files: args.files, assumptions: args.assumptions, unverified: args.unverified, skipped: args.skipped },
+      acceptance: [],
+      data: { files: args.files },
     })
   }
 
@@ -250,26 +248,22 @@ export function reportTool(pod: PodRuntime, session: PodSession): ToolDefinition
     name: 'report',
     description: [
       '向 dsh-bot 汇报这个任务，一次只能是一种状态，最多附一个问题：',
-      'progress 进展（只更新任务卡，聊天室里不说话）；waiting 这一步做完了，等后续消息；ready 做完了，结果能用（写报告，勾验收项）；',
+      'progress 进展（只更新任务卡，聊天室里不说话）；waiting 这一步做完了，等后续消息；ready 做完了，交上回答；',
       'blocked 缺东西做不下去（登录、权限、用户的决定），必须附一个问题；failed 试过了做不成，写原因；dismissed 看过了不用做（重复、已经做过）。',
-      'summary 是一两句摘要，先写结论和要用户做什么：就绪时作为结果发给用户，失败时就是发给用户的原因；ready、blocked、failed 还要写 report（完整报告，放任务页）。',
-      '除了 progress，汇报后这一轮结束。',
+      'summary 会原样发到对话里：ready 时是给用户的完整回答，failed 时是原因，progress 时是现在在做什么；blocked、failed 还要写 report（卡在哪、试过什么，不发到对话里）。',
+      '交了就算做完，不用用户验收。除了 progress，汇报后这一轮结束。',
     ].join(''),
     properties: {
       status: oneOf('progress / waiting / ready / blocked / failed / dismissed', [...REPORT_STATUSES]),
-      summary: str('一两句摘要，先写结论和要用户做什么（看、试、收下）；不写做法和过程'),
-      report: str('完整报告（ready、blocked、failed 必填），放任务页，按这几个小标题写：结论、改了什么、怎么验证的、产出在哪、遗留问题、要你做什么'),
+      summary: str('发到对话里的话。ready：给用户的完整回答，先一句说答案，再列要点，来源、假设、没核实的写在里面；failed：没做成的原因；progress：一句现在在做什么'),
+      report: str('blocked、failed 必填：卡在哪、试过什么、还缺什么，给 Super-agent 和组长看，不发到对话里'),
       question: str('blocked 时要用户处理的事：只问一个问题，一句话说清'),
-      options: strList('问题的选项（2–4 个，能给就给），用户点一下就是答复'),
+      options: strList('问题的选项（2–4 个，能给就给，推荐的放第一个），用户点一下就是答复'),
       question_kind: oneOf('问题的种类：login 需要登录或验证；write 要批准不可撤回的对外操作；security 被安全规则拦下；ambiguity 要用户拿主意', [...ASK_KINDS]),
       about_message: str('问题针对哪条消息（消息 id，可选）'),
       reply_message: str('这次汇报回的是哪条消息（消息 id，可选）'),
-      checks: intList('ready 或 progress 时勾上的验收项编号，从 1 开始；ready 不写就当作都过了'),
-      acceptance: strList('可选：想把要做到的几点列成清单逐条勾时写（第一次汇报时）'),
-      files: strList('产出文件的路径'),
-      assumptions: strList('做了哪些假设'),
-      unverified: strList('哪些信息没核实（有的话任务等用户验收）'),
-      skipped: strList('跳过了什么、为什么'),
+      checks: intList('组长写了验收项的子任务：ready 或 progress 时勾上的编号，从 1 开始；ready 不写就当作都过了'),
+      files: strList('只在用户要的东西本身是文件（文档、表格、代码）时写：文件的路径，回答里也要说'),
       lessons: str('这次学到的做法或教训（可选，会写进你的经验）'),
     },
     required: ['status', 'summary'],
@@ -279,7 +273,7 @@ export function reportTool(pod: PodRuntime, session: PodSession): ToolDefinition
       const summary = text(args, 'summary')
       if (summary === '') return '摘要不能为空'
       const report = text(args, 'report')
-      if (needsReport(status as ReportStatus) && report === '') return `${status} 要写 report（完整报告）`
+      if (needsReport(status as ReportStatus) && report === '') return `${status} 要写 report（卡在哪、试过什么）`
       const question = text(args, 'question')
       if (status === 'blocked' && question === '') return 'blocked 要附一个问题'
       const kind = text(args, 'question_kind')
@@ -293,11 +287,7 @@ export function reportTool(pod: PodRuntime, session: PodSession): ToolDefinition
         aboutMessage: text(args, 'about_message') || null,
         replyMessage: text(args, 'reply_message') || null,
         checks: ints(args, 'checks'),
-        acceptance: texts(args, 'acceptance'),
         files: texts(args, 'files'),
-        assumptions: texts(args, 'assumptions'),
-        unverified: texts(args, 'unverified'),
-        skipped: texts(args, 'skipped'),
         lessons: text(args, 'lessons'),
       }
     },

@@ -54,21 +54,9 @@ function asReport(decision) {
   const summary = String(args.summary ?? '')
   const files = args.files ?? []
   const unverified = args.unverified ?? []
-  const head = summary.split('\n')[0].replace(/^- /, '')
-  // 报告按固定的小标题写，放任务页；摘要发到聊天里。
-  const report = [
-    `## 结论\n${head}`,
-    `## 改了什么\n${summary}`,
-    '## 怎么验证的\n测试模型没有真的验证',
-    `## 产出在哪\n${files.length === 0 ? '没有文件' : files.join('、')}`,
-    `## 遗留问题\n${unverified.length === 0 ? '无' : unverified.join('；')}`,
-    `## 要你做什么\n${unverified.length === 0 ? '看一下结果' : '看过没核实的地方再收下'}`,
-  ].join('\n\n')
-  return {
-    ...decision,
-    tool: 'report',
-    args: { status: 'ready', summary: head, report, files, assumptions: args.assumptions ?? [], unverified, skipped: args.skipped ?? [] },
-  }
+  // 交的就是一条完整回答：没核实的写在回答末尾，文件只在要的东西本身是文件时附上。
+  const answer = [summary, unverified.length === 0 ? '' : `没核实：${unverified.join('；')}`].filter(Boolean).join('\n\n')
+  return { ...decision, tool: 'report', args: { status: 'ready', summary: answer, files } }
 }
 
 /** 真正有意义的用户消息：你说的话、bot 之间的转达、Pod 的提醒；跳过时间注入这类上下文。 */
