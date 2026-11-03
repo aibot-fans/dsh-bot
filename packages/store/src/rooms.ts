@@ -386,6 +386,23 @@ export function findTaskCard(db: DatabaseSync, taskId: string): RoomMessage | un
   return row === undefined ? undefined : toMessage(row)
 }
 
+/**
+ * 放任务结果的那条消息，没有自己对话的任务（就在原来的对话里干的、以前没开群的）从这里打开：最近一条结果或答复；
+ * 还没有的，最近一条和它有关的消息（任务卡、等你、转告）。子任务的也算。
+ */
+export function taskResultMessage(db: DatabaseSync, rootId: string): RoomMessage | undefined {
+  const row = db
+    .prepare(
+      `SELECT m.* FROM messages m JOIN rooms r ON r.id = m.room_id
+       WHERE m.deleted_at IS NULL AND r.purged_at IS NULL
+         AND (json_extract(m.data, '$.taskId') IN (SELECT id FROM tasks WHERE root_id = ?) OR json_extract(m.data, '$.reportTaskId') = ?)
+       ORDER BY CASE WHEN json_extract(m.data, '$.purpose') IN ('result', 'answer') THEN 0 ELSE 1 END, m.created_at DESC
+       LIMIT 1`,
+    )
+    .get(rootId, rootId) as MessageRow | undefined
+  return row === undefined ? undefined : toMessage(row)
+}
+
 export function pinnedMessages(db: DatabaseSync, roomId: string): readonly RoomMessage[] {
   const rows = db
     .prepare('SELECT * FROM messages WHERE room_id = ? AND pinned = 1 AND deleted_at IS NULL ORDER BY seq ASC')

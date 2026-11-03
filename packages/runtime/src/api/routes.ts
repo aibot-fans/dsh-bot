@@ -15,7 +15,7 @@ import {
   type SearchKind,
   type TaskStatus,
 } from 'pod-domain'
-import { getMessage, listAudit, progressOfTree, reportsFor, updateHandoverNote } from 'pod-store'
+import { getMessage, listAudit, progressOfTree, reportsFor, taskResultMessage, updateHandoverNote } from 'pod-store'
 import type { PodRuntime } from '../pod.ts'
 import type { ControlAction } from '../tasks/service.ts'
 import { followViews, taskTimeline } from '../tasks/timeline.ts'
@@ -146,6 +146,12 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
       const id = readId(query, 'id')
       const task = id === undefined ? undefined : pod.tasks.get(id)
       return task === undefined ? fail('not-found', t('找不到这个任务')) : ok(progressOfTree(pod.db, task.rootId, PROGRESS_LIMIT))
+    }),
+    // 没有自己对话的任务放结果的那条消息：点这种任务时跳过去。
+    get('/task/message', (query) => {
+      const id = readId(query, 'id')
+      const task = id === undefined ? undefined : pod.tasks.get(id)
+      return task === undefined ? fail('not-found', t('找不到这个任务')) : ok(taskResultMessage(pod.db, task.rootId) ?? null)
     }),
     post('/task/control', (body) => {
       const taskId = readId(body, 'taskId')
