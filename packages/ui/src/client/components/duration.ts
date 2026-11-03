@@ -6,6 +6,11 @@ export function duration(ms: number): string {
   return minutes < 60 ? t('{minutes} 分钟', { minutes }) : t('{floor} 小时 {value} 分', { floor: Math.floor(minutes / 60), value: minutes % 60 })
 }
 
+/** 干了多久：不到一分钟写「不到 1 分钟」，别的同 duration。 */
+export function spent(ms: number): string {
+  return ms < 60_000 ? t('不到 1 分钟') : duration(ms)
+}
+
 /** 今天的只写钟点，别的天带上月日。 */
 export function stamp(time: number): string {
   const date = new Date(time)

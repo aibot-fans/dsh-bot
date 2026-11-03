@@ -40,6 +40,7 @@ const PATHS: Readonly<Record<string, string>> = {
   sparkle: 'M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6',
   more: 'M5 12h.01M12 12h.01M19 12h.01',
   sidebar: 'M4 5h16v14H4zM9 5v14',
+  panel: 'M4 5h16v14H4zM15 5v14',
   edit: 'M4 20h4L19 9l-4-4L4 16zM13 7l4 4',
   trash: 'M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12',
   usage: 'M5 19v-7M10 19V6M15 19v-5M20 19V9',

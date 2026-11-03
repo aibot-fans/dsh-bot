@@ -1,4 +1,4 @@
-/** V4 界面（对话里只有对话、等你的按钮、群详情、概览的任务列表，主对话的任务卡片和任务栏）新加的界面文字的英文译文。 */
+/** V4 界面（对话里只有对话、等你的按钮、群详情、概览的任务列表，主对话的任务卡片和任务栏，全屏的任务对话）新加的界面文字的英文译文。 */
 export const UI_EN_V4: Readonly<Record<string, string>> = {
   '{label}：{title}': '{label}: {title}',
   '先不': 'Not now',
@@ -56,4 +56,16 @@ export const UI_EN_V4: Readonly<Record<string, string>> = {
   '打开任务': 'Open task',
   '关掉小窗': 'Close side chat',
   '这个任务没有自己的对话': "This task doesn't have its own chat",
+  '正在处理': 'working',
+  '这段对话的任务': 'Task in this chat',
+  '进展': 'Progress',
+  '干活的 bot 报的进展会列在这里': 'Progress the bot reports shows up here',
+  '今天 {time}': 'Today {time}',
+  '{name} 单聊': 'Chat with {name}',
+  '跳到这句话': 'Jump to this message',
+  '收起详情': 'Hide details',
+  '打开详情': 'Show details',
+  '和{name}的单聊': 'Chat with {name}',
+  '查看详情': 'View details',
+  '给 {name} 发消息，输入 @ 点名别的成员': 'Message {name}, or type @ to address another member',
 }

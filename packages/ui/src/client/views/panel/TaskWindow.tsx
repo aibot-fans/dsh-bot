@@ -49,11 +49,10 @@ function WindowChat(props: { readonly roomId: string }) {
   const room = rooms?.find((item) => item.id === props.roomId)
   if (room === undefined) return <Empty title={rooms === undefined ? t('正在读取…') : t('这个对话已经删除')} />
   const memberBots = (members?.members ?? []).map((member) => bots.get(member.botId)).filter((bot): bot is Bot => bot !== undefined)
-  const responder = room.kind === 'direct' ? bots.get(room.botId ?? '') : lead
   return (
     <OpenBotContext.Provider value={showBot}>
       <div className="pod-convo pod-width-full pod-twin-chat">
-        <ChatBody room={room} bots={bots} authors={authors} members={memberBots} responder={responder} />
+        <ChatBody room={room} bots={bots} authors={authors} members={memberBots} lead={lead} />
       </div>
     </OpenBotContext.Provider>
   )

@@ -7,6 +7,7 @@ import { Icon } from '../../components/Icon.tsx'
 import { LineDiff } from '../../components/LineDiff.tsx'
 import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
+import { TaskFacts } from './TaskFacts.tsx'
 
 const PROFILE_HINTS: Readonly<Record<ToolProfile, string>> = {
   talk: '只聊天、读记忆、搜聊天记录',
@@ -61,7 +62,8 @@ function modelKey(model: ModelChoice | null): string {
 }
 
 /** Bot 详情的“详情”页：现在的全部设定，都能直接改；记忆、技能、成长记录和历史版本从这里点进去。 */
-export function BotDetails(props: { readonly bot: Bot }) {
+/** taskId：开着的是和它的任务单聊时，最上面放这段对话的任务。 */
+export function BotDetails(props: { readonly bot: Bot; readonly taskId?: string }) {
   const app = useApp()
   const { bot } = props
   const [problem, setProblem] = useState<string | undefined>(undefined)
@@ -118,6 +120,7 @@ export function BotDetails(props: { readonly bot: Bot }) {
 
   return (
     <div className="pod-stack">
+      {props.taskId === undefined ? null : <TaskFacts taskId={props.taskId} title={t('这段对话的任务')} />}
       {problem === undefined ? null : <p className="pod-form-error">{problem}</p>}
       <Section
         title={t('角色卡')}

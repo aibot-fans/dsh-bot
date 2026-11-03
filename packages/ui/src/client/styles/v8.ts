@@ -1,11 +1,9 @@
 /**
  * V3 的界面：概览的版面、任务页（时间线、来由、文件）、
- * 任务卡上的问题、群顶的团队状态、侧栏的概览入口和在跑任务数、消息的去向。
+ * 任务卡上的问题、群顶的团队状态、侧栏的概览入口、消息的去向。
  */
 export const V8_CSS = `
 .pod-side-overview { margin-bottom: 4px; }
-.pod-side-running { flex: none; display: inline-flex; align-items: center; gap: 4px; height: 18px; padding: 0 6px; border-radius: 9px; font-size: 11px; color: var(--pod-info); background: color-mix(in srgb, var(--pod-info) 10%, transparent); }
-.pod-side-running .pod-side-busy { width: 6px; height: 6px; }
 .pod-avatar-dot-blocked { background: var(--pod-danger); }
 
 .pod-overview-body { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 20px; width: 100%; max-width: 900px; align-self: center; box-sizing: border-box; padding: 16px; }

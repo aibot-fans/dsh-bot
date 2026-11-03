@@ -1,24 +1,82 @@
 import { useState } from 'react'
-import { t } from 'pod-domain'
+import { t, type RoomSummary } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
-import { Button } from '../../components/common.tsx'
+import { Button, clock, useNow } from '../../components/common.tsx'
+import { spent, stamp } from '../../components/duration.ts'
 import { TaskStateIcon, bucketLabel, bucketOf } from '../../components/TaskEntry.tsx'
 import { useSnapshot } from '../../components/taskParts.tsx'
 import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 
-/** 来源里引用的原话最多显示几个字。 */
-const QUOTE_MAX = 40
+/** 开始时间：今天的写「今天 11:21」，别的天带上月日。 */
+function startedText(time: number, now: number): string {
+  return new Date(time).toDateString() === new Date(now).toDateString() ? t('今天 {time}', { time: clock(time) }) : stamp(time)
+}
+
+/** 任务从哪来：派活的那个对话（单聊写「Super-agent 单聊」），下面是你的原话，点一下跳过去。 */
+function Source(props: { readonly room: RoomSummary | undefined; readonly name: string | undefined; readonly quote: { readonly messageId: string | null; readonly text: string } | undefined; readonly rule: string | undefined; readonly onProblem: (text: string) => void }) {
+  const app = useApp()
+  const { room, quote } = props
+  const jump = (messageId: string): void => {
+    api
+      .message(messageId)
+      .then((message) => app.focusMessage(message.roomId, message.seq, message.id))
+      .catch((reason: unknown) => props.onProblem(errorText(reason)))
+  }
+  if (room === undefined && quote === undefined) return <span className="pod-muted-inline">{props.rule ?? t('无')}</span>
+  return (
+    <span className="pod-task-source">
+      {room === undefined ? null : (
+        <button type="button" className="pod-link pod-ellipsis" onClick={() => app.openRoom(room.id)}>
+          {room.kind === 'direct' && props.name !== undefined ? t('{name} 单聊', { name: props.name }) : room.title}
+        </button>
+      )}
+      {quote === undefined || quote.messageId === null ? null : (
+        <button type="button" className="pod-task-quote" title={t('跳到这句话')} onClick={() => jump(quote.messageId ?? '')}>
+          {quote.text}
+        </button>
+      )}
+    </span>
+  )
+}
+
+/** 任务连同子任务报过的进展，旧的在上面；还没报过写一句。 */
+function TaskProgress(props: { readonly rootId: string }) {
+  const app = useApp()
+  const { data: reports } = useResource(app.cache, `progress:${props.rootId}`, () => api.taskProgress(props.rootId))
+  const items = [...(reports ?? [])].reverse()
+  return (
+    <section className="pod-box">
+      <div className="pod-box-head">
+        <strong>{t('进展')}</strong>
+      </div>
+      {items.length === 0 ? (
+        <p className="pod-task-progress-empty">{reports === undefined ? t('正在读取…') : t('干活的 bot 报的进展会列在这里')}</p>
+      ) : (
+        <ul className="pod-task-progress">
+          {items.map((report) => (
+            <li key={report.id}>
+              <span className="pod-task-progress-text">{report.summary}</span>
+              <time className="pod-task-progress-time">{clock(report.createdAt)}</time>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
 
 /**
- * 任务群详情顶上的三行：状态、在哪干活、来源（点开跳到原消息），加上不显眼的“停止”和“过程”。
- * 群里只有对话，这些放在这里，要看再点开。
+ * 任务对话右边「详情」最上面：这段对话的任务（状态、来源、在哪干活，没结束的写开始时间、能停止，结束了写用时），
+ * 下面是「进展」。单聊放在干活的 bot 的详情里，群聊放在群详情里。
  */
-export function TaskFacts(props: { readonly taskId: string }) {
+export function TaskFacts(props: { readonly taskId: string; readonly title: string }) {
   const app = useApp()
   const { snapshot } = useSnapshot(props.taskId)
   const { data: rooms } = useResource(app.cache, 'rooms', () => api.rooms())
+  const { data: bots } = useResource(app.cache, 'bots', () => api.bots())
+  const now = useNow()
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | undefined>(undefined)
   if (snapshot === undefined) return null
@@ -27,13 +85,7 @@ export function TaskFacts(props: { readonly taskId: string }) {
   const finished = bucket === 'done' || bucket === 'ended'
   const quote = (task.origin?.quotes ?? []).filter((item) => item.messageId !== null).at(-1)
   const sourceRoom = rooms?.find((room) => room.id === (task.origin?.roomId ?? task.roomId))
-  const jump = (messageId: string): void => {
-    setProblem(undefined)
-    api
-      .message(messageId)
-      .then((message) => app.focusMessage(message.roomId, message.seq, message.id))
-      .catch((reason: unknown) => setProblem(errorText(reason)))
-  }
+  const sourceBot = bots?.find((bot) => bot.id === sourceRoom?.botId)
   const stop = (): void => {
     setBusy(true)
     setProblem(undefined)
@@ -42,46 +94,48 @@ export function TaskFacts(props: { readonly taskId: string }) {
       .catch((reason: unknown) => setProblem(errorText(reason)))
       .finally(() => setBusy(false))
   }
-  const source =
-    quote !== undefined ? (
-      <button type="button" className="pod-link pod-ellipsis" title={quote.text} onClick={() => jump(quote.messageId ?? '')}>
-        {t('「{title}」', { title: quote.text.length > QUOTE_MAX ? `${quote.text.slice(0, QUOTE_MAX)}…` : quote.text })}
-      </button>
-    ) : sourceRoom !== undefined ? (
-      <button type="button" className="pod-link pod-ellipsis" onClick={() => app.openRoom(sourceRoom.id)}>
-        {sourceRoom.title}
-      </button>
-    ) : (
-      <span className="pod-muted-inline">{task.origin?.rule ?? t('无')}</span>
-    )
   return (
-    <section className="pod-box pod-task-facts">
-      <div className="pod-kv">
-        <span>{t('状态')}</span>
-        <span className="pod-task-fact">
-          <TaskStateIcon snapshot={snapshot} />
-          {bucketLabel(snapshot, bucket)}
-        </span>
-      </div>
-      <div className="pod-kv">
-        <span>{t('在哪干活')}</span>
-        <span>{t('这台电脑')}</span>
-      </div>
-      <div className="pod-kv">
-        <span>{t('来源')}</span>
-        {source}
-      </div>
-      <div className="pod-row pod-task-facts-actions">
-        {finished ? null : (
-          <Button small kind="quiet" icon="stop" disabled={busy} onClick={stop}>
-            {t('停止')}
-          </Button>
+    <>
+      <section className="pod-box pod-task-facts">
+        <div className="pod-box-head">
+          <strong>{props.title}</strong>
+          {finished ? null : (
+            <span className="pod-box-action">
+              <Button small kind="quiet" icon="stop" disabled={busy} onClick={stop}>
+                {t('停止')}
+              </Button>
+            </span>
+          )}
+        </div>
+        <div className="pod-kv">
+          <span>{t('状态')}</span>
+          <span className={`pod-task-fact pod-task-fact-${bucket}`}>
+            <TaskStateIcon snapshot={snapshot} />
+            {bucketLabel(snapshot, bucket)}
+          </span>
+        </div>
+        <div className="pod-kv">
+          <span>{t('来源')}</span>
+          <Source room={sourceRoom} name={sourceBot?.name} quote={quote} rule={task.origin?.rule ?? undefined} onProblem={setProblem} />
+        </div>
+        <div className="pod-kv">
+          <span>{t('在哪干活')}</span>
+          <span>{t('这台电脑')}</span>
+        </div>
+        {finished ? (
+          <div className="pod-kv">
+            <span>{t('用时')}</span>
+            <span>{spent((task.finishedAt ?? now) - (task.startedAt ?? task.createdAt))}</span>
+          </div>
+        ) : (
+          <div className="pod-kv">
+            <span>{t('开始')}</span>
+            <span>{startedText(task.startedAt ?? task.createdAt, now)}</span>
+          </div>
         )}
-        <Button small kind="quiet" onClick={() => app.openTask(task.id)}>
-          {t('过程')}
-        </Button>
-      </div>
-      {problem === undefined ? null : <p className="pod-form-error">{problem}</p>}
-    </section>
+        {problem === undefined ? null : <p className="pod-form-error">{problem}</p>}
+      </section>
+      <TaskProgress rootId={task.rootId} />
+    </>
   )
 }

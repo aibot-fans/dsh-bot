@@ -349,6 +349,8 @@ export const api = {
   tasks: (status?: string) => apiGet<readonly TaskSnapshot[]>('/tasks', { status }),
   taskSnapshot: (id: string) => apiGet<TaskSnapshot>('/task/snapshot', { id }),
   taskDetail: (id: string) => apiGet<TaskDetail>('/task/detail', { id }),
+  /** 任务连同子任务报过的进展，最近的在前。 */
+  taskProgress: (id: string) => apiGet<readonly TaskReport[]>('/task/progress', { id }),
   controlTask: (taskId: string, action: 'pause' | 'resume' | 'stop' | 'cancel' | 'retry' | 'accept') => apiPost('/task/control', { taskId, action }),
   talkToTask: (taskId: string, text: string) => apiPost('/task/talk', { taskId, text }),
   updateTrigger: (id: string, enabled: boolean) => apiPost('/trigger/update', { id, enabled }),

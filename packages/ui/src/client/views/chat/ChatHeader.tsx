@@ -11,6 +11,7 @@ import { MenuPanel, useMenu } from '../../components/Menu.tsx'
 import { RenameInput } from '../../components/RenameInput.tsx'
 import { useApp, useNav } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
+import { DetailsToggle, TaskStatusPill } from './TaskHead.tsx'
 
 /**
  * 新对话。单聊开一段空白的新对话，之前的那段原样留在对话记录里，随时能回去接着聊；
@@ -105,7 +106,7 @@ function HistoryButton(props: { readonly room: RoomSummary; readonly bot: Bot })
 }
 
 /**
- * 群聊的标题：左边是成员拼成的群图标（点开群聊详情），点群名直接改名；成员悬停在群图标上看。
+ * 群聊的标题：左边是成员拼成的群图标（点开群聊详情），点群名直接改名；成员悬停在群图标上看，任务群在群名下面写出来。
  * 手机上群名也是点开详情（容易误触改名），改名在详情里。
  */
 function GroupTitle(props: { readonly room: RoomSummary; readonly members: readonly Bot[] }) {
@@ -119,35 +120,50 @@ function GroupTitle(props: { readonly room: RoomSummary; readonly members: reado
     return (
       <button type="button" className="pod-convo-title" onClick={() => app.showGroup(room.id)} aria-label={t('群聊详情：{names}', { names })}>
         <GroupMark members={members} size={30} />
-        <strong>{room.title}</strong>
+        {room.taskId === null ? (
+          <strong>{room.title}</strong>
+        ) : (
+          <span className="pod-convo-titles">
+            <strong className="pod-ellipsis">{room.title}</strong>
+            <span className="pod-convo-sub pod-ellipsis">{names}</span>
+          </span>
+        )}
         <Icon name="forward" size={14} />
       </button>
     )
   }
+  const name = renaming ? (
+    <RenameInput
+      value={room.title}
+      max={ROOM_TITLE_MAX}
+      label={t('群名')}
+      className="pod-convo-rename"
+      onSave={(title) => {
+        setRenaming(false)
+        api
+          .updateRoom(room.id, { title })
+          .then(() => app.cache.invalidate('rooms'))
+          .catch((reason: unknown) => setProblem(errorText(reason)))
+      }}
+      onCancel={() => setRenaming(false)}
+    />
+  ) : (
+    <button type="button" className="pod-convo-name" onClick={() => setRenaming(true)} title={t('点一下改群名')}>
+      <strong>{room.title}</strong>
+    </button>
+  )
   return (
     <div className="pod-convo-group">
       <button type="button" className="pod-convo-icon" onClick={() => app.showGroup(room.id)} title={t('群聊详情')} aria-label={t('群聊详情：{names}', { names })}>
         <GroupMark members={members} size={32} />
       </button>
-      {renaming ? (
-        <RenameInput
-          value={room.title}
-          max={ROOM_TITLE_MAX}
-          label={t('群名')}
-          className="pod-convo-rename"
-          onSave={(title) => {
-            setRenaming(false)
-            api
-              .updateRoom(room.id, { title })
-              .then(() => app.cache.invalidate('rooms'))
-              .catch((reason: unknown) => setProblem(errorText(reason)))
-          }}
-          onCancel={() => setRenaming(false)}
-        />
+      {room.taskId === null ? (
+        name
       ) : (
-        <button type="button" className="pod-convo-name" onClick={() => setRenaming(true)} title={t('点一下改群名')}>
-          <strong>{room.title}</strong>
-        </button>
+        <span className="pod-convo-titles">
+          {name}
+          <span className="pod-convo-sub pod-ellipsis">{names}</span>
+        </span>
       )}
       {problem === undefined ? null : <span className="pod-form-error">{problem}</span>}
     </div>
@@ -203,6 +219,7 @@ function ComputerButton() {
 
 /**
  * 对话顶部：左边是 bot 或群（点开详情）；右边单聊有对话记录和新对话，不挂任务的群聊有新对话；bot 在用浏览器、电脑时才多一个按钮。
+ * 任务对话左边是任务名，下面写和谁的单聊或者群成员；右边多一个收起、打开详情的按钮，详情收起来时旁边留着任务状态。
  * 用量在设置里，页面在 bot 和群聊的详情里。手机上最左边是回到列表，名字后面带个箭头表示点开是详情。
  */
 export function ChatHeader(props: { readonly room: RoomSummary; readonly bots: ReadonlyMap<string, Bot>; readonly memberIds: readonly string[] }) {
@@ -219,7 +236,16 @@ export function ChatHeader(props: { readonly room: RoomSummary; readonly bots: R
           <Icon name="back" size={20} />
         </button>
       ) : null}
-      {room.kind === 'direct' ? (
+      {room.kind === 'direct' && room.taskId !== null ? (
+        <button type="button" className="pod-convo-title" onClick={() => bot !== undefined && app.showBot(bot.id)} title={t('查看详情')}>
+          <Avatar bot={bot} size={30} />
+          <span className="pod-convo-titles">
+            <strong className="pod-ellipsis">{room.subject !== '' ? room.subject : room.title}</strong>
+            <span className="pod-convo-sub pod-ellipsis">{t('和{name}的单聊', { name: bot?.name ?? room.title })}</span>
+          </span>
+          {narrow ? <Icon name="forward" size={14} /> : null}
+        </button>
+      ) : room.kind === 'direct' ? (
         <>
           <button type="button" className="pod-convo-title" onClick={() => bot !== undefined && app.showBot(bot.id)} title={t('查看 bot 详情')}>
             <Avatar bot={bot} size={30} />
@@ -250,6 +276,8 @@ export function ChatHeader(props: { readonly room: RoomSummary; readonly bots: R
         </>
       )}
       {room.kind !== 'direct' && room.taskId === null ? <NewChatButton room={room} /> : null}
+      {room.taskId === null ? null : <TaskStatusPill room={room} taskId={room.taskId} />}
+      {room.taskId === null || narrow ? null : <DetailsToggle room={room} />}
     </header>
   )
 }

@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Bot, RoomMessage, RoomSummary } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
+import { useSnapshot } from '../../components/taskParts.tsx'
 import { isPreparing, useApp, useLive } from '../../state/app.ts'
 import { readDraft, saveDraftReply } from '../../state/drafts.ts'
 import { useResource } from '../../state/resource.ts'
 import { Composer } from './Composer.tsx'
+import { TaskWorking } from './TaskWorking.tsx'
 import { Timeline } from './Timeline.tsx'
 
 /**
@@ -31,12 +33,21 @@ export interface ChatBodyProps {
   readonly authors: ReadonlyMap<string, Bot>
   /** 群成员，@ 的候选。 */
   readonly members: readonly Bot[]
-  /** 单聊里是那个 bot，群里是 Super-agent：输入框的提示写它的名字。 */
-  readonly responder: Bot | undefined
+  /** Super-agent：普通群里话先给它。 */
+  readonly lead: Bot | undefined
+}
+
+/** 话先给谁，输入框的提示写它的名字：单聊里是那个 bot，任务群里是负责的 bot，别的群里是 Super-agent。 */
+function useResponder(room: RoomSummary, bots: ReadonlyMap<string, Bot>, lead: Bot | undefined): Bot | undefined {
+  const taskGroup = room.kind !== 'direct' && room.taskId !== null
+  const { snapshot } = useSnapshot(taskGroup ? (room.taskId ?? '') : '')
+  if (room.kind === 'direct') return bots.get(room.botId ?? '')
+  const owner = taskGroup ? bots.get(snapshot?.task.ownerBotId ?? '') : undefined
+  return owner ?? lead
 }
 
 /**
- * 时间线加输入框：中间的对话和右边的任务小窗共用。
+ * 时间线加输入框：中间的对话和右边的任务小窗共用。任务对话里有 bot 在干活时，输入框上面多一行「正在处理」。
  * 引用的消息跟着这个对话的草稿走：换对话、刷新页面回来还在，发出去才清掉。进对话那一刻的已读位置决定显示不显示未读摘要。
  */
 export function ChatBody(props: ChatBodyProps) {
@@ -49,6 +60,7 @@ export function ChatBody(props: ChatBodyProps) {
     setReply({ roomId: room.id, message })
     saveDraftReply(room.id, message)
   }
+  const responder = useResponder(room, props.bots, props.lead)
   const [readAtOpen, setReadAtOpen] = useState<{ readonly roomId: string; readonly seq: number } | undefined>(undefined)
   /** 你按下发送的时间：时间线据此回到最新。 */
   const [sentAt, setSentAt] = useState(0)
@@ -58,10 +70,11 @@ export function ChatBody(props: ChatBodyProps) {
   return (
     <>
       <Timeline room={room} bots={props.authors} members={props.members} onReply={chooseReply} readSeqAtOpen={readAtOpen?.roomId === room.id ? readAtOpen.seq : room.readSeq} followAt={sentAt} />
+      {room.taskId === null ? null : <TaskWorking taskId={room.taskId} bots={props.bots} />}
       <Composer
         key={room.id}
         room={room}
-        responder={props.responder}
+        responder={responder}
         members={props.members}
         replyTo={replyTo}
         onClearReply={() => chooseReply(undefined)}

@@ -33,7 +33,6 @@ export const V12_CSS = `
 
 .pod-task-fact { display: inline-flex; align-items: center; gap: 6px; }
 .pod-task-facts .pod-link { justify-self: start; max-width: 100%; text-align: left; }
-.pod-task-facts-actions { justify-content: flex-end; gap: 6px; padding: 4px 10px 6px; }
 
 .pod-otask-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
 .pod-otask { display: flex; flex-direction: column; gap: 6px; padding: 9px 4px; border-bottom: 1px solid var(--pod-line); }

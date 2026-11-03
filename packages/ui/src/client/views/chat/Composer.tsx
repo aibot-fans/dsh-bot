@@ -59,9 +59,11 @@ function nameOf(file: File): string {
  * 输入框里的提示；手机上窄，换短的说法。
  * bot 正在回答时也能说话：单聊里它下一步就看到；群里没点名会按分工交给别人，所以提示 @ 它。
  */
-function placeholderOf(name: string, group: boolean, replying: boolean, narrow: boolean): string {
+function placeholderOf(name: string, group: boolean, taskGroup: boolean, replying: boolean, narrow: boolean): string {
   if (replying && group) return narrow ? t('要补充或纠正，@ 它直接说') : t('成员正在回答：要补充或纠正，@ 它直接说')
   if (replying) return narrow ? t('{name} 正在回答，可以直接补充', { name }) : t('{name} 正在回答：可以直接补充或纠正，它下一步就会看到', { name })
+  // 任务群里不点名的话给负责的 bot。
+  if (taskGroup) return narrow ? t('给 {name} 发消息', { name }) : t('给 {name} 发消息，输入 @ 点名别的成员', { name })
   if (group) return narrow ? t('说点什么，@ 点名成员') : t('在群里说点什么，输入 @ 点名成员')
   return t('给 {name} 发消息', { name })
 }
@@ -94,7 +96,8 @@ export function Composer(props: ComposerProps) {
   const name = props.responder?.name ?? 'bot'
   const group = props.room.kind !== 'direct'
   const archived = props.room.archivedAt !== null
-  const placeholder = archived ? t('这个对话已经删除') : placeholderOf(name, group, props.replying, narrow)
+  const taskGroup = group && props.room.taskId !== null && props.responder !== undefined && props.responder.role !== 'lead'
+  const placeholder = archived ? t('这个对话已经删除') : placeholderOf(name, group, taskGroup, props.replying, narrow)
   const showCommands = text.startsWith('/') && !text.includes(' ') && !text.includes('\n')
   const commands = showCommands ? quickCommands().filter((command) => `/${command.name}`.startsWith(text.trim()) || text.trim() === '/') : []
   const candidates = mention === undefined ? [] : props.members.filter((bot) => bot.name.toLowerCase().includes(mention.query.toLowerCase())).slice(0, 8)

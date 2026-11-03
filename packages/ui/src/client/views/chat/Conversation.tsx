@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { t, type Bot } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { Empty } from '../../components/common.tsx'
@@ -10,10 +10,12 @@ import { TaskRail } from '../home/TaskRail.tsx'
 import { ChatBody, useChatBots } from './ChatBody.tsx'
 import { ChatHeader } from './ChatHeader.tsx'
 import { PinnedBar } from './PinnedBar.tsx'
+import { showRoomDetails } from './TaskHead.tsx'
 
 /**
  * 中间的对话：顶部是对象（有置顶消息时下面一条置顶条），中间是时间线，底部是输入框；群里不放状态条，状态在群详情里；
  * 宽窄按设置里的“聊天区宽度”。默认打开和主管的单聊。和 Super-agent 的单聊是主对话，右边是任务栏（手机上不放）。
+ * 进了任务对话，右边默认打开干活的 bot 或任务群的详情（手机上不自动打开）。
  */
 export function Conversation() {
   const app = useApp()
@@ -34,6 +36,15 @@ export function Conversation() {
     if (room === undefined && lead !== undefined) app.openBot(lead.id)
   }, [app, rooms, roomsLoading, room?.id, nav.roomId, lead?.id])
 
+  // 换进一个任务对话时打开一次详情；右边已经开着别的、或者你在这个对话里把它收起来了，就不再开。
+  const entered = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    if (room === undefined || entered.current === room.id) return
+    entered.current = room.id
+    if (narrow || room.taskId === null || app.getNav().panel !== null) return
+    showRoomDetails(app, room)
+  }, [app, room?.id, narrow])
+
   if (room === undefined) {
     return (
       <main className={`pod-convo pod-width-${width}`}>
@@ -43,12 +54,11 @@ export function Conversation() {
   }
   const memberIds = (members?.members ?? []).map((member) => member.botId)
   const memberBots = memberIds.map((id) => bots.get(id)).filter((bot): bot is Bot => bot !== undefined)
-  const responder = room.kind === 'direct' ? bots.get(room.botId ?? '') : lead
   const main = (
     <main className={`pod-convo pod-width-${width}`}>
       <ChatHeader room={room} bots={bots} memberIds={memberIds} />
       <PinnedBar room={room} bots={authors} />
-      <ChatBody room={room} bots={bots} authors={authors} members={memberBots} responder={responder} />
+      <ChatBody room={room} bots={bots} authors={authors} members={memberBots} lead={lead} />
     </main>
   )
   const home = !narrow && lead !== undefined && room.kind === 'direct' && room.botId === lead.id && room.taskId === null

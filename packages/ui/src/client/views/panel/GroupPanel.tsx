@@ -7,6 +7,7 @@ import { GroupMark } from '../../components/GroupMark.tsx'
 import { Icon } from '../../components/Icon.tsx'
 import { PanelClose } from '../../components/PanelClose.tsx'
 import { RenameInput } from '../../components/RenameInput.tsx'
+import { useSnapshot } from '../../components/taskParts.tsx'
 import { useApp, type GroupTab } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 import { ScopedPages } from '../pages/ScopedPages.tsx'
@@ -154,7 +155,8 @@ function AddMembers(props: { readonly room: RoomSummary; readonly others: readon
 }
 
 /** 成员：图标加完整名字排成一格一格，最后一格是“添加”；点成员打开成员卡片（能返回这里）。 */
-function Members(props: { readonly room: RoomSummary; readonly members: readonly Bot[]; readonly bots: readonly Bot[] }) {
+/** 群成员；任务群里负责的 bot 标「负责」。 */
+function Members(props: { readonly room: RoomSummary; readonly members: readonly Bot[]; readonly bots: readonly Bot[]; readonly ownerId: string | null }) {
   const app = useApp()
   const [adding, setAdding] = useState(false)
   const others = props.bots.filter((bot) => !props.room.memberIds.includes(bot.id))
@@ -169,7 +171,7 @@ function Members(props: { readonly room: RoomSummary; readonly members: readonly
           <button key={bot.id} type="button" className="pod-member-tile" onClick={() => app.showBot(bot.id, 'details', props.room.id)} title={bot.card.duties || bot.title}>
             <Avatar bot={bot} size={44} />
             <span className="pod-member-name">{bot.name}</span>
-            {bot.role === 'lead' && bot.name !== 'Super-agent' ? <span className="pod-member-role">Super-agent</span> : null}
+            {bot.id === props.ownerId ? <span className="pod-member-role">{t('负责')}</span> : bot.role === 'lead' && bot.name !== 'Super-agent' ? <span className="pod-member-role">Super-agent</span> : null}
           </button>
         ))}
         <button type="button" className="pod-member-tile pod-member-add" onClick={() => setAdding(true)}>
@@ -216,6 +218,7 @@ export function GroupPanel(props: { readonly roomId: string; readonly tab: Group
   const { data: rooms } = useResource(app.cache, 'rooms', () => api.rooms())
   const { data: bots } = useResource(app.cache, 'bots', () => api.bots())
   const room = rooms?.find((item) => item.id === props.roomId)
+  const { snapshot } = useSnapshot(room?.taskId ?? '')
   const [renaming, setRenaming] = useState(false)
   const [problem, setProblem] = useState<string | undefined>(undefined)
   const active = (bots ?? []).filter((bot) => bot.archivedAt === null)
@@ -271,8 +274,8 @@ export function GroupPanel(props: { readonly roomId: string; readonly tab: Group
           {props.tab === 'details' ? null : <p className="pod-tab-hint">{t(TAB_HINTS[props.tab])}</p>}
           {props.tab === 'details' ? (
             <div className="pod-stack">
-              {room.taskId === null ? null : <TaskFacts taskId={room.taskId} />}
-              <Members room={room} members={members} bots={active} />
+              {room.taskId === null ? null : <TaskFacts taskId={room.taskId} title={t('任务')} />}
+              <Members room={room} members={members} bots={active} ownerId={snapshot?.task.ownerBotId ?? null} />
               <section className="pod-box">
                 <div className="pod-box-head">
                   <strong>{t('群约定')}</strong>

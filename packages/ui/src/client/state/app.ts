@@ -223,9 +223,10 @@ export class AppState {
     for (const room of rooms) if (isTemporaryRoom(room) && room.id !== this.nav.roomId) this.discard(room.id)
   }
 
-  /** 跳到某条消息：加载它前后的内容并高亮。 */
+  /** 跳到某条消息：加载它前后的内容并高亮。换了对话，右侧开着的也关掉（和 openRoom 一样）。 */
   focusMessage(roomId: string, seq: number, messageId: string): void {
-    this.navigate({ roomId, focus: { roomId, seq, messageId }, search: null, page: null, taskId: null, overview: false })
+    const panel = this.nav.roomId === roomId ? this.nav.panel : null
+    this.navigate({ roomId, focus: { roomId, seq, messageId }, search: null, page: null, taskId: null, overview: false, panel })
   }
 
   /** 中间换成任务页；关上它回到原来的对话或概览。开着的页面查看器关上。 */
@@ -393,13 +394,29 @@ export class AppState {
       const popup = new Notification(notification.title, { body: notification.body, tag: notification.id })
       popup.onclick = () => {
         window.focus()
-        if (notification.roomId !== null) this.openRoom(notification.roomId)
-        else if (notification.taskId !== null) this.openTask(notification.taskId)
+        this.openNotification(notification)
         popup.close()
       }
     } catch {
       // 某些浏览器在非安全上下文里不允许弹通知。
     }
+  }
+
+  /** 点通知：任务的通知打开任务自己的对话（另开的单聊、任务群）；没有自己对话的，打开通知所在的对话。 */
+  private openNotification(notification: PodNotification): void {
+    const { roomId, taskId } = notification
+    if (taskId === null) {
+      if (roomId !== null) this.openRoom(roomId)
+      return
+    }
+    void api
+      .taskSnapshot(taskId)
+      .then((snapshot) => snapshot.conversationId ?? roomId)
+      .catch(() => roomId)
+      .then((target) => {
+        if (target !== null) this.openRoom(target)
+        else this.openTask(taskId)
+      })
   }
 
   // ---------- 事件 ----------
@@ -456,6 +473,7 @@ export class AppState {
         cache.invalidate(`snapshot:${root}`)
         cache.invalidate(`snapshot:${event.taskId}`)
         cache.invalidate(`detail:${root}`)
+        cache.invalidate(`progress:${root}`)
         cache.invalidate(`plan:${root}`)
         cache.invalidate('tasks')
         cache.invalidate('overview')
