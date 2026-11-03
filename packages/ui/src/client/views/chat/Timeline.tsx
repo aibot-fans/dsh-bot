@@ -117,6 +117,7 @@ export function Timeline(props: TimelineProps) {
   /** 往上翻远了：显示“回到最新”；记下翻走那一刻最后一条的 seq，用来数这期间的新消息。 */
   const [awayFrom, setAwayFrom] = useState<number | null>(null)
   const scroller = useRef<HTMLDivElement>(null)
+  const inner = useRef<HTMLDivElement>(null)
   const nearBottom = useRef(true)
   const loadingNewer = useRef(false)
   const live = useLive(room.id)
@@ -212,6 +213,18 @@ export function Timeline(props: TimelineProps) {
     if (element !== null && nearBottom.current) element.scrollTop = element.scrollHeight
   }, [messages.length, last?.id, last?.version, live.streams.length, live.statuses.length, working.length])
 
+  // 任务卡片、图片这些读出来才变高：本来贴着底部的，变高以后还贴着底部。
+  useEffect(() => {
+    const element = scroller.current
+    const content = inner.current
+    if (element === null || content === null) return
+    const observer = new ResizeObserver(() => {
+      if (nearBottom.current) element.scrollTop = element.scrollHeight
+    })
+    observer.observe(content)
+    return () => observer.disconnect()
+  }, [])
+
   useEffect(() => {
     if (last === undefined || last.seq <= room.readSeq) return
     const timer = setTimeout(() => void api.markRead(room.id, last.seq).catch(() => {}), 600)
@@ -302,7 +315,7 @@ export function Timeline(props: TimelineProps) {
   return (
     <div className="pod-timeline-wrap">
       <div className="pod-timeline" ref={scroller} onScroll={onScroll}>
-        <div className="pod-timeline-inner">
+        <div className="pod-timeline-inner" ref={inner}>
           {error === undefined ? null : <p className="pod-form-error">{error}</p>}
           {loaded && messages.length === 0 && replies.length === 0 ? <Intro room={room} bots={props.bots} members={props.members} /> : null}
           {hasMore && loaded && messages.length >= PAGE ? (
