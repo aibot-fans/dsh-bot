@@ -1,5 +1,5 @@
-import { stageGroup, triggerSource, type MessageRoute, type Task, type TaskSnapshot, type TicketStage, type TriggerSource, type Wait } from 'pod-domain'
-import { countRunning, latestDecisiveReport, openRootTasks, openTasksOf, routesFor, triggersOf } from 'pod-store'
+import { stageGroup, triggerSource, type MessageRoute, type TaskSnapshot, type TicketStage, type TriggerSource, type Wait } from 'pod-domain'
+import { countRunning, latestDecisiveReport, openRootTasks, routesFor, triggersOf } from 'pod-store'
 import type { PodRuntime } from '../pod.ts'
 
 /** 概览里“现在要我处理什么”的一条：任务卡要你处理的，或者不属于任务的等你。 */
@@ -35,18 +35,6 @@ export interface Overview {
   readonly active: readonly ActiveItem[]
   /** 任务名额：在跑的执行几个、能同时跑几个（另留 1 个给你的消息唤醒的任务）。 */
   readonly slots: { readonly used: number; readonly total: number }
-}
-
-/** 群顶团队状态里一个成员：空闲、在做（任务名和已用时间）、等你、受阻。 */
-export type MemberState = 'idle' | 'working' | 'waiting' | 'blocked'
-
-export interface MemberStatus {
-  readonly botId: string
-  readonly state: MemberState
-  /** 点开进哪个任务页（根任务）。 */
-  readonly taskId: string | null
-  readonly title: string | null
-  readonly since: number | null
 }
 
 export interface RouteView extends MessageRoute {
@@ -100,36 +88,6 @@ export function overviewOf(pod: PodRuntime): Overview {
       .sort((left, right) => left.since - right.since),
     slots: { used: countRunning(pod.db), total: pod.settings.get().taskConcurrency },
   }
-}
-
-const STATE_RANK: Readonly<Record<MemberState, number>> = { blocked: 3, waiting: 2, working: 1, idle: 0 }
-
-function memberState(task: Task, stage: TicketStage): MemberState {
-  if (stage === 'blocked' || stage === 'failed' || stage === 'undelivered') return 'blocked'
-  // 子任务等组长验收还算团队在做。
-  if (stage === 'waiting' || (stage === 'review' && task.parentId === null)) return 'waiting'
-  if (stage === 'running' || stage === 'queued' || stage === 'review') return 'working'
-  return 'idle'
-}
-
-/** 群顶的团队状态：每个成员手上最要紧的那件（受阻 > 等你 > 在做），这个群里的任务优先。 */
-export function teamStatusOf(pod: PodRuntime, roomId: string): readonly MemberStatus[] {
-  const room = pod.rooms.get(roomId)
-  if (room === undefined) return []
-  const inRoom = (task: Task): boolean => task.roomId === room.id || (room.taskId !== null && task.rootId === room.taskId)
-  return pod.rooms.members(room.id).map(({ botId }) => {
-    const candidates = openTasksOf(pod.db, botId)
-      .map((task) => {
-        const stage = pod.engine.tickets.stageOf(task)
-        return { task, stage, state: memberState(task, stage) }
-      })
-      .filter((item) => item.state !== 'idle')
-      .sort((left, right) => STATE_RANK[right.state] - STATE_RANK[left.state] || Number(inRoom(right.task)) - Number(inRoom(left.task)))
-    const top = candidates[0]
-    if (top === undefined) return { botId, state: 'idle', taskId: null, title: null, since: null }
-    const since = top.state === 'working' ? (pod.engine.runs.current(top.task.id)?.startedAt ?? top.task.startedAt ?? top.task.createdAt) : top.task.updatedAt
-    return { botId, state: top.state, taskId: top.task.id, title: top.task.title, since }
-  })
 }
 
 /** 一条消息的去向，每一步一行，带上任务名。 */

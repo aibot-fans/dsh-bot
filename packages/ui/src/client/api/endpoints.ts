@@ -218,15 +218,6 @@ export interface OverviewData {
   readonly slots: { readonly used: number; readonly total: number }
 }
 
-/** 群顶团队状态里一个成员：空闲、在做、等你、受阻。 */
-export interface MemberStatus {
-  readonly botId: string
-  readonly state: 'idle' | 'working' | 'waiting' | 'blocked'
-  readonly taskId: string | null
-  readonly title: string | null
-  readonly since: number | null
-}
-
 export interface RouteView extends MessageRoute {
   readonly taskTitle: string | null
 }
@@ -307,7 +298,6 @@ export interface LibraryItem {
 
 export const api = {
   overview: () => apiGet<OverviewData>('/overview'),
-  roomTeam: (roomId: string) => apiGet<readonly MemberStatus[]>('/room/team', { roomId }),
   messageRoutes: (id: string) => apiGet<readonly RouteView[]>('/message/routes', { id }),
   taskFiles: (id: string) => apiGet<readonly LibraryItem[]>('/task/files', { id }),
   status: () => apiGet<PodStatus>('/status'),

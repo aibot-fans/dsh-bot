@@ -431,7 +431,6 @@ export class AppState {
         cache.invalidate('tasks')
         cache.invalidate('overview')
         cache.invalidate('rooms')
-        cache.invalidate((key) => key.startsWith('team:'))
         cache.invalidate((key) => key.startsWith('routes:'))
         return
       }
@@ -451,7 +450,6 @@ export class AppState {
         cache.invalidate('waits')
         cache.invalidate('rooms')
         cache.invalidate('overview')
-        cache.invalidate((key) => key.startsWith('team:'))
         return
       case 'notifications':
         cache.invalidate('notifications')

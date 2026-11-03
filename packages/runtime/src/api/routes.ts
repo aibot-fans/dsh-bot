@@ -20,7 +20,7 @@ import type { PodRuntime } from '../pod.ts'
 import type { ControlAction } from '../tasks/service.ts'
 import { followViews, taskTimeline } from '../tasks/timeline.ts'
 import { get, post, type RouteSpec } from './router.ts'
-import { overviewOf, routesOf, taskOfMessage, teamStatusOf, triggerViews } from './views.ts'
+import { overviewOf, routesOf, taskOfMessage, triggerViews } from './views.ts'
 
 /** 设置、bot 管理、回收站、审计和维护这些基础接口。 */
 export function baseRoutes(pod: PodRuntime): readonly RouteSpec[] {
@@ -83,10 +83,6 @@ const STATUSES: readonly TaskStatus[] = ['queued', 'running', 'waiting', 'review
 export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
   return [
     get('/overview', () => ok(overviewOf(pod))),
-    get('/room/team', (query) => {
-      const roomId = readId(query, 'roomId')
-      return roomId === undefined ? fail('invalid-input', t('缺少房间 id')) : ok(teamStatusOf(pod, roomId))
-    }),
     get('/message/routes', (query) => {
       const id = readId(query, 'id')
       return id === undefined ? fail('invalid-input', t('缺少消息 id')) : ok(routesOf(pod, id))
