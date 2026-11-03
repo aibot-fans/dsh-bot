@@ -300,13 +300,13 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
   const reply = podTool({
     name: 'reply',
     description:
-      '对用户说话：发一条消息到聊天室。写明回的是哪条消息（to，不回具体某条就写 room）和用途：confirm 确认（开了任务后回一句，任务卡挂在这句下面；转给任务后回一句，task 写那个任务，消息下面挂任务记号）、answer 答复（第一句就是答案）、relay 转告（任务问用户、交结果、没做成时，task 写那个任务，消息下面挂任务记号）。用户问任务的细节时只讲问的那部分，task 写那个任务，消息下面会附上报告。你在别处写的文字用户看不到，只有 reply 会发出去。',
+      '对用户说话：发一条消息到聊天室。写明回的是哪条消息（to，不回具体某条就写 room）和用途：confirm 确认（开了任务后回一句，任务卡挂在这句下面；转给任务后回一句，task 写那个任务，消息下面挂任务记号）、answer 答复（第一句就是答案）、relay 转告（任务问用户、没做成时，task 写那个任务，消息下面挂任务记号；交的回答 dsh-bot 会以你的名义原样发，不用转告）。用户问任务的细节时只讲问的那部分，task 写那个任务。你在别处写的文字用户看不到，只有 reply 会发出去。',
     properties: {
       to: str('回哪条消息（消息 id）'),
       room: str('不回具体某条时，发到哪个聊天室（room id）'),
       purpose: oneOf('confirm 确认 / answer 答复 / relay 转告', ['confirm', 'answer', 'relay']),
       text: str('要说的话'),
-      task: str('relay、confirm：说的是哪个任务（任务 id）；answer：附上哪个任务的报告（可选）'),
+      task: str('relay、confirm：说的是哪个任务（任务 id）；answer：答的是哪个任务（可选）'),
     },
     required: ['purpose', 'text'],
     parse: (args) => {

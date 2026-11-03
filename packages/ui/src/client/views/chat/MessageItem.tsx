@@ -13,7 +13,7 @@ import { useTouch } from '../../components/media.ts'
 import type { Mentions } from '../../components/mentions.tsx'
 import { MenuItem, MenuPanel, useMenu } from '../../components/Menu.tsx'
 import { RunSummaryLine } from '../../components/Progress.tsx'
-import { TaskDecision, decidedText } from '../../components/TaskDecision.tsx'
+import { decidedText } from '../../components/TaskDecision.tsx'
 import { GroupChip, TaskChip } from '../../components/TaskEntry.tsx'
 import { useSnapshot } from '../../components/taskParts.tsx'
 import { WaitCard } from '../../components/WaitCard.tsx'
@@ -42,8 +42,6 @@ export interface MessageProps {
   readonly hideTime?: boolean
   /** 任务群：子任务的任务卡显示成组长派活的那句话。 */
   readonly quiet?: boolean
-  /** 这是任务要你定的最近那句话（交上来等验收、受阻、没做成）：后面带两个按钮。 */
-  readonly decision?: boolean
 }
 
 function authorName(author: string, bots: ReadonlyMap<string, Bot>): string {
@@ -100,7 +98,6 @@ function Folded(props: { readonly message: RoomMessage }) {
 
 /** 时间线里的一条：你的气泡、bot 的发言、一行提示、任务记号、页面卡片、等你处理的那句话或折叠内容。 */
 export function MessageItem(props: MessageProps) {
-  const app = useApp()
   const showBot = useOpenBot()
   // 这一轮的步骤（用时、几步）平时不显示，从消息的“更多”里展开。
   const [stepsOpen, setStepsOpen] = useState(false)
@@ -209,23 +206,14 @@ export function MessageItem(props: MessageProps) {
           <XEventCard view={xEvent} />
         )}
         {attachment === undefined ? null : <Attachment attachment={attachment} />}
-        {/* Super-agent 转告任务的问题、结论，转给任务后的确认：话下面挂那个任务的记号，点一下在右边小窗打开任务对话。 */}
-        {(message.data.purpose === 'relay' || message.data.purpose === 'confirm') && typeof message.data.taskId === 'string' ? (
+        {/* Super-agent 转告任务的问题、原样交来的回答，转给任务后的确认：话下面挂那个任务的记号，点一下在右边小窗打开任务对话。 */}
+        {(message.data.purpose === 'relay' || message.data.purpose === 'confirm' || message.data.relayed === true) && typeof message.data.taskId === 'string' ? (
           <div className="pod-msg-chips">
             <TaskChip taskId={message.data.taskId} roomId={message.roomId} />
           </div>
         ) : null}
-        {decided !== undefined ? (
-          <div className="pod-ask-done">{decided}</div>
-        ) : props.decision === true && typeof message.data.taskId === 'string' ? (
-          <TaskDecision
-            taskId={message.data.taskId}
-            onRevise={() => {
-              props.onReply(message)
-              app.focusComposer(message.roomId)
-            }}
-          />
-        ) : null}
+        {/* 以前在这句话后面点过的“收下”“重试”这些，留一行小字。 */}
+        {decided === undefined ? null : <div className="pod-ask-done">{decided}</div>}
         {run === undefined || !stepsOpen ? null : <RunSummaryLine run={run} />}
         {message.kind === 'kickoff' && typeof message.data.taskId === 'string' ? <KickoffActions taskId={message.data.taskId} /> : null}
       </div>

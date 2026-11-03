@@ -350,6 +350,10 @@ export class PodRuntime {
       relay: (task, kind, body) => {
         this.front.relay(task, kind, body).catch((error: unknown) => ctx.logger.warn('dsh-bot：转告没送到前台', error))
       },
+      requester: (task) => {
+        const session = task.requesterSession === null ? undefined : this.registry.get(task.requesterSession)
+        return session?.kind === 'front' && this.bots.activeBot(session.botId) !== undefined ? { botId: session.botId, sessionId: session.id } : undefined
+      },
     })
     this.engine = new Engine({
       db,

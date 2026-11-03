@@ -332,16 +332,6 @@ export function Timeline(props: TimelineProps) {
   })
   const replies = sessions.filter((reply) => !isPreparing(reply.sessionId) || !sessions.some((other) => !isPreparing(other.sessionId) && other.botId === reply.botId))
   const blocks = arrange(messages.filter((message) => shownInChat(message, room.taskId !== null)))
-  // 每个任务要你定的最近那句话（结果、受阻、没做成）：按钮只挂在它后面。
-  const decisions = new Set(
-    [
-      ...new Map(
-        messages
-          .filter((message) => message.kind === 'text' && typeof message.data.taskId === 'string' && (message.data.purpose === 'result' || message.data.purpose === 'wait'))
-          .map((message) => [String(message.data.taskId), message.id]),
-      ).values(),
-    ],
-  )
   const ordered = blocks.flatMap((block) => [...block.texts, ...block.cards])
   // 回的正是这段下面跟着的任务记号，或者紧挨在上面的那张任务卡片（结果、没做成挂在任务卡下）：卡片就在旁边，不再引用一遍。
   const unquoted = new Set([
@@ -417,7 +407,6 @@ export function Timeline(props: TimelineProps) {
                     mentions={mentions}
                     hideTime={sameMinuteAsNext(message, ordered[index + 1])}
                     quiet={room.taskId !== null}
-                    decision={decisions.has(message.id)}
                   />
                 </div>
               </Fragment>

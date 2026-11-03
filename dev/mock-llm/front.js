@@ -3,7 +3,7 @@
  * - “读一下 id [part=…] [page=…] [size=…]”：先 read，再把读到的 reply 出去。
  * - “交给主管/某某 …”或“委派”：open 开任务（交给谁写谁；成员只能开给自己；标题按关键词取；说了组个团队再叫上一个成员），
  *   再 reply（confirm）一句“交给某某了，做好我直接告诉你”，任务卡挂在这句下面。
- * - [转告]（任务问用户、交结果、没做成）：reply（relay）在派活的聊天室说一句，挂上那个任务。
+ * - [转告]（任务问用户、没做成）：reply（relay）在派活的聊天室说一句，挂上那个任务。交的回答 dsh-bot 以前台的名义原样发，不经过这里。
  * - “转达给任务 task_x：…”：forward 转过去（说的是方案 A、B 的当成回答它在问的问题，不写后续），再 reply（confirm，挂上那个任务）一句。
  * - “停掉任务 task_x”：stop。
  * - “谢谢”：ignore。
@@ -109,7 +109,7 @@ function confirmText(result, self) {
   return owner === self ? '我来做，做好告诉你。' : `交给${owner}了，做好我直接告诉你。`
 }
 
-/** 转告：任务在它自己的对话里问用户、交结果、没做成，在派活的聊天室说一句。 */
+/** 转告：任务在它自己的对话里问用户、没做成，在派活的聊天室说一句。 */
 function relayDecision(text, calls) {
   if (calls > 0) return { text: '（前台）转告完了。' }
   const target = /purpose 写 relay，room 写 (room_[0-9a-z]+)，task 写 (task_[0-9a-z]+)/.exec(text)
@@ -118,11 +118,7 @@ function relayDecision(text, calls) {
   const lines = text.split('\n')
   const body = lines.slice(1, -1).join('\n').trim()
   const first = body.split('\n')[0] ?? ''
-  const said = text.includes('在任务对话里问用户')
-    ? `${owner}在问：${first}在任务里点一下，或者直接回我都行。`
-    : text.includes('没做成')
-      ? `${owner}没做成：${first}要重试还是先不做了？`
-      : `${owner}做好了：${first}`
+  const said = text.includes('在任务对话里问用户') ? `${owner}在问：${first}在任务里点一下，或者直接回我都行。` : `${owner}没做成：${first}`
   return { tool: 'reply', args: { room: target[1], purpose: 'relay', task: target[2], text: said } }
 }
 

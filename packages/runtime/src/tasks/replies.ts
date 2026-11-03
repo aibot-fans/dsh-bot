@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { t, type RoomMessage, type Task, type TaskResult } from 'pod-domain'
+import type { RoomMessage, Task } from 'pod-domain'
 import { getMessage, getWait, taskConversationOf } from 'pod-store'
 import type { Replies } from '../chat/replies.ts'
 import type { RoomService } from '../chat/rooms.ts'
@@ -10,31 +10,20 @@ export interface TaskRepliesDeps {
   readonly rooms: RoomService
   /** 任务的任务卡。 */
   readonly cardOf: (taskId: string) => RoomMessage | undefined
-  /** 有任务对话的根任务问了用户、交了结果、没做成：叫开任务的前台在派活的聊天室转告一句。 */
+  /** 有任务对话的根任务问了用户、没做成：叫开任务的前台在派活的聊天室转告一句。 */
   readonly relay: (task: Task, kind: RelayKind, body: string) => void
+  /** 开这个任务的前台（bot 和会话）；不是前台开的返回 undefined。 */
+  readonly requester: (task: Task) => { readonly botId: string; readonly sessionId: string } | undefined
 }
 
-/** 转告的几种：任务问用户、交了结果、没做成。 */
-export type RelayKind = 'wait' | 'result' | 'failed'
-
-/** 结果消息怎么收尾：做完了（交付或交给组长）、等你验收、常开任务这一次的结果。 */
-export type ResultEnding = 'done' | 'review' | 'standing'
-
-/**
- * 结果消息：汇报的摘要，产出文件附在后面；不挂在任务卡下时带上任务标题，等你验收时说一句看过再收下（按钮挂在这句话后面）。
- * 常开任务每次到点都发，只发摘要，产出文件在任务页里看。
- */
-export function resultText(task: Task, result: TaskResult, onCard: boolean, ending: ResultEnding): string {
-  const head = onCard ? result.summary : t('「{title}」做完了：{summary}', { title: task.title, summary: result.summary })
-  const files = result.files.length === 0 || ending === 'standing' ? '' : `\n\n${t('文件：{files}', { files: result.files.map((file) => `\`${file}\``).join(t('、')) })}`
-  const accept = ending === 'review' ? `\n\n${t('有没核实的地方，看过再点下面的“收下”。')}` : ''
-  return `${head}${files}${accept}`
-}
+/** 转告的几种：任务问用户、没做成。交的结果不用转告，以前台的名义原样发。 */
+export type RelayKind = 'wait' | 'failed'
 
 /**
  * 任务对外说的话（都走回复队列）：结果回在每一处还没得到答复的提问下面；等你（受阻、失败、要你处理的故障）
  * 由干活的 bot 回复任务卡；任务里被问到的话回在问的那条下面。有任务对话（另开的单聊、任务群）的根任务，
- * 结果和等你都发在那段对话里，由前台在派活的地方转告一句（你在任务对话里直接说的不转告）。
+ * 结果和等你都发在那段对话里；在派活的地方问的，结果以开任务的前台的名义原样回在那句话上，
+ * 等你由前台转告一句（你在任务对话里直接说的不转告）。
  */
 export class TaskReplies {
   private readonly deps: TaskRepliesDeps
@@ -69,17 +58,15 @@ export class TaskReplies {
   }
 
   /**
-   * 结果：有任务对话的根任务只发在那里（那段对话就是这个任务，不用再写标题）。没有的一个聊天室一条：任务卡所在的聊天室
-   * 挂在任务卡下（之后又在那里问过、还没答的，挂在最近那条下面）；别的聊天室里问过的，回在最近一条还没答的下面。
-   * 干活的 bot 不在那个聊天室也照样以它的名义发，看得出是谁做的。
+   * 结果就是干活的 bot 交的那条回答。有任务对话的根任务发在那里；最近一次是在派活的地方问的，再以开任务的前台的名义
+   * 原样回在那句话上（两处是同一段话）。没有任务对话的一个聊天室一条：任务卡所在的聊天室挂在任务卡下（之后又在那里问过、
+   * 还没答的，挂在最近那条下面）；别的聊天室里问过的，回在最近一条还没答的下面。干活的 bot 不在那个聊天室也照样以它的名义发。
    */
-  result(task: Task, author: string, sessionId: string | null, body: (onCard: boolean) => string): number {
+  result(task: Task, author: string, sessionId: string | null, body: string): number {
     const conversation = this.conversationOf(task)
     if (conversation !== undefined) {
-      const text = body(true)
-      this.deps.replies.send({ roomId: conversation, author, purpose: 'result', body: text, replyTo: null, sessionId, taskId: task.id })
-      if (this.relayed(task, conversation)) this.deps.relay(task, 'result', text)
-      return 1
+      this.deps.replies.send({ roomId: conversation, author, purpose: 'result', body, replyTo: null, sessionId, taskId: task.id })
+      return this.relayed(task, conversation) ? 1 + this.deliver(task, body) : 1
     }
     const card = this.deps.cardOf(task.id)
     const roomIds = [...new Set([card?.roomId, ...task.replyTo.map((target) => target.roomId)].filter((id): id is string => typeof id === 'string'))]
@@ -98,10 +85,23 @@ export class TaskReplies {
       else if (latest !== undefined) anchor = latest.id
       else if (task.replyTo.some((target) => target.roomId === roomId && target.messageId === null)) anchor = null
       else continue
-      this.deps.replies.send({ roomId, author, purpose: 'result', body: body(here !== undefined && anchor === here.id), replyTo: anchor, sessionId, taskId: task.id })
+      this.deps.replies.send({ roomId, author, purpose: 'result', body, replyTo: anchor, sessionId, taskId: task.id })
       sent += 1
     }
     return sent
+  }
+
+  /** 以开任务的前台的名义，把回答原样发到派活的聊天室，回在那里最近一句还没得到答复的话上。 */
+  private deliver(task: Task, body: string): number {
+    const front = this.deps.requester(task)
+    const room = task.roomId === null ? undefined : this.deps.rooms.get(task.roomId)
+    if (front === undefined || room === undefined || room.archivedAt !== null) return 0
+    const asked = task.replyTo
+      .filter((target) => target.roomId === room.id && target.messageId !== null)
+      .map((target) => getMessage(this.deps.db, target.messageId ?? ''))
+      .filter((message): message is RoomMessage => message !== undefined && message.deletedAt === null && !this.answered(message.id))
+    this.deps.replies.send({ roomId: room.id, author: front.botId, purpose: 'result', body, replyTo: asked.at(-1)?.id ?? null, sessionId: front.sessionId, taskId: task.id, data: { relayed: true } })
+    return 1
   }
 
   /** 等你：干活的 bot 回复任务卡，说卡在哪、要你做什么；有任务对话的根任务直接在那里说。 */

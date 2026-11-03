@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import type { EndReason, ReplyTarget, Task, TaskOrigin, TaskStage, TaskStatus, TicketStage } from 'pod-domain'
-import { appendTaskEvent, getTask, insertTask, openRun, transaction, updateTask, type NewTask, type TaskPatch } from 'pod-store'
+import { appendTaskEvent, getTask, insertTask, isStanding, openRun, transaction, updateTask, type NewTask, type TaskPatch } from 'pod-store'
 import { currentStage, isTicket } from './facts.ts'
 
 export interface TicketDeps {
@@ -139,6 +139,14 @@ export class Tickets {
     transaction(this.db, () => {
       for (const row of rows) this.refresh(row.id)
     })
+  }
+
+  /** 旧版交上来、停在“等你验收”的根任务：现在交了就算做完，启动时一次收尾（常开任务不算）。返回收尾了几个。 */
+  settleReviews(): number {
+    const rows = this.db
+      .prepare("SELECT id FROM tasks WHERE ended_at IS NULL AND deleted_at IS NULL AND parent_id IS NULL AND stage_cache = 'review'")
+      .all() as unknown as readonly { readonly id: string }[]
+    return rows.filter((row) => !isStanding(this.db, row.id) && this.end(row.id, 'done', 'pod') !== undefined).length
   }
 
   stageOf(task: Task): TicketStage {

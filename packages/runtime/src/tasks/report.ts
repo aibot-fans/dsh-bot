@@ -18,7 +18,7 @@ import type { ToolDefinition } from '../dsh.ts'
 import { isTicket, type Engine } from '../engine/index.ts'
 import type { PodRuntime } from '../pod.ts'
 import { failure, intList, oneOf, podTool, str, strList, success, text, texts, ints } from '../tools/define.ts'
-import { resultText, type TaskReplies } from './replies.ts'
+import type { TaskReplies } from './replies.ts'
 import type { TaskService } from './service.ts'
 import type { Subtasks } from './subtasks.ts'
 import type { TaskTurns } from './turns.ts'
@@ -141,15 +141,14 @@ export class TaskReporting {
         const bypassed = this.deps.onRootStateChange(task.rootId, 'delivered')
         const result = this.result(args, bypassed)
         const delivered = engine.tickets.patch(outcome.task, { result })
-        // 结果回在每一处还没得到答复的提问下面，开了群的发在群里。常开任务每次的结果直接发，不用验收，也不列文件。
-        const ending = outcome.standing ? 'standing' : outcome.completed ? 'done' : 'review'
-        replies.result(delivered, session.botId, session.id, (onCard) => resultText(delivered, result, onCard, ending))
+        // 交的回答原样回在每一处还没得到答复的提问下面，开了群的发在群里；交了就算做完。
+        replies.result(delivered, session.botId, session.id, result.summary)
         if (args.lessons !== '') this.deps.learn(session, delivered, args.lessons)
         if (outcome.standing) return ok({ task: delivered, message: t('已发出这次的结果，等下次到点。') })
         tasks.tellRequester(delivered, `[任务交付] 「${delivered.title}」已完成，结果已经发给用户。摘要：${args.summary}`)
         this.deps.notify(delivered, 'done')
         if (bot !== undefined && bot.temporary && bot.role === 'member' && outcome.completed) tasks.retireTemporary(bot)
-        return ok({ task: delivered, message: outcome.completed ? t('已交付。') : t('已交上去，有没核实的地方，等用户验收。') })
+        return ok({ task: delivered, message: t('已交付。') })
       }
     }
   }
@@ -186,7 +185,7 @@ export class TaskReporting {
       case 'ready': {
         const result = this.result(args)
         const delivered = engine.tickets.patch(outcome.task, { result })
-        replies.result(delivered, session.botId, session.id, (onCard) => resultText(delivered, result, onCard, 'done'))
+        replies.result(delivered, session.botId, session.id, result.summary)
         if (args.lessons !== '') this.deps.learn(session, delivered, args.lessons)
         told(false)
         return ok({ task: delivered, message: t('已交给组长验收。') })

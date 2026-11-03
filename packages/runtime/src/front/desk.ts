@@ -23,7 +23,7 @@ const RECENT_MORE = 5
 /** 转告里带的问题、结果最多多少字。 */
 const RELAY_LIMIT = 1200
 
-const RELAY_HEADS: Readonly<Record<RelayKind, string>> = { wait: '在任务对话里问用户', result: '交了结果', failed: '没做成' }
+const RELAY_HEADS: Readonly<Record<RelayKind, string>> = { wait: '在任务对话里问用户', failed: '没做成' }
 
 export interface FrontDeskDeps {
   readonly db: DatabaseSync
@@ -133,7 +133,7 @@ export class FrontDesk {
   }
 
   /**
-   * 转告：交给别的 bot 的任务在自己的对话里问了用户、交了结果、没做成，叫开任务的前台在派活的聊天室说一句。
+   * 转告：交给别的 bot 的任务在自己的对话里问了用户、没做成，叫开任务的前台在派活的聊天室说一句。
    * 前台正在跑就排在这一轮后面。
    */
   async relay(task: Task, kind: RelayKind, body: string): Promise<void> {

@@ -179,7 +179,7 @@ export class Runs {
         createdAt: now,
       })
       const listed = task.acceptance.length === 0 && input.acceptance.length > 0 ? newAcceptance(input.acceptance) : task.acceptance
-      // 就绪却没写勾哪几项：当作都过了（没核实的另外列出来，有就等你验收）。
+      // 就绪却没写勾哪几项：当作都过了。
       const passed = input.status === 'ready' && input.checks.length === 0 ? listed.map((_, index) => index) : input.checks
       const acceptance = checkAcceptance(listed, passed.filter((index) => index >= 0 && index < listed.length), now)
       updateTask(this.db, task.id, { acceptance, nudges: 0, ...(input.summary === '' ? {} : { note: input.summary }) }, now)
@@ -189,11 +189,10 @@ export class Runs {
         endRun(this.db, run.id, 'reported', null, now)
         if (wasRunning) this.deps.released()
       }
-      const unverified = Array.isArray(input.data.unverified) ? input.data.unverified.length : 0
-      // 子任务就绪由组长验收，不自己完成。
+      // 根任务交了就算做完，不等你验收；子任务就绪由组长验收，不自己完成。
       // 常开任务（例程、简报）就绪或无需处理只是这一次做完，任务留着等下次到点。
       const standing = isStanding(this.db, task.id)
-      const completed = input.status === 'ready' && task.parentId === null && acceptance.every((item) => item.done) && unverified === 0 && !standing
+      const completed = input.status === 'ready' && task.parentId === null && !standing
       if (completed) this.deps.tickets.end(task.id, 'done', input.author)
       if (input.status === 'dismissed' && !standing) this.deps.tickets.end(task.id, 'dismissed', input.author)
       const updated = this.deps.tickets.refresh(task.id) ?? task

@@ -80,7 +80,6 @@ export function railLine(snapshot: TaskSnapshot, bots: ReadonlyMap<string, Bot>)
   }
   if (stage === 'failed') return { tone: 'quiet', text: task.note === '' ? t('{name}没做成', { name }) : t('{name}没做成：{note}', { name, note: task.note }) }
   if (snapshot.question !== null) return { tone: 'ask', text: t('{name}在问：{question}', { name, question: snapshot.question.title }) }
-  if (stage === 'review') return { tone: 'ask', text: t('{name}交上来了，有没核实的地方，等你收下', { name }) }
   if (stage === 'blocked') return { tone: 'ask', text: task.note === '' ? t('{name}卡住了', { name }) : t('{name}卡住了：{note}', { name, note: task.note }) }
   if (stage === 'undelivered') return { tone: 'ask', text: t('消息没送到{name}那里', { name }) }
   return { tone: 'work', text: workLine(snapshot, bots) }
