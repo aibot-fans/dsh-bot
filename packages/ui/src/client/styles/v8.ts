@@ -55,18 +55,7 @@ export const V8_CSS = `
 .pod-wait-detail { white-space: normal; }
 .pod-task-question { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--pod-warn) 8%, transparent); font-size: 13px; }
 .pod-task-question-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.pod-task-inline-progress { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
 
-.pod-teambar { display: flex; gap: 6px; overflow-x: auto; padding: 6px 16px; border-bottom: 1px solid var(--pod-line); scrollbar-width: none; }
-.pod-teambar::-webkit-scrollbar { display: none; }
-.pod-teambar-member { appearance: none; flex: none; display: inline-flex; align-items: center; gap: 6px; max-width: 280px; padding: 3px 10px 3px 4px; border: 1px solid var(--pod-line); border-radius: 999px; background: none; color: inherit; font: inherit; font-size: 12.5px; cursor: pointer; }
-button.pod-teambar-member:hover { background: var(--pod-soft); }
-.pod-teambar-idle { cursor: default; opacity: .75; }
-.pod-teambar-waiting { border-color: color-mix(in srgb, var(--pod-warn) 50%, var(--pod-line)); }
-.pod-teambar-blocked { border-color: color-mix(in srgb, var(--pod-danger) 50%, var(--pod-line)); }
-.pod-teambar-text { display: flex; gap: 4px; min-width: 0; white-space: nowrap; }
-.pod-teambar-name { font-weight: 600; }
-.pod-teambar-state { overflow: hidden; text-overflow: ellipsis; color: var(--dsw-alias-label-secondary); }
 
 .pod-msg-routes { position: absolute; top: 100%; right: 4px; z-index: 4; max-width: min(420px, 90%); margin-top: -2px; padding: 6px 10px; border: 1px solid var(--pod-line); border-radius: 10px; background: var(--dsw-alias-bg-layer-1, #fff); box-shadow: 0 2px 10px color-mix(in srgb, #000 10%, transparent); font-size: 12.5px; color: var(--dsw-alias-label-secondary); text-align: left; }
 .pod-msg-routes ol { margin: 2px 0 0; padding-left: 18px; }

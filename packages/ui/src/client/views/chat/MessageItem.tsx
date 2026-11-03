@@ -2,8 +2,6 @@ import { useState, type ReactNode } from 'react'
 import { OWNER, POD, isUploadNote, readRunSummary, t, type Bot, type RoomMessage } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
-import { BrowserCard } from '../../components/BrowserCard.tsx'
-import { ComputerCard } from '../../components/ComputerCard.tsx'
 import { copyText } from '../../components/clipboard.ts'
 import { Avatar, Button, IconButton, Modal, clock, nameColor } from '../../components/common.tsx'
 import { BotName } from '../../components/GroupMark.tsx'
@@ -40,60 +38,8 @@ export interface MessageProps {
   readonly mentions: Mentions
   /** 你的消息：同一分钟里后面还有你的消息时，时间留给最后一条。 */
   readonly hideTime?: boolean
-  /** 任务群里只留对话：不显示进群退群这类里程碑，你的话下面也不写送进了哪个任务（整个群就是这个任务）。 */
+  /** 任务群：子任务的任务卡显示成组长派活的那句话。 */
   readonly quiet?: boolean
-}
-
-/** bot 的话下面附的任务链接：结果附报告，答复里提到的任务也附上。 */
-function taskLinkOf(message: RoomMessage): { readonly taskId: string; readonly label: string } | undefined {
-  if (message.kind !== 'text') return undefined
-  if (typeof message.data.reportTaskId === 'string') return { taskId: message.data.reportTaskId, label: t('看报告') }
-  if (typeof message.data.taskId !== 'string') return undefined
-  return { taskId: message.data.taskId, label: message.data.purpose === 'result' ? t('看报告') : t('任务详情') }
-}
-
-/** 你的这条消息直接送进了哪些任务（回复、引用了任务的话题）。 */
-function routedTasks(message: RoomMessage): readonly { readonly taskId: string; readonly title: string }[] {
-  const raw = message.data.routed
-  if (!Array.isArray(raw)) return []
-  return raw.flatMap((item) => {
-    if (typeof item !== 'object' || item === null) return []
-    const entry = item as Readonly<Record<string, unknown>>
-    return typeof entry.title === 'string' ? [{ taskId: typeof entry.taskId === 'string' ? entry.taskId : '', title: entry.title }] : []
-  })
-}
-
-/** 你的话送进了哪个任务：开了群的点一下进群，没开群的点开任务。 */
-function RoutedLine(props: { readonly taskId: string; readonly title: string; readonly roomId: string }) {
-  const app = useApp()
-  const { snapshot } = useSnapshot(props.taskId)
-  const group = snapshot?.groupRoomId ?? null
-  const label = t('已直接送到任务「{title}」', { title: props.title })
-  if (props.taskId === '') return <div className="pod-muted-inline">{label}</div>
-  return (
-    <button type="button" className="pod-link pod-routed-link" onClick={() => (group !== null && group !== props.roomId ? app.openRoom(group) : app.openTask(props.taskId))}>
-      {group !== null && group !== props.roomId ? t('{label} · 进群聊', { label }) : label}
-    </button>
-  )
-}
-
-/** bot 的话下面的任务链接：开了群的任务多一个“进群聊”（已经在群里就不用）。 */
-function TaskLink(props: { readonly taskId: string; readonly label: string; readonly roomId: string }) {
-  const app = useApp()
-  const { snapshot } = useSnapshot(props.taskId)
-  const group = snapshot?.groupRoomId ?? null
-  return (
-    <span className="pod-msg-task-links">
-      {group === null || group === props.roomId ? null : (
-        <button type="button" className="pod-link pod-msg-task-link" onClick={() => app.openRoom(group)}>
-          {t('进群聊')}
-        </button>
-      )}
-      <button type="button" className="pod-link pod-msg-task-link" onClick={() => app.openTask(props.taskId)}>
-        {props.label}
-      </button>
-    </span>
-  )
 }
 
 function authorName(author: string, bots: ReadonlyMap<string, Bot>): string {
@@ -102,32 +48,22 @@ function authorName(author: string, bots: ReadonlyMap<string, Bot>): string {
   return bots.get(author)?.name ?? t('已删除的 bot')
 }
 
-/** 开工说明上的操作：谨慎档等你点“开始”；开工以后可以随时停止。 */
+/** 组长开场：谨慎档等你点“开始”或“先不”；开工以后就是一句普通的话，停下、改要求都在群里说。 */
 function KickoffActions(props: { readonly taskId: string }) {
   const app = useApp()
   const { data: snapshot } = useResource(app.cache, `snapshot:${props.taskId}`, () => api.taskSnapshot(props.taskId))
-  if (snapshot === undefined) return null
+  if (snapshot === undefined || !snapshot.task.planPending) return null
   const { task } = snapshot
   const act = (work: () => Promise<unknown>): void => {
     work().catch((reason: unknown) => window.alert(errorText(reason)))
   }
-  if (task.planPending) {
-    return (
-      <div className="pod-kickoff-actions">
-        <Button small kind="primary" icon="play" onClick={() => act(() => api.approvePlan(task.id))}>
-          {t('开始')}
-        </Button>
-        <Button small kind="quiet" onClick={() => act(() => api.controlTask(task.id, 'cancel'))}>
-          {t('取消')}
-        </Button>
-      </div>
-    )
-  }
-  if (task.status !== 'running' && task.status !== 'waiting') return null
   return (
     <div className="pod-kickoff-actions">
-      <Button small kind="quiet" icon="stop" onClick={() => act(() => api.controlTask(task.id, 'stop'))}>
-        {t('停止')}
+      <Button small kind="primary" icon="play" onClick={() => act(() => api.approvePlan(task.id))}>
+        {t('开始')}
+      </Button>
+      <Button small kind="quiet" onClick={() => act(() => api.controlTask(task.id, 'cancel'))}>
+        {t('先不')}
       </Button>
     </div>
   )
@@ -158,7 +94,7 @@ function Folded(props: { readonly message: RoomMessage }) {
   )
 }
 
-/** 时间线里的一条：你的气泡、bot 的发言、一行里程碑、任务卡、页面卡片、需要你处理的卡片、回执或折叠内容。 */
+/** 时间线里的一条：你的气泡、bot 的发言、一行提示、任务记号、页面卡片、等你处理的那句话或折叠内容。 */
 export function MessageItem(props: MessageProps) {
   const app = useApp()
   // 这一轮的步骤（用时、几步）平时不显示，从消息的“更多”里展开。
@@ -184,26 +120,6 @@ export function MessageItem(props: MessageProps) {
         </div>
       )
     }
-    case 'milestone':
-    case 'receipt': {
-      if (props.quiet === true && message.kind === 'milestone') return null
-      const subject = typeof message.data.botId === 'string' ? bots.get(message.data.botId) : bots.get(message.author)
-      const elsewhere = typeof message.data.roomId === 'string' && message.data.roomId !== message.roomId ? message.data.roomId : undefined
-      return (
-        <div className={`pod-line pod-line-${message.kind}`}>
-          <span className="pod-line-text">
-            {subject === undefined ? null : <Avatar bot={subject} size={16} />}
-            {message.body}
-            {elsewhere === undefined ? null : (
-              <button type="button" className="pod-link" onClick={() => app.openRoom(elsewhere)}>
-                {t('打开群聊')}
-              </button>
-            )}
-          </span>
-          <time>{clock(message.createdAt)}</time>
-        </div>
-      )
-    }
     case 'task-card':
       // 任务群里的子任务就是组长 @ 成员说要做什么的一句话，成员的结果回在它下面。
       if (props.quiet === true && typeof message.data.parentId === 'string') return <SubtaskAsk {...props} taskId={String(message.data.taskId ?? '')} />
@@ -212,18 +128,6 @@ export function MessageItem(props: MessageProps) {
         <MessageFrame {...props} owner={false} className="pod-msg-card pod-msg-card-chip">
           <TaskChip taskId={String(message.data.taskId ?? '')} roomId={message.roomId} />
         </MessageFrame>
-      )
-    case 'browser':
-      return (
-        <div className="pod-msg-card">
-          <BrowserCard tabId={String(message.data.tabId ?? '')} botId={message.author} fallback={message.body} />
-        </div>
-      )
-    case 'computer':
-      return (
-        <div className="pod-msg-card">
-          <ComputerCard botId={message.author} fallback={message.body} />
-        </div>
       )
     case 'folded':
       return <Folded message={message} />
@@ -265,9 +169,6 @@ export function MessageItem(props: MessageProps) {
           {attachment !== undefined && isUploadNote(message.body, String(attachment.name ?? '')) ? null : <Markdown text={message.body} mentions={calledMentions(message, props.mentions, true)} />}
           {attachment === undefined ? null : <Attachment attachment={attachment} />}
           {message.data.via === 'dsh' ? <div className="pod-muted-inline">{t('来自 dsh 会话视图')}</div> : null}
-          {props.quiet === true
-            ? null
-            : routedTasks(message).map((routed) => <RoutedLine key={`${routed.taskId}:${routed.title}`} taskId={routed.taskId} title={routed.title} roomId={message.roomId} />)}
         </div>
         {message.pinned ? <span className="pod-badge pod-badge-muted pod-msg-pinned">{t('已置顶')}</span> : null}
         {props.hideTime === true ? null : <time className="pod-msg-time">{clock(message.createdAt)}</time>}
@@ -277,10 +178,9 @@ export function MessageItem(props: MessageProps) {
   const openBot = (): void => {
     if (bot !== undefined) app.showMember(bot.id)
   }
-  const taskLink = taskLinkOf(message)
   const steps = run === undefined ? undefined : { open: stepsOpen, toggle: () => setStepsOpen((value) => !value) }
   return (
-    <MessageFrame {...props} owner={false} steps={steps} className={`pod-msg${message.kind === 'kickoff' ? ' pod-msg-kickoff' : ''}`}>
+    <MessageFrame {...props} owner={false} steps={steps} className="pod-msg">
       <button type="button" className="pod-msg-avatar" onClick={openBot} aria-label={t('{authorName} 的详情', { authorName: authorName(message.author, bots) })}>
         <Avatar bot={bot} size={28} />
       </button>
@@ -289,7 +189,6 @@ export function MessageItem(props: MessageProps) {
           <button type="button" className={`pod-msg-author${bot === undefined ? '' : ' pod-bot-name'}`} style={nameColor(bot)} onClick={openBot}>
             {authorName(message.author, bots)}
           </button>
-          {message.kind === 'kickoff' ? <span className="pod-badge pod-badge-info">{t('开工说明')}</span> : null}
           {message.pinned ? <span className="pod-badge pod-badge-muted">{t('已置顶')}</span> : null}
           {pageId === undefined ? null : <PageChip pageId={pageId} />}
           <time>{clock(message.createdAt)}</time>
@@ -303,7 +202,6 @@ export function MessageItem(props: MessageProps) {
         ) : (
           <XEventCard view={xEvent} />
         )}
-        {taskLink === undefined ? null : <TaskLink taskId={taskLink.taskId} label={taskLink.label} roomId={message.roomId} />}
         {attachment === undefined ? null : <Attachment attachment={attachment} />}
         {run === undefined || !stepsOpen ? null : <RunSummaryLine run={run} />}
         {message.kind === 'kickoff' && typeof message.data.taskId === 'string' ? <KickoffActions taskId={message.data.taskId} /> : null}

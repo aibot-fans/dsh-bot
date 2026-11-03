@@ -28,7 +28,6 @@ export const CHAT_CSS = `
 .pod-msg-actions .pod-icon-button { width: 28px; height: 28px; border-radius: 8px; color: var(--dsw-alias-label-tertiary); }
 .pod-msg-actions .pod-icon-button:hover { color: var(--dsw-alias-label-primary); }
 .pod-msg:hover .pod-msg-actions, .pod-msg:focus-within .pod-msg-actions, .pod-msg-actions-open { opacity: 1; pointer-events: auto; }
-.pod-msg-kickoff .pod-msg-main { padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--pod-info) 30%, transparent); border-radius: 12px; background: color-mix(in srgb, var(--pod-info) 4%, transparent); }
 .pod-msg-live .pod-md { opacity: .92; }
 .pod-msg-routing { align-items: center; gap: 8px; padding-left: 38px; font-size: 12.5px; color: var(--dsw-alias-label-secondary); }
 .pod-live-line { display: inline-flex; align-items: center; gap: 8px; margin-top: 2px; font-size: 12.5px; color: var(--dsw-alias-label-tertiary); }
@@ -39,8 +38,6 @@ export const CHAT_CSS = `
 @keyframes pod-flash { 0%, 40% { background: color-mix(in srgb, var(--pod-warn) 22%, transparent); } 100% { background: transparent; } }
 .pod-kickoff-actions { display: flex; gap: 6px; margin-top: 6px; }
 .pod-msg-card { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 4px 0 4px 38px; }
-.pod-msg-card-task { position: relative; }
-.pod-msg-card-task:hover .pod-msg-actions, .pod-msg-card-task:focus-within .pod-msg-actions { opacity: 1; pointer-events: auto; }
 .pod-msg-card > * { width: 100%; max-width: var(--pod-card-max); }
 .pod-msg-card > .pod-link { width: auto; }
 .pod-quote { margin: 2px 0 4px; padding: 2px 8px; border-left: 2px solid var(--pod-line); font-size: 12px; color: var(--dsw-alias-label-tertiary); }

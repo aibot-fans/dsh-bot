@@ -3,11 +3,6 @@ export const CARDS_CSS = `
 .pod-task-card { border: 1px solid var(--pod-line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; background: var(--dsw-alias-bg-layer-2); max-width: 760px; }
 .pod-task-card-loading { color: var(--dsw-alias-label-tertiary); font-size: 13px; }
 .pod-task-card-done { border-color: color-mix(in srgb, var(--pod-ok) 35%, var(--pod-line)); }
-.pod-task-inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--dsw-alias-label-secondary); }
-.pod-task-inline-title { color: var(--dsw-alias-label-primary); font-weight: 500; }
-.pod-task-inline-actions { display: inline-flex; gap: 4px; margin-left: auto; }
-.pod-task-inline-done { display: flex; flex-direction: column; gap: 6px; }
-.pod-task-inline-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dsw-alias-label-tertiary); }
 .pod-task-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .pod-task-title { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .pod-task-title strong { font-size: 14px; }

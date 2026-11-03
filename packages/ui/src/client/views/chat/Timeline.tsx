@@ -8,7 +8,7 @@ import { Markdown } from '../../components/Markdown.tsx'
 import { buildMentions, type Mentions } from '../../components/mentions.tsx'
 import { ProgressBlock } from '../../components/Progress.tsx'
 import { isPreparing, useApp, useLive, useNav, usePodEvent, type LiveStatus, type LiveStream } from '../../state/app.ts'
-import { arrange } from './arrange.ts'
+import { arrange, shownInChat } from './arrange.ts'
 import { MessageItem } from './MessageItem.tsx'
 
 const PAGE = 50
@@ -329,7 +329,7 @@ export function Timeline(props: TimelineProps) {
     return { sessionId, stream, status, botId: stream?.botId ?? status?.botId ?? '' }
   })
   const replies = sessions.filter((reply) => !isPreparing(reply.sessionId) || !sessions.some((other) => !isPreparing(other.sessionId) && other.botId === reply.botId))
-  const blocks = arrange(messages)
+  const blocks = arrange(messages.filter((message) => shownInChat(message, room.taskId !== null)))
   const ordered = blocks.flatMap((block) => [...block.texts, ...block.cards])
   // 最后一段回复的 bot 还在说：正在输入的文字排在这段的卡片上面，说完不跳位置。
   const tail = blocks.at(-1)

@@ -8,6 +8,5 @@ export const COMPUTER_CSS = `
 .pod-computer-status { flex-direction: column; gap: 10px; padding: 16px; text-align: center; }
 .pod-computer-status .pod-button { color: #eee; background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.24); }
 .pod-computer-status .pod-button:hover { background: rgba(255,255,255,.18); }
-.pod-computer-card-shot { display: flex; align-items: center; justify-content: center; color: #bbb; cursor: pointer; }
 .pod-head-button-busy { color: var(--dsw-alias-link, #4d6bfe); }
 `
