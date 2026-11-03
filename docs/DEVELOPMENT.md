@@ -96,7 +96,7 @@ dsh plugin --profile web add link:/仓库的绝对路径/packages/bundle
 - 改了表结构就在 `packages/store/src/migrations.ts` 里加一版迁移，启动时自动迁移。
 - 改完 `pnpm build`，重启 dsh web。宿主和页面的代码都是启动时读进内存的，不重启不生效。
 - 打 npm 包用 `pnpm pack:npm`：先构建，再把 runtime、ui、bundle 合成一个包 `@aibot_fans/dsh-bot`，输出 `dist/aibot_fans-dsh-bot-<版本>.tgz`。包里浏览器插件那一行就叫 `@aibot_fans/dsh-bot`（dsh 只按精确的包名找 `./client`），宿主插件和 agent 是 `@aibot_fans/dsh-bot/runtime`、`@aibot_fans/dsh-bot/agent`；各行的 id 和源码装的一样。各包的版本号和 `POD_VERSION` 对不上时会停下。打了 `v<版本>` 标签时，包里的 package.json 带上这个版本的更新说明（`releaseNotes` 字段），dsh-bot 的更新弹窗显示的就是它；没打标签就不带，弹窗里让去 GitHub 上看。
-- 用电脑的小助手随包一起发：`pnpm build:computer-use` 用 `vendor/comma-computer-use` 里 Comma 的源码（AGPL-3.0，原样）编成 `packages/runtime/assets/computer-use/dsh-bot Computer Use.app`，打包时跟着 `runtime/assets` 进包。`pnpm pack:npm` 和 `pnpm release:pack` 会先跑它，所以打包要在装了 Xcode 命令行工具的 Mac 上；没编出来会停下。dsh-bot 第一次用电脑时把包里的小助手拷到 `~/Library/Application Support/dsh-bot/Computer Use/` 再拉起，换了版本才重新拷。小助手每重编一次签名就变，用户要重新给系统授权，所以小助手的源码不变时，各版本尽量带同一份编好的应用（在同一个目录编，结果才一样）。
+- 用电脑的小助手随包一起发：`pnpm build:computer-use` 用 `vendor/comma-computer-use` 里 Comma 的源码（AGPL-3.0，原样）编成 `packages/runtime/assets/computer-use/dsh-bot Computer Use.app`，打包时跟着 `runtime/assets` 进包。`pnpm pack:npm` 和 `pnpm release:pack` 会先跑它，所以打包要在装了 Xcode 命令行工具的 Mac 上；没编出来会停下。dsh-bot 第一次用电脑时把包里的小助手拷到 `~/Library/Application Support/dsh-bot/Computer Use/` 再拉起，换了版本才重新拷。小助手每重编一次签名就变，系统设置里原来那一项就对不上了：只打开开关不管用，用户要选中它点“−”删掉再重新加（设置页缺权限时会这样提示），所以小助手的源码不变时，各版本尽量带同一份编好的应用（在同一个目录编，结果才一样）。
 - 发布前可以在隔离环境里装这个 tgz 试一遍：`DSH_HOME=<临时目录> dsh plugin --profile web add <tgz 的绝对路径>`，启动时记得用 `--patch` 把 `workspaceRoot` 也指到临时目录，不然 bot 的工作区会用 `~/Pod`。
 
 ### 发布步骤
