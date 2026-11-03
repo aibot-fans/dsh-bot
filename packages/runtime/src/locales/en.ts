@@ -1,3 +1,4 @@
+import { RUNTIME_EN_COMPUTER } from './en-computer.ts'
 import { RUNTIME_EN_ENGINE } from './en-engine.ts'
 import { RUNTIME_EN_LABELS } from './en-labels.ts'
 import { RUNTIME_EN_MESSAGES } from './en-messages.ts'
@@ -6,4 +7,4 @@ import { RUNTIME_EN_UPDATE } from './en-update.ts'
 import { RUNTIME_EN_X } from './en-x.ts'
 
 /** pod-runtime 里给人看的文字（系统消息、卡片、接口报错）的英文译文，键是代码里的中文原文。 */
-export const RUNTIME_EN: Readonly<Record<string, string>> = { ...RUNTIME_EN_MESSAGES, ...RUNTIME_EN_NOTICES, ...RUNTIME_EN_LABELS, ...RUNTIME_EN_UPDATE, ...RUNTIME_EN_X, ...RUNTIME_EN_ENGINE }
+export const RUNTIME_EN: Readonly<Record<string, string>> = { ...RUNTIME_EN_MESSAGES, ...RUNTIME_EN_NOTICES, ...RUNTIME_EN_LABELS, ...RUNTIME_EN_UPDATE, ...RUNTIME_EN_X, ...RUNTIME_EN_ENGINE, ...RUNTIME_EN_COMPUTER }

@@ -3,6 +3,7 @@ import { OWNER, POD, isUploadNote, readRunSummary, t, type Bot, type RoomMessage
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { BrowserCard } from '../../components/BrowserCard.tsx'
+import { ComputerCard } from '../../components/ComputerCard.tsx'
 import { copyText } from '../../components/clipboard.ts'
 import { Avatar, Button, IconButton, Modal, clock, nameColor } from '../../components/common.tsx'
 import { BotName } from '../../components/GroupMark.tsx'
@@ -215,6 +216,12 @@ export function MessageItem(props: MessageProps) {
       return (
         <div className="pod-msg-card">
           <BrowserCard tabId={String(message.data.tabId ?? '')} botId={message.author} fallback={message.body} />
+        </div>
+      )
+    case 'computer':
+      return (
+        <div className="pod-msg-card">
+          <ComputerCard botId={message.author} fallback={message.body} />
         </div>
       )
     case 'folded':

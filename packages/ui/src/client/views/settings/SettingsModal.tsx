@@ -8,6 +8,7 @@ import { useNarrow } from '../../components/media.ts'
 import { useApp, useNav, type SettingsTab } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 import { ArchivePage } from './ArchivePage.tsx'
+import { ComputerPage } from './ComputerPage.tsx'
 import { RecycleBin } from './RecycleBin.tsx'
 import { Automations, type RoutineView } from './Routines.tsx'
 import { Row, type Update } from './Row.tsx'
@@ -22,6 +23,7 @@ const TABS: readonly (readonly [SettingsTab, string])[] = [
   ['automations', '自动化'],
   ['models', '模型'],
   ['browser', '浏览器'],
+  ['computer', '用电脑'],
   ['archive', '归档'],
   ['recycle', '回收站'],
   ['advanced', '高级'],
@@ -136,6 +138,7 @@ export function SettingsModal() {
               {tab === 'automations' ? <AutomationsPage settings={settings} update={update} /> : null}
               {tab === 'models' ? <ModelsPage settings={settings} update={update} /> : null}
               {tab === 'browser' ? <BrowserPage settings={settings} update={update} /> : null}
+              {tab === 'computer' ? <ComputerPage settings={settings} update={update} /> : null}
               {tab === 'archive' ? <ArchivePage /> : null}
               {tab === 'recycle' ? <RecycleBin /> : null}
               {tab === 'advanced' ? <AdvancedPage settings={settings} update={update} /> : null}

@@ -2,41 +2,12 @@ import { PRIORITY, type PodSession } from 'pod-domain'
 import type { BrowserOutcome } from '../browser/actions.ts'
 import { KEY_NAMES } from '../browser/tab.ts'
 import { noticeSource } from '../agents/messages.ts'
-import type { ContentBlock, LiveAgent, LlmService, ToolDefinition, ToolRunContext } from '../dsh.ts'
+import type { ToolDefinition, ToolRunContext } from '../dsh.ts'
 import type { PodRuntime } from '../pod.ts'
 import { bool, flag, int, oneOf, podTool, str, strList, success, failure, text, texts, type ToolValue } from './define.ts'
-
-interface ImageRef {
-  readonly attachmentId: string
-  readonly mediaType: string
-  readonly bytes: number
-  readonly width: number
-  readonly height: number
-}
-
-interface AttachmentStore {
-  saveImage(input: { readonly data: Uint8Array; readonly mediaType: string; readonly name?: string }): Promise<ImageRef>
-}
+import { attachImage, renderWithImage } from './images.ts'
 
 const asValue = (outcome: BrowserOutcome): ToolValue => outcome as ToolValue
-
-/** 当前模型能不能看图：只有声明了图片输入的模型才把截图交给它。 */
-async function seesImages(pod: PodRuntime, agent: LiveAgent | undefined, signal: AbortSignal): Promise<boolean> {
-  const loose = agent as unknown as { readonly session?: { readonly requestHeader?: () => { readonly config?: { readonly provider?: string; readonly model?: string } } | undefined }; readonly options?: { readonly provider?: string; readonly model?: string } } | undefined
-  const routed = loose?.session?.requestHeader?.()?.config
-  const provider = routed?.provider ?? loose?.options?.provider
-  const model = routed?.model ?? loose?.options?.model
-  const llm = pod.ctx.get('llm') as LlmService | undefined
-  if (provider === undefined || model === undefined || llm === undefined) return false
-  const info = await llm.resolveModelInfo(provider, model, signal).catch(() => undefined)
-  return info?.inputModalities?.includes('image') === true
-}
-
-function renderWithImage(value: ToolValue): ContentBlock[] {
-  const { image, ...rest } = value as ToolValue & { readonly image?: ImageRef }
-  const blocks: ContentBlock[] = [{ type: 'text', text: JSON.stringify(rest) }]
-  return image === undefined ? blocks : [...blocks, { type: 'image', attachment: image }]
-}
 
 /**
  * bot 的浏览器工具：打开、快照、点击、输入、按键、选择、滚动、后退、标签页、截图、提取正文、上传、对话框、交接、请你接管。
@@ -146,9 +117,8 @@ export function browserTools(pod: PodRuntime, session: PodSession): readonly Too
       const shot = await actions.screenshot(current(), tabId)
       const { image, ...rest } = shot
       if (!shot.ok || image === undefined) return asValue(rest)
-      const store = pod.ctx.get('attachments') as AttachmentStore | undefined
-      if (store === undefined || !(await seesImages(pod, exec.agent, exec.signal))) return asValue({ ...rest, message: `${rest.message}（当前模型不支持看图，需要时用 browser_snapshot 读文字）` })
-      const ref = await store.saveImage({ data: new Uint8Array(image), mediaType: 'image/jpeg', name: 'screenshot.jpg' }).catch(() => undefined)
+      const ref = await attachImage(pod, exec, { data: new Uint8Array(image), mediaType: 'image/jpeg', name: 'screenshot.jpg' })
+      if (ref === 'blind') return asValue({ ...rest, message: `${rest.message}（当前模型不支持看图，需要时用 browser_snapshot 读文字）` })
       return asValue(ref === undefined ? rest : { ...rest, image: ref })
     },
   })

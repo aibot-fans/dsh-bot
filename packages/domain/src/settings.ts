@@ -75,6 +75,8 @@ export interface PodSettings {
   readonly allowedHosts: readonly string[]
   /** 本机 Chrome 的路径；空表示自动查找。 */
   readonly chromePath: string
+  /** 用电脑：做任务的 bot 能在后台读写这台 Mac 上别的应用（每个任务第一次用某个应用前先问你），默认关闭。 */
+  readonly computerUse: boolean
   /** aibot（X 数据和监控）接入；关掉后不调 aibot、不连事件流，Key 和安装码保留。 */
   readonly aibotEnabled: boolean
   /** 每隔几小时问一次 npm 有没有新版本；只发包名。 */
@@ -111,6 +113,7 @@ export const DEFAULT_SETTINGS: PodSettings = {
   siteRules: DEFAULT_SITE_RULES,
   allowedHosts: [],
   chromePath: '',
+  computerUse: false,
   aibotEnabled: true,
   checkUpdates: true,
   language: 'auto',
@@ -216,7 +219,7 @@ function allowedHostsChange(raw: unknown): Change {
   return { ok: true, value: { allowedHosts: [...new Set(hosts)] } }
 }
 
-const BOOLEAN_KEYS = ['preventSleep', 'offPeak', 'memoryExtraction', 'browserNotifications', 'onboarded', 'aibotEnabled', 'checkUpdates', 'paused'] as const
+const BOOLEAN_KEYS = ['preventSleep', 'offPeak', 'memoryExtraction', 'browserNotifications', 'onboarded', 'aibotEnabled', 'checkUpdates', 'paused', 'computerUse'] as const
 
 function oneChange(key: string, raw: unknown, current: PodSettings): Change {
   switch (key) {

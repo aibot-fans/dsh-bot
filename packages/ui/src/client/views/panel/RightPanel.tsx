@@ -1,10 +1,11 @@
 import { useNav } from '../../state/app.ts'
 import { BotPanel } from './BotPanel.tsx'
 import { BrowserPanel } from './BrowserPanel.tsx'
+import { ComputerPanel } from './ComputerPanel.tsx'
 import { GroupPanel } from './GroupPanel.tsx'
 import { PageLibraryPanel } from '../pages/PageLibrary.tsx'
 
-/** 右侧面板：bot 详情（或群里的成员卡片）、群聊详情、bot 的浏览器、页面库，同一时间只开一个。 */
+/** 右侧面板：bot 详情（或群里的成员卡片）、群聊详情、bot 的浏览器、电脑、页面库，同一时间只开一个。 */
 export function RightPanel() {
   const { panel } = useNav()
   if (panel === null) return null
@@ -15,6 +16,8 @@ export function RightPanel() {
       return <GroupPanel roomId={panel.roomId} tab={panel.tab} />
     case 'browser':
       return <BrowserPanel tabId={panel.tabId} botId={panel.botId} roomId={panel.roomId} back={panel.back} />
+    case 'computer':
+      return <ComputerPanel />
     case 'pages':
       return <PageLibraryPanel />
   }

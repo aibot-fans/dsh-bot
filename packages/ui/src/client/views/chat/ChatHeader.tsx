@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ROOM_TITLE_MAX, botThreads, isTemporaryRoom, t, type Bot, type RoomSummary } from 'pod-domain'
+import { computerApi } from '../../api/computer.ts'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { Avatar, RelativeTime, money, nameColor, tokens } from '../../components/common.tsx'
@@ -248,8 +249,31 @@ function BrowserButton(props: { readonly room: RoomSummary; readonly botId: stri
   )
 }
 
+/** 电脑：右侧打开 bot 正在用的应用窗口的实时画面；设置里开了“用电脑”才有。再点一下关上。 */
+function ComputerButton() {
+  const app = useApp()
+  const nav = useNav()
+  const { data: settings } = useResource(app.cache, 'settings', () => api.settings())
+  const { data: status } = useResource(app.cache, 'computer', () => computerApi.status())
+  if (settings?.computerUse !== true) return null
+  const open = nav.panel?.kind === 'computer'
+  const busy = status?.user != null
+  return (
+    <button
+      type="button"
+      className={`pod-head-button${open ? ' pod-head-button-on' : ''}${busy ? ' pod-head-button-busy' : ''}`}
+      aria-pressed={open}
+      aria-label={busy ? t('电脑（有 bot 在用）') : t('电脑')}
+      title={busy ? t('电脑（有 bot 在用）') : t('电脑')}
+      onClick={() => (open ? app.closePanel() : app.openComputer())}
+    >
+      <Icon name="computer" size={17} />
+    </button>
+  )
+}
+
 /**
- * 对话顶部：左边是 bot 或群（点开详情）；右边是浏览器，单聊还有对话记录和新对话，不挂任务的群聊还有新对话，最右是这个 bot 或群聊今天的用量。页面在 bot 和群聊的详情里。
+ * 对话顶部：左边是 bot 或群（点开详情）；右边是浏览器和电脑，单聊还有对话记录和新对话，不挂任务的群聊还有新对话，最右是这个 bot 或群聊今天的用量。页面在 bot 和群聊的详情里。
  * 手机上最左边是回到列表，名字后面带个箭头表示点开是详情，用量不显示。
  */
 export function ChatHeader(props: { readonly room: RoomSummary; readonly bots: ReadonlyMap<string, Bot>; readonly memberIds: readonly string[] }) {
@@ -289,6 +313,7 @@ export function ChatHeader(props: { readonly room: RoomSummary; readonly bots: R
       ) : null}
       <span className="pod-convo-head-gap" />
       <BrowserButton room={room} botId={bot?.id ?? null} />
+      <ComputerButton />
       {room.kind !== 'direct' || temporary || bot === undefined ? null : (
         <>
           <HistoryButton room={room} bot={bot} />

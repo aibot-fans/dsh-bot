@@ -4,7 +4,9 @@ import type { LiveAgent, ToolDefinition } from '../dsh.ts'
 import type { PodRuntime } from '../pod.ts'
 import { frontTools } from '../front/tools.ts'
 import { isTicket } from '../engine/index.ts'
+import { computerSupported } from '../computer/helper.ts'
 import { browserTools } from './browser.ts'
+import { computerTools } from './computer.ts'
 import { coordTools } from './coord.ts'
 import { groupTools } from './group.ts'
 import { orgTools, taskInfoTools } from './lead.ts'
@@ -50,6 +52,7 @@ function frontEquipment(pod: PodRuntime, session: PodSession): readonly ToolDefi
  * - 咨询会话不给协作工具（咨询不能嵌套），也不做页面；
  * - aibot 的 X 工具：X 情报员、主管、标签里提到 X 或推特的 bot，以及「X 监控」群里的会话；
  * - x_ 工具（用 dsh-bot 浏览器里登录的 X 账号读写 X、读加密聊天）：范围同上，不管 aibot 开没开；
+ * - computer_use（在这台 Mac 上后台用别的应用）：设置里开了“用电脑”时给任务会话；
  * - 其他插件注册的工具（浏览器、记忆、检索……）按各自的条件加上。
  */
 export function equipSession(pod: PodRuntime, extras: readonly ExtraTool[], session: PodSession, _agent: LiveAgent): Equipment {
@@ -68,6 +71,7 @@ export function equipSession(pod: PodRuntime, extras: readonly ExtraTool[], sess
   if (session.kind === 'coord') base.push(...coordTools(pod, session), askOwnerTool(pod, session), ...teamTools(pod, session))
   base.push(...memoryTools(pod, session))
   if (sessionBrowses(session)) base.push(...browserTools(pod, session))
+  if (session.kind === 'task' && sessionBrowses(session) && pod.settings.get().computerUse && computerSupported()) base.push(...computerTools(pod, session))
   if (sessionMakesPages(session)) base.push(...pageTools(pod, session))
   if (session.kind === 'task' || session.kind === 'coord') base.push(...skillTools(pod, session))
   base.push(...pod.aibot.toolsFor(session))

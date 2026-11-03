@@ -13,6 +13,7 @@ import { eventStreamRoute } from './api/stream.ts'
 import { avatarRoute, v2Routes } from './api/v2.ts'
 import { aibotRoutes } from './api/aibot.ts'
 import { xRoutes } from './api/x.ts'
+import { computerMediaRoutes, computerRoutes } from './api/computer.ts'
 import { updateRoutes } from './api/update.ts'
 import { checkCompat } from './core/compat.ts'
 import { acquireLock } from './core/lock.ts'
@@ -55,12 +56,12 @@ export function apply(ctx: HostContext, rawConfig: unknown): void {
   ctx.effect(() => pod.updates.start(), 'pod: update check')
 
   const gate = { readOnly: () => pod.readOnlyReason }
-  const routes: readonly RouteSpec[] = [...baseRoutes(pod), ...workRoutes(pod), ...browserRoutes(pod), ...evolutionRoutes(pod), ...v2Routes(pod), ...sidebarRoutes(pod), ...pageRoutes(pod), ...aibotRoutes(pod), ...xRoutes(pod), ...updateRoutes(pod)]
+  const routes: readonly RouteSpec[] = [...baseRoutes(pod), ...workRoutes(pod), ...browserRoutes(pod), ...evolutionRoutes(pod), ...v2Routes(pod), ...sidebarRoutes(pod), ...pageRoutes(pod), ...aibotRoutes(pod), ...xRoutes(pod), ...computerRoutes(pod), ...updateRoutes(pod)]
   for (const route of toFetchRoutes(routes, ctx.logger, gate)) {
     ctx.effect(() => ctx.connection.fetch.register(route), `pod: route ${route.path}`)
   }
   ctx.effect(() => ctx.connection.fetch.register(eventStreamRoute(pod.bus)), 'pod: event stream')
-  for (const route of [...browserMediaRoutes(pod), fileRoute(pod), ...pageViewRoutes(pod), avatarRoute(pod), botIconRoute()]) {
+  for (const route of [...browserMediaRoutes(pod), ...computerMediaRoutes(pod), fileRoute(pod), ...pageViewRoutes(pod), avatarRoute(pod), botIconRoute()]) {
     ctx.effect(() => ctx.connection.fetch.register(route), `pod: route ${route.path}`)
   }
 

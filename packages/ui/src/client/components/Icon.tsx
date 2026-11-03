@@ -24,6 +24,7 @@ const PATHS: Readonly<Record<string, string>> = {
   file: 'M7 4h7l4 4v12H7zM14 4v4h4',
   team: 'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 19a6 6 0 0 1 12 0M16 11a3 3 0 1 0 0-6M17 13a5 5 0 0 1 4 6',
   browser: 'M4 5h16v14H4zM4 9h16M7 7h.01M10 7h.01',
+  computer: 'M4 5h16v11H4zM9 20h6M12 16v4',
   memory: 'M7 4h10v16l-5-3-5 3z',
   bell: 'M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 20h4',
   routine: 'M12 6v6l4 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z',

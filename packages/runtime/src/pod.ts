@@ -65,6 +65,7 @@ import { WaitService } from './waits/service.ts'
 import { ReadRefused } from './browser/actions.ts'
 import { createBrowserKit, type BrowserKit } from './browser/index.ts'
 import { createXKit, type XKit } from './x/index.ts'
+import { ComputerService } from './computer/service.ts'
 import { createEvolutionKit, type EvolutionKit } from './evolution/index.ts'
 import { ModelResolver } from './core/models.ts'
 import { resolveConfig } from './config.ts'
@@ -181,6 +182,8 @@ export class PodRuntime {
   readonly aibot: AibotService
   /** 用 dsh-bot 浏览器里登录的 X 账号读写 X、读加密聊天（x_ 工具）。 */
   readonly x: XKit
+  /** 用电脑：本机小助手在后台读写别的应用的窗口（computer_use 工具）。 */
+  readonly computer: ComputerService
   readonly updates: UpdateService
   readonly now: () => number
   private exposureState: Exposure = detectExposure()
@@ -788,8 +791,33 @@ export class PodRuntime {
         blocked: () => this.aibot.localBlocked(),
       },
     })
-    // 写操作审批有两种：浏览器里的点击和 X 写操作（data.channel 是 x），批准后各自执行。
-    this.waits.setResolver('write', (wait, answer) => (wait.data.channel === 'x' ? this.x.writes.resolve(wait, answer) : this.browser.approvals.resolveWrite(wait, answer)))
+    this.computer = new ComputerService({
+      db,
+      dataRoot: options.dataRoot,
+      waits: this.waits,
+      registry: this.registry,
+      audit: this.audit,
+      settings: () => this.settings.get(),
+      now,
+      exposed: () => (this.exposureState.exposed ? this.exposureState.reasons.join('；') : undefined),
+      task: (taskId) => this.tasks.get(taskId),
+      botName: (botId) => this.bots.get(botId)?.name ?? botId,
+      changed: () => this.bus.emit({ type: 'computer' }),
+      // 对话里的电脑卡片：点开从右侧看应用窗口的实时画面，可以接管。
+      started: (session, apps) => {
+        const roomId = this.cardRoomOf(session)
+        if (roomId !== null) this.rooms.post(roomId, { author: session.botId, kind: 'computer', body: t('开始用电脑：{apps}', { apps: apps.join(t('、')) }), data: { apps }, sessionId: session.id })
+      },
+      tell: (sessionId, text) => {
+        if (this.registry.get(sessionId) !== undefined) this.dispatcher.enqueue({ sessionId, mode: 'followup', priority: PRIORITY.owner, text, source: noticeSource(t('电脑面板')) })
+      },
+    })
+    // 写操作审批有三种：浏览器里的点击、X 写操作（data.channel 是 x）批准后各自执行；用电脑（computer）批准后记下授权，答复照常转回任务。
+    this.waits.setResolver('write', (wait, answer) => {
+      if (wait.data.channel === 'x') return this.x.writes.resolve(wait, answer)
+      if (wait.data.channel === 'computer') return this.computer.grants.resolve(wait, answer)
+      return this.browser.approvals.resolveWrite(wait, answer)
+    })
     this.evolutionKit = createEvolutionKit({
       db,
       bus: this.bus,
@@ -862,6 +890,7 @@ export class PodRuntime {
       this.aibot.settingsChanged(next, previous)
       this.updates.settingsChanged(next, previous)
       if (next.paused !== previous.paused) this.pausedChanged(next.paused)
+      if (next.computerUse !== previous.computerUse) this.computerUseChanged(next.computerUse)
     })
     this.bots.onChange((bot) => this.front.retitle(bot))
     this.language.onChange(() => {
@@ -991,6 +1020,14 @@ export class PodRuntime {
       void this.triggers.tick().catch((error: unknown) => this.ctx.logger.warn('触发器出错', error))
     }
     this.bus.emit({ type: 'health' })
+  }
+
+  /** 用电脑开关变了：在做的任务马上装上或撤掉 computer_use；关掉时收回所有授权、小助手退出。 */
+  private computerUseChanged(enabled: boolean): void {
+    this.audit.record(enabled ? 'computer.enable' : 'computer.disable', OWNER, 'settings', {})
+    if (!enabled) void this.computer.turnOff().catch((error: unknown) => this.ctx.logger.warn('关掉用电脑时出错', error))
+    for (const session of this.registry.active()) if (session.kind === 'task') this.binder.reinstall(session.id)
+    this.bus.emit({ type: 'status' })
   }
 
   status(): PodStatus {

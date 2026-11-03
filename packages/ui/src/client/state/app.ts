@@ -6,10 +6,10 @@ import { ResourceCache } from './resource.ts'
 
 export type BotTab = 'details' | 'pages' | 'library' | 'automations' | 'browser'
 export type GroupTab = 'details' | 'pages' | 'library' | 'automations' | 'tasks' | 'browser'
-export type SettingsTab = 'general' | 'notes' | 'usage' | 'automations' | 'models' | 'browser' | 'archive' | 'recycle' | 'advanced'
+export type SettingsTab = 'general' | 'notes' | 'usage' | 'automations' | 'models' | 'browser' | 'computer' | 'archive' | 'recycle' | 'advanced'
 
 /**
- * 右侧面板：bot 详情、群聊详情、bot 的浏览器、页面库，同一时间只开一个。
+ * 右侧面板：bot 详情、群聊详情、bot 的浏览器、电脑（bot 在用的应用窗口）、页面库，同一时间只开一个。
  * 在群里点成员时 bot 详情带着 from（群的 id）：显示成员卡片，可以返回群聊详情；
  * 从成员卡片点“完整资料”时带着 back（群的 id）：完整资料左上角能返回那张成员卡片。
  * 从群聊或 bot 详情的浏览器页放大看一个网页时，浏览器带着 back（来的那个面板）：左上角和 Esc 回到那里。
@@ -18,6 +18,7 @@ export type PanelState =
   | { readonly kind: 'bot'; readonly botId: string; readonly tab: BotTab; readonly from?: string; readonly back?: string }
   | { readonly kind: 'group'; readonly roomId: string; readonly tab: GroupTab }
   | { readonly kind: 'browser'; readonly tabId: string | null; readonly botId: string | null; readonly roomId?: string; readonly back?: PanelState }
+  | { readonly kind: 'computer' }
   | { readonly kind: 'pages' }
   | null
 
@@ -275,6 +276,11 @@ export class AppState {
     this.navigate({ page: null })
   }
 
+  /** 电脑面板：bot 正在用的应用窗口的实时画面，可以接管；从设置里打开时顺手关掉设置。 */
+  openComputer(): void {
+    this.navigate({ panel: { kind: 'computer' }, settings: null })
+  }
+
   openSettings(tab: SettingsTab = 'general'): void {
     this.navigate({ settings: tab })
   }
@@ -377,6 +383,7 @@ export class AppState {
         return
       case 'status':
         cache.invalidate('status')
+        cache.invalidate('computer')
         return
       case 'health':
         cache.invalidate('health')
@@ -475,6 +482,9 @@ export class AppState {
       case 'browser':
         cache.invalidate('browser')
         if (event.pointer !== undefined && event.tabId !== null) for (const listener of this.pointerListeners) listener(event.tabId, event.pointer)
+        return
+      case 'computer':
+        cache.invalidate('computer')
         return
       default:
         return

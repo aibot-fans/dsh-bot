@@ -4,6 +4,7 @@ import { BROWSER_CSS } from './browser.ts'
 import { BUTTONS_CSS } from './buttons.ts'
 import { CARDS_CSS } from './cards.ts'
 import { CHAT_CSS } from './chat.ts'
+import { COMPUTER_CSS } from './computer.ts'
 import { EDITOR_CSS } from './editor.ts'
 import { LAYOUT_CSS } from './layout.ts'
 import { MOBILE_CSS } from './mobile.ts'
@@ -30,7 +31,7 @@ export function injectStyles(): () => void {
   const tag = document.createElement('style')
   tag.dataset.plugin = 'pod-ui'
   tag.dataset.pluginCss = STYLE_ID
-  tag.textContent = [BASE_CSS, LAYOUT_CSS, CHAT_CSS, EDITOR_CSS, CARDS_CSS, BROWSER_CSS, PANEL_CSS, V3_CSS, V5_CSS, PAGES_CSS, V6_CSS, PINS_CSS, BUTTONS_CSS, AIBOT_CSS, PROGRESS_CSS, UPDATE_CSS, V8_CSS, V9_CSS, V10_CSS, V11_CSS, MOBILE_CSS].join('\n')
+  tag.textContent = [BASE_CSS, LAYOUT_CSS, CHAT_CSS, EDITOR_CSS, CARDS_CSS, BROWSER_CSS, PANEL_CSS, V3_CSS, V5_CSS, PAGES_CSS, V6_CSS, PINS_CSS, BUTTONS_CSS, AIBOT_CSS, PROGRESS_CSS, UPDATE_CSS, V8_CSS, V9_CSS, V10_CSS, V11_CSS, COMPUTER_CSS, MOBILE_CSS].join('\n')
   document.head.appendChild(tag)
   return () => {
     tag.remove()

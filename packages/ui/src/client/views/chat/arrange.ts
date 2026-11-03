@@ -1,7 +1,7 @@
 import { OWNER, POD, type RoomMessage } from 'pod-domain'
 
-/** 跟着回复走、放在回复文字下面的卡片和状态：页面、任务卡、浏览器、等你处理、提示、里程碑、回执、周报。 */
-const TRAILING: ReadonlySet<string> = new Set(['page', 'task-card', 'browser', 'wait', 'notice', 'milestone', 'receipt', 'weekly'])
+/** 跟着回复走、放在回复文字下面的卡片和状态：页面、任务卡、浏览器、电脑、等你处理、提示、里程碑、回执、周报。 */
+const TRAILING: ReadonlySet<string> = new Set(['page', 'task-card', 'browser', 'computer', 'wait', 'notice', 'milestone', 'receipt', 'weekly'])
 
 /** 时间线里的一段：同一个 bot 连着说的话（texts），和跟着它的卡片、状态（cards）。 */
 export interface ReplyBlock {

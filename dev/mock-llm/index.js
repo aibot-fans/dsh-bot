@@ -191,6 +191,43 @@ function backgroundTask(messages, calls) {
   return { text: '命令放到后台了，跑完再接着做。' }
 }
 
+/**
+ * 用电脑的剧本：start（第一次要你批准，批准后再 start）→ 在后台打开备忘录 → 看它的窗口，然后停下来让你在电脑面板上看画面、接管；
+ * 你交还以后再看一眼窗口、stop、交结果。
+ */
+function computerTask(userText, messages, calls, tools) {
+  const app = '备忘录'
+  const call = (action, args, thinking) => ({ tool: 'computer_use', args: { action, args, thinking } })
+  const actions = toolCalls(messages)
+    .filter((block) => block.name === 'computer_use')
+    .map((block) => {
+      try {
+        return JSON.parse(typeof block.arguments === 'string' ? block.arguments : JSON.stringify(block.arguments ?? {})).action
+      } catch {
+        return ''
+      }
+    })
+  const result = lastToolText(messages)
+  if (messages.at(-1)?.role === 'tool' && calls.at(-1) === 'computer_use') {
+    const action = actions.at(-1)
+    if (action === 'start') {
+      if (result.includes('开始了')) return call('open_app', { app }, `在后台打开${app}`)
+      if (result.includes('批准')) return tools.has('report') ? { tool: 'report', args: { status: 'waiting', summary: '等用户批准用电脑' } } : { text: '等你批准用电脑。' }
+      return { text: `用不了电脑：${result.slice(0, 120)}` }
+    }
+    if (action === 'open_app') return call('get_app_state', { app }, `看${app}的窗口`)
+    if (action === 'get_app_state') {
+      if (actions.filter((item) => item === 'get_app_state').length >= 2) return call('stop', {}, '用完了，把电脑交还')
+      const note = `看到${app}的窗口了。先停在这里：你可以在电脑面板上看画面、接管，交还后我再接着做。`
+      return tools.has('report') ? { tool: 'report', args: { status: 'waiting', summary: note } } : { text: note }
+    }
+    if (action === 'stop') return { tool: 'complete_task', args: { summary: `- 用电脑看了${app}的窗口`, files: [], assumptions: ['测试环境'], unverified: [], skipped: [] } }
+    return { text: result.slice(0, 120) }
+  }
+  if (userText.includes('[用户交还了电脑]')) return call('get_app_state', { app }, '交还后重新看一眼窗口')
+  return call('start', { apps: [app], reason: '测试用电脑：看一眼备忘录的窗口' }, '开始用电脑')
+}
+
 /** 只看用户自己说的部分：去掉换段时的交接笔记前言和附在后面的相关记忆。 */
 /** 换段时消息前面有一段说明，真正的话在最后一个“[谁的新消息]”后面。 */
 function withoutPreface(text) {
@@ -409,6 +446,7 @@ function decide(options) {
       return { tool: 'report', args: { status: 'dismissed', summary: '这次没有新东西' } }
     }
     if (brief.includes('看门狗') && !userText.includes('开始新的一次执行') && tools.has('bash')) return watchdogTask(userText, calls)
+    if (brief.includes('用电脑') && tools.has('computer_use')) return computerTask(userText, messages, calls, tools)
     if (brief.includes('浏览器') && tools.has('browser_open')) return browserTask(brief, userText, messages, calls)
     if (brief.includes('后台命令') && tools.has('bash')) return backgroundTask(messages, calls)
     const pageKind = tools.has('save_page') ? wantedKind(brief) : undefined

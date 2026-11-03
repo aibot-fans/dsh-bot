@@ -39,9 +39,10 @@ export const POD = 'pod'
  * 消息种类：
  * text 普通发言；milestone 一行里程碑；task-card 原地刷新的任务卡（完成后变成交付卡）；
  * kickoff 开工说明；wait 等你卡；receipt 回执；notice 一行说明；folded 折叠内容（咨询、评审原文）；weekly “本周变化”卡；
- * browser bot 打开网页时放进对话的浏览器卡片（点开看实时画面、可以接管）。
+ * browser bot 打开网页时放进对话的浏览器卡片（点开看实时画面、可以接管）；
+ * computer bot 开始用电脑时放进对话的电脑卡片（点开看应用窗口的实时画面、可以接管）。
  */
-export type MessageKind = 'text' | 'milestone' | 'task-card' | 'kickoff' | 'wait' | 'receipt' | 'notice' | 'folded' | 'weekly' | 'browser' | 'page'
+export type MessageKind = 'text' | 'milestone' | 'task-card' | 'kickoff' | 'wait' | 'receipt' | 'notice' | 'folded' | 'weekly' | 'browser' | 'computer' | 'page'
 
 export interface RoomMessage {
   readonly id: string

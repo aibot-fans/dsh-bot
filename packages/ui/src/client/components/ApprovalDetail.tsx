@@ -27,12 +27,27 @@ function fields(wait: Wait): readonly FormField[] {
   return raw.filter((item): item is FormField => typeof item === 'object' && item !== null && typeof (item as FormField).label === 'string')
 }
 
+/** 用电脑的审批（data.channel 是 computer）：要用哪些应用、为什么，批准后这个任务里随便用。 */
+function ComputerApproval(props: { readonly wait: Wait }) {
+  const { wait } = props
+  const apps = Array.isArray(wait.data.apps) ? wait.data.apps.map(String) : []
+  return (
+    <div className="pod-stack">
+      <div className="pod-hint">{t('要用的应用：{apps}', { apps: apps.join(t('、')) })}</div>
+      {typeof wait.data.reason === 'string' ? <div className="pod-hint">{t('为什么要用：{reason}', { reason: wait.data.reason })}</div> : null}
+      <div className="pod-hint">{t('批准后这个任务里 bot 能在后台看这些应用的窗口、点按钮、填字，不占用你的鼠标键盘；任务结束就收回。')}</div>
+    </div>
+  )
+}
+
 /**
  * 写操作的审批卡。浏览器里的：截图、网址、目标元素、表单内容和执行前复核的结论；
- * X 写操作（data.channel 是 x）：用哪个 X 账号、针对的推文或用户、要发的请求和带的文件。
+ * X 写操作（data.channel 是 x）：用哪个 X 账号、针对的推文或用户、要发的请求和带的文件；
+ * 用电脑（data.channel 是 computer）：要用的应用和原因。
  */
 export function ApprovalDetail(props: { readonly wait: Wait }) {
   const { wait } = props
+  if (wait.data.channel === 'computer') return <ComputerApproval wait={wait} />
   const form = fields(wait)
   const check = wait.data.check as { readonly fits?: boolean; readonly reason?: string } | null | undefined
   const x = wait.data.channel === 'x'

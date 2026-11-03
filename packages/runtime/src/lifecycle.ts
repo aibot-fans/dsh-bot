@@ -95,6 +95,8 @@ export function startRuntime(pod: PodRuntime): () => void {
     every(60_000, () => pod.refreshExposure()),
     every(5 * 60_000, () => void pod.evolutionKit.retro.tick().catch(warn('复盘出错'))),
     every(60_000, () => void pod.browser.browser.sweep().catch(warn('关闭空闲标签页出错'))),
+    // 占着电脑太久没动静的任务，结束它在小助手里的会话。
+    every(60_000, () => pod.computer.tick()),
   ]
   const stopIndexing = pod.bus.subscribe((envelope) => {
     if (envelope.event.type !== 'task') return
@@ -118,6 +120,7 @@ export function startRuntime(pod: PodRuntime): () => void {
     stopAibot()
     void pod.searchIndex.stop()
     void pod.browser.browser.dispose()
+    void pod.computer.dispose().catch(warn('让用电脑的小助手退出时出错'))
     stopPreStep()
     stopObserver()
     stopBinder()

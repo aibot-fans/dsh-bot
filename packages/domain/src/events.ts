@@ -55,6 +55,8 @@ export type PodEvent =
   | { readonly type: 'update' }
   | { readonly type: 'evolution' }
   | { readonly type: 'browser'; readonly tabId: string | null; readonly pointer?: { readonly x: number; readonly y: number; readonly label: string } }
+  /** 用电脑的状态变了：谁在用、画面跟着哪个应用、你接没接管、bot 又做了一步。 */
+  | { readonly type: 'computer' }
   | { readonly type: 'frame'; readonly tabId: string; readonly data: string; readonly width: number; readonly height: number }
 
 export type PodEventType = PodEvent['type']
