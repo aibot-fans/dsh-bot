@@ -13,7 +13,7 @@ export const MOBILE_CSS = `
 .pod-sheet .pod-menu-hint { max-width: 50%; font-size: 12.5px; }
 .pod-sheet .pod-menu-form { padding: 8px 6px; }
 .pod-sheet-cancel { appearance: none; flex: none; min-height: 48px; margin-top: 4px; border: 0; border-top: 1px solid var(--pod-line); background: none; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 15.5px; font-weight: 600; cursor: pointer; }
-.pod-sheet-wide .pod-history, .pod-sheet-wide .pod-usage-popover { width: auto; }
+.pod-sheet-wide .pod-history { width: auto; }
 @keyframes pod-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes pod-sheet-up { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .pod-sheet-backdrop, .pod-sheet { animation: none; } }

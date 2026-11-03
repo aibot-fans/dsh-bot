@@ -19,4 +19,5 @@ export const UI_EN_V4: Readonly<Record<string, string>> = {
   '你收下了': 'You accepted',
   '你让它重试了': 'You asked it to retry',
   '你说不做了': 'You dropped it',
+  '浏览器（有 bot 在用）': 'Browser (a bot is using it)',
 }

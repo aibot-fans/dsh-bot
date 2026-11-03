@@ -48,19 +48,9 @@ export const LAYOUT_CSS = `
 .pod-convo-name strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
 .pod-convo-rename { width: 220px; font-size: 14px; }
 .pod-convo-head-gap { flex: 1; }
-.pod-usage-chip { appearance: none; padding: 5px 12px; border: 1px solid var(--pod-line); border-radius: 999px; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12.5px; white-space: nowrap; cursor: pointer; }
-.pod-usage-chip:hover { background: var(--pod-soft); }
 .pod-popover-anchor { position: relative; }
 .pod-popover { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; display: flex; flex-direction: column; gap: 2px; min-width: 220px; padding: 6px; border: 1px solid var(--pod-line); border-radius: 12px; background: var(--dsw-alias-bg-layer-1, #fff); box-shadow: 0 12px 32px color-mix(in srgb, #000 14%, transparent); }
 .pod-popover-menu { width: 230px; }
-.pod-usage-popover { display: flex; flex-direction: column; gap: 8px; padding: 6px; }
-.pod-usage-background { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pod-usage-total { display: flex; flex-direction: column; gap: 2px; }
-.pod-usage-total strong { font-size: 20px; }
-.pod-usage-row { display: grid; grid-template-columns: 120px minmax(0, 1fr) 56px; gap: 8px; align-items: center; font-size: 13px; }
-.pod-usage-bar { height: 6px; overflow: hidden; border-radius: 3px; background: var(--pod-soft); }
-.pod-usage-bar span { display: block; height: 100%; border-radius: 0 3px 3px 0; background: var(--pod-series); }
-.pod-usage-value { text-align: right; font-variant-numeric: tabular-nums; color: var(--dsw-alias-label-secondary); }
 .pod-menu-danger { color: var(--pod-danger); }
 .pod-menu-label { padding: 6px 8px 2px; font-size: 11.5px; color: var(--dsw-alias-label-tertiary); }
 .pod-menu-divider { height: 1px; margin: 4px 0; background: var(--pod-line); }

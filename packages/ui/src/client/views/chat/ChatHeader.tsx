@@ -1,92 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { ROOM_TITLE_MAX, botThreads, isTemporaryRoom, t, type Bot, type RoomSummary } from 'pod-domain'
 import { computerApi } from '../../api/computer.ts'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
-import { Avatar, RelativeTime, money, nameColor, tokens } from '../../components/common.tsx'
-import { BotName, GroupMark } from '../../components/GroupMark.tsx'
+import { Avatar, RelativeTime, nameColor } from '../../components/common.tsx'
+import { GroupMark } from '../../components/GroupMark.tsx'
 import { Icon } from '../../components/Icon.tsx'
 import { useNarrow } from '../../components/media.ts'
 import { MenuPanel, useMenu } from '../../components/Menu.tsx'
 import { RenameInput } from '../../components/RenameInput.tsx'
 import { useApp, useNav } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
-
-/** 顶部用量算谁的：单聊算这个 bot 今天做事用的（在哪儿做的都算），群聊和临时对话算这个对话里的。 */
-type UsageScope = { readonly kind: 'bot'; readonly bot: Bot } | { readonly kind: 'room'; readonly room: RoomSummary }
-
-/** 顶部的今日用量：只算这个 bot 或这个群聊；点开看分布，全部的用量在设置里。 */
-function UsageChip(props: { readonly scope: UsageScope; readonly bots: ReadonlyMap<string, Bot> }) {
-  const app = useApp()
-  const menu = useMenu()
-  const { scope } = props
-  const key = scope.kind === 'bot' ? `usage:today:bot:${scope.bot.id}` : `usage:today:room:${scope.room.id}`
-  const { data: usage, reload } = useResource(app.cache, key, () => api.usage('today', scope.kind === 'bot' ? { botId: scope.bot.id } : { roomId: scope.room.id }))
-  const { data: rooms } = useResource(app.cache, 'rooms', () => api.rooms())
-  useEffect(() => {
-    const timer = setInterval(reload, 60_000)
-    return () => clearInterval(timer)
-  }, [reload])
-  if (usage === undefined) return null
-  // 单聊看这个 bot 在哪些对话里用的，群聊看每个成员各用了多少。
-  const shares = (scope.kind === 'bot' ? usage.byRoom : usage.byBot.filter((item) => item.id !== null)).slice(0, 6)
-  const max = Math.max(...shares.map((item) => item.cost), 0.0001)
-  const roomName = (id: string | null): string => {
-    if (id === null) return t('不在对话里（任务、自动化）')
-    const room = (rooms ?? []).find((item) => item.id === id)
-    if (room === undefined) return t('已删除的对话')
-    return room.kind === 'direct' ? (room.subject === '' ? t('单聊') : t('单聊「{subject}」', { subject: room.subject })) : t('群聊「{title}」', { title: room.title })
-  }
-  const subject = scope.kind === 'bot' ? scope.bot.name : t('「{title}」', { title: scope.room.title })
-  return (
-    <>
-      <button
-        ref={menu.anchor}
-        type="button"
-        className="pod-usage-chip"
-        aria-expanded={menu.open}
-        title={t('{subject}今天的用量', { subject })}
-        onClick={() => {
-          if (!menu.open) reload()
-          menu.toggle()
-        }}
-      >
-        {t('今天 {money} · {tokens} token', { money: money(usage.cost), tokens: tokens(usage.tokens) })}
-      </button>
-      <MenuPanel control={menu} label={t('{subject}今天的用量', { subject })} wide>
-        <div className="pod-usage-popover">
-          <div className="pod-usage-subject">{t('{subject}今天的用量', { subject })}</div>
-          <div className="pod-usage-total">
-            <strong>{money(usage.cost)}</strong>
-            <span className="pod-muted-inline">
-              {t('{tokens} token · 缓存命中 {round}%', { tokens: tokens(usage.tokens), round: Math.round(usage.cacheHit * 100) })}
-            </span>
-          </div>
-          {shares.length === 0 ? <p className="pod-muted">{t('今天还没有用量')}</p> : null}
-          {shares.map((item) => (
-            <div key={item.id ?? 'none'} className="pod-usage-row">
-              {scope.kind === 'bot' ? <span className="pod-ellipsis pod-usage-place">{roomName(item.id)}</span> : <BotName bot={props.bots.get(item.id ?? '')} fallback={t('已删除的 bot')} size={18} />}
-              <span className="pod-usage-bar" aria-hidden>
-                <span style={{ width: `${Math.max(4, (item.cost / max) * 100)}%` }} />
-              </span>
-              <span className="pod-usage-value">{money(item.cost)}</span>
-            </div>
-          ))}
-          <button
-            type="button"
-            className="pod-link"
-            onClick={() => {
-              menu.close()
-              app.openSettings('usage')
-            }}
-          >
-            {t('查看所有 bot 和群聊的用量')}
-          </button>
-        </div>
-      </MenuPanel>
-    </>
-  )
-}
 
 /**
  * 新对话。单聊开一段空白的新对话，之前的那段原样留在对话记录里，随时能回去接着聊；
@@ -230,18 +154,24 @@ function GroupTitle(props: { readonly room: RoomSummary; readonly members: reado
   )
 }
 
-/** 这个对话的浏览器：右侧打开，这个 bot（群里是这个群）开的网页排前面，默认选最近用过的；再点一下关上。 */
+/**
+ * 浏览器：这个对话里有 bot 开着网页时才出现（单聊算这个 bot 的，群聊算这个群的；bot 空闲 10 分钟网页就关了），带个点。
+ * 点开右侧看画面，这个对话的网页排前面；再点一下关上。自己开网页在设置或者详情的浏览器里。
+ */
 function BrowserButton(props: { readonly room: RoomSummary; readonly botId: string | null }) {
   const app = useApp()
   const nav = useNav()
+  const { data } = useResource(app.cache, 'browser', () => api.browser())
   const open = nav.panel?.kind === 'browser' && nav.panel.roomId === props.room.id
+  const busy = (data?.tabs ?? []).some((tab) => tab.owner.kind === 'bot' && (tab.roomId === props.room.id || (props.botId !== null && tab.botId === props.botId)))
+  if (!busy && !open) return null
   return (
     <button
       type="button"
-      className={`pod-head-button${open ? ' pod-head-button-on' : ''}`}
+      className={`pod-head-button${open ? ' pod-head-button-on' : ''}${busy ? ' pod-head-button-busy' : ''}`}
       aria-pressed={open}
-      aria-label={t('浏览器')}
-      title={t('浏览器')}
+      aria-label={busy ? t('浏览器（有 bot 在用）') : t('浏览器')}
+      title={busy ? t('浏览器（有 bot 在用）') : t('浏览器')}
       onClick={() => (open ? app.closePanel() : app.openBrowserTab(null, props.botId, props.room.id))}
     >
       <Icon name="browser" size={17} />
@@ -249,15 +179,14 @@ function BrowserButton(props: { readonly room: RoomSummary; readonly botId: stri
   )
 }
 
-/** 电脑：右侧打开 bot 正在用的应用窗口的实时画面；设置里开了“用电脑”才有。再点一下关上。 */
+/** 电脑：有 bot 在用这台电脑时才出现，带个点；点开右侧看它用的应用窗口的实时画面，再点一下关上。 */
 function ComputerButton() {
   const app = useApp()
   const nav = useNav()
-  const { data: settings } = useResource(app.cache, 'settings', () => api.settings())
   const { data: status } = useResource(app.cache, 'computer', () => computerApi.status())
-  if (settings?.computerUse !== true) return null
   const open = nav.panel?.kind === 'computer'
   const busy = status?.user != null
+  if (!busy && !open) return null
   return (
     <button
       type="button"
@@ -273,8 +202,8 @@ function ComputerButton() {
 }
 
 /**
- * 对话顶部：左边是 bot 或群（点开详情）；右边是浏览器和电脑，单聊还有对话记录和新对话，不挂任务的群聊还有新对话，最右是这个 bot 或群聊今天的用量。页面在 bot 和群聊的详情里。
- * 手机上最左边是回到列表，名字后面带个箭头表示点开是详情，用量不显示。
+ * 对话顶部：左边是 bot 或群（点开详情）；右边单聊有对话记录和新对话，不挂任务的群聊有新对话；bot 在用浏览器、电脑时才多一个按钮。
+ * 用量在设置里，页面在 bot 和群聊的详情里。手机上最左边是回到列表，名字后面带个箭头表示点开是详情。
  */
 export function ChatHeader(props: { readonly room: RoomSummary; readonly bots: ReadonlyMap<string, Bot>; readonly memberIds: readonly string[] }) {
   const app = useApp()
@@ -321,7 +250,6 @@ export function ChatHeader(props: { readonly room: RoomSummary; readonly bots: R
         </>
       )}
       {room.kind !== 'direct' && room.taskId === null ? <NewChatButton room={room} /> : null}
-      {narrow ? null : <UsageChip scope={room.kind === 'direct' && !temporary && bot !== undefined ? { kind: 'bot', bot } : { kind: 'room', room }} bots={props.bots} />}
     </header>
   )
 }

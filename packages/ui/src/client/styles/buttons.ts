@@ -25,10 +25,6 @@ export const BUTTONS_CSS = `
 .pod-button-danger { background: color-mix(in srgb, var(--pod-danger) 9%, transparent); color: var(--pod-danger); }
 .pod-button-danger:hover:not(:disabled) { background: color-mix(in srgb, var(--pod-danger) 15%, transparent); }
 
-.pod-usage-chip { padding: 5px 10px; border: 0; border-radius: 8px; background: var(--pod-btn-fill); color: var(--dsw-alias-label-secondary); font-size: 12px; font-variant-numeric: tabular-nums; transition: background-color .12s ease, color .12s ease; }
-.pod-usage-chip:hover, .pod-usage-chip[aria-expanded="true"] { background: var(--pod-btn-fill-hover); color: var(--dsw-alias-label-primary); }
-.pod-usage-chip:focus-visible { outline: 2px solid var(--pod-info); outline-offset: 1px; }
-
 .pod-chip { padding: 4px 12px; border: 0; background: var(--pod-btn-fill); transition: background-color .12s ease, color .12s ease; }
 .pod-chip:hover { background: var(--pod-btn-fill-hover); color: var(--dsw-alias-label-primary); }
 .pod-chip-active, .pod-chip-active:hover { background: var(--dsw-alias-label-primary); color: var(--dsw-alias-bg-layer-1, #fff); }

@@ -11,8 +11,6 @@ export const V5_CSS = `
 .pod-side-drop-head { border-radius: 8px; background: color-mix(in srgb, var(--pod-info) 10%, transparent); color: var(--pod-info); }
 .pod-side-fold { flex: none; margin-left: 2px; }
 .pod-side-collapsed .pod-side-fold { order: -1; margin: 0 0 4px; }
-.pod-usage-subject { font-size: 12px; color: var(--dsw-alias-label-tertiary); }
-.pod-usage-place { font-size: 13px; color: var(--dsw-alias-label-secondary); }
 .pod-convo-new { flex: none; width: 32px; height: 32px; border-radius: 8px; color: var(--dsw-alias-label-secondary); }
 .pod-group-hero { display: flex; align-items: center; gap: 14px; text-align: left; }
 .pod-group-hero-main { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }

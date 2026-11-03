@@ -8,5 +8,6 @@ export const COMPUTER_CSS = `
 .pod-computer-status { flex-direction: column; gap: 10px; padding: 16px; text-align: center; }
 .pod-computer-status .pod-button { color: #eee; background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.24); }
 .pod-computer-status .pod-button:hover { background: rgba(255,255,255,.18); }
-.pod-head-button-busy { color: var(--dsw-alias-link, #4d6bfe); }
+.pod-head-button-busy { position: relative; color: var(--dsw-alias-link, #4d6bfe); }
+.pod-head-button-busy::after { content: ''; position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--dsw-alias-link, #4d6bfe); }
 `
