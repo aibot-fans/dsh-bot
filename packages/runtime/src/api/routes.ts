@@ -1,6 +1,5 @@
 import {
   MEMORY_TYPES,
-  OWNER,
   fail,
   isActive,
   ok,
@@ -15,12 +14,11 @@ import {
   type SearchKind,
   type TaskStatus,
 } from 'pod-domain'
-import { getMessage, listAudit, progressOfTree, reportsFor, taskResultMessage, updateHandoverNote } from 'pod-store'
+import { getMessage, listAudit, progressOfTree, taskResultMessage, updateHandoverNote } from 'pod-store'
 import type { PodRuntime } from '../pod.ts'
 import type { ControlAction } from '../tasks/service.ts'
-import { followViews, taskTimeline } from '../tasks/timeline.ts'
 import { get, post, type RouteSpec } from './router.ts'
-import { overviewOf, routesOf, taskOfMessage, triggerViews } from './views.ts'
+import { taskOfMessage } from './views.ts'
 
 /** 任务对话的「进展」最多列几条。 */
 const PROGRESS_LIMIT = 12
@@ -85,11 +83,6 @@ const STATUSES: readonly TaskStatus[] = ['queued', 'running', 'waiting', 'review
 /** 房间、消息、任务和等你处理。 */
 export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
   return [
-    get('/overview', () => ok(overviewOf(pod))),
-    get('/message/routes', (query) => {
-      const id = readId(query, 'id')
-      return id === undefined ? fail('invalid-input', t('缺少消息 id')) : ok(routesOf(pod, id))
-    }),
     get('/rooms', (query) => pod.rooms.list(query)),
     post('/room/open', (body) => pod.rooms.openDirect(body)),
     get('/room/messages', (query) => pod.rooms.messages(query)),
@@ -126,22 +119,6 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
       const snapshot = id === undefined ? undefined : pod.tasks.snapshot(id)
       return snapshot === undefined ? fail('not-found', t('找不到这个任务')) : ok(snapshot)
     }),
-    get('/task/detail', (query) => {
-      const id = readId(query, 'id')
-      const snapshot = id === undefined ? undefined : pod.tasks.snapshot(id)
-      if (snapshot === undefined) return fail('not-found', t('找不到这个任务'))
-      const rootId = snapshot.task.rootId
-      return ok({
-        snapshot,
-        events: pod.tasks.events(rootId),
-        sessions: pod.tasks.tree(rootId).flatMap((task) => pod.registry.forTask(task.id)),
-        waits: pod.waits.open().filter((wait) => wait.rootId === rootId),
-        reports: reportsFor(pod.db, snapshot.task.id, 20),
-        timeline: taskTimeline(pod.db, snapshot.task),
-        follows: followViews(pod.db, snapshot.task),
-        triggers: triggerViews(pod, snapshot.task.id),
-      })
-    }),
     get('/task/progress', (query) => {
       const id = readId(query, 'id')
       const task = id === undefined ? undefined : pod.tasks.get(id)
@@ -159,11 +136,6 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
       if (taskId === undefined || !['pause', 'resume', 'stop', 'cancel', 'retry', 'accept'].includes(action)) return fail('invalid-input', t('要写明任务和操作'))
       return pod.tasks.control(taskId, action as ControlAction, 'owner')
     }),
-    post('/task/diagnose', async (body) => {
-      const taskId = readId(body, 'taskId')
-      const task = taskId === undefined ? undefined : pod.tasks.get(taskId)
-      return task === undefined ? fail('not-found', t('找不到这个任务')) : ok({ text: await pod.judge.diagnose(task) })
-    }),
     post('/task/redeliver', (body) => {
       const taskId = readId(body, 'taskId')
       return taskId === undefined ? fail('invalid-input', t('缺少任务 id')) : pod.tasks.redeliver(taskId)
@@ -171,34 +143,6 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
     post('/task/approve', async (body) => {
       const taskId = readId(body, 'taskId')
       return taskId === undefined ? fail('invalid-input', t('缺少任务 id')) : pod.coordinator.approve(taskId)
-    }),
-    get('/task/plan', (query) => {
-      const id = readId(query, 'id')
-      const plan = id === undefined ? null : pod.coordinator.plan(id)
-      return plan === null ? fail('not-found', t('这个任务没有团队计划')) : ok({ plan, keys: Object.fromEntries(pod.coordinator.keys(id ?? '')) })
-    }),
-    post('/trigger/update', (body) => {
-      const id = readId(body, 'id')
-      const enabled = readBool(body, 'enabled')
-      if (id === undefined || enabled === undefined) return fail('invalid-input', t('缺少触发器 id 或开关'))
-      const changed = pod.triggers.change(id, { enabled }, OWNER)
-      return typeof changed === 'string' ? fail('conflict', changed) : ok(changed)
-    }),
-    post('/trigger/delete', (body) => {
-      const id = readId(body, 'id')
-      return id !== undefined && pod.triggers.close(id, OWNER) ? ok(null) : fail('not-found', t('找不到这个触发器'))
-    }),
-    post('/trigger/run', async (body) => {
-      const id = readId(body, 'id')
-      if (id === undefined) return fail('invalid-input', t('缺少触发器 id'))
-      const problem = await pod.triggers.fireNow(id)
-      return problem === undefined ? ok(null) : fail('conflict', problem)
-    }),
-    post('/task/talk', (body) => {
-      const taskId = readId(body, 'taskId')
-      const text = readString(body, 'text')
-      if (taskId === undefined || text === '') return fail('invalid-input', t('要写明任务和要说的话'))
-      return pod.tasks.talk(taskId, text)
     }),
     post('/tasks/stop-all', () => {
       const active = pod.tasks.roots(500).filter((task) => isActive(task.status) || task.status === 'paused')

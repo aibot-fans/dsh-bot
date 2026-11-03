@@ -305,19 +305,6 @@ export function getMessage(db: DatabaseSync, id: string): RoomMessage | undefine
   return row === undefined ? undefined : toMessage(row)
 }
 
-/** 任务页的时间线：这几个话题里的消息，加上这几条，按时间从旧到新；太多时只取最近的 limit 条。 */
-export function timelineMessages(db: DatabaseSync, topicIds: readonly string[], messageIds: readonly string[], limit: number): readonly RoomMessage[] {
-  const clauses = [
-    ...(topicIds.length === 0 ? [] : [`topic_id IN (${topicIds.map(() => '?').join(', ')})`]),
-    ...(messageIds.length === 0 ? [] : [`id IN (${messageIds.map(() => '?').join(', ')})`]),
-  ]
-  if (clauses.length === 0) return []
-  const rows = db
-    .prepare(`SELECT * FROM messages WHERE deleted_at IS NULL AND (${clauses.join(' OR ')}) ORDER BY created_at DESC LIMIT ?`)
-    .all(...topicIds, ...messageIds, limit) as unknown as readonly MessageRow[]
-  return rows.map(toMessage).reverse()
-}
-
 /** 一页消息：before 之前（不含）最多 limit 条，按序号从旧到新返回。 */
 export function listMessages(
   db: DatabaseSync,

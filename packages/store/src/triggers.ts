@@ -100,11 +100,6 @@ export function openTriggersOf(db: DatabaseSync, taskId: string): readonly Trigg
   return toTriggers(db.prepare('SELECT * FROM triggers WHERE task_id = ? AND closed_at IS NULL ORDER BY created_at').all(taskId) as unknown as readonly TriggerRow[])
 }
 
-/** 任务上的触发器，关掉的也算（任务页看历史），最近的在前。 */
-export function triggersOf(db: DatabaseSync, taskId: string, limit = 20): readonly Trigger[] {
-  return toTriggers(db.prepare('SELECT * FROM triggers WHERE task_id = ? ORDER BY closed_at IS NOT NULL, created_at DESC LIMIT ?').all(taskId, limit) as unknown as readonly TriggerRow[])
-}
-
 /** 到点了的：开着、没关、下次时间不晚于 now。 */
 export function dueTriggers(db: DatabaseSync, now: number): readonly Trigger[] {
   return toTriggers(

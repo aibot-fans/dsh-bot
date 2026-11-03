@@ -128,12 +128,6 @@ export function followsOf(db: DatabaseSync, taskId: string): readonly TopicFollo
   return rows.map(toFollow)
 }
 
-/** 任务跟进过的话题，取消了的也算（任务页的时间线要看以前的消息）。 */
-export function followHistoryOf(db: DatabaseSync, taskId: string): readonly TopicFollow[] {
-  const rows = db.prepare('SELECT * FROM topic_follows WHERE task_id = ? ORDER BY started_at').all(taskId) as unknown as readonly FollowRow[]
-  return rows.map(toFollow)
-}
-
 /** 话题里某个时间之后的消息（只读跟进的开工时带上），旧的在前。 */
 export function topicMessagesSince(db: DatabaseSync, topicId: string, since: number, limit: number): readonly { readonly id: string; readonly author: string; readonly body: string; readonly replyTo: string | null; readonly createdAt: number }[] {
   const rows = db
@@ -255,14 +249,6 @@ export function routesSince(db: DatabaseSync, kinds: readonly RouteKind[], since
 
 export function routesFor(db: DatabaseSync, messageId: string): readonly MessageRoute[] {
   const rows = db.prepare('SELECT * FROM message_routes WHERE message_id = ? ORDER BY id').all(messageId) as unknown as readonly RouteRow[]
-  return rows.map(toRoute)
-}
-
-/** 这个任务的去向记录（任务页的时间线），旧的在前；太多时只取最近的。 */
-export function routesForTask(db: DatabaseSync, taskId: string, limit = 500): readonly MessageRoute[] {
-  const rows = db
-    .prepare('SELECT * FROM (SELECT * FROM message_routes WHERE task_id = ? ORDER BY id DESC LIMIT ?) ORDER BY id')
-    .all(taskId, limit) as unknown as readonly RouteRow[]
   return rows.map(toRoute)
 }
 

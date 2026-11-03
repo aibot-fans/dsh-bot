@@ -52,7 +52,7 @@ import {
   type TaskEvent,
   type TaskPatch,
 } from 'pod-store'
-import { noticeSource, ownerSource, relaySource } from '../agents/messages.ts'
+import { noticeSource, relaySource } from '../agents/messages.ts'
 import type { SessionRegistry } from '../agents/registry.ts'
 import type { BotService } from '../bots/service.ts'
 import type { RoomService } from '../chat/rooms.ts'
@@ -554,16 +554,6 @@ export class TaskService {
     return recentOwnerMessages(this.db, roomId, 20)
       .filter((item) => item.body.includes(wanted) || wanted.includes(item.body.trim()))
       .at(-1)
-  }
-
-  /** “直接对任务说”：你的话直接进任务；做完了的接着做。 */
-  talk(taskId: string, text: string): PodResult<Task> {
-    const task = this.get(taskId)
-    if (task === undefined) return fail('not-found', t('找不到这个任务'))
-    const sent = this.sendToTask(task, `[用户原话，直接对任务说] ${text}`, ownerSource(), text)
-    if (!sent.ok) return sent
-    this.event(task, 'owner-talk', 'owner', { text })
-    return sent
   }
 
   snapshot(taskId: string): TaskSnapshot | undefined {
