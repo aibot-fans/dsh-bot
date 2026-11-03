@@ -1,5 +1,5 @@
 /**
- * V3 的界面：概览（要你处理的事、系统好不好、进行中的）、任务页（时间线、来由、文件）、
+ * V3 的界面：概览的版面、任务页（时间线、来由、文件）、
  * 任务卡上的问题、群顶的团队状态、侧栏的概览入口和在跑任务数、消息的去向。
  */
 export const V8_CSS = `
@@ -10,19 +10,6 @@ export const V8_CSS = `
 
 .pod-overview-body { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 20px; width: 100%; max-width: 900px; align-self: center; box-sizing: border-box; padding: 16px; }
 .pod-overview-section { display: flex; flex-direction: column; gap: 8px; }
-.pod-attention-list, .pod-active-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.pod-attention { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--pod-line); border-radius: 12px; }
-.pod-attention-row { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
-.pod-attention-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.pod-attention-title { max-width: 100%; color: inherit; font-size: 14px; }
-.pod-attention-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 12.5px; }
-.pod-attention-summary { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; color: var(--dsw-alias-label-secondary); font-size: 13px; overflow-wrap: anywhere; }
-.pod-attention-actions { flex: none; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
-.pod-active-row { appearance: none; display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 12px; border: 1px solid var(--pod-line); border-radius: 10px; background: none; color: inherit; font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
-.pod-active-row:hover { background: var(--pod-soft); }
-.pod-active-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.pod-health-line { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 8px 12px; border: 1px solid var(--pod-line); border-radius: 10px; font-size: 13px; }
-.pod-overview .pod-problem { padding: 8px 12px; border-radius: 10px; color: var(--pod-danger); background: color-mix(in srgb, var(--pod-danger) 8%, transparent); }
 
 .pod-taskpage { container-type: inline-size; }
 .pod-taskpage-empty { padding: 16px; }

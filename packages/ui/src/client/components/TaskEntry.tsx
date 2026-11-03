@@ -30,7 +30,7 @@ export function bucketLabel(snapshot: TaskSnapshot, bucket: TaskBucket): string 
 }
 
 /** 进行中的任务是不是真的在动：排队、在做、等子任务交上来转圈；等到点、等新消息只画一个圈。 */
-function moving(snapshot: TaskSnapshot): boolean {
+export function isMoving(snapshot: TaskSnapshot): boolean {
   if (snapshot.stage === 'queued' || snapshot.stage === 'running') return true
   return snapshot.stage === 'idle' && snapshot.children.some((child) => child.endedAt === null)
 }
@@ -46,7 +46,7 @@ export function TaskStateIcon(props: { readonly snapshot: TaskSnapshot }) {
       </span>
     )
   }
-  return moving(props.snapshot) ? <span className="pod-spinner pod-state-icon" aria-hidden /> : <span className="pod-state-icon pod-state-still" aria-hidden />
+  return isMoving(props.snapshot) ? <span className="pod-spinner pod-state-icon" aria-hidden /> : <span className="pod-state-icon pod-state-still" aria-hidden />
 }
 
 function useGroupMembers(roomId: string): readonly Bot[] {

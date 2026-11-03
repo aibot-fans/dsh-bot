@@ -34,4 +34,14 @@ export const V12_CSS = `
 .pod-task-fact { display: inline-flex; align-items: center; gap: 6px; }
 .pod-task-facts .pod-link { justify-self: start; max-width: 100%; text-align: left; }
 .pod-task-facts-actions { justify-content: flex-end; gap: 6px; padding: 4px 10px 6px; }
+
+.pod-otask-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.pod-otask { display: flex; flex-direction: column; gap: 6px; padding: 9px 4px; border-bottom: 1px solid var(--pod-line); }
+.pod-otask:last-child { border-bottom: 0; }
+.pod-otask-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pod-otask-title { appearance: none; display: flex; min-width: 0; padding: 0; border: 0; background: transparent; color: var(--dsw-alias-label-primary); font: inherit; font-size: 14px; font-weight: 500; text-align: left; cursor: pointer; }
+button.pod-otask-title:hover { text-decoration: underline; }
+.pod-otask-time { flex: none; color: var(--dsw-alias-label-tertiary); font-size: 12px; font-variant-numeric: tabular-nums; }
+.pod-otask-ask { padding-left: 18px; }
+.pod-overview-done > summary { cursor: pointer; list-style: revert; }
 `

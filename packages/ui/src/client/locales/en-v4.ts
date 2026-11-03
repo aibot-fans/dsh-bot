@@ -26,4 +26,6 @@ export const UI_EN_V4: Readonly<Record<string, string>> = {
   '无': 'None',
   '过程': 'Activity',
   '过程 · {title}': 'Activity · {title}',
+  '等你（{count}）': 'Needs you ({count})',
+  '完成（{count}）': 'Done ({count})',
 }

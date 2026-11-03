@@ -3,7 +3,7 @@ import { t, type PodSettings } from 'pod-domain'
 import { api, type SystemProblem } from '../api/endpoints.ts'
 import { errorText } from '../api/http.ts'
 import { Button, RelativeTime } from '../components/common.tsx'
-import { useApp, useNav } from '../state/app.ts'
+import { useApp } from '../state/app.ts'
 import { useResource } from '../state/resource.ts'
 
 const EFFECT_LABELS: Readonly<Record<string, string>> = {
@@ -110,10 +110,8 @@ function ProblemsBanner() {
   )
 }
 
-/** 页面顶部的系统横条：处理暂停了、有系统问题。开着概览时不重复显示（概览里有“系统好不好”）。 */
+/** 页面顶部的系统横条：处理暂停了、有系统问题；没问题时什么都没有。 */
 export function SystemBanners() {
-  const nav = useNav()
-  if (nav.overview && nav.taskId === null && nav.page === null) return null
   return (
     <>
       <PausedBanner />
