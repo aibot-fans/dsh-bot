@@ -143,7 +143,7 @@ export class TaskReporting {
         const bypassed = this.deps.onRootStateChange(task.rootId, 'delivered')
         const result = this.result(args, bypassed)
         const delivered = engine.tickets.patch(outcome.task, { result })
-        // 结果回在每一处还没得到答复的提问下面。常开任务每次的结果直接发，不用验收，也不列文件。
+        // 结果回在每一处还没得到答复的提问下面，开了群的发在群里。常开任务每次的结果直接发，不用验收，也不列文件。
         const ending = outcome.standing ? 'standing' : outcome.completed ? 'done' : 'review'
         replies.result(delivered, session.botId, session.id, (onCard) => resultText(delivered, result, onCard, ending))
         if (args.lessons !== '') this.deps.learn(session, delivered, args.lessons)
