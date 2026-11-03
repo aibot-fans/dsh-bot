@@ -271,13 +271,13 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
   const reply = podTool({
     name: 'reply',
     description:
-      '对用户说话：发一条消息到聊天室。写明回的是哪条消息（to）和用途：confirm 确认（开了、转了任务时只补任务卡上没有的，没有就不发）、answer 答复（第一句就是答案）。用户问任务的细节时只讲问的那部分，task 写那个任务，消息下面会附上报告。你在别处写的文字用户看不到，只有 reply 会发出去。',
+      '对用户说话：发一条消息到聊天室。写明回的是哪条消息（to，不回具体某条就写 room）和用途：confirm 确认（开了任务、转给任务后回一句，任务卡挂在这句下面）、answer 答复（第一句就是答案）、relay 转告（任务问用户、交结果、没做成时，task 写那个任务，消息下面挂任务记号）。用户问任务的细节时只讲问的那部分，task 写那个任务，消息下面会附上报告。你在别处写的文字用户看不到，只有 reply 会发出去。',
     properties: {
       to: str('回哪条消息（消息 id）'),
       room: str('不回具体某条时，发到哪个聊天室（room id）'),
-      purpose: oneOf('confirm 确认 / answer 答复', ['confirm', 'answer']),
+      purpose: oneOf('confirm 确认 / answer 答复 / relay 转告', ['confirm', 'answer', 'relay']),
       text: str('要说的话'),
-      task: str('附上哪个任务的报告（任务 id，可选）'),
+      task: str('relay：转告的是哪个任务（任务 id）；answer：附上哪个任务的报告（可选）'),
     },
     required: ['purpose', 'text'],
     parse: (args) => {
@@ -286,7 +286,10 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
       const to = text(args, 'to')
       const room = text(args, 'room')
       if (to === '' && room === '') return '要写回哪条消息（to）或者发到哪个聊天室（room）'
-      return { to, room, purpose: text(args, 'purpose') === 'confirm' ? ('confirm' as const) : ('answer' as const), body, task: text(args, 'task') }
+      const raw = text(args, 'purpose')
+      const purpose: 'confirm' | 'answer' | 'relay' = raw === 'confirm' || raw === 'relay' ? raw : 'answer'
+      if (purpose === 'relay' && text(args, 'task') === '') return '转告要写 task（任务 id）'
+      return { to, room, purpose, body, task: text(args, 'task') }
     },
     run: ({ to, room, purpose, body, task }) => {
       const replied = to === '' ? undefined : getMessage(pod.db, to)
@@ -299,6 +302,7 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
       if (task !== '' && about === undefined) return failure(`找不到任务 ${task}`)
       const pageId = typeof replied?.data.pageId === 'string' ? replied.data.pageId : undefined
       // 走回复队列：按顺序发、留回执；群里挂在回的那条下面，单聊里回的正是最新那句就不挂引用。
+      // 转告挂任务记号（taskId），答复附报告（reportTaskId）。
       const messageId = pod.replies.send({
         roomId: target.id,
         author: session.botId,
@@ -306,7 +310,8 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
         body,
         sessionId: session.id,
         replyTo: replied?.id ?? null,
-        data: { ...(pageId === undefined ? {} : { pageId }), ...(about === undefined ? {} : { reportTaskId: about.rootId }) },
+        ...(purpose === 'relay' && about !== undefined ? { taskId: about.rootId } : {}),
+        data: { ...(pageId === undefined ? {} : { pageId }), ...(about === undefined || purpose === 'relay' ? {} : { reportTaskId: about.rootId }) },
       })
       if (replied !== undefined && purpose === 'answer' && pod.engine.topics.awaiting(replied.id, session.botId)) pod.engine.topics.decide(replied.id, session.botId, 'answered')
       return success(`已发到「${target.title}」`, { messageId })

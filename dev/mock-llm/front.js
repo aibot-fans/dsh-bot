@@ -1,7 +1,9 @@
 /**
  * 前台的剧本：消息成批送来（[新消息] 开头，按聊天室分组），每条按内容记去向，一步调一个工具：
  * - “读一下 id [part=…] [page=…] [size=…]”：先 read，再把读到的 reply 出去。
- * - “交给主管/某某 …”或“委派”：open 开任务（交给谁写谁；成员只能开给自己；标题按关键词取；说了组个团队再叫上一个成员）。
+ * - “交给主管/某某 …”或“委派”：open 开任务（交给谁写谁；成员只能开给自己；标题按关键词取；说了组个团队再叫上一个成员），
+ *   再 reply（confirm）一句“交给某某了，做好我直接告诉你”，任务卡挂在这句下面。
+ * - [转告]（任务问用户、交结果、没做成）：reply（relay）在派活的聊天室说一句，挂上那个任务。
  * - “转达给任务 task_x：…”：forward 转过去，再 reply 一句“接着「…」做”。
  * - “停掉任务 task_x”：stop。
  * - “谢谢”：ignore。
@@ -19,6 +21,7 @@
 import { wantedKind } from './pages.js'
 
 const BATCH_HEAD = '[新消息]'
+const RELAY_HEAD = '[转告]'
 const NUDGE_HEAD = '[dsh-bot] 这几条还没有去向：'
 const RETRY_HEAD = '[dsh-bot] 刚才模型服务出错'
 
@@ -99,6 +102,30 @@ function briefOf(body) {
   return `用户说：「${body}」\n请照用户说的做完。${hurry}结果用中文写给用户，先说结论。`
 }
 
+/** 开了任务后回的那句：从 dispatch 的结果里认出交给了谁。 */
+function confirmText(result, self) {
+  const owner = /开了任务 \S+「[^」]*」，交给([^，\n]+)/.exec(result)?.[1]
+  if (owner === undefined) return '好，我安排一下。'
+  return owner === self ? '我来做，做好告诉你。' : `交给${owner}了，做好我直接告诉你。`
+}
+
+/** 转告：任务在它自己的对话里问用户、交结果、没做成，在派活的聊天室说一句。 */
+function relayDecision(text, calls) {
+  if (calls > 0) return { text: '（前台）转告完了。' }
+  const target = /purpose 写 relay，room 写 (room_[0-9a-z]+)，task 写 (task_[0-9a-z]+)/.exec(text)
+  if (target === null) return { text: '（前台）这条转告看不懂，先不处理。' }
+  const owner = /（task_[0-9a-z]+，(.+?)在做）/.exec(text)?.[1] ?? '它'
+  const lines = text.split('\n')
+  const body = lines.slice(1, -1).join('\n').trim()
+  const first = body.split('\n')[0] ?? ''
+  const said = text.includes('在任务对话里问用户')
+    ? `${owner}在问：${first}在任务里点一下，或者直接回我都行。`
+    : text.includes('没做成')
+      ? `${owner}没做成：${first}要重试还是先不做了？`
+      : `${owner}做好了：${first}`
+  return { tool: 'reply', args: { room: target[1], purpose: 'relay', task: target[2], text: said } }
+}
+
 function dispatch(id, fields) {
   return () => ({ tool: 'dispatch', args: { items: [{ messages: [id], ...fields }] } })
 }
@@ -142,7 +169,7 @@ function stepsFor(item, context) {
     const bot = member || named === undefined ? '自己' : named
     // 组个团队：再叫上名册里另一个 bot，开成任务群。
     const partner = /组个团队|组队/.test(body) && !member ? context.roster.find((name) => name !== self && name !== bot) : undefined
-    return [dispatch(id, { action: 'open', title: openTitle(body), bot, brief: briefOf(body), ...(partner === undefined ? {} : { members: [partner] }) })]
+    return [dispatch(id, { action: 'open', title: openTitle(body), bot, brief: briefOf(body), ...(partner === undefined ? {} : { members: [partner] }) }), (result) => ({ tool: 'reply', args: { to: id, purpose: 'confirm', text: confirmText(result, self) } })]
   }
   if (body.includes('进度') && tools.has('task_status')) return [() => ({ tool: 'task_status', args: {} }), (result) => ({ tool: 'reply', args: { to: id, purpose: 'answer', text: `进度：${result.slice(0, 300)}` } })]
   if (body.includes('记住') && tools.has('remember')) {
@@ -181,6 +208,7 @@ export function frontDecision(context) {
   const items = wanted === undefined ? all : all.filter((item) => wanted.has(item.id))
   // 追问里有、但最近一批里找不到的（比如更早一批的），按追问里的 id 直接答。
   const missing = wanted === undefined ? [] : [...wanted].filter((id) => !items.some((item) => item.id === id)).map((id) => ({ id, speaker: '用户', body: '测试追问', room: { kind: '单聊', id: '' } }))
+  if (userText.startsWith(RELAY_HEAD)) return relayDecision(userText, context.calls)
   const shared = { tools, self, member, batch, nudged, roster: context.roster }
   const steps = [...items, ...missing].flatMap((item) => stepsFor(item, shared))
   if (!nudged && !retry && !userText.startsWith(BATCH_HEAD)) return { text: '（前台）收到。' }

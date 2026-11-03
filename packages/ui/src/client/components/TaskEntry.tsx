@@ -1,10 +1,11 @@
 import { END_REASON_LABELS, TICKET_STAGE_LABELS, stageGroup, t, type Bot, type TaskSnapshot } from 'pod-domain'
 import { api } from '../api/endpoints.ts'
-import { useApp } from '../state/app.ts'
+import { useApp, type AppState } from '../state/app.ts'
 import { useResource } from '../state/resource.ts'
 import { GroupMark } from './GroupMark.tsx'
 import { Icon } from './Icon.tsx'
 import { Undelivered, useSnapshot } from './taskParts.tsx'
+import { TaskPeople, useTaskPeople } from './TaskPeople.tsx'
 
 /** 任务对你来说只有三种状态：进行中、等你、完成；完成里分做完了和结束了（你停掉的、无需处理的）。 */
 export type TaskBucket = 'working' | 'attention' | 'done' | 'ended'
@@ -74,23 +75,39 @@ export function GroupChip(props: { readonly roomId: string; readonly title: stri
 }
 
 /**
- * 对话里的任务记号：状态图标加标题，不写用时、花费、进展，也不带按钮。点一下进这个任务的对话（另开的单聊、任务群）；
- * 就在这里干的打开「过程」。要你定的事是 bot 在对话里说的那句话，按钮挂在那句话后面。
+ * 打开任务的对话（另开的单聊、任务群）；就在原来的对话里干的、或者正在它自己的对话里，打开「过程」。
+ * from 是点的地方所在的对话。
+ */
+export function openTaskConversation(app: AppState, snapshot: TaskSnapshot, from?: string): void {
+  const conversation = snapshot.conversationId ?? null
+  if (conversation !== null && conversation !== from) app.openRoom(conversation)
+  else app.openTask(snapshot.task.id)
+}
+
+/**
+ * 对话里的任务记号：Super-agent 转告问题、交结论的那句话下面挂的，是干活的 bot 的头像加任务名，不写状态、用时、进展。
+ * 点一下进这个任务的对话。
  */
 export function TaskChip(props: { readonly taskId: string; readonly roomId: string }) {
   const app = useApp()
   const { snapshot, error } = useSnapshot(props.taskId)
+  const people = useTaskPeople(snapshot)
   if (snapshot === undefined) return <span className="pod-task-chip pod-task-chip-loading">{error ?? t('正在读取任务…')}</span>
   const { task } = snapshot
   const bucket = bucketOf(snapshot)
-  const conversation = snapshot.conversationId ?? null
   const label = bucketLabel(snapshot, bucket)
-  const open = (): void => (conversation !== null && conversation !== props.roomId ? app.openRoom(conversation) : app.openTask(task.id))
   return (
     <span className="pod-task-chip-wrap">
-      <button type="button" className={`pod-task-chip pod-task-chip-${bucket}`} onClick={open} title={label} aria-label={t('{label}：{title}', { label, title: task.title })}>
-        <TaskStateIcon snapshot={snapshot} />
+      <button
+        type="button"
+        className={`pod-task-chip pod-task-chip-${bucket}`}
+        onClick={() => openTaskConversation(app, snapshot, props.roomId)}
+        title={label}
+        aria-label={t('{label}：{title}', { label, title: task.title })}
+      >
+        {people.length === 0 ? <TaskStateIcon snapshot={snapshot} /> : <TaskPeople people={people} size={18} />}
         <span className="pod-task-chip-title">{task.title}</span>
+        <Icon name="forward" size={12} />
       </button>
       <Undelivered snapshot={snapshot} />
     </span>

@@ -5,10 +5,13 @@ import type { Auditor } from '../core/audit.ts'
 import { FAILURES_BEFORE_PROBLEM, Later, type Effects } from '../effects/queue.ts'
 import type { RoomService } from './rooms.ts'
 
-/** 发到聊天室的话的用途：确认（前台）、答复（前台，或任务里被问到的 bot）、结果（汇报就绪）、等你（受阻、失败、新的等你）。 */
-export type ReplyPurpose = 'confirm' | 'answer' | 'result' | 'wait'
+/** 发到聊天室的话的用途：确认（前台）、答复（前台，或任务里被问到的 bot）、转告（前台转告任务的问题和结果）、结果（汇报就绪）、等你（受阻、失败、新的等你）。 */
+export type ReplyPurpose = 'confirm' | 'answer' | 'relay' | 'result' | 'wait'
 
-export const REPLY_PURPOSES: readonly ReplyPurpose[] = ['confirm', 'answer', 'result', 'wait']
+/** bot 说话前自己挂上的卡片：单聊里不算把要回的那句隔开。 */
+const OWN_CARDS: ReadonlySet<string> = new Set(['task-card', 'page'])
+
+export const REPLY_PURPOSES: readonly ReplyPurpose[] = ['confirm', 'answer', 'relay', 'result', 'wait']
 
 export interface ReplyInput {
   readonly roomId: string
@@ -135,12 +138,18 @@ export class Replies {
     return getMessage(this.deps.db, input.replyTo)?.roomId === room.id ? input.replyTo : null
   }
 
-  /** 挂在哪条下面：那条还在、在同一个聊天室才挂；单聊里回的正是最新一条就不挂，对话照常往下走。 */
+  /**
+   * 挂在哪条下面：那条还在、在同一个聊天室才挂；单聊里回的正是最新一条就不挂，对话照常往下走。
+   * 说话的 bot 自己刚挂上的卡片（开任务时的任务卡、存好的页面）不算隔开。
+   */
   private anchor(input: ReplyInput, room: Room): string | null {
     if (input.replyTo === null || input.replyTo === undefined) return null
     const target = getMessage(this.deps.db, input.replyTo)
     if (target === undefined || target.deletedAt !== null || target.roomId !== room.id) return null
-    if (room.kind === 'direct' && listMessages(this.deps.db, room.id, { limit: 1 }).at(-1)?.id === target.id) return null
+    if (room.kind === 'direct') {
+      const said = listMessages(this.deps.db, room.id, { limit: 5 }).filter((message) => !(message.author === input.author && OWN_CARDS.has(message.kind)))
+      if (said.at(-1)?.id === target.id) return null
+    }
     return target.id
   }
 

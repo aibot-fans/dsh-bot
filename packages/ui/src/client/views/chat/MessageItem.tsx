@@ -25,6 +25,7 @@ import { calledMentions } from './Calls.tsx'
 import { MessageRoutes } from './MessageRoutes.tsx'
 import { MessageSheet, answerable, regenerable, type SheetView } from './MessageSheet.tsx'
 import { RateButtons } from './Rating.tsx'
+import { TaskCardItem } from './TaskCardItem.tsx'
 import { readTurnError, TurnErrorLine } from './TurnErrorLine.tsx'
 import { WeeklyCard } from './WeeklyCard.tsx'
 import { readXEvent, XEventCard } from './XEventCard.tsx'
@@ -126,10 +127,10 @@ export function MessageItem(props: MessageProps) {
     case 'task-card':
       // 任务群里的子任务就是组长 @ 成员说要做什么的一句话，成员的结果回在它下面。
       if (props.quiet === true && typeof message.data.parentId === 'string') return <SubtaskAsk {...props} taskId={String(message.data.taskId ?? '')} />
-      // 别处只是一行任务记号；也能引用回复：回复它的话直接送进这个任务。
+      // 别处是派活那句话下面的任务卡片；也能引用回复：回复它的话直接送进这个任务。
       return (
-        <MessageFrame {...props} owner={false} className="pod-msg-card pod-msg-card-chip">
-          <TaskChip taskId={String(message.data.taskId ?? '')} roomId={message.roomId} />
+        <MessageFrame {...props} owner={false} className="pod-msg-card pod-msg-card-task">
+          <TaskCardItem taskId={String(message.data.taskId ?? '')} roomId={message.roomId} />
         </MessageFrame>
       )
     case 'folded':
@@ -207,6 +208,12 @@ export function MessageItem(props: MessageProps) {
           <XEventCard view={xEvent} />
         )}
         {attachment === undefined ? null : <Attachment attachment={attachment} />}
+        {/* Super-agent 转告任务的问题、结论：话下面挂那个任务的记号，点一下进任务对话。 */}
+        {message.data.purpose === 'relay' && typeof message.data.taskId === 'string' ? (
+          <div className="pod-msg-chips">
+            <TaskChip taskId={message.data.taskId} roomId={message.roomId} />
+          </div>
+        ) : null}
         {decided !== undefined ? (
           <div className="pod-ask-done">{decided}</div>
         ) : props.decision === true && typeof message.data.taskId === 'string' ? (

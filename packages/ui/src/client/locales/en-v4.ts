@@ -1,4 +1,4 @@
-/** V4 界面（对话里只有对话、等你的按钮、群详情、概览的任务列表）新加的界面文字的英文译文。 */
+/** V4 界面（对话里只有对话、等你的按钮、群详情、概览的任务列表，主对话的任务卡片）新加的界面文字的英文译文。 */
 export const UI_EN_V4: Readonly<Record<string, string>> = {
   '{label}：{title}': '{label}: {title}',
   '先不': 'Not now',
@@ -28,4 +28,9 @@ export const UI_EN_V4: Readonly<Record<string, string>> = {
   '过程 · {title}': 'Activity · {title}',
   '等你（{count}）': 'Needs you ({count})',
   '完成（{count}）': 'Done ({count})',
+  '{name} · {step}': '{name} · {step}',
+  '完成': 'Done',
+  '没做成': 'Not done',
+  '等你': 'Needs you',
+  '进行中 · {time}': 'Working · {time}',
 }

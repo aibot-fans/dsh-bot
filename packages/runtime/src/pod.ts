@@ -333,7 +333,7 @@ export class PodRuntime {
       sent: (input, message) => {
         const task = input.taskId === null || input.taskId === undefined ? undefined : this.tasks.get(input.taskId)
         if (task !== undefined) this.engine.tickets.event(task, 'reply_sent', input.author, { roomId: message.roomId, messageId: message.id, purpose: input.purpose })
-        if (input.purpose === 'confirm' || input.purpose === 'answer') this.front.replied(input.author, message.roomId)
+        if (input.purpose === 'confirm' || input.purpose === 'answer' || input.purpose === 'relay') this.front.replied(input.author, message.roomId)
       },
       stuck: (taskId) => {
         this.engine.tickets.refresh(taskId)
@@ -346,6 +346,9 @@ export class PodRuntime {
       cardOf: (taskId) => {
         const id = taskCardMessage(db, taskId)
         return id === undefined ? undefined : getMessage(db, id)
+      },
+      relay: (task, kind, body) => {
+        this.front.relay(task, kind, body).catch((error: unknown) => ctx.logger.warn('dsh-bot：转告没送到前台', error))
       },
     })
     this.engine = new Engine({

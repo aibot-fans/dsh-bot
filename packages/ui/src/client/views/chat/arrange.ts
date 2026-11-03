@@ -29,6 +29,7 @@ function divider(message: RoomMessage): boolean {
 
 /**
  * 把消息排成一段段回复，每段先放文字，bot 自己发的卡片和状态放在下面（bot 往往先存页面、派任务，最后才说话）。
+ * 先发的卡片只跟着它后面的第一句话（Super-agent 开任务时的那句，后面再转告的话另起一段）。
  * 你说话、分隔线、换了别的 bot 说话，或者文字之后又来了卡片再来文字，都另起一段。
  * Pod 自己的状态行（出错、提示）不属于哪一段回复，按时间留在原处。
  * 只改显示的先后，不改消息本身。
@@ -58,7 +59,7 @@ export function arrange(messages: readonly RoomMessage[]): readonly ReplyBlock[]
       author = bot
       continue
     }
-    if (author !== undefined && bot !== author) flush()
+    if (author !== undefined && (bot !== author || (cards.length > 0 && texts.length > 0))) flush()
     texts.push(message)
     author = bot
   }

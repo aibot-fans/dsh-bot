@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { OWNER, POD, PRIORITY, botFolder, t, truncate, oneLine, type Bot, type PodSession, type Room, type RoomMessage } from 'pod-domain'
+import { OWNER, POD, PRIORITY, botFolder, t, truncate, oneLine, type Bot, type PodSession, type Room, type RoomMessage, type Task } from 'pod-domain'
 import { getDelivery, getMessage, lastChatBreak, listMessages, listRoomMembers, missedFrontRoutes, pendingFor, transaction } from 'pod-store'
 import { noticeSource, ownerSource } from '../agents/messages.ts'
 import type { TurnFailure } from '../agents/observer.ts'
@@ -11,6 +11,7 @@ import { failureKind, failureReason } from '../chat/turn-errors.ts'
 import type { Dispatcher } from '../effects/delivery.ts'
 import { Later, type Effects } from '../effects/queue.ts'
 import type { Engine } from '../engine/index.ts'
+import type { RelayKind } from '../tasks/replies.ts'
 import { ModelRetries, RETRY_DELAYS_MS } from '../tasks/retries.ts'
 import { FrontActivity, type ActivityCursor } from './activity.ts'
 import { batchText, speakerOf, type BatchItem, type BatchRoom } from './batch.ts'
@@ -18,6 +19,11 @@ import { batchText, speakerOf, type BatchItem, type BatchRoom } from './batch.ts
 /** 一个聊天室第一次进前台（或换了一段）时带多少条最近的消息；之后只带前台没看过的，最多这么多。 */
 const RECENT_FIRST = 8
 const RECENT_MORE = 5
+
+/** 转告里带的问题、结果最多多少字。 */
+const RELAY_LIMIT = 1200
+
+const RELAY_HEADS: Readonly<Record<RelayKind, string>> = { wait: '在任务对话里问用户', result: '交了结果', failed: '没做成' }
 
 export interface FrontDeskDeps {
   readonly db: DatabaseSync
@@ -124,6 +130,27 @@ export class FrontDesk {
       .finally(() => this.opening.delete(bot.id))
     this.opening.set(bot.id, opening)
     return opening
+  }
+
+  /**
+   * 转告：交给别的 bot 的任务在自己的对话里问了用户、交了结果、没做成，叫开任务的前台在派活的聊天室说一句。
+   * 前台正在跑就排在这一轮后面。
+   */
+  async relay(task: Task, kind: RelayKind, body: string): Promise<void> {
+    const requester = task.requesterSession === null ? undefined : this.deps.registry.get(task.requesterSession)
+    const room = task.roomId === null ? undefined : this.deps.room(task.roomId)
+    if (requester?.kind !== 'front' || room === undefined || room.archivedAt !== null) return
+    const bot = this.deps.bots.activeBot(requester.botId)
+    if (bot === undefined) return
+    const session = await this.session(bot)
+    const owner = (task.ownerBotId === null ? undefined : this.deps.bots.get(task.ownerBotId)?.name) ?? t('干活的 bot')
+    this.deps.dispatcher.enqueue({
+      sessionId: session.id,
+      mode: 'followup',
+      priority: PRIORITY.owner,
+      text: `[转告] 「${task.title}」（${task.id}，${owner}在做）${RELAY_HEADS[kind]}：\n${truncate(body, RELAY_LIMIT)}\n用 reply 在「${room.title}」（${room.id}）转告用户：purpose 写 relay，room 写 ${room.id}，task 写 ${task.id}。`,
+      source: noticeSource(t('转告「{title}」的动静', { title: task.title })),
+    })
   }
 
   /** 前台说了话（reply）：这个聊天室的“正在……”收掉。 */

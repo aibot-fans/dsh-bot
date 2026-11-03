@@ -341,8 +341,11 @@ export function Timeline(props: TimelineProps) {
     ],
   )
   const ordered = blocks.flatMap((block) => [...block.texts, ...block.cards])
-  // 回的正是这段下面跟着的任务记号（结果、没做成挂在任务卡下）：记号就在下面，不再引用一遍。
-  const unquoted = new Set(blocks.flatMap((block) => block.texts.filter((message) => block.cards.some((card) => card.id === message.replyTo)).map((message) => message.id)))
+  // 回的正是这段下面跟着的任务记号，或者紧挨在上面的那张任务卡片（结果、没做成挂在任务卡下）：卡片就在旁边，不再引用一遍。
+  const unquoted = new Set([
+    ...blocks.flatMap((block) => block.texts.filter((message) => block.cards.some((card) => card.id === message.replyTo)).map((message) => message.id)),
+    ...ordered.filter((message, index) => message.replyTo !== null && ordered[index - 1]?.id === message.replyTo && ordered[index - 1]?.kind === 'task-card').map((message) => message.id),
+  ])
   // 最后一段回复的 bot 还在说：正在输入的文字排在这段的卡片上面，说完不跳位置。
   const tail = blocks.at(-1)
   const inline = tail?.author === undefined || tail.cards.length === 0 ? undefined : replies.find((reply) => reply.botId === tail.author)

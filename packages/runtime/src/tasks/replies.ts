@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { t, type RoomMessage, type Task, type TaskResult } from 'pod-domain'
-import { getMessage, taskConversationOf } from 'pod-store'
+import { getMessage, getWait, taskConversationOf } from 'pod-store'
 import type { Replies } from '../chat/replies.ts'
 import type { RoomService } from '../chat/rooms.ts'
 
@@ -10,7 +10,12 @@ export interface TaskRepliesDeps {
   readonly rooms: RoomService
   /** 任务的任务卡。 */
   readonly cardOf: (taskId: string) => RoomMessage | undefined
+  /** 有任务对话的根任务问了用户、交了结果、没做成：叫开任务的前台在派活的聊天室转告一句。 */
+  readonly relay: (task: Task, kind: RelayKind, body: string) => void
 }
+
+/** 转告的几种：任务问用户、交了结果、没做成。 */
+export type RelayKind = 'wait' | 'result' | 'failed'
 
 /** 结果消息怎么收尾：做完了（交付或交给组长）、等你验收、常开任务这一次的结果。 */
 export type ResultEnding = 'done' | 'review' | 'standing'
@@ -63,7 +68,9 @@ export class TaskReplies {
   result(task: Task, author: string, sessionId: string | null, body: (onCard: boolean) => string): number {
     const conversation = this.conversationOf(task)
     if (conversation !== undefined) {
-      this.deps.replies.send({ roomId: conversation, author, purpose: 'result', body: body(true), replyTo: null, sessionId, taskId: task.id })
+      const text = body(true)
+      this.deps.replies.send({ roomId: conversation, author, purpose: 'result', body: text, replyTo: null, sessionId, taskId: task.id })
+      this.deps.relay(task, 'result', text)
       return 1
     }
     const card = this.deps.cardOf(task.id)
@@ -95,6 +102,7 @@ export class TaskReplies {
     const card = conversation === undefined ? this.deps.cardOf(task.id) : undefined
     const roomId = conversation ?? card?.roomId ?? task.roomId
     if (roomId === null) return undefined
+    if (conversation !== undefined) this.deps.relay(task, input.kind === 'wait' ? 'wait' : 'failed', `${input.body}${this.optionsOf(input.data)}`)
     return this.deps.replies.send({
       roomId,
       author,
@@ -106,6 +114,13 @@ export class TaskReplies {
       taskId: task.id,
       ...(input.data === undefined ? {} : { data: input.data }),
     })
+  }
+
+  /** 等你事项带的选项，转告时一起说。 */
+  private optionsOf(data: Readonly<Record<string, unknown>> | undefined): string {
+    const wait = typeof data?.waitId === 'string' ? getWait(this.deps.db, data.waitId) : undefined
+    const options = Array.isArray(wait?.data.options) ? wait.data.options.filter((option): option is string => typeof option === 'string') : []
+    return options.length === 0 ? '' : `（选项：${options.join(' / ')}）`
   }
 
   /** 答复：任务里被问到时，回在问的那条下面。 */
