@@ -341,6 +341,8 @@ export function Timeline(props: TimelineProps) {
     ],
   )
   const ordered = blocks.flatMap((block) => [...block.texts, ...block.cards])
+  // 回的正是这段下面跟着的任务记号（结果、没做成挂在任务卡下）：记号就在下面，不再引用一遍。
+  const unquoted = new Set(blocks.flatMap((block) => block.texts.filter((message) => block.cards.some((card) => card.id === message.replyTo)).map((message) => message.id)))
   // 最后一段回复的 bot 还在说：正在输入的文字排在这段的卡片上面，说完不跳位置。
   const tail = blocks.at(-1)
   const inline = tail?.author === undefined || tail.cards.length === 0 ? undefined : replies.find((reply) => reply.botId === tail.author)
@@ -404,7 +406,7 @@ export function Timeline(props: TimelineProps) {
                   <MessageItem
                     message={message}
                     bots={props.bots}
-                    quoted={message.replyTo === null ? undefined : byId.get(message.replyTo)}
+                    quoted={message.replyTo === null || unquoted.has(message.id) ? undefined : byId.get(message.replyTo)}
                     onReply={props.onReply}
                     onPinned={(updated) => setMessages((current) => merge(current, [updated]))}
                     mentions={mentions}
