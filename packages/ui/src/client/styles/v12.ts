@@ -30,4 +30,8 @@ export const V12_CSS = `
 .pod-ask-reply .pod-textarea { flex: 1; }
 .pod-ask-done { color: var(--dsw-alias-label-tertiary); font-size: 12.5px; }
 .pod-ask-closed { gap: 2px; }
+
+.pod-task-fact { display: inline-flex; align-items: center; gap: 6px; }
+.pod-task-facts .pod-link { justify-self: start; max-width: 100%; text-align: left; }
+.pod-task-facts-actions { justify-content: flex-end; gap: 6px; padding: 4px 10px 6px; }
 `

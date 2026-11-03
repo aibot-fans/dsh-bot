@@ -14,6 +14,7 @@ import { Automations } from '../settings/Routines.tsx'
 import { TaskTile } from '../tasks/TasksView.tsx'
 import { GroupBrowser } from './BrowserTabs.tsx'
 import { Library } from './Library.tsx'
+import { TaskFacts } from './TaskFacts.tsx'
 
 const TABS: readonly (readonly [GroupTab, string])[] = [
   ['details', '详情'],
@@ -208,7 +209,7 @@ function GroupTasks(props: { readonly room: RoomSummary; readonly bots: readonly
 
 /**
  * 群聊详情：从右侧滑出，顶上左边是群图标、右边是群名和成员；
- * 分详情（成员、群约定、群记忆、提醒、删除）、页面、资料库、自动化、任务、浏览器六页。
+ * 分详情（任务群先是状态、在哪干活、来源，再是成员、群约定、群记忆、提醒、删除）、页面、资料库、自动化、任务、浏览器六页。
  */
 export function GroupPanel(props: { readonly roomId: string; readonly tab: GroupTab }) {
   const app = useApp()
@@ -270,6 +271,7 @@ export function GroupPanel(props: { readonly roomId: string; readonly tab: Group
           {props.tab === 'details' ? null : <p className="pod-tab-hint">{t(TAB_HINTS[props.tab])}</p>}
           {props.tab === 'details' ? (
             <div className="pod-stack">
+              {room.taskId === null ? null : <TaskFacts taskId={room.taskId} />}
               <Members room={room} members={members} bots={active} />
               <section className="pod-box">
                 <div className="pod-box-head">

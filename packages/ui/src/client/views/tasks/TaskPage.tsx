@@ -57,8 +57,8 @@ function TalkBox(props: { readonly taskId: string }) {
 }
 
 /**
- * 任务页（工单的话题，相当于 PR）：顶上是任务卡、来由、跟进的话题、最新的报告；中间是时间线；
- * 旁边是任务文件夹里的文件和会话；底部输入框直接对任务说。
+ * 「过程」页（工单的话题，相当于 PR）：顶上是任务卡、来由、跟进的话题、最新的报告；中间是时间线；
+ * 旁边是任务文件夹里的文件和会话；底部输入框直接对任务说。对话里不放这些，要看从任务记号或群详情点进来。
  */
 export function TaskPage(props: { readonly taskId: string }) {
   const app = useApp()
@@ -73,7 +73,7 @@ export function TaskPage(props: { readonly taskId: string }) {
     <main className="pod-convo pod-taskpage">
       <header className="pod-viewer-head">
         <IconButton icon="back" label={t('返回')} onClick={() => app.closeTask()} />
-        <strong className="pod-ellipsis pod-grow">{detail?.snapshot.task.title ?? t('任务')}</strong>
+        <strong className="pod-ellipsis pod-grow">{detail === undefined ? t('过程') : t('过程 · {title}', { title: detail.snapshot.task.title })}</strong>
         {parentId === null ? null : (
           <Button small kind="quiet" onClick={() => app.openTask(parentId)}>
             {t('上级任务')}

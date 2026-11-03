@@ -20,4 +20,10 @@ export const UI_EN_V4: Readonly<Record<string, string>> = {
   '你让它重试了': 'You asked it to retry',
   '你说不做了': 'You dropped it',
   '浏览器（有 bot 在用）': 'Browser (a bot is using it)',
+  '在哪干活': 'Runs on',
+  '这台电脑': 'This computer',
+  '来源': 'Source',
+  '无': 'None',
+  '过程': 'Activity',
+  '过程 · {title}': 'Activity · {title}',
 }
