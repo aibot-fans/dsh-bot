@@ -4,3 +4,5 @@ lib/
 *.log
 docs/PROGRESS.md
 dist/
+packages/runtime/assets/computer-use/
+vendor/comma-computer-use/native/macos/ComputerUseHost/.build/

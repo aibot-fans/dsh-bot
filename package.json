@@ -21,8 +21,9 @@
     "test": "node --test \"packages/*/test/*.test.ts\"",
     "dev:install": "node scripts/dev-home.mjs install",
     "dev:web": "node scripts/dev-home.mjs web",
-    "pack:npm": "pnpm build && node scripts/pack-npm.mjs",
-    "release:pack": "pnpm build && node scripts/pack-npm.mjs --release",
+    "build:computer-use": "node scripts/build-computer-use.mjs",
+    "pack:npm": "pnpm build && pnpm build:computer-use && node scripts/pack-npm.mjs",
+    "release:pack": "pnpm build && pnpm build:computer-use && node scripts/pack-npm.mjs --release",
     "version:set": "node scripts/set-version.mjs"
   },
   "devDependencies": {

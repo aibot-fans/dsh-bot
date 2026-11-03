@@ -12,7 +12,7 @@
  * 各行的 id 不变，profile 里按 id 写的覆盖照样生效。
  */
 import { execFileSync } from 'node:child_process'
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { releaseNotes } from './release-notes.mjs'
 import { mismatchedPackages, podVersion, repo } from './version.mjs'
@@ -74,7 +74,8 @@ function manifest(version) {
     version,
     description: root.description,
     keywords: ['dsh', 'dsh-bot', 'dsh-plugin', 'deepseek', 'deepseek-harness', 'multi-agent', 'agents'],
-    license: 'Apache-2.0',
+    // 自己的代码是 Apache-2.0；runtime/assets/computer-use 里用电脑的小助手是 Comma 的，AGPL-3.0（见 NOTICE）。
+    license: '(Apache-2.0 AND AGPL-3.0-only)',
     ...(root.repository === undefined ? {} : { repository: root.repository, homepage: root.homepage, bugs: root.bugs }),
     type: 'module',
     icon: bundle.icon,
@@ -100,6 +101,10 @@ const version = podVersion()
 const mismatched = mismatchedPackages(version)
 if (mismatched.length > 0) {
   stop(`各包的版本号和 POD_VERSION（${version}）对不上：${mismatched.map(([path, own]) => `${path} 是 ${own}`).join('；')}。先跑 pnpm version:set ${version}。`)
+}
+// 用电脑的小助手随包一起发，装上就有：先 pnpm build:computer-use 编好（pack:npm 和 release:pack 会先跑）。
+if (!existsSync(join(repo, 'packages/runtime/assets/computer-use/dsh-bot Computer Use.app/Contents/MacOS/CommaComputerUseDaemon'))) {
+  stop('还没编用电脑的小助手：先跑 pnpm build:computer-use（要在装了 Xcode 命令行工具的 Mac 上）。')
 }
 if (process.argv.includes('--release')) {
   const problems = releaseProblems(version)

@@ -29,6 +29,14 @@ dsh-bot
     Copyright (c) 2024 Owen Ou
   jq-wasm 里的 lib/x/jq.wasm 是 jq 1.8.2（https://github.com/jqlang/jq）连同它带的
   Oniguruma（https://github.com/kkos/oniguruma）编译成的，它们的许可原样附在最后。
+- 用电脑的小助手：源码在 vendor/comma-computer-use/，编好的应用在 packages/runtime/assets/computer-use/
+  （npm 包里是 runtime/assets/computer-use/dsh-bot Computer Use.app）。它来自 Comma
+  （https://github.com/AFK-surf/Comma，提交 66ab3dc92475005aea9afd123df36a28e4ef86ab），
+  按 GNU Affero General Public License v3.0 授权，全文见 vendor/comma-computer-use/LICENSE，
+  源码原样没有改动。它是单独的程序，dsh-bot 只通过本机套接字和它通信。
+  小助手里编进了 PermissionFlow（https://github.com/EYHN/PermissionFlow），按 MIT License 授权，
+  许可全文附在下面：
+  Copyright (c) 2026 小弟调调
 
 MIT License
 
