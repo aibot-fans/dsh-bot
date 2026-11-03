@@ -39,18 +39,19 @@ export interface FrontDeskDeps {
   /** dsh-bot 在聊天室里说一句（前台出错没处理成时）。 */
   readonly notice: (roomId: string, body: string, data: Readonly<Record<string, unknown>>) => void
   /** 以前台的名义回一句确认（开了任务却没回话时补上的那句）。 */
-  readonly confirm: (input: { readonly roomId: string; readonly author: string; readonly sessionId: string; readonly replyTo: string; readonly body: string }) => void
+  readonly confirm: (input: { readonly roomId: string; readonly author: string; readonly sessionId: string; readonly replyTo: string; readonly body: string; readonly taskId: string }) => void
   /** 前台漏掉消息记成系统问题；detail 为 null 时恢复。 */
   readonly problem: (detail: string | null) => void
   readonly warn: (message: string, error?: unknown) => void
 }
 
-/** 前台开了任务、还没回用户的那一句：回在哪条下面、没回就补哪句。 */
+/** 前台开了任务、还没回用户的那一句：回在哪条下面、没回就补哪句，这句话挂哪个任务的记号。 */
 export interface Unconfirmed {
   readonly roomId: string
   readonly messageId: string
   readonly sessionId: string
   readonly body: string
+  readonly taskId: string
 }
 
 /** 送进前台、还在等结果的那几批。 */
@@ -170,6 +171,11 @@ export class FrontDesk {
     this.unconfirmed.set(botId, [...(this.unconfirmed.get(botId) ?? []), entry])
   }
 
+  /** 前台在这个聊天室刚开、还没回话的任务：开任务那句挂它的记号。 */
+  openedIn(botId: string, roomId: string): string | undefined {
+    return (this.unconfirmed.get(botId) ?? []).findLast((entry) => entry.roomId === roomId)?.taskId
+  }
+
   /** 前台在这个聊天室回了话：开任务那句算回过了。 */
   confirmed(botId: string, roomId: string): void {
     const left = (this.unconfirmed.get(botId) ?? []).filter((entry) => entry.roomId !== roomId)
@@ -181,7 +187,7 @@ export class FrontDesk {
   private confirmLeft(botId: string): void {
     const left = this.unconfirmed.get(botId) ?? []
     this.unconfirmed.delete(botId)
-    for (const entry of left) this.deps.confirm({ roomId: entry.roomId, author: botId, sessionId: entry.sessionId, replyTo: entry.messageId, body: entry.body })
+    for (const entry of left) this.deps.confirm({ roomId: entry.roomId, author: botId, sessionId: entry.sessionId, replyTo: entry.messageId, body: entry.body, taskId: entry.taskId })
   }
 
   /** 前台说了话（reply）：这个聊天室的“正在……”收掉，这一轮后面的进度也不再写到这里。 */

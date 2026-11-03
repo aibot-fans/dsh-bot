@@ -1,5 +1,5 @@
 import { OWNER, POD, recurring, t, type Bot, type OriginQuote, type PodSession, type ReplyTarget, type Room, type RoomMessage, type Task, type TriggerSpec } from 'pod-domain'
-import { getMessage, taskCardMessage, taskConversationOf, transaction } from 'pod-store'
+import { getMessage, taskConversationOf, transaction } from 'pod-store'
 import { ownerSource, relaySource } from '../agents/messages.ts'
 import type { JsonSchema, ToolDefinition } from '../dsh.ts'
 import { isTicket } from '../engine/index.ts'
@@ -187,7 +187,7 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
     // 开了任务先回用户一句，任务卡挂在这句下面；这一轮结束还没回，dsh-bot 以你的名义补上这句。
     const asked = messages.filter((message) => message.roomId === room.id).at(-1) ?? first
     const fallback = starts !== '' ? t('好，{when}开工，结果发在这里。', { when: starts }) : bot.id === session.botId ? t('我来做，做好了直接发你。') : t('交给{name}了，结果出来我直接发你。', { name: bot.name })
-    pod.front.opened(session.botId, { roomId: room.id, messageId: asked.id, sessionId: session.id, body: fallback })
+    pod.front.opened(session.botId, { roomId: room.id, messageId: asked.id, sessionId: session.id, body: fallback, taskId: created.value.id })
     const where = conversation === undefined ? '' : conversation.kind === 'group' ? `，开了任务群（${[bot, ...members].map((member) => member.name).join('、')}）` : '，和它另开了一段单聊'
     const when = starts === '' ? '' : `，${starts}开工`
     return `开了任务 ${created.value.id}「${created.value.title}」，交给${bot.name}${where}${when}\n现在用 reply（confirm，to 写 ${asked.id}）回用户一句：交给谁了、取了哪种理解，任务卡挂在这句下面`
@@ -335,11 +335,8 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
       const about = task === '' ? undefined : pod.tasks.get(task)
       if (task !== '' && about === undefined) return failure(`找不到任务 ${task}`)
       const pageId = typeof replied?.data.pageId === 'string' ? replied.data.pageId : undefined
-      // 转告和转给任务后的确认挂任务记号（taskId）；刚开任务的确认下面已经有任务卡，不再挂。答复附报告（reportTaskId）。
-      const cardId = about === undefined ? undefined : taskCardMessage(pod.db, about.rootId)
-      const card = cardId === undefined ? undefined : getMessage(pod.db, cardId)
-      const opened = card !== undefined && card.roomId === target.id && (replied === undefined || card.seq > replied.seq)
-      const chip = about !== undefined && (purpose === 'relay' || (purpose === 'confirm' && !opened))
+      // 转告和确认挂任务记号（taskId）：刚开任务的那句没写 task 时挂这个聊天室刚开的任务，任务卡挂在这句下面。答复附报告（reportTaskId）。
+      const chipTask = purpose === 'answer' ? undefined : (about?.rootId ?? (purpose === 'confirm' ? pod.front.openedIn(session.botId, target.id) : undefined))
       // 走回复队列：按顺序发、留回执；群里挂在回的那条下面，单聊里回的正是最新那句就不挂引用。
       const messageId = pod.replies.send({
         roomId: target.id,
@@ -348,7 +345,7 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
         body,
         sessionId: session.id,
         replyTo: replied?.id ?? null,
-        ...(chip ? { taskId: about.rootId } : {}),
+        ...(chipTask === undefined ? {} : { taskId: chipTask }),
         data: { ...(pageId === undefined ? {} : { pageId }), ...(about === undefined || purpose !== 'answer' ? {} : { reportTaskId: about.rootId }) },
       })
       if (replied !== undefined && purpose === 'answer' && pod.engine.topics.awaiting(replied.id, session.botId)) pod.engine.topics.decide(replied.id, session.botId, 'answered')
