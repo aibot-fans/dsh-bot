@@ -26,7 +26,7 @@ export const V8_CSS = `
 .pod-origin-text { white-space: pre-wrap; overflow-wrap: anywhere; }
 .pod-fold { margin-left: 6px; font-size: 12.5px; }
 .pod-follows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
-.pod-timeline { list-style: none; margin: 0 0 0 4px; padding: 0; display: flex; flex-direction: column; border-left: 2px solid var(--pod-line); }
+ol.pod-timeline { list-style: none; margin: 0 0 0 4px; padding: 0; display: flex; flex-direction: column; border-left: 2px solid var(--pod-line); }
 .pod-tl { position: relative; display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 8px; padding: 5px 0 5px 12px; font-size: 13px; }
 .pod-tl::before { content: ''; position: absolute; left: -5px; top: 11px; width: 8px; height: 8px; border-radius: 50%; background: var(--pod-line); }
 .pod-tl-message::before { background: var(--dsw-alias-label-tertiary); }
