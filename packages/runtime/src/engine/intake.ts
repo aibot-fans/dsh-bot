@@ -25,6 +25,8 @@ export interface IntakeDeps {
   readonly toFront: (message: RoomMessage, note: string) => Promise<void>
   /** 任务群里还开着的子任务（@ 成员时它只有一个子任务就直通那个）。 */
   readonly childrenIn: (roomId: string) => readonly Task[]
+  /** 任务自己的对话（另开的单聊、任务群）；自己干的、例程没有。 */
+  readonly conversationOf: (task: Task) => string | undefined
 }
 
 /** 送进任务会话的那条消息：带 id、谁说的、回的是哪条，正文截断。 */
@@ -55,7 +57,7 @@ export class Intake {
   owner(message: RoomMessage, mentioned: readonly string[] = []): readonly Task[] {
     const topic = message.topicId == null ? undefined : this.deps.topics.get(message.topicId)
     const called = this.calledChildren(message, mentioned)
-    const targets = called.length > 0 ? called : topic === undefined ? [] : this.targets(topic.id, message.id)
+    const targets = called.length > 0 ? called : topic === undefined ? [] : this.targets(topic.id, message)
     const delivered = transaction(this.db, () => {
       const done: Task[] = []
       for (const task of targets) {
@@ -81,13 +83,17 @@ export class Intake {
     })
   }
 
-  /** 跟进这个话题、能收这条消息的任务：只读跟进的不收，你停掉的不收，交还过这条的不再给它。 */
-  private targets(topicId: string, messageId: string): readonly Task[] {
+  /**
+   * 跟进这个话题、能收这条消息的任务：只读跟进的不收，你停掉的不收，交还过这条的不再给它。
+   * 有自己对话的任务只收那段对话里的话；在别处（比如主对话）接着它说的，由前台认出来写成完整的后续再转进去。
+   */
+  private targets(topicId: string, message: RoomMessage): readonly Task[] {
     return this.deps.topics
       .followers(topicId)
       .filter((follow) => follow.kind !== 'readonly')
       .map((follow) => this.deps.task(follow.taskId))
-      .filter((task): task is Task => task !== undefined && isTicket(task) && task.endReason !== 'stopped' && !this.deps.topics.handedBack(messageId, task.id))
+      .filter((task): task is Task => task !== undefined && isTicket(task) && task.endReason !== 'stopped' && !this.deps.topics.handedBack(message.id, task.id))
+      .filter((task) => (this.deps.conversationOf(task) ?? message.roomId) === message.roomId)
   }
 
   /**
@@ -104,6 +110,22 @@ export class Intake {
       // 记在转它的那个前台名下：这条在那个前台就算有去向了。
       this.deps.topics.route(message.id, 'relayed', task.id, by, note, ref, by)
       this.deps.askedAt(task, message)
+      return ok(ref)
+    })
+  }
+
+  /**
+   * 前台把接着说的话转进任务自己的对话：发在那段对话里的后续（posted，前台写的）送进任务，干活的 bot 回在它下面；
+   * 用户在别处说的那几句记成前台转走了，也记成后来问的地方，结果出来由前台在那里转告。返回送进去时的投递或执行 id。
+   */
+  followUp(task: Task, posted: RoomMessage, author: string, originals: readonly RoomMessage[], by: string): PodResult<string> {
+    return transaction(this.db, () => {
+      const ref = this.deps.deliver(task, { id: posted.id, author, replyTo: null, text: clipCard(posted.body, ROUTED_LIMIT, posted.id) })
+      if (ref === undefined) return fail('conflict', t('任务已经停掉了；要接着做，先点继续'))
+      this.deps.topics.route(posted.id, 'relayed', task.id, by, '', ref, by)
+      for (const message of originals) this.deps.topics.route(message.id, 'relayed', task.id, by, '', ref, by)
+      const last = originals.at(-1)
+      if (last !== undefined) this.deps.askedAt(task, last)
       return ok(ref)
     })
   }

@@ -282,7 +282,8 @@ export class TaskService {
       })
       this.event(opened, 'delegated', requester.botId, { to: bot.id, reason: input.reason })
       // 自带的话题：你交代这件事的那几条消息所在的回复串，之后回复、引用它们的话直接到这个任务。
-      for (const quote of quotes) if (quote.messageId !== null) this.engine.topics.followMessage(opened.id, quote.messageId, 'own')
+      // 有自己对话的任务话题就是那段对话；在派活的地方接着它说的，由前台认出来再转进去。
+      if (input.conversation === undefined) for (const quote of quotes) if (quote.messageId !== null) this.engine.topics.followMessage(opened.id, quote.messageId, 'own')
       // 带触发器开的（到点或等别的任务就绪再开工）先不排，触发器到点再开工。
       if (input.start !== false) this.engine.runs.queue(opened.id, 'new', { assumptions: input.assumptions })
       return this.get(id) ?? opened
@@ -296,8 +297,8 @@ export class TaskService {
         body: input.title,
         data: { ...input.card, taskId: id, rootId: id, ...(conversation === undefined ? {} : { roomId: conversation.id }) },
       })
-      // 任务卡也是自带的话题：回复、引用任务卡的话直接进任务。
-      if (card !== undefined) this.engine.topics.followMessage(id, card.id, 'own')
+      // 任务卡也是自带的话题：回复、引用任务卡的话直接进任务（有自己对话的除外，同上）。
+      if (card !== undefined && conversation === undefined) this.engine.topics.followMessage(id, card.id, 'own')
     }
     return Promise.resolve(ok(task))
   }

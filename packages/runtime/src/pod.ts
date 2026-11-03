@@ -448,6 +448,7 @@ export class PodRuntime {
         const room = this.rooms.get(roomId)
         return room?.taskId == null ? [] : this.engine.tickets.openChildren(room.taskId)
       },
+      conversationOf: (task) => taskConversationOf(db, task.rootId)?.id,
     })
     this.coordinator = new Coordinator({
       db,

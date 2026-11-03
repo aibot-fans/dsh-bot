@@ -34,7 +34,7 @@ export function resultText(task: Task, result: TaskResult, onCard: boolean, endi
 /**
  * 任务对外说的话（都走回复队列）：结果回在每一处还没得到答复的提问下面；等你（受阻、失败、要你处理的故障）
  * 由干活的 bot 回复任务卡；任务里被问到的话回在问的那条下面。有任务对话（另开的单聊、任务群）的根任务，
- * 结果和等你都发在那段对话里，主对话里只有任务卡跟着变。
+ * 结果和等你都发在那段对话里，由前台在派活的地方转告一句（你在任务对话里直接说的不转告）。
  */
 export class TaskReplies {
   private readonly deps: TaskRepliesDeps
@@ -61,6 +61,14 @@ export class TaskReplies {
   }
 
   /**
+   * 要不要由前台在派活的地方转告：最近一次是在任务对话以外问的（开任务时、前台从主对话转来的后续）才转告；
+   * 你在任务对话里直接接着说的，回答、问题都留在那段对话里，主对话不多出消息。
+   */
+  private relayed(task: Task, conversation: string): boolean {
+    return task.replyTo.at(-1)?.roomId !== conversation
+  }
+
+  /**
    * 结果：有任务对话的根任务只发在那里（那段对话就是这个任务，不用再写标题）。没有的一个聊天室一条：任务卡所在的聊天室
    * 挂在任务卡下（之后又在那里问过、还没答的，挂在最近那条下面）；别的聊天室里问过的，回在最近一条还没答的下面。
    * 干活的 bot 不在那个聊天室也照样以它的名义发，看得出是谁做的。
@@ -70,7 +78,7 @@ export class TaskReplies {
     if (conversation !== undefined) {
       const text = body(true)
       this.deps.replies.send({ roomId: conversation, author, purpose: 'result', body: text, replyTo: null, sessionId, taskId: task.id })
-      this.deps.relay(task, 'result', text)
+      if (this.relayed(task, conversation)) this.deps.relay(task, 'result', text)
       return 1
     }
     const card = this.deps.cardOf(task.id)
@@ -102,7 +110,7 @@ export class TaskReplies {
     const card = conversation === undefined ? this.deps.cardOf(task.id) : undefined
     const roomId = conversation ?? card?.roomId ?? task.roomId
     if (roomId === null) return undefined
-    if (conversation !== undefined) this.deps.relay(task, input.kind === 'wait' ? 'wait' : 'failed', `${input.body}${this.optionsOf(input.data)}`)
+    if (conversation !== undefined && this.relayed(task, conversation)) this.deps.relay(task, input.kind === 'wait' ? 'wait' : 'failed', `${input.body}${this.optionsOf(input.data)}`)
     return this.deps.replies.send({
       roomId,
       author,

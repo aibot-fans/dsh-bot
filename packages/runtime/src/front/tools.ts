@@ -1,5 +1,5 @@
-import { OWNER, POD, recurring, t, type Bot, type OriginQuote, type PodSession, type ReplyTarget, type RoomMessage, type Task, type TriggerSpec } from 'pod-domain'
-import { getMessage, transaction } from 'pod-store'
+import { OWNER, POD, recurring, t, type Bot, type OriginQuote, type PodSession, type ReplyTarget, type Room, type RoomMessage, type Task, type TriggerSpec } from 'pod-domain'
+import { getMessage, taskCardMessage, taskConversationOf, transaction } from 'pod-store'
 import { ownerSource, relaySource } from '../agents/messages.ts'
 import type { JsonSchema, ToolDefinition } from '../dsh.ts'
 import { isTicket } from '../engine/index.ts'
@@ -188,10 +188,39 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
     return `开了任务 ${created.value.id}「${created.value.title}」，交给${bot.name}${where}${when}`
   }
 
+  /**
+   * 转给有自己对话的任务：它在等用户拿主意，用户的话就是答复，记到那个问题上（和在任务里点按钮一样）；
+   * 不然把你写的完整后续发进它的对话（群里 @ 负责的 bot），送给干活的 bot，它在那里回。
+   */
+  const forwardInto = (item: Item, messages: readonly RoomMessage[], task: Task, conversation: Room): string => {
+    const question = pod.waits.latestQuestionFor(task.rootId)
+    if (question !== undefined) {
+      const answered = pod.waits.answer({ waitId: question.id, answer: messages.map((message) => message.body).join('\n') })
+      if (!answered.ok) return answered.error.message
+      transaction(pod.db, () => {
+        for (const message of messages) pod.engine.topics.decide(message.id, session.botId, 'relayed', task.id)
+        const last = messages.at(-1)
+        const fresh = pod.tasks.get(task.id)
+        if (last !== undefined && fresh !== undefined) pod.engine.tickets.addReplyTarget(fresh, { roomId: last.roomId, messageId: last.id })
+      })
+      return `转给了「${task.title}」：算作对「${question.title}」的答复`
+    }
+    const name = me()?.name ?? '前台'
+    const owner = task.ownerBotId === null ? undefined : pod.bots.get(task.ownerBotId)
+    const text = item.brief !== '' ? item.brief : [...messages.map((message) => `用户又说：「${message.body}」`), ...(item.note === '' ? [] : [item.note])].join('\n')
+    const body = conversation.kind !== 'direct' && owner !== undefined && owner.id !== session.botId ? `@${owner.name} ${text}` : text
+    const posted = pod.rooms.post(conversation.id, { author: session.botId, kind: 'text', body, data: { purpose: 'followup', taskId: task.id } })
+    if (posted === undefined) return '后续没发进任务对话'
+    const sent = pod.intake.followUp(task, posted, name, messages, session.botId)
+    return sent.ok ? `转给了「${task.title}」：后续发在它的对话里，它在那里回` : sent.error.message
+  }
+
   const forward = (item: Item, messages: readonly RoomMessage[], task: Task): string => {
     if (task.endedAt !== null && task.endReason === 'stopped') return `任务「${task.title}」已经停掉了；要接着做，请用户点继续`
     const errors: string[] = []
     const name = me()?.name ?? '前台'
+    const conversation = isTicket(task) ? taskConversationOf(pod.db, task.id) : undefined
+    if (conversation !== undefined) return forwardInto(item, messages, task, conversation)
     if (isTicket(task)) {
       // 写了完整后续的，后续挂在第一条上送一次（以前台的名义），其余几条照原话送。
       const [head, ...rest] = messages
@@ -271,13 +300,13 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
   const reply = podTool({
     name: 'reply',
     description:
-      '对用户说话：发一条消息到聊天室。写明回的是哪条消息（to，不回具体某条就写 room）和用途：confirm 确认（开了任务、转给任务后回一句，任务卡挂在这句下面）、answer 答复（第一句就是答案）、relay 转告（任务问用户、交结果、没做成时，task 写那个任务，消息下面挂任务记号）。用户问任务的细节时只讲问的那部分，task 写那个任务，消息下面会附上报告。你在别处写的文字用户看不到，只有 reply 会发出去。',
+      '对用户说话：发一条消息到聊天室。写明回的是哪条消息（to，不回具体某条就写 room）和用途：confirm 确认（开了任务后回一句，任务卡挂在这句下面；转给任务后回一句，task 写那个任务，消息下面挂任务记号）、answer 答复（第一句就是答案）、relay 转告（任务问用户、交结果、没做成时，task 写那个任务，消息下面挂任务记号）。用户问任务的细节时只讲问的那部分，task 写那个任务，消息下面会附上报告。你在别处写的文字用户看不到，只有 reply 会发出去。',
     properties: {
       to: str('回哪条消息（消息 id）'),
       room: str('不回具体某条时，发到哪个聊天室（room id）'),
       purpose: oneOf('confirm 确认 / answer 答复 / relay 转告', ['confirm', 'answer', 'relay']),
       text: str('要说的话'),
-      task: str('relay：转告的是哪个任务（任务 id）；answer：附上哪个任务的报告（可选）'),
+      task: str('relay、confirm：说的是哪个任务（任务 id）；answer：附上哪个任务的报告（可选）'),
     },
     required: ['purpose', 'text'],
     parse: (args) => {
@@ -301,8 +330,12 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
       const about = task === '' ? undefined : pod.tasks.get(task)
       if (task !== '' && about === undefined) return failure(`找不到任务 ${task}`)
       const pageId = typeof replied?.data.pageId === 'string' ? replied.data.pageId : undefined
+      // 转告和转给任务后的确认挂任务记号（taskId）；刚开任务的确认下面已经有任务卡，不再挂。答复附报告（reportTaskId）。
+      const cardId = about === undefined ? undefined : taskCardMessage(pod.db, about.rootId)
+      const card = cardId === undefined ? undefined : getMessage(pod.db, cardId)
+      const opened = card !== undefined && card.roomId === target.id && (replied === undefined || card.seq > replied.seq)
+      const chip = about !== undefined && (purpose === 'relay' || (purpose === 'confirm' && !opened))
       // 走回复队列：按顺序发、留回执；群里挂在回的那条下面，单聊里回的正是最新那句就不挂引用。
-      // 转告挂任务记号（taskId），答复附报告（reportTaskId）。
       const messageId = pod.replies.send({
         roomId: target.id,
         author: session.botId,
@@ -310,8 +343,8 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
         body,
         sessionId: session.id,
         replyTo: replied?.id ?? null,
-        ...(purpose === 'relay' && about !== undefined ? { taskId: about.rootId } : {}),
-        data: { ...(pageId === undefined ? {} : { pageId }), ...(about === undefined || purpose === 'relay' ? {} : { reportTaskId: about.rootId }) },
+        ...(chip ? { taskId: about.rootId } : {}),
+        data: { ...(pageId === undefined ? {} : { pageId }), ...(about === undefined || purpose !== 'answer' ? {} : { reportTaskId: about.rootId }) },
       })
       if (replied !== undefined && purpose === 'answer' && pod.engine.topics.awaiting(replied.id, session.botId)) pod.engine.topics.decide(replied.id, session.botId, 'answered')
       return success(`已发到「${target.title}」`, { messageId })

@@ -113,6 +113,13 @@ export class WaitService {
     return waitsForRoot(this.db, rootId).filter(isOpenWait).length
   }
 
+  /** 这个任务（整棵树）最近一件还开着的、要你拿主意的事：你回前台的话转进任务时就是答它。 */
+  latestQuestionFor(rootId: string): Wait | undefined {
+    return waitsForRoot(this.db, rootId)
+      .filter((wait) => isOpenWait(wait) && wait.kind === 'ambiguity')
+      .reduce<Wait | undefined>((latest, wait) => (latest === undefined || wait.createdAt > latest.createdAt ? wait : latest), undefined)
+  }
+
   openCountInRoom(roomId: string): number {
     return this.open().filter((wait) => wait.roomId === roomId).length
   }

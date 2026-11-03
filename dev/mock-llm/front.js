@@ -4,7 +4,7 @@
  * - “交给主管/某某 …”或“委派”：open 开任务（交给谁写谁；成员只能开给自己；标题按关键词取；说了组个团队再叫上一个成员），
  *   再 reply（confirm）一句“交给某某了，做好我直接告诉你”，任务卡挂在这句下面。
  * - [转告]（任务问用户、交结果、没做成）：reply（relay）在派活的聊天室说一句，挂上那个任务。
- * - “转达给任务 task_x：…”：forward 转过去，再 reply 一句“接着「…」做”。
+ * - “转达给任务 task_x：…”：forward 转过去（说的是方案 A、B 的当成回答它在问的问题，不写后续），再 reply（confirm，挂上那个任务）一句。
  * - “停掉任务 task_x”：stop。
  * - “谢谢”：ignore。
  * - “@ 一下 某某”：mention_member 叫它，再记 answer。
@@ -141,7 +141,14 @@ function stepsFor(item, context) {
   if (body.includes('测试漏掉')) return []
   if (body.includes('测试追问') && !nudged) return []
   const relay = /转达给任务 (task_[0-9a-z]+)/.exec(body)?.[1]
-  if (relay !== undefined) return [dispatch(id, { action: 'forward', task: relay, brief: `补充同一件事的后续：用户又说「${body}」。照这句改，前面做好的不动。` }), reply(item, `接着「${taskTitle(batch, relay)}」做`, 'confirm')]
+  if (relay !== undefined) {
+    // 回答任务在问的问题（选方案）不写后续，用户的话原样记成答复。
+    const answer = /方案 ?[AB]/.test(body)
+    return [
+      dispatch(id, { action: 'forward', task: relay, ...(answer ? {} : { brief: `补充同一件事的后续：用户又说「${body}」。照这句改，前面做好的不动。` }) }),
+      () => ({ tool: 'reply', args: { to: id, purpose: 'confirm', task: relay, text: answer ? `好，转给它了，接着做「${taskTitle(batch, relay)}」。` : `好，让它接着改「${taskTitle(batch, relay)}」。` } }),
+    ]
+  }
   const stop = /停掉任务 (task_[0-9a-z]+)/.exec(body)?.[1]
   if (stop !== undefined) return [dispatch(id, { action: 'stop', task: stop })]
   if (/^(谢谢|多谢|好的谢谢)/.test(body.trim())) return [dispatch(id, { action: 'ignore', reason: '道谢，不用处理' })]

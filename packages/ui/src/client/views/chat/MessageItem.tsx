@@ -210,8 +210,8 @@ export function MessageItem(props: MessageProps) {
           <XEventCard view={xEvent} />
         )}
         {attachment === undefined ? null : <Attachment attachment={attachment} />}
-        {/* Super-agent 转告任务的问题、结论：话下面挂那个任务的记号，点一下进任务对话。 */}
-        {message.data.purpose === 'relay' && typeof message.data.taskId === 'string' ? (
+        {/* Super-agent 转告任务的问题、结论，转给任务后的确认：话下面挂那个任务的记号，点一下在右边小窗打开任务对话。 */}
+        {(message.data.purpose === 'relay' || message.data.purpose === 'confirm') && typeof message.data.taskId === 'string' ? (
           <div className="pod-msg-chips">
             <TaskChip taskId={message.data.taskId} roomId={message.roomId} />
           </div>
