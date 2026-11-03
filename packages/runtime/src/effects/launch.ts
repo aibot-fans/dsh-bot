@@ -25,7 +25,6 @@ export interface LauncherDeps {
   readonly dispatcher: Dispatcher
   readonly bots: BotService
   readonly settings: () => PodSettings
-  readonly workspaceRoot: string
   /** 处理暂停了：先不开工（暂停处理那一阶段接上）。 */
   readonly paused: () => boolean
 }
@@ -122,22 +121,20 @@ export class Launcher {
 
   /** 开工说明：第一次是完整的任务说明；之后只说这次为什么开工。会话是新开的（例程第一次到点、旧会话换掉了）就两样都给。 */
   private briefFor(task: Task, run: TaskRun, fresh: boolean): string {
-    if (run.reason !== 'new' && fresh) return `${this.kickoff(task, run, false)}\n\n${this.briefFor(task, run, false)}`
-    if (run.reason === 'new') return this.kickoff(task, run, true)
-    return runBrief(task, run, { lastReport: latestDecisiveReport(this.deps.db, task.id), workspaceRoot: this.deps.workspaceRoot, watching: this.watching(task, run) })
+    if (run.reason !== 'new' && fresh) return `${this.kickoff(task, run)}\n\n${this.briefFor(task, run, false)}`
+    if (run.reason === 'new') return this.kickoff(task, run)
+    return runBrief(task, run, { lastReport: latestDecisiveReport(this.deps.db, task.id), watching: this.watching(task, run) })
   }
 
-  /** 完整的任务说明；不是新任务时（会话是新开的，要先补上说明）不写“开工原因：新任务”。 */
-  private kickoff(task: Task, run: TaskRun, newTask: boolean): string {
-    const requester = task.requesterSession === null ? undefined : this.deps.registry.get(task.requesterSession)
-    const fromName = requester === undefined ? '用户' : (this.deps.bots.get(requester.botId)?.name ?? 'Super-agent')
+  /** 完整的交代（会话是新开的、不是新任务时，先补上交代再写开工原因）。 */
+  private kickoff(task: Task, run: TaskRun): string {
     const assumptions = Array.isArray(run.detail.assumptions) ? run.detail.assumptions.filter((item): item is string => typeof item === 'string') : []
     // 等别的子任务就绪才开工的：带上它们的结果。
     const upstream = task.dependsOn.flatMap((id) => {
       const before = this.deps.engine.tickets.get(id)
       return before?.result == null ? [] : [{ taskId: before.id, title: before.title, summary: before.result.summary, files: before.result.files }]
     })
-    return composeBrief(task, { fromName, assumptions, conventions: [], upstream, workspaceRoot: this.deps.workspaceRoot, newTask })
+    return composeBrief(task, { assumptions, conventions: [], upstream })
   }
 
   /** 只读跟进的话题里，上次开工以后（或者开始跟进以后）的新消息，每个话题最多 10 条。 */

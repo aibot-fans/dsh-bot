@@ -92,12 +92,13 @@ export class Intake {
 
   /**
    * 前台把你的一条消息转给任务：同时让任务跟进这条所在的话题，之后在那里说的话直接到它。
-   * 任务交还过的不能再转回去。返回送进去时的投递或执行 id。
+   * followUp 是前台写的完整后续，送进去的就是这一条，以前台的名义。任务交还过的不能再转回去。返回送进去时的投递或执行 id。
    */
-  forward(task: Task, message: RoomMessage, by: string, note = ''): PodResult<string> {
+  forward(task: Task, message: RoomMessage, by: string, note = '', followUp?: { readonly author: string; readonly text: string }): PodResult<string> {
     if (this.deps.topics.handedBack(message.id, task.id)) return fail('conflict', t('「{title}」已经交还过这条消息，不能再转给它', { title: task.title }))
     return transaction(this.db, () => {
-      const ref = this.deps.deliver(task, { ...routedOf(message, '用户'), ...(note === '' ? {} : { note }) })
+      const routed = followUp === undefined ? { ...routedOf(message, '用户'), ...(note === '' ? {} : { note }) } : { id: message.id, author: followUp.author, replyTo: message.replyTo, text: followUp.text }
+      const ref = this.deps.deliver(task, routed)
       if (ref === undefined) return fail('conflict', t('任务已经停掉了；要接着做，先点继续'))
       this.deps.topics.followMessage(task.id, message.id, 'attached')
       // 记在转它的那个前台名下：这条在那个前台就算有去向了。

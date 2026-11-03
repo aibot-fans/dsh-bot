@@ -328,11 +328,9 @@ export class Orchestrator {
       return
     }
     const brief = composeBrief(running, {
-      fromName: this.leaderOf(root).name,
       assumptions,
       conventions: plan?.conventions ?? [],
       upstream,
-      workspaceRoot: this.deps.workspaceRoot,
     })
     this.deps.dispatcher.enqueue({
       sessionId: session.id,

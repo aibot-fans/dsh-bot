@@ -265,7 +265,7 @@ export function reportTool(pod: PodRuntime, session: PodSession): ToolDefinition
       about_message: str('问题针对哪条消息（消息 id，可选）'),
       reply_message: str('这次汇报回的是哪条消息（消息 id，可选）'),
       checks: intList('ready 或 progress 时勾上的验收项编号，从 1 开始；ready 不写就当作都过了'),
-      acceptance: strList('任务还没有验收项时，按用户的原话列出 2–5 条（第一次汇报时写）'),
+      acceptance: strList('可选：想把要做到的几点列成清单逐条勾时写（第一次汇报时）'),
       files: strList('产出文件的路径'),
       assumptions: strList('做了哪些假设'),
       unverified: strList('哪些信息没核实（有的话任务等用户验收）'),

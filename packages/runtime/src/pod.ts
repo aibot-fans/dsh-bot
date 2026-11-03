@@ -425,7 +425,6 @@ export class PodRuntime {
       dispatcher: this.dispatcher,
       bots: this.bots,
       settings: () => this.settings.get(),
-      workspaceRoot: options.workspaceRoot,
       paused: () => this.settings.get().paused,
     })
     this.intake = new Intake({
@@ -1233,7 +1232,7 @@ export class PodRuntime {
     if (bot === undefined) return
     try {
       const rotation = await this.segments.rotateTask(task, bot, session)
-      const brief = composeBrief(task, { fromName: 'dsh-bot', assumptions: [], conventions: [], upstream: [], workspaceRoot: this.options.workspaceRoot })
+      const brief = composeBrief(task, { assumptions: [], conventions: [], upstream: [] })
       this.dispatcher.enqueue({
         sessionId: rotation.session.id,
         mode: 'followup',

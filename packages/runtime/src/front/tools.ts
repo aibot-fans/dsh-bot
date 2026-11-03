@@ -20,6 +20,8 @@ interface Item {
   readonly action: Action
   readonly title: string
   readonly bot: string
+  /** open 的交代、forward 的完整后续：干活的 bot 在任务对话里看到的那条。 */
+  readonly brief: string
   readonly note: string
   readonly task: string
   readonly reason: string
@@ -35,7 +37,9 @@ const ITEM_SCHEMA: JsonSchema = {
     action: oneOf('open 开任务 / forward 转给任务 / stop 停任务 / ignore 不用处理 / answer 直接答（用 reply 答）', [...ACTIONS]),
     title: str('open：任务标题，简短'),
     bot: str('open：交给谁（名字或 id；交给自己写“自己”）'),
-    note: str('open、forward：一句备注（背景或用户的明确要求），只给干活的 bot 看'),
+    brief: str(
+      'open：交代全文，就是干活的 bot 在任务对话里看到的第一条（用户也看得到）。它看不到这边的对话，要单独能看懂：先引用户原话，再写要做成什么、它不知道的背景和用户定过的要求、要弄清的几点、给谁看、要多细；不写怎么做，不写 id、文件夹、验收项。forward：一条完整的后续：用户又说了什么（引原话）、要改什么、哪些不动',
+    ),
     task: str('forward、stop：任务 id'),
     reason: str('ignore：一句原因'),
     urgent: bool('open：用户说了急'),
@@ -64,6 +68,7 @@ function readItems(args: Readonly<Record<string, unknown>>): readonly Item[] | s
       action: action as Action,
       title: text(entry, 'title'),
       bot: text(entry, 'bot'),
+      brief: text(entry, 'brief'),
       note: text(entry, 'note'),
       task: text(entry, 'task'),
       reason: text(entry, 'reason'),
@@ -119,7 +124,10 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
     const room = first === undefined ? undefined : pod.rooms.get(first.roomId)
     if (first === undefined || room === undefined) return '找不到消息所在的聊天室'
     const quotes: OriginQuote[] = messages.map((message) => ({ messageId: message.id, author: speaker(message.author), text: message.body }))
-    const brief = [item.note, ...messages.map((message) => pushedNote(message.id))].filter((line) => line !== '').join('\n')
+    // 交代照 Super-agent 写的；交给前台时附的说明（上传的文件、页面修改要求、交还的原因）它没写进去的补在后面。
+    const written = item.brief !== '' ? item.brief : item.note
+    const pushed = messages.map((message) => pushedNote(message.id)).filter((line) => line !== '' && !written.includes(line))
+    const brief = [written, ...pushed].filter((line) => line !== '').join('\n\n')
     const replyTo: ReplyTarget[] = [...new Set(messages.map((message) => message.roomId))].map((roomId) => ({ roomId, messageId: messages.filter((message) => message.roomId === roomId).at(-1)?.id ?? null }))
     const pageId = messages.map((message) => message.data.pageId).find((value): value is string => typeof value === 'string')
     const created = await pod.tasks.delegate({
@@ -158,15 +166,26 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
   const forward = (item: Item, messages: readonly RoomMessage[], task: Task): string => {
     if (task.endedAt !== null && task.endReason === 'stopped') return `任务「${task.title}」已经停掉了；要接着做，请用户点继续`
     const errors: string[] = []
-    for (const message of messages) {
-      if (isTicket(task)) {
-        const sent = pod.intake.forward(task, message, session.botId, item.note)
-        if (!sent.ok) errors.push(`${message.id}：${sent.error.message}`)
-        continue
+    const name = me()?.name ?? '前台'
+    if (isTicket(task)) {
+      // 写了完整后续的，后续挂在第一条上送一次（以前台的名义），其余几条照原话送。
+      const [head, ...rest] = messages
+      const plan = item.brief !== '' && head !== undefined ? [{ message: head, followUp: { author: name, text: item.brief } }, ...rest.map((message) => ({ message, followUp: undefined }))] : messages.map((message) => ({ message, followUp: undefined }))
+      for (const step of plan) {
+        const sent = pod.intake.forward(task, step.message, session.botId, step.followUp === undefined && item.brief === '' ? item.note : '', step.followUp)
+        if (!sent.ok) errors.push(`${step.message.id}：${sent.error.message}`)
       }
-      const sent = pod.tasks.sendToTask(task, `[用户原话，经${me()?.name ?? '前台'}转来] ${message.body}${item.note === '' ? '' : `\n说明：${item.note}`}`, ownerSource(), message.body)
-      if (!sent.ok) errors.push(`${message.id}：${sent.error.message}`)
-      else pod.engine.topics.decide(message.id, session.botId, 'relayed', task.id, item.note)
+      return errors.length > 0 ? errors.join('；') : `转给了「${task.title}」`
+    }
+    // 转进去的是 Super-agent 写的一条完整后续；没写的照旧一条条带上原话。
+    const sends =
+      item.brief !== ''
+        ? [{ messages, text: item.brief, quote: { id: null, author: name, replyTo: null, text: item.brief } as const }]
+        : messages.map((message) => ({ messages: [message], text: `用户又说：「${message.body}」${item.note === '' ? '' : `\n${item.note}`}`, quote: message.body }))
+    for (const send of sends) {
+      const sent = pod.tasks.sendToTask(task, send.text, ownerSource(), send.quote)
+      if (!sent.ok) errors.push(`${send.messages.map((message) => message.id).join('、')}：${sent.error.message}`)
+      else for (const message of send.messages) pod.engine.topics.decide(message.id, session.botId, 'relayed', task.id, item.brief !== '' ? item.brief : item.note)
     }
     return errors.length > 0 ? errors.join('；') : `转给了「${task.title}」`
   }
@@ -209,7 +228,7 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
     name: 'dispatch',
     description: [
       '给新消息记去向，一次 1 到 20 条，几条说的是同一件事放在同一项里。每条新消息都要有去向：',
-      'open 开任务交给对口的 bot（要查要跑的、要写成长东西的），用户原话会原样放进任务；forward 转给明确指向的开着的任务（同时让它跟进那条消息所在的话题）；',
+      'open 开任务交给对口的 bot（要查要跑的、要写成长东西的），brief 写交代；forward 转给明确指向的任务（同时让它跟进那条消息所在的话题），brief 写完整的后续；',
       'stop 用户要求时停任务；ignore 不用处理（写原因）；answer 直接答，然后用 reply 答（reply 回的那条会自动记成直接答，不用再记）。',
     ].join(''),
     properties: { items: { type: 'array', items: ITEM_SCHEMA, description: '每项一个去向' } },

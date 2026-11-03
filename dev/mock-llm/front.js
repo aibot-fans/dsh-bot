@@ -93,6 +93,12 @@ function openTitle(body) {
   return '整理测试说明'
 }
 
+/** 交代：学 Super-agent 的写法，先引用户原话，再写要做成什么、给谁看。 */
+function briefOf(body) {
+  const hurry = body.includes('急') ? '用户说了急，先交能用的。' : ''
+  return `用户说：「${body}」\n请照用户说的做完。${hurry}结果用中文写给用户，先说结论。`
+}
+
 function dispatch(id, fields) {
   return () => ({ tool: 'dispatch', args: { items: [{ messages: [id], ...fields }] } })
 }
@@ -108,7 +114,7 @@ function stepsFor(item, context) {
   if (body.includes('测试漏掉')) return []
   if (body.includes('测试追问') && !nudged) return []
   const relay = /转达给任务 (task_[0-9a-z]+)/.exec(body)?.[1]
-  if (relay !== undefined) return [dispatch(id, { action: 'forward', task: relay, note: '' }), reply(item, `接着「${taskTitle(batch, relay)}」做`, 'confirm')]
+  if (relay !== undefined) return [dispatch(id, { action: 'forward', task: relay, brief: `补充同一件事的后续：用户又说「${body}」。照这句改，前面做好的不动。` }), reply(item, `接着「${taskTitle(batch, relay)}」做`, 'confirm')]
   const stop = /停掉任务 (task_[0-9a-z]+)/.exec(body)?.[1]
   if (stop !== undefined) return [dispatch(id, { action: 'stop', task: stop })]
   if (/^(谢谢|多谢|好的谢谢)/.test(body.trim())) return [dispatch(id, { action: 'ignore', reason: '道谢，不用处理' })]
@@ -134,7 +140,7 @@ function stepsFor(item, context) {
   if (/交给|委派/.test(body)) {
     const named = /交给([^\s，。,]+)/.exec(body)?.[1]
     const bot = member || named === undefined ? '自己' : named
-    return [dispatch(id, { action: 'open', title: openTitle(body), bot, note: body.includes('急') ? '用户说了急' : '' })]
+    return [dispatch(id, { action: 'open', title: openTitle(body), bot, brief: briefOf(body) })]
   }
   if (body.includes('进度') && tools.has('task_status')) return [() => ({ tool: 'task_status', args: {} }), (result) => ({ tool: 'reply', args: { to: id, purpose: 'answer', text: `进度：${result.slice(0, 300)}` } })]
   if (body.includes('记住') && tools.has('remember')) {

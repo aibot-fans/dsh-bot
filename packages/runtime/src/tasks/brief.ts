@@ -2,14 +2,10 @@ import { REPORT_STATUS_LABELS, type RoutedMessage, type Task, type TaskReport, t
 import { CARD_LIMITS, clipCard } from '../core/cards.ts'
 
 export interface BriefContext {
-  readonly fromName: string
   readonly assumptions: readonly string[]
   readonly conventions: readonly string[]
   /** 上游子任务的结果摘要和文件路径。 */
   readonly upstream: readonly { readonly taskId?: string; readonly title: string; readonly summary: string; readonly files: readonly string[] }[]
-  readonly workspaceRoot: string
-  /** 这次开工不是新任务（触发器叫醒、重启后接着做）时为 false：开工原因写在后面那段里，这里不写“新任务”。 */
-  readonly newTask?: boolean
 }
 
 function numbered(items: readonly string[]): string {
@@ -19,13 +15,18 @@ function numbered(items: readonly string[]): string {
 /** 开工说明里一段收短后最少留多少字。 */
 const PART_MIN = 60
 
-/** 来由里你的原话，每条带消息 id；太长截断，留着 id 能读回全文。limit 是这一段一共多少字。 */
+/** 交代里引原话时，拿原话开头这么多字比对。 */
+const QUOTE_PROBE = 24
+
+/**
+ * 交代里没引到的原话补在最前面：Super-agent 写的交代自己引了原话；别处开的任务（例程、子任务、旧任务）只有原话加说明。
+ * 太长截断，截断处留着消息 id 能读回全文。limit 是这一段一共多少字。
+ */
 function originLines(task: Task, limit: number = CARD_LIMITS.message): string {
-  const quotes = task.origin?.quotes ?? []
+  const quotes = (task.origin?.quotes ?? []).filter((quote) => quote.text.trim() !== '' && !task.brief.includes(quote.text.trim().slice(0, QUOTE_PROBE)))
   if (quotes.length === 0) return ''
   const each = Math.max(PART_MIN, Math.floor(limit / quotes.length) - 20)
-  const lines = quotes.map((quote) => `- ${quote.author}${quote.messageId === null ? '' : `（${quote.messageId}）`}：${clipCard(quote.text, each, quote.messageId)}`)
-  return `来由（原话）：\n${lines.join('\n')}`
+  return quotes.map((quote) => `${quote.author}说：「${clipCard(quote.text.trim(), each, quote.messageId)}」`).join('\n')
 }
 
 /** 开工说明的一段：固定的直接是文字；能收短的给出收短的办法（截断处留 id）。 */
@@ -57,12 +58,10 @@ function bulletList(title: string, items: readonly string[], limit: number): str
   return `${title}\n${items.map((item) => `- ${clipCard(item, each, null)}`).join('\n')}`
 }
 
-const REPORT_HOWTO =
-  '做完、卡住、做不成都用 report 汇报：做完是 ready（写报告，勾验收项），缺东西做不下去是 blocked（附一个问题），试过做不成是 failed，这一步做完等后续消息是 waiting，看过了不用做是 dismissed；中途想更新任务卡就报 progress。'
-
 /**
- * 交给任务会话的第一条消息：任务说明、交付物、验收项、文件夹和上游结果。整张不超过开工说明的上限：
- * 太长时依次收短上游结果、约定、前提、说明，最后才收短你的原话；截断处都留着 id，能用 read 读回全文。
+ * 交给任务会话的第一条消息，就是任务对话里的那条交代：Super-agent 写的交代（没引到的原话补在前面），子任务再带上
+ * 要做到的几条、前提、约定和上游结果。任务 id、文件夹、汇报办法都在系统提示里，这里不写。整张不超过开工说明的上限：
+ * 太长时依次收短上游结果、约定、前提、交代，最后才收短原话；截断处都留着 id，能用 read 读回全文。
  */
 export function composeBrief(task: Task, context: BriefContext): string {
   const upstream = (limit: number): string => {
@@ -72,31 +71,21 @@ export function composeBrief(task: Task, context: BriefContext): string {
     return `上游结果：\n${lines.join('\n')}`
   }
   const parts: readonly BriefPart[] = [
-    { text: `[${context.fromName}交给你的任务]` },
-    { text: `任务：${task.title}（${task.id}）` },
     { text: originLines(task), shrink: (limit) => originLines(task, limit) },
-    { text: task.brief === '' ? '' : `说明：\n${task.brief}`, shrink: (limit) => `说明：\n${clipCard(task.brief, limit - 4, task.id)}` },
-    { text: task.deliverable === '' ? '' : `交付物：${task.deliverable}` },
-    {
-      text:
-        task.acceptance.length === 0
-          ? '还没有验收项：先按用户的原话列出 2–5 条，作为第一次汇报（report 的 acceptance，状态 progress）。'
-          : `验收项（就绪时在 report 的 checks 里勾上，编号从 1 开始）：\n${numbered(task.acceptance.map((item) => item.text))}`,
-    },
+    { text: task.brief, shrink: (limit) => clipCard(task.brief, limit, task.id) },
+    { text: task.deliverable === '' ? '' : `要交：${task.deliverable}` },
+    { text: task.acceptance.length === 0 ? '' : `要做到：\n${numbered(task.acceptance.map((item) => item.text))}` },
     { text: bulletList('已定下的前提：', context.assumptions, 600), shrink: (limit) => bulletList('已定下的前提：', context.assumptions, limit) },
     { text: bulletList('任务约定（所有子任务都照着做）：', context.conventions, 600), shrink: (limit) => bulletList('任务约定（所有子任务都照着做）：', context.conventions, limit) },
     { text: upstream(CARD_LIMITS.message), shrink: upstream },
-    { text: `任务文件夹：${context.workspaceRoot}/${task.folder}/（过程文件和产出都放这里）` },
-    { text: context.newTask === false ? '' : '开工原因：新任务。' },
-    { text: REPORT_HOWTO },
   ]
-  return fitParts(parts, [8, 7, 6, 3, 2], CARD_LIMITS.kickoff)
+  const brief = fitParts(parts, [6, 5, 4, 1, 0], CARD_LIMITS.kickoff)
+  return brief === '' ? task.title : brief
 }
 
 export interface RunBriefContext {
   /** 重试时附的上次汇报。 */
   readonly lastReport: TaskReport | undefined
-  readonly workspaceRoot: string
   /** 只读跟进的话题里上次开工以后的新消息（只看不接）。 */
   readonly watching: readonly RoutedMessage[]
 }
@@ -141,16 +130,24 @@ function runNotices(run: TaskRun): readonly string[] {
   return Array.isArray(run.detail.notices) ? run.detail.notices.filter((item): item is string => typeof item === 'string') : []
 }
 
-/** 同一个任务的又一次执行：同一个会话、同一个文件夹，开工说明写明原因。 */
+/**
+ * 同一个任务的又一次执行：同一个会话、同一个文件夹，开工说明写明原因。接着说的话（你在任务对话里说的、Super-agent
+ * 转来的后续）只送那几句话本身；文件夹和汇报办法在系统提示里。
+ */
 export function runBrief(task: Task, run: TaskRun, context: RunBriefContext): string {
   const messages = runMessages(run)
   const notices = runNotices(run)
   const routed = messages.some((message) => message.id !== null)
-  const head = `[dsh-bot] 任务「${task.title}」（${task.id}）开始新的一次执行。`
+  const watching =
+    context.watching.length === 0 ? undefined : ['只读跟进的话题里的新消息（只看不接，不用确认或交还）：', ...context.watching.map((message) => `- ${message.id ?? ''} ${message.author}：${message.text}`)].join('\n')
+  if (run.reason === 'message' && messages.length > 0) {
+    return [[...messages.map(routedLine), ...(routed ? [ROUTED_HOWTO] : [])].join('\n'), watching].filter((part): part is string => part !== undefined).join('\n\n')
+  }
+  const head = `[dsh-bot] 任务「${task.title}」开始新的一次执行。`
   const reason = ((): string => {
     switch (run.reason) {
       case 'message':
-        return ['开工原因：用户的新消息。', ...messages.map(routedLine), ...(routed ? [ROUTED_HOWTO] : [])].join('\n')
+        return '开工原因：用户的新消息。'
       case 'retry': {
         const last = context.lastReport
         return [
@@ -177,10 +174,8 @@ export function runBrief(task: Task, run: TaskRun, context: RunBriefContext): st
         return `开工原因：${typeof run.detail.note === 'string' ? run.detail.note : '接着做'}`
     }
   })()
-  const watching =
-    context.watching.length === 0 ? undefined : ['只读跟进的话题里的新消息（只看不接，不用确认或交还）：', ...context.watching.map((message) => `- ${message.id ?? ''} ${message.author}：${message.text}`)].join('\n')
   const subtasks = notices.length === 0 ? undefined : notices.join('\n\n')
-  return [head, reason, subtasks, watching, `任务文件夹：${context.workspaceRoot}/${task.folder}/`, REPORT_HOWTO].filter((part): part is string => part !== undefined).join('\n\n')
+  return [head, reason, subtasks, watching].filter((part): part is string => part !== undefined).join('\n\n')
 }
 
 /** 一轮结束却没汇报时的提醒。 */

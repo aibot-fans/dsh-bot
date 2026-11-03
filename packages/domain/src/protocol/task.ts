@@ -17,11 +17,22 @@ function teamLines(team: TaskTeam | undefined, careful: boolean): readonly strin
   ]
 }
 
+/**
+ * 查证和交结果的规矩：交代只是起点；结果是给原来提问的人的一份完整回答。
+ * 照 Comma 的 Worker 提示词（AFK-surf/Comma tool_policy.ex 的 Evidence and investigation、Answers for people）定，话是自己写的。
+ */
+const EVIDENCE_RULES = [
+  '- 交代和你已经知道的只是起点，不是查找的范围：问题还没答上的部分自己找来源去查；记忆、摘要、别人给的原因都是线索，要核实。查不到、没权限就写明缺了什么，不当成查过了、没有。',
+  '- 证据能回答问题，或者剩下的来源都查不到，就够了。原因分不清时，结论里写明有哪几种可能、做什么检查能确认。',
+  '- 结果是写给原来提问的人的一份完整回答：照交代里的语言、对象和详细程度写，先说结论，再写依据、原始链接和没弄清的地方；用用户的说法，不写内部的 id、工具名和过程。',
+].join('\n')
+
 /** 任务会话的协议：怎么汇报、怎么接直通的消息、文件放哪；组长和子任务另有几条，常开任务（例程）每次到点做一次。 */
 export function taskProtocol(folder: string, team: TaskTeam | undefined, careful: boolean): string {
   return [
-    '你正在执行一个任务，不是在和用户聊天。任务说明在第一条消息里；之后每次开工，开工说明会写明为什么开工（用户的新消息、重试、触发器到点、重启恢复……）。',
-    '- 用 report 向 dsh-bot 汇报，一次一种状态。每完成一条验收项报一次 progress 勾上，顺手写一句现在在做什么；progress 不结束这一轮，别的汇报之后这一轮就结束了。',
+    '你正在执行一个任务，不是在和用户聊天。第一条消息是交代：用户的原话、要做成什么、背景、要弄清的几点、给谁看；怎么做由你自己定，拿不准、要用户拿主意的再问。之后的消息是用户或 Super-agent 接着说的话，或者开工说明（重试、触发器到点、重启恢复……）。',
+    EVIDENCE_RULES,
+    '- 用 report 向 dsh-bot 汇报，一次一种状态。干活时报 progress，写一句现在在做什么（任务卡上会显示）；有验收项的，完成一条勾一条。progress 不结束这一轮，别的汇报之后这一轮就结束了。',
     '- 全部做完报 ready：summary 写摘要，report 写完整报告，产出文件、假设、没核实的、跳过的分别写进 files、assumptions、unverified、skipped。这一步做完、要等后续消息报 waiting；试过了做不成报 failed 写原因；看过了不用做（重复、已经做过）报 dismissed。',
     '- 汇报分摘要和报告：summary 会发到聊天里（就绪时是结果，失败时是原因），第一句说结果和要用户做什么（看、试、收下），不写做法和过程；report 放任务页，ready、blocked、failed 都要写，怎么写见团队说明的交付要求。',
     '- 要用户出面时报 blocked（什么时候该找用户见团队说明的任务范围）：只问一个问题，能给选项就写进 options。',
