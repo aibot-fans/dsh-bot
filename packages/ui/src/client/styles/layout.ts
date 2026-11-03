@@ -21,7 +21,6 @@ export const LAYOUT_CSS = `
 .pod-side-row { appearance: none; position: relative; display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 6px 8px; border: 0; border-radius: 10px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .pod-side-row:hover { background: var(--pod-soft); }
 .pod-side-row:focus-visible { outline: 2px solid var(--pod-info); outline-offset: -2px; }
-.pod-side-row-active { background: color-mix(in srgb, var(--dsw-alias-label-primary) 8%, transparent); }
 .pod-side-row-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
 .pod-side-busy { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--pod-info); animation: pod-blink 1.6s infinite; }
 .pod-side-empty { margin: 0; padding: 4px 10px; font-size: 12px; line-height: 1.6; color: var(--dsw-alias-label-tertiary); }

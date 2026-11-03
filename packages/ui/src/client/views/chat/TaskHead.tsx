@@ -2,13 +2,7 @@ import { t, type RoomSummary } from 'pod-domain'
 import { Icon } from '../../components/Icon.tsx'
 import { TaskStateIcon, bucketLabel, bucketOf } from '../../components/TaskEntry.tsx'
 import { useSnapshot } from '../../components/taskParts.tsx'
-import { useApp, useNav, type AppState } from '../../state/app.ts'
-
-/** 任务对话的详情：单聊是干活的 bot 的详情，群聊是群详情。 */
-export function showRoomDetails(app: AppState, room: RoomSummary): void {
-  if (room.kind !== 'direct') app.showGroup(room.id)
-  else if (room.botId !== null) app.showBot(room.botId)
-}
+import { useApp, useNav } from '../../state/app.ts'
 
 /** 右边开着的是不是这个对话的详情（bot 详情或群详情，哪一页都算）。 */
 function useDetailsOpen(room: RoomSummary): boolean {
@@ -25,7 +19,7 @@ export function TaskStatusPill(props: { readonly room: RoomSummary; readonly tas
   if (open || snapshot === undefined) return null
   const bucket = bucketOf(snapshot)
   return (
-    <button type="button" className={`pod-task-pill pod-task-pill-${bucket}`} title={t('打开详情')} onClick={() => showRoomDetails(app, props.room)}>
+    <button type="button" className={`pod-task-pill pod-task-pill-${bucket}`} title={t('打开详情')} onClick={() => app.showRoomDetails(props.room.id)}>
       <TaskStateIcon snapshot={snapshot} />
       {bucketLabel(snapshot, bucket)}
     </button>
@@ -38,7 +32,7 @@ export function DetailsToggle(props: { readonly room: RoomSummary }) {
   const open = useDetailsOpen(props.room)
   const label = open ? t('收起详情') : t('打开详情')
   return (
-    <button type="button" className={`pod-head-button${open ? ' pod-head-button-on' : ''}`} aria-pressed={open} aria-label={label} title={label} onClick={() => (open ? app.closePanel() : showRoomDetails(app, props.room))}>
+    <button type="button" className={`pod-head-button${open ? ' pod-head-button-on' : ''}`} aria-pressed={open} aria-label={label} title={label} onClick={() => (open ? app.closePanel() : app.showRoomDetails(props.room.id))}>
       <Icon name="panel" size={17} />
     </button>
   )

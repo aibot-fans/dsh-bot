@@ -38,7 +38,6 @@ export const BASE_CSS = `
 .pod-muted { margin: 0; color: var(--dsw-alias-label-tertiary); font-size: 13px; }
 .pod-muted-inline { color: var(--dsw-alias-label-tertiary); font-size: 12px; }
 .pod-hint { color: var(--dsw-alias-label-tertiary); font-size: 12px; font-weight: 400; }
-.pod-label { font-size: 12px; color: var(--dsw-alias-label-tertiary); margin-right: 6px; }
 .pod-pre { white-space: pre-wrap; margin: 0; font-size: 13px; color: var(--dsw-alias-label-secondary); }
 .pod-icon { flex: none; }
 .pod-avatar { position: relative; flex: none; border-radius: 50%; display: inline-grid; place-items: center; user-select: none; }
@@ -70,8 +69,6 @@ export const BASE_CSS = `
 .pod-badge-danger { color: var(--pod-danger); background: color-mix(in srgb, var(--pod-danger) 12%, transparent); }
 .pod-tag { flex: none; padding: 1px 8px; border-radius: 999px; font-size: 11px; color: var(--dsw-alias-label-secondary); background: var(--pod-soft); }
 .pod-tags { display: flex; flex-wrap: wrap; gap: 4px; }
-.pod-unread { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; font-size: 11px; line-height: 18px; text-align: center; color: #fff; background: var(--pod-info); }
-.pod-unread-warn { background: var(--pod-warn); }
 .pod-chip { appearance: none; font: inherit; font-size: 12px; padding: 3px 12px; border-radius: 999px; border: 1px solid var(--pod-line); background: transparent; color: var(--dsw-alias-label-secondary); cursor: pointer; }
 .pod-chip-active { background: var(--dsw-alias-label-primary); color: var(--dsw-alias-bg-layer-1, #fff); border-color: transparent; }
 .pod-tabs { display: flex; gap: 6px; }

@@ -76,14 +76,21 @@ export function GroupChip(props: { readonly roomId: string; readonly title: stri
 }
 
 /**
- * 打开任务的对话（另开的单聊、任务群）。在对话里点的（from 是点的地方所在的对话）在右边小窗打开，手机上直接进去；
- * 从任务栏这些地方点的（不给 from）整页打开。就在原来的对话里干的、或者正在它自己的对话里，打开「过程」。
+ * 打开任务的对话（另开的单聊、任务群）。在别的对话里点的（from 是点的地方所在的对话）在右边小窗打开，手机上直接进去；
+ * 从任务栏、搜索这些地方点的（不给 from）整页打开；已经在它的对话里，打开右边的详情。
+ * 没有自己对话的（就在原来的对话里干的、以前没开群的）跳到放结果的那条消息。
  */
 export function openTaskConversation(app: AppState, snapshot: TaskSnapshot, from?: string): void {
   const conversation = snapshot.conversationId ?? null
-  if (conversation === null || conversation === from) app.openTask(snapshot.task.id)
-  else if (from !== undefined && !matches(NARROW_QUERY)) app.openTaskWindow(snapshot.task.id)
+  if (conversation === null) app.openTaskResult(snapshot.task.id, snapshot.task.roomId)
+  else if (conversation === app.getNav().roomId) app.showRoomDetails(conversation)
+  else if (from !== undefined && from !== conversation && !matches(NARROW_QUERY)) app.openTaskWindow(snapshot.task.id)
   else app.openRoom(conversation)
+}
+
+/** 只知道任务 id 时（搜索结果）：先取到任务，再照 openTaskConversation 打开。 */
+export function openTaskById(app: AppState, taskId: string): Promise<void> {
+  return api.taskSnapshot(taskId).then((snapshot) => openTaskConversation(app, snapshot))
 }
 
 /**

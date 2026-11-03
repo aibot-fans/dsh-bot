@@ -12,7 +12,6 @@ import { useMobileBack } from '../state/mobileBack.ts'
 import { useResource } from '../state/resource.ts'
 import { Conversation } from './chat/Conversation.tsx'
 import { Onboarding } from './Onboarding.tsx'
-import { OverviewView } from './overview/OverviewView.tsx'
 import { PageViewer } from './pages/PageViewer.tsx'
 import { useSurfaceTheme } from './pages/theme.ts'
 import { Drawers } from './panel/Drawers.tsx'
@@ -21,7 +20,6 @@ import { SearchDialog } from './search/SearchDialog.tsx'
 import { SettingsModal } from './settings/SettingsModal.tsx'
 import { SystemBanners } from './SystemBanners.tsx'
 import { Sidebar } from './side/Sidebar.tsx'
-import { TaskPage } from './tasks/TaskPage.tsx'
 import { UpdateDialog } from './update/UpdateDialog.tsx'
 import { UpdateNotice } from './update/UpdateNotice.tsx'
 
@@ -118,21 +116,12 @@ function Layout() {
   useEscapeClosesPanel()
   useRoomHousekeeping()
   useMobileBack(app, narrow)
-  // 中间一栏：页面查看器 > 任务页 > 概览 > 对话。
-  const center =
-    nav.page !== null ? (
-      <PageViewer key={nav.page.id} pageId={nav.page.id} version={nav.page.version} />
-    ) : nav.taskId !== null ? (
-      <TaskPage key={nav.taskId} taskId={nav.taskId} />
-    ) : nav.overview ? (
-      <OverviewView />
-    ) : (
-      <Conversation />
-    )
+  // 中间一栏：开着页面查看器就是它，不然是对话。
+  const center = nav.page !== null ? <PageViewer key={nav.page.id} pageId={nav.page.id} version={nav.page.version} /> : <Conversation />
   if (narrow) {
     return (
       <div className="pod-layout pod-layout-narrow">
-        {nav.page === null && nav.roomId === null && nav.taskId === null && !nav.overview ? <Sidebar /> : center}
+        {nav.page === null && nav.roomId === null ? <Sidebar /> : center}
         <RightPanel />
       </div>
     )
@@ -146,7 +135,7 @@ function Layout() {
   )
 }
 
-/** Pod 页面的外壳：左侧栏、中间对话（或页面查看器、任务页、概览）、右侧面板，加上设置弹窗、更新弹窗、搜索和抽屉。没有顶部导航。 */
+/** Pod 页面的外壳：左侧栏、中间对话（或页面查看器）、右侧面板，加上设置弹窗、更新弹窗、搜索和抽屉。没有顶部导航。 */
 export function PodApp(props: { readonly host: HostActions; readonly locale: HostLocale }) {
   const [app] = useState(() => new AppState(props.host))
   useEffect(() => () => app.dispose(), [app])

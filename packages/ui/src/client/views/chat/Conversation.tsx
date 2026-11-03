@@ -10,7 +10,6 @@ import { TaskRail } from '../home/TaskRail.tsx'
 import { ChatBody, useChatBots } from './ChatBody.tsx'
 import { ChatHeader } from './ChatHeader.tsx'
 import { PinnedBar } from './PinnedBar.tsx'
-import { showRoomDetails } from './TaskHead.tsx'
 
 /**
  * 中间的对话：顶部是对象（有置顶消息时下面一条置顶条），中间是时间线，底部是输入框；群里不放状态条，状态在群详情里；
@@ -42,7 +41,7 @@ export function Conversation() {
     if (room === undefined || entered.current === room.id) return
     entered.current = room.id
     if (narrow || room.taskId === null || app.getNav().panel !== null) return
-    showRoomDetails(app, room)
+    app.showRoomDetails(room.id)
   }, [app, room?.id, narrow])
 
   if (room === undefined) {

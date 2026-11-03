@@ -4,6 +4,7 @@ import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { pageApi } from '../../api/pages.ts'
 import { Avatar, Badge, Empty, Modal, RelativeTime } from '../../components/common.tsx'
+import { openTaskById } from '../../components/TaskEntry.tsx'
 import { useApp, useNav } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 import { matches } from '../pages/grouping.ts'
@@ -65,6 +66,12 @@ export function SearchDialog() {
 
   if (nav.search === null) return null
   const close = (): void => app.navigate({ search: null })
+  // 任务和任务里的文件、网页：打开那个任务的对话。
+  const openTask = (taskId: string): void => {
+    openTaskById(app, taskId)
+      .then(close)
+      .catch((reason: unknown) => setError(errorText(reason)))
+  }
   const open = (hit: SearchHit): void => {
     const id = hit.ref.slice(hit.ref.indexOf(':') + 1)
     if (hit.kind === 'message') {
@@ -73,15 +80,13 @@ export function SearchDialog() {
         .then((message) => app.focusMessage(message.roomId, message.seq, message.id))
         .catch((reason: unknown) => setError(errorText(reason)))
     } else if (hit.kind === 'task') {
-      close()
-      app.openTask(hit.taskId ?? id)
+      openTask(hit.taskId ?? id)
     } else if (hit.kind === 'memory') {
       close()
       if (hit.botId !== null) app.openDrawer({ kind: 'memory', scope: 'bot', scopeId: hit.botId, label: t('记忆') })
       else app.openDrawer({ kind: 'memory', scope: 'owner', scopeId: '', label: t('你的档案') })
     } else if (hit.taskId !== null) {
-      close()
-      app.openTask(hit.taskId)
+      openTask(hit.taskId)
     }
   }
 
@@ -152,15 +157,8 @@ export function SearchDialog() {
                   <Snippet text={hit.snippet} />
                 </button>
                 {hit.kind !== 'message' || hit.taskId === null ? null : (
-                  <button
-                    type="button"
-                    className="pod-link pod-hit-task"
-                    onClick={() => {
-                      close()
-                      app.openTask(hit.taskId ?? '')
-                    }}
-                  >
-                    {t('打开它的任务页')}
+                  <button type="button" className="pod-link pod-hit-task" onClick={() => openTask(hit.taskId ?? '')}>
+                    {t('打开它的任务对话')}
                   </button>
                 )}
               </li>

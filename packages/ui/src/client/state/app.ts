@@ -48,10 +48,6 @@ export interface NavState {
   readonly settings: SettingsTab | null
   /** 搜索框里的词；null 表示搜索关着。 */
   readonly search: string | null
-  /** 打开的任务页：中间换成这个任务的页面。 */
-  readonly taskId: string | null
-  /** 中间是概览（现在要我处理什么、系统好不好、进行中的）。 */
-  readonly overview: boolean
   /** 从搜索结果跳过来时要定位的消息。 */
   readonly focus: { readonly roomId: string; readonly seq: number; readonly messageId: string } | null
   /** 打开的页面：中间的对话换成页面查看器。 */
@@ -95,7 +91,7 @@ const NAV_KEY = 'pod-ui.nav.v2'
 /** 任务小窗最多同时开这么多个标签页，再开新的把最早开的那个挤掉。 */
 const TASK_TABS_MAX = 8
 
-const CLOSED: Omit<NavState, 'roomId' | 'sidebarCollapsed'> = { panel: null, drawer: null, settings: null, search: null, taskId: null, overview: false, focus: null, page: null, update: false }
+const CLOSED: Omit<NavState, 'roomId' | 'sidebarCollapsed'> = { panel: null, drawer: null, settings: null, search: null, focus: null, page: null, update: false }
 
 function loadNav(): NavState {
   const fallback: NavState = { ...CLOSED, roomId: null, sidebarCollapsed: false }
@@ -172,19 +168,14 @@ export class AppState {
   openRoom(roomId: string): void {
     const same = this.nav.roomId === roomId
     const panel = same ? this.nav.panel : null
-    this.navigate({ roomId, focus: null, search: null, settings: null, panel, page: null, taskId: null, overview: false })
+    this.navigate({ roomId, focus: null, search: null, settings: null, panel, page: null })
     // 点的就是开着的这个对话：输入框没换，叫它拿焦点；换了对话，新的输入框装上时自己拿。
     if (same) for (const listener of this.focusListeners) listener(roomId)
   }
 
   /** 手机上回到列表：不在任何对话里（临时对话就此删掉），列表上的未读照常算。宽屏上中间会回到主管的单聊。 */
   showList(): void {
-    this.navigate({ roomId: null, panel: null, page: null, focus: null, taskId: null, overview: false })
-  }
-
-  /** 中间换成概览；开着的任务页和页面查看器关上。 */
-  showOverview(): void {
-    this.navigate({ overview: true, taskId: null, page: null, search: null, settings: null })
+    this.navigate({ roomId: null, panel: null, page: null, focus: null })
   }
 
   /** 打开和某个 bot 的单聊（没有就建一个）。 */
@@ -226,16 +217,18 @@ export class AppState {
   /** 跳到某条消息：加载它前后的内容并高亮。换了对话，右侧开着的也关掉（和 openRoom 一样）。 */
   focusMessage(roomId: string, seq: number, messageId: string): void {
     const panel = this.nav.roomId === roomId ? this.nav.panel : null
-    this.navigate({ roomId, focus: { roomId, seq, messageId }, search: null, page: null, taskId: null, overview: false, panel })
+    this.navigate({ roomId, focus: { roomId, seq, messageId }, search: null, page: null, panel })
   }
 
-  /** 中间换成任务页；关上它回到原来的对话或概览。开着的页面查看器关上。 */
-  openTask(taskId: string): void {
-    this.navigate({ taskId, page: null, search: null })
-  }
-
-  closeTask(): void {
-    this.navigate({ taskId: null })
+  /** 没有自己对话的任务（就在原来的对话里干的、以前没开群的）：跳到放结果的那条消息；一条有关的都找不到，打开 fallback 这个对话。 */
+  openTaskResult(taskId: string, fallback: string | null): void {
+    const open = (): void => {
+      if (fallback !== null) this.openRoom(fallback)
+    }
+    void api
+      .taskMessage(taskId)
+      .then((message) => (message === null ? open() : this.focusMessage(message.roomId, message.seq, message.id)))
+      .catch(open)
   }
 
   /** 打开 bot 详情；from 是群聊 id 时显示成员卡片，可以返回那个群的详情。 */
@@ -257,6 +250,14 @@ export class AppState {
 
   showGroup(roomId: string, tab: GroupTab = 'details'): void {
     this.navigate({ panel: { kind: 'group', roomId, tab } })
+  }
+
+  /** 打开一个对话的详情：单聊是那个 bot 的详情，群聊是群详情。 */
+  showRoomDetails(roomId: string): void {
+    const room = this.cache.snapshot<readonly RoomSummary[]>('rooms').data?.find((item) => item.id === roomId)
+    if (room === undefined) return
+    if (room.kind !== 'direct') this.showGroup(room.id)
+    else if (room.botId !== null) this.showBot(room.botId)
   }
 
   /** 打开浏览器：右侧滑出实时画面。给了 botId、roomId 时这个 bot、这个对话的标签页排前面；back 是返回时回到的面板。 */
@@ -402,21 +403,20 @@ export class AppState {
     }
   }
 
-  /** 点通知：任务的通知打开任务自己的对话（另开的单聊、任务群）；没有自己对话的，打开通知所在的对话。 */
+  /** 点通知：任务的通知打开任务自己的对话（另开的单聊、任务群），没有自己对话的跳到放结果的那条消息；别的通知打开通知所在的对话。 */
   private openNotification(notification: PodNotification): void {
     const { roomId, taskId } = notification
-    if (taskId === null) {
+    const open = (): void => {
       if (roomId !== null) this.openRoom(roomId)
+    }
+    if (taskId === null) {
+      open()
       return
     }
     void api
       .taskSnapshot(taskId)
-      .then((snapshot) => snapshot.conversationId ?? roomId)
-      .catch(() => roomId)
-      .then((target) => {
-        if (target !== null) this.openRoom(target)
-        else this.openTask(taskId)
-      })
+      .then((snapshot) => (snapshot.conversationId === null ? this.openTaskResult(snapshot.task.id, snapshot.task.roomId ?? roomId) : this.openRoom(snapshot.conversationId)))
+      .catch(open)
   }
 
   // ---------- 事件 ----------
@@ -433,7 +433,6 @@ export class AppState {
         return
       case 'health':
         cache.invalidate('health')
-        cache.invalidate('overview')
         return
       case 'settings':
         cache.invalidate('settings')
@@ -458,7 +457,6 @@ export class AppState {
         cache.invalidate(`pins:${event.roomId}`)
         cache.invalidate(`ratings:${event.roomId}`)
         cache.invalidate((key) => key.startsWith('page-thread:'))
-        cache.invalidate((key) => key.startsWith('routes:'))
         return
       case 'pages':
         cache.invalidate('pages')
@@ -472,13 +470,9 @@ export class AppState {
         const root = this.rootOf(event.rootId)
         cache.invalidate(`snapshot:${root}`)
         cache.invalidate(`snapshot:${event.taskId}`)
-        cache.invalidate(`detail:${root}`)
         cache.invalidate(`progress:${root}`)
-        cache.invalidate(`plan:${root}`)
         cache.invalidate('tasks')
-        cache.invalidate('overview')
         cache.invalidate('rooms')
-        cache.invalidate((key) => key.startsWith('routes:'))
         return
       }
       case 'activity':
@@ -490,13 +484,11 @@ export class AppState {
           const root = this.rootOf(event.taskId)
           cache.invalidate(`snapshot:${root}`)
           cache.invalidate(`snapshot:${event.taskId}`)
-          cache.invalidate(`detail:${root}`)
         }
         return
       case 'waits':
         cache.invalidate('waits')
         cache.invalidate('rooms')
-        cache.invalidate('overview')
         return
       case 'notifications':
         cache.invalidate('notifications')

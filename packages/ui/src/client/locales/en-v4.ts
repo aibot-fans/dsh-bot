@@ -24,10 +24,6 @@ export const UI_EN_V4: Readonly<Record<string, string>> = {
   '这台电脑': 'This computer',
   '来源': 'Source',
   '无': 'None',
-  '过程': 'Activity',
-  '过程 · {title}': 'Activity · {title}',
-  '等你（{count}）': 'Needs you ({count})',
-  '完成（{count}）': 'Done ({count})',
   '{name} · {step}': '{name} · {step}',
   '干活的 bot': 'The bot',
   '{reason}：{note}': '{reason}: {note}',
@@ -68,4 +64,5 @@ export const UI_EN_V4: Readonly<Record<string, string>> = {
   '和{name}的单聊': 'Chat with {name}',
   '查看详情': 'View details',
   '给 {name} 发消息，输入 @ 点名别的成员': 'Message {name}, or type @ to address another member',
+  '打开它的任务对话': 'Open its task chat',
 }

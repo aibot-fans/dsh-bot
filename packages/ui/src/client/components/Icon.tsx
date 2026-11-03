@@ -1,10 +1,8 @@
 /** Pod 页面用的线条图标，颜色跟随文字颜色。 */
 
 const PATHS: Readonly<Record<string, string>> = {
-  overview: 'M4 5h7v6H4zM13 5h7v4h-7zM13 11h7v8h-7zM4 13h7v6H4z',
   chat: 'M5 6h14v9H9l-4 3z',
   tasks: 'M5 6h14M5 12h14M5 18h9M3 6h.01M3 12h.01M3 18h.01',
-  inbox: 'M4 13l2-7h12l2 7v5H4zM4 13h5l1 2h4l1-2h5',
   bots: 'M8 9h8v8H8zM12 5v4M9 13h.01M15 13h.01M6 12H4M20 12h-2',
   settings: 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM19 12l2-1-1-3-2 .2-1.3-1.4.4-2-3-1-1 1.8h-1.6L10.5 3l-3 1 .4 2-1.3 1.4L4.5 7.2l-1 3 2 1v1.6l-2 1 1 3 2-.2 1.3 1.4-.4 2 3 1 1-1.8h1.6l1 1.8 3-1-.4-2 1.3-1.4 2 .2 1-3-2-1z',
   plus: 'M12 5v14M5 12h14',

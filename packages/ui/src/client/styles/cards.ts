@@ -1,47 +1,6 @@
-/** 卡片：任务卡、交付卡、等你卡、bot 卡片、看板、总览统计、设置页。 */
+/** 卡片：bot 卡片、任务格子、记忆、搜索结果、总览统计、设置页、引导页。 */
 export const CARDS_CSS = `
-.pod-task-card { border: 1px solid var(--pod-line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; background: var(--dsw-alias-bg-layer-2); max-width: 760px; }
-.pod-task-card-loading { color: var(--dsw-alias-label-tertiary); font-size: 13px; }
-.pod-task-card-done { border-color: color-mix(in srgb, var(--pod-ok) 35%, var(--pod-line)); }
-.pod-task-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.pod-task-title { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.pod-task-title strong { font-size: 14px; }
-.pod-stages { display: flex; flex-wrap: wrap; gap: 4px; font-size: 12px; }
-.pod-stage { color: var(--dsw-alias-label-tertiary); }
-.pod-stage:not(:last-child)::after { content: '›'; margin-left: 4px; color: var(--dsw-alias-label-caption, var(--dsw-alias-label-tertiary)); }
-.pod-stage-done { color: var(--dsw-alias-label-secondary); }
-.pod-stage-current { color: var(--dsw-alias-label-primary); font-weight: 600; }
-.pod-segments { display: flex; gap: 3px; flex-wrap: wrap; }
-.pod-segment { flex: 1 1 60px; min-width: 40px; padding: 2px 6px; border-radius: 5px; font-size: 11px; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--dsw-alias-label-secondary); background: var(--pod-soft); }
-.pod-segments-thin .pod-segment { min-width: 16px; height: 6px; padding: 0; flex: 1 1 16px; }
-.pod-segment-done { background: color-mix(in srgb, var(--pod-ok) 55%, transparent); color: #fff; }
-.pod-segment-running { background: color-mix(in srgb, var(--pod-info) 45%, transparent); color: #fff; }
-.pod-segment-waiting { background: color-mix(in srgb, var(--pod-warn) 55%, transparent); color: #fff; }
-.pod-segment-failed { background: color-mix(in srgb, var(--pod-danger) 55%, transparent); color: #fff; }
-.pod-segment-cancelled { text-decoration: line-through; opacity: .55; }
-.pod-acceptance { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--dsw-alias-label-secondary); }
-.pod-acceptance li { display: flex; gap: 6px; }
-.pod-acceptance-done { color: var(--dsw-alias-label-tertiary); text-decoration: line-through; }
-.pod-check { flex: none; width: 14px; height: 14px; margin-top: 3px; border-radius: 3px; border: 1px solid var(--pod-line); font-size: 10px; line-height: 12px; text-align: center; color: var(--pod-ok); }
-.pod-activity { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; color: var(--dsw-alias-label-secondary); }
-.pod-activity-who { font-weight: 600; color: var(--dsw-alias-label-primary); }
-.pod-task-note { font-size: 12.5px; color: var(--dsw-alias-label-secondary); }
 .pod-task-wait { font-size: 12.5px; color: var(--pod-warn); }
-.pod-task-actions { display: flex; flex-wrap: wrap; gap: 2px; margin-left: -8px; }
-.pod-delivery { display: flex; flex-direction: column; gap: 8px; }
-.pod-delivery-files { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.pod-file { font-family: var(--ds-font-family-code, ui-monospace, monospace); font-size: 12px; padding: 1px 6px; border-radius: 5px; background: var(--pod-soft); }
-.pod-caveats ul { margin: 4px 0 0; padding-left: 18px; font-size: 13px; color: var(--dsw-alias-label-secondary); }
-.pod-wait { border: 1px solid color-mix(in srgb, var(--pod-warn) 40%, var(--pod-line)); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; background: color-mix(in srgb, var(--pod-warn) 4%, var(--dsw-alias-bg-layer-2)); max-width: 760px; }
-.pod-wait-closed { border-color: var(--pod-line); background: transparent; color: var(--dsw-alias-label-tertiary); font-size: 13px; padding: 6px 12px; }
-.pod-wait-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.pod-wait-detail { margin: 0; white-space: pre-wrap; font-size: 13px; color: var(--dsw-alias-label-secondary); }
-.pod-wait-answer { display: flex; flex-direction: column; gap: 6px; }
-.pod-wait-actions { display: flex; gap: 6px; }
-.pod-wait-options { display: flex; gap: 6px; flex-wrap: wrap; }
-.pod-report { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--pod-line); border-radius: 10px; background: var(--dsw-alias-bg-layer-2); }
-.pod-report-older { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
-.pod-report-older summary { cursor: pointer; font-size: 13px; color: var(--dsw-alias-label-secondary); }
 .pod-msg-task-link { align-self: flex-start; margin-top: 4px; font-size: 12px; }
 .pod-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
 .pod-card { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 12px; border: 1px solid var(--pod-line); background: var(--dsw-alias-bg-layer-2); }
@@ -63,9 +22,6 @@ export const CARDS_CSS = `
 .pod-tile-failed { border-left-color: var(--pod-danger); }
 .pod-tile-meta { display: flex; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--dsw-alias-label-secondary); }
 .pod-tile-time { font-size: 11px; color: var(--dsw-alias-label-tertiary); }
-.pod-subtasks { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
-.pod-subtask { border: 1px solid var(--pod-line); border-left-width: 3px; border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
-.pod-plan-meta { margin-top: 8px; font-size: 12.5px; color: var(--dsw-alias-label-secondary); display: flex; flex-direction: column; gap: 2px; }
 .pod-memories { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
 .pod-memory { border: 1px solid var(--pod-line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
 .pod-memory-pending { border-style: dashed; border-color: color-mix(in srgb, var(--pod-warn) 50%, var(--pod-line)); }
@@ -79,8 +35,6 @@ export const CARDS_CSS = `
 .pod-handover summary { cursor: pointer; color: var(--dsw-alias-label-secondary); }
 .pod-events { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--dsw-alias-label-secondary); }
 .pod-events time { color: var(--dsw-alias-label-tertiary); margin-right: 6px; font-size: 12px; }
-.pod-event-id { color: var(--dsw-alias-label-tertiary); font-size: 11.5px; font-variant-numeric: tabular-nums; margin-right: 4px; }
-.pod-session-row { padding: 3px 0; font-size: 13px; }
 .pod-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
 .pod-stat { appearance: none; font: inherit; color: inherit; text-align: left; border: 1px solid var(--pod-line); border-radius: 12px; padding: 14px 16px; background: var(--dsw-alias-bg-layer-2); display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
 .pod-stat:disabled { cursor: default; }
@@ -126,8 +80,6 @@ export const CARDS_CSS = `
 .pod-commands button { appearance: none; width: 100%; display: flex; gap: 10px; align-items: baseline; padding: 5px 8px; border: 0; border-radius: 6px; background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: left; }
 .pod-commands button:hover { background: var(--pod-soft); }
 .pod-attachment { appearance: none; align-self: flex-start; margin-top: 4px; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--pod-line); background: var(--dsw-alias-bg-layer-2); color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
-button.pod-file { appearance: none; border: 0; cursor: pointer; color: inherit; }
-button.pod-file:hover { text-decoration: underline; }
 .pod-preview-image { max-width: 100%; border-radius: 8px; }
 .pod-preview-text { white-space: pre-wrap; word-break: break-word; font-size: 12px; background: var(--dsw-alias-bg-layer-2); padding: 10px; border-radius: 8px; }
 .pod-preview-frame { width: 100%; height: 70vh; border: 1px solid var(--pod-line); border-radius: 8px; background: #fff; }

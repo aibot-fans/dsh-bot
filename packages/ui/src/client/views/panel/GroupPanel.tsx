@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { ROOM_TITLE_MAX, t, type Bot, type NotifyLevel, type RoomSummary } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
@@ -12,8 +12,8 @@ import { useApp, type GroupTab } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 import { ScopedPages } from '../pages/ScopedPages.tsx'
 import { Automations } from '../settings/Routines.tsx'
-import { TaskTile } from '../tasks/TasksView.tsx'
 import { GroupBrowser } from './BrowserTabs.tsx'
+import { GroupTasks } from './GroupTasks.tsx'
 import { Library } from './Library.tsx'
 import { TaskFacts } from './TaskFacts.tsx'
 
@@ -186,32 +186,9 @@ function Members(props: { readonly room: RoomSummary; readonly members: readonly
   )
 }
 
-function GroupTasks(props: { readonly room: RoomSummary; readonly bots: readonly Bot[] }) {
-  const app = useApp()
-  const { data: tasks, error } = useResource(app.cache, 'tasks', () => api.tasks())
-  const byId = useMemo(() => new Map(props.bots.map((bot) => [bot.id, bot])), [props.bots])
-  const mine = (tasks ?? []).filter((snapshot) => snapshot.task.roomId === props.room.id || (props.room.taskId !== null && snapshot.task.id === props.room.taskId))
-  const running = mine.filter((snapshot) => !['done', 'failed', 'cancelled'].includes(snapshot.task.status))
-  const finished = mine.filter((snapshot) => ['done', 'failed', 'cancelled'].includes(snapshot.task.status))
-  if (error !== undefined) return <p className="pod-form-error">{error}</p>
-  if (tasks !== undefined && mine.length === 0) return <Empty title={t('这个群还没有任务')}>{t('在群里交代一件事，Super-agent 会安排。')}</Empty>
-  return (
-    <div className="pod-stack">
-      {running.length === 0 ? null : <div className="pod-section-title">{t('进行中')}</div>}
-      {running.map((snapshot) => (
-        <TaskTile key={snapshot.task.id} snapshot={snapshot} bots={byId} onOpen={() => app.openTask(snapshot.task.id)} />
-      ))}
-      {finished.length === 0 ? null : <div className="pod-section-title">{t('已结束')}</div>}
-      {finished.map((snapshot) => (
-        <TaskTile key={snapshot.task.id} snapshot={snapshot} bots={byId} onOpen={() => app.openTask(snapshot.task.id)} />
-      ))}
-    </div>
-  )
-}
-
 /**
  * 群聊详情：从右侧滑出，顶上左边是群图标、右边是群名和成员；
- * 分详情（任务群先是状态、在哪干活、来源，再是成员、群约定、群记忆、提醒、删除）、页面、资料库、自动化、任务、浏览器六页。
+ * 分详情（任务群最上面是任务和进展，再是成员、群约定、群记忆、提醒、删除）、页面、资料库、自动化、任务、浏览器六页。
  */
 export function GroupPanel(props: { readonly roomId: string; readonly tab: GroupTab }) {
   const app = useApp()

@@ -79,7 +79,7 @@ export function Composer(props: ComposerProps) {
   const nav = useNav()
   const narrow = useNarrow()
   const touch = useTouch()
-  const covered = nav.settings !== null || nav.search !== null || nav.drawer !== null || nav.taskId !== null || nav.update
+  const covered = nav.settings !== null || nav.search !== null || nav.drawer !== null || nav.update
   const roomId = props.room.id
   const [text, setText] = useState(() => readDraft(roomId).text)
   const initial = useRef(text).current

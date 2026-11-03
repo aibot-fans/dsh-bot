@@ -26,6 +26,4 @@ export const UI_EN_X: Readonly<Record<string, string>> = {
   '融资, 发布': 'funding, launch',
   '先起草回复': 'Draft replies first',
   '有人回复、引用时，后台任务先看上下文起草好回复，发到 X 监控群；你回一句“发”它才发': 'When someone replies or quotes, the background task reads the context and drafts a reply in the X monitor group; it posts only after you reply "send"',
-  '自动判断：开了任务': 'Auto-judged: opened a task',
-  '自动判断：不用处理': 'Auto-judged: no action needed',
 }

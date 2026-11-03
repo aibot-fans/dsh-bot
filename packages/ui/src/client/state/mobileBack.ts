@@ -1,9 +1,9 @@
 import { useEffect } from 'react'
 import type { AppState, NavState } from './app.ts'
 
-/** 手机上叠了几层：对话（或页面、概览）、右侧详情、抽屉、任务页、设置、搜索、更新弹窗，各算一层；停在列表上是 0。 */
+/** 手机上叠了几层：对话（或页面）、右侧详情、抽屉、设置、搜索、更新弹窗，各算一层；停在列表上是 0。 */
 function depthOf(nav: NavState): number {
-  return [nav.roomId !== null || nav.page !== null || nav.overview, nav.panel !== null, nav.drawer !== null, nav.taskId !== null, nav.settings !== null, nav.search !== null, nav.update].filter(Boolean).length
+  return [nav.roomId !== null || nav.page !== null, nav.panel !== null, nav.drawer !== null, nav.settings !== null, nav.search !== null, nav.update].filter(Boolean).length
 }
 
 /** 系统的返回（安卓返回键、iOS 边缘右滑）：关掉最上面那一层。 */
@@ -15,8 +15,6 @@ function closeTop(app: AppState): void {
   else if (nav.drawer !== null) app.navigate({ drawer: null })
   else if (nav.panel !== null) app.closePanel()
   else if (nav.page !== null) app.closePage()
-  else if (nav.taskId !== null) app.closeTask()
-  else if (nav.overview && nav.roomId !== null) app.navigate({ overview: false })
   else app.showList()
 }
 
