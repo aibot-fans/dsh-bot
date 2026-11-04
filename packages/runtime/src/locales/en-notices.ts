@@ -257,6 +257,7 @@ export const RUNTIME_EN_NOTICES: Readonly<Record<string, string>> = {
   '这件事已经处理过了': 'This has already been handled',
   '已处理': 'Handled',
   '不用处理': 'No action needed',
+  '跳过了': 'Skipped',
   '已绕过，写进交付的前提和待确认': 'Worked around; listed under assumptions and items to confirm in the delivery',
   '{kind}：{title}（已先绕过）': '{kind}: {title} (worked around first)',
   '{name}没回成：{reason}': "{name} couldn't reply: {reason}",

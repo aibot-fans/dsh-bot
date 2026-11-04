@@ -192,14 +192,16 @@ export class WaitService {
     return ok(resolved)
   }
 
-  /** 你说不用管：关闭这件事，告诉原会话按已有的做法继续。 */
+  /** 你说不用管：关闭这件事，告诉原会话按已有的做法继续。问题卡片上是跳过：不给答复，让它自己定。 */
   dismiss(input: unknown): PodResult<Wait> {
     const id = readId(input, 'waitId')
     if (id === undefined) return fail('invalid-input', t('缺少等你事项的 id'))
     const wait = this.get(id)
     if (wait === undefined) return fail('not-found', t('找不到这件事'))
-    const closed = setWaitStatus(this.db, id, 'closed', t('不用处理'), this.deps.now()) ?? wait
-    if (wait.status === 'open') this.forward(closed, '这件事不用管了，按你能做到的继续，并在交付里注明。')
+    const skipped = QUESTION_KINDS.has(wait.kind)
+    const closed = setWaitStatus(this.db, id, 'closed', skipped ? t('跳过了') : t('不用处理'), this.deps.now()) ?? wait
+    const next = skipped ? '用户跳过了这个问题，没给答复：你自己定（有推荐的照推荐），接着做，在回答里写明你是怎么定的。' : '这件事不用管了，按你能做到的继续，并在交付里注明。'
+    if (wait.status === 'open') this.forward(closed, next)
     this.afterChange(closed)
     return ok(closed)
   }

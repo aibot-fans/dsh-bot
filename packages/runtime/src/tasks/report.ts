@@ -288,7 +288,7 @@ export function reportTool(pod: PodRuntime, session: PodSession): ToolDefinition
       status: oneOf('progress / waiting / ready / blocked / failed / dismissed', [...REPORT_STATUSES]),
       summary: str('发到对话里的话。ready：给用户的完整回答，先一句说答案，再列要点，来源、假设、没核实的写在里面；failed：没做成的原因；progress：一句做成了什么（比如“找到 3 家的公开报价”），不写正在做什么'),
       report: str('blocked、failed 必填：卡在哪、试过什么、还缺什么，给 Super-agent 和组长看，不发到对话里'),
-      question: str('blocked 时要用户处理的事：只问一个问题，一句话说清'),
+      question: str('blocked 时要用户处理的事：只问一个具体的问题，一句话说清'),
       options: strList('问题的选项（2–6 个，能给就给），用户点一下就是答复；有推荐的放第一个，recommended 写 true'),
       option_notes: strList('每个选项下面的一句说明（选了会怎样、代价），和 options 一一对应'),
       recommended: bool('第一个选项是你推荐的'),
