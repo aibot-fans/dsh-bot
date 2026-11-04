@@ -240,7 +240,7 @@ export class TaskService {
     return { text: describeTrigger(soonest.spec, soonest.timezone, watched), nextAt: soonest.enabled ? soonest.nextAt : null, enabled: soonest.enabled, count: triggers.length }
   }
 
-  /** 把一件事交给一个 bot：开任务（来由原样放进来）、排第一次执行、在对话里放任务卡；会话由开工副作用去开。 */
+  /** 把一件事交给一个 bot：开任务（来由原样放进来）、排第一次执行、该放卡片的放任务卡；会话由开工副作用去开。 */
   delegate(input: DelegateInput): Promise<PodResult<Task>> {
     const { requester, bot } = input
     const id = newId('task')
@@ -291,7 +291,7 @@ export class TaskService {
     })
     this.deps.audit.record('task.delegate', requester.botId, id, { to: bot.id, title: input.title, reason: input.reason })
     const conversation = input.conversation === undefined ? undefined : this.openConversation(task, bot, input.conversation, requester.botId)
-    if (task.roomId !== null) {
+    if (task.roomId !== null && this.carded(task.roomId, input, conversation)) {
       const card = this.deps.rooms.post(task.roomId, {
         author: requester.botId,
         kind: 'task-card',
@@ -302,6 +302,17 @@ export class TaskService {
       if (card !== undefined && conversation === undefined) this.engine.topics.followMessage(id, card.id, 'own')
     }
     return Promise.resolve(ok(task))
+  }
+
+  /**
+   * 放不放任务卡：Super-agent 的主对话里放，活另开了对话在别处干的、常开任务也放（卡片就是去那里的入口、每次结果挂在下面）；
+   * 群、任务对话、成员单聊里活就在这段对话里干，干到哪记在详情的动态里，不另挂卡片。
+   */
+  private carded(roomId: string, input: DelegateInput, conversation: Room | undefined): boolean {
+    if (input.card?.standing === true || (conversation !== undefined && conversation.id !== roomId)) return true
+    const room = this.deps.rooms.get(roomId)
+    if (room === undefined || room.kind !== 'direct' || room.taskId !== null || room.botId === null) return false
+    return this.deps.bots.get(room.botId)?.role === 'lead'
   }
 
   /**

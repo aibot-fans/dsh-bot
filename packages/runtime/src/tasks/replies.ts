@@ -17,7 +17,7 @@ export interface TaskRepliesDeps {
 
 /**
  * 任务对外说的话（都走回复队列）：结果回在每一处还没得到答复的提问下面；等你（受阻、失败、要你处理的故障）
- * 由干活的 bot 回复任务卡；任务里被问到的话回在问的那条下面。有任务对话（另开的单聊、任务群）的根任务，
+ * 由干活的 bot 回复任务卡（没挂卡的回在交代那句下面）；任务里被问到的话回在问的那条下面。有任务对话（另开的单聊、任务群）的根任务，
  * 结果和等你都发在那段对话里；在派活的地方问的，再叫醒开任务的前台在那里说（你在任务对话里直接说的不叫）：
  * 回答由它照用户问的重写，问的事卡片挂在它那句下面；它几分钟没说，dsh-bot 以它的名义原样发。
  */
@@ -40,6 +40,14 @@ export class TaskReplies {
     return queued !== undefined
   }
 
+  /** 在这个聊天室里交代这件事的话（开任务的那句、之后接着问的），先的在前。 */
+  private requests(task: Task, roomId: string): readonly RoomMessage[] {
+    return task.replyTo
+      .filter((target) => target.roomId === roomId && target.messageId !== null)
+      .map((target) => getMessage(this.deps.db, target.messageId ?? ''))
+      .filter((message): message is RoomMessage => message !== undefined && message.deletedAt === null)
+  }
+
   /** 根任务自己的对话（另开的单聊、任务群、交进的群）。 */
   private conversationOf(task: Task): string | undefined {
     return task.parentId === null ? taskConversationOf(this.deps.db, task.id)?.id : undefined
@@ -52,10 +60,8 @@ export class TaskReplies {
   private anchorIn(task: Task, conversation: string): string | null {
     const room = this.deps.rooms.get(conversation)
     if (room === undefined || room.kind === 'direct' || room.taskId === task.id) return null
-    const asked = task.replyTo
-      .filter((target) => target.roomId === conversation && target.messageId !== null)
-      .map((target) => getMessage(this.deps.db, target.messageId ?? ''))
-      .filter((message): message is RoomMessage => message !== undefined && message.deletedAt === null && !this.answered(message.id))
+    const asked = this.requests(task, conversation)
+      .filter((message) => !this.answered(message.id))
       .at(-1)
     return asked?.id ?? briefMessageOf(this.deps.db, conversation, task.id) ?? null
   }
@@ -71,7 +77,8 @@ export class TaskReplies {
   /**
    * 结果就是干活的 bot 交的那条回答。有任务对话的根任务原样发在那里；最近一次是在派活的地方问的，再叫醒开任务的前台，
    * 由它照用户问的写好回在那句话上。没有任务对话的一个聊天室一条，回在那里最近一句还没得到答复的话上（开任务的那句、
-   * 之后接着问的）；都答过了挂在任务卡下。常开任务每次的结果挂在任务卡下（之后又在那里问过、还没答的，挂在最近那条下面）。
+   * 之后接着问的）；都答过了挂在任务卡下，没挂卡的（群里、成员单聊里开的，子任务）在开它的聊天室里回在最近交代的那句下面，
+   * 没有就直接发。常开任务每次的结果挂在任务卡下（之后又在那里问过、还没答的，挂在最近那条下面）。
    * 干活的 bot 不在那个聊天室也照样以它的名义发。
    */
   result(task: Task, author: string, sessionId: string | null, body: string, reportId: string | null = null): number {
@@ -82,21 +89,20 @@ export class TaskReplies {
       return 1
     }
     const card = this.deps.cardOf(task.id)
-    const roomIds = [...new Set([card?.roomId, ...task.replyTo.map((target) => target.roomId)].filter((id): id is string => typeof id === 'string'))]
+    const home = card?.roomId ?? task.roomId
+    const roomIds = [...new Set([home, ...task.replyTo.map((target) => target.roomId)].filter((id): id is string => typeof id === 'string'))]
     let sent = 0
     for (const roomId of roomIds) {
       const room = this.deps.rooms.get(roomId)
       if (room === undefined || room.archivedAt !== null) continue
       const here = card?.roomId === roomId ? card : undefined
       const standing = here?.data.standing === true
-      const asked = task.replyTo
-        .filter((target) => target.roomId === roomId && target.messageId !== null)
-        .map((target) => getMessage(this.deps.db, target.messageId ?? ''))
-        .filter((message): message is RoomMessage => message !== undefined && message.deletedAt === null && (!standing || message.seq > (here?.seq ?? 0)) && !this.answered(message.id))
-      const latest = asked.at(-1)
+      const requests = this.requests(task, roomId).filter((message) => !standing || message.seq > (here?.seq ?? 0))
+      const latest = requests.filter((message) => !this.answered(message.id)).at(-1)
       let anchor: string | null
       if (here !== undefined) anchor = latest?.id ?? here.id
       else if (latest !== undefined) anchor = latest.id
+      else if (roomId === home) anchor = requests.at(-1)?.id ?? null
       else if (task.replyTo.some((target) => target.roomId === roomId && target.messageId === null)) anchor = null
       else continue
       this.deps.replies.send({ roomId, author, purpose: 'result', body, replyTo: anchor, sessionId, taskId: task.id })
@@ -108,14 +114,12 @@ export class TaskReplies {
   /** 派活的聊天室里最近一句还没得到答复的话（开任务的那句、之后从那里转来的）：前台的回答回在它上面。 */
   private askedIn(task: Task): RoomMessage | undefined {
     if (task.roomId === null) return undefined
-    return task.replyTo
-      .filter((target) => target.roomId === task.roomId && target.messageId !== null)
-      .map((target) => getMessage(this.deps.db, target.messageId ?? ''))
-      .filter((message): message is RoomMessage => message !== undefined && message.deletedAt === null && !this.answered(message.id))
+    return this.requests(task, task.roomId)
+      .filter((message) => !this.answered(message.id))
       .at(-1)
   }
 
-  /** 等你：干活的 bot 回复任务卡，说卡在哪、要你做什么；有任务对话的根任务直接在那里说。 */
+  /** 等你：干活的 bot 回复任务卡（没挂卡的回在最近交代的那句下面），说卡在哪、要你做什么；有任务对话的根任务直接在那里说。 */
   wait(task: Task, author: string, input: { readonly body: string; readonly kind?: 'text' | 'wait'; readonly sessionId?: string | null; readonly data?: Readonly<Record<string, unknown>> }): string | undefined {
     const conversation = this.conversationOf(task)
     const card = conversation === undefined ? this.deps.cardOf(task.id) : undefined
@@ -128,7 +132,7 @@ export class TaskReplies {
       purpose: 'wait',
       kind: input.kind ?? 'text',
       body: input.body,
-      replyTo: conversation === undefined ? (card?.id ?? null) : this.anchorIn(task, conversation),
+      replyTo: conversation === undefined ? (card?.id ?? this.requests(task, roomId).at(-1)?.id ?? null) : this.anchorIn(task, conversation),
       sessionId: input.sessionId ?? null,
       taskId: task.id,
       ...(input.data === undefined ? {} : { data: input.data }),

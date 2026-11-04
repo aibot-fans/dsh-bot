@@ -164,10 +164,9 @@ export class Subtasks {
         replyTo: [],
         actor: session.botId,
       })
-      // 任务群里子任务只读跟进整个群：在跑的下一步看到别人的结论；回复它的任务卡直接到它。普通群不整个跟进。
+      // 任务群里子任务只读跟进整个群：在跑的下一步看到别人的结论。普通群不整个跟进。
+      // 不挂任务卡：组长在群里说一句交给了谁，干到哪记在群详情的动态里。
       if (shared === undefined) this.deps.engine.topics.follow(task.id, this.deps.engine.topics.ensureTeam(room.id, parent.id).id, 'readonly')
-      const card = this.deps.rooms.post(room.id, { author: session.botId, kind: 'task-card', body: input.title, data: { taskId: id, rootId: parent.rootId, parentId: parent.id } })
-      if (card !== undefined) this.deps.engine.topics.followMessage(id, card.id, 'own')
       this.deps.tasks.event(parent, 'subtask_opened', session.botId, { taskId: id, title: input.title, to: bot.value.id, after: upstream?.id ?? null })
       const waiting = upstream !== undefined && !this.isReady(upstream)
       if (!waiting) this.deps.engine.runs.queue(id, 'new', {})
