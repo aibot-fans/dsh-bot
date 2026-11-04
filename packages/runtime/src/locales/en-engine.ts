@@ -30,6 +30,7 @@ export const RUNTIME_EN_ENGINE: Readonly<Record<string, string>> = {
   '负责的 bot 不在了': 'The assigned bot no longer exists',
   '任务开始新的一次执行': 'The task started a new run',
   '已更新任务卡': 'Task card updated',
+  '已记进动态': 'Recorded in activity',
   '已记下：这一步做完了，等后续消息。这一轮到这里结束。': 'Noted: this step is done and the task waits for further messages. This turn ends here.',
   '已经交给用户处理；用户答复后会开一次新的执行，答复带给你。这一轮到这里结束。':
     'Handed to the user. When they answer, a new run starts and brings you the answer. This turn ends here.',

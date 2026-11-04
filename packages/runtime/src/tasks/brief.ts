@@ -194,7 +194,7 @@ export function nudgeText(task: Task, count: number): string {
     '- 已经做完：report 报 ready，写报告。',
     '- 缺东西做不下去（登录、权限、你的决定）：report 报 blocked，附一个问题。',
     '- 这一步做完了，等后续消息：report 报 waiting。',
-    '- 还没做完：继续做下一步，可以先报一次 progress 更新任务卡。',
+    '- 还没做完：继续做下一步；刚做成了关键的一步，可以先报一次 progress 记进动态。',
   ].join('\n')
 }
 
