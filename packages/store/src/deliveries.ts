@@ -130,6 +130,12 @@ export function dropUndelivered(db: DatabaseSync, sessionId: string, reason: str
   return Number(result.changes)
 }
 
+/** 撤回一条还没交出的消息；返回撤没撤成（已经交出的不动）。 */
+export function cancelDelivery(db: DatabaseSync, id: string, reason: string): boolean {
+  const result = db.prepare("UPDATE deliveries SET status = 'cancelled', error = ? WHERE id = ? AND status = 'pending'").run(reason, id)
+  return Number(result.changes) > 0
+}
+
 /** 连续送不到的消息（排在最前、失败到门槛的那条），任务上显示“消息没送到”。 */
 export function stuckDelivery(db: DatabaseSync, sessionId: string, threshold: number): Delivery | undefined {
   const row = db

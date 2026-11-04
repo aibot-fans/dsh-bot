@@ -6,24 +6,20 @@ import type { TurnFailure } from '../agents/observer.ts'
 import type { SessionRegistry } from '../agents/registry.ts'
 import { frontTitle, type SegmentManager } from '../agents/segments.ts'
 import type { BotService } from '../bots/service.ts'
+import type { Replies } from '../chat/replies.ts'
 import type { PreparingState } from '../chat/rooms.ts'
 import { failureKind, failureReason } from '../chat/turn-errors.ts'
 import type { Dispatcher } from '../effects/delivery.ts'
 import { Later, type Effects } from '../effects/queue.ts'
 import type { Engine } from '../engine/index.ts'
-import type { RelayKind } from '../tasks/replies.ts'
 import { ModelRetries, RETRY_DELAYS_MS } from '../tasks/retries.ts'
-import { FrontActivity, type ActivityCursor } from './activity.ts'
+import { FrontActivity } from './activity.ts'
 import { batchText, speakerOf, type BatchItem, type BatchRoom } from './batch.ts'
+import { FrontWakes, type TaskWake } from './wakes.ts'
 
 /** 一个聊天室第一次进前台（或换了一段）时带多少条最近的消息；之后只带前台没看过的，最多这么多。 */
 const RECENT_FIRST = 8
 const RECENT_MORE = 5
-
-/** 转告里带的问题、结果最多多少字。 */
-const RELAY_LIMIT = 1200
-
-const RELAY_HEADS: Readonly<Record<RelayKind, string>> = { wait: '在任务对话里问用户', failed: '没做成' }
 
 export interface FrontDeskDeps {
   readonly db: DatabaseSync
@@ -33,6 +29,7 @@ export interface FrontDeskDeps {
   readonly bots: BotService
   readonly registry: SessionRegistry
   readonly dispatcher: Dispatcher
+  readonly replies: Replies
   readonly segments: SegmentManager
   readonly room: (roomId: string) => Room | undefined
   readonly preparing: (key: string, state: PreparingState | null) => void
@@ -63,14 +60,13 @@ interface Flight {
 
 /**
  * 前台：每个 bot 一个前台会话，跨聊天室。交给前台的消息先记下去向（待送），前台一轮没结束时攒着，
- * 这一轮结束后合成一批送进去（按聊天室分组，开头是在忙的任务和攒下的任务动静）。
- * 一轮结束还有没给去向的追问一次，再没有就记成漏掉。
+ * 这一轮结束后合成一批送进去（按聊天室分组，开头是在忙的任务）。
+ * 一轮结束还有没给去向的追问一次，再没有就记成漏掉。任务交了回答、问用户、没做成，单独叫醒一次（见 FrontWakes）。
  */
 export class FrontDesk {
   private readonly opening = new Map<string, Promise<PodSession>>()
   /** 这次运行里给每条前台会话设过的标题：名字没变就不再改。 */
   private readonly titles = new Map<string, string>()
-  private readonly cursors = new Map<string, ActivityCursor>()
   /** 每段前台会话在各聊天室看到了哪条（seq）。 */
   private readonly seen = new Map<string, Map<string, number>>()
   private readonly flights = new Map<string, Flight>()
@@ -80,12 +76,12 @@ export class FrontDesk {
   private readonly unconfirmed = new Map<string, readonly Unconfirmed[]>()
   private readonly retries = new ModelRetries()
   private readonly activity: FrontActivity
-  private readonly startedAt: number
+  readonly wakes: FrontWakes
   private readonly deps: FrontDeskDeps
 
   constructor(deps: FrontDeskDeps) {
     this.deps = deps
-    this.startedAt = deps.now()
+    this.wakes = new FrontWakes({ db: deps.db, now: deps.now, effects: deps.effects, dispatcher: deps.dispatcher, replies: deps.replies })
     this.activity = new FrontActivity({
       db: deps.db,
       botName: (botId) => (botId === null ? '—' : (deps.bots.get(botId)?.name ?? botId)),
@@ -146,24 +142,25 @@ export class FrontDesk {
   }
 
   /**
-   * 转告：交给别的 bot 的任务在自己的对话里问了用户、没做成，叫开任务的前台在派活的聊天室说一句。
-   * 前台正在跑就排在这一轮后面。
+   * 任务交来的事（交了回答、问用户、没做成）：叫开任务的前台在派活的聊天室说，前台正在跑就排在这一轮后面。
+   * 前台会话一般开着，叫醒和兜底在调用方的事务里一起记下；还没开的等开好再记。
    */
-  async relay(task: Task, kind: RelayKind, body: string): Promise<void> {
+  wake(task: Task, input: TaskWake): void {
     const requester = task.requesterSession === null ? undefined : this.deps.registry.get(task.requesterSession)
     const room = task.roomId === null ? undefined : this.deps.room(task.roomId)
     if (requester?.kind !== 'front' || room === undefined || room.archivedAt !== null) return
     const bot = this.deps.bots.activeBot(requester.botId)
     if (bot === undefined) return
-    const session = await this.session(bot)
     const owner = (task.ownerBotId === null ? undefined : this.deps.bots.get(task.ownerBotId)?.name) ?? t('干活的 bot')
-    this.deps.dispatcher.enqueue({
-      sessionId: session.id,
-      mode: 'followup',
-      priority: PRIORITY.owner,
-      text: `[转告] 「${task.title}」（${task.id}，${owner}在做）${RELAY_HEADS[kind]}：\n${truncate(body, RELAY_LIMIT)}\n用 reply 在「${room.title}」（${room.id}）转告用户：purpose 写 relay，room 写 ${room.id}，task 写 ${task.id}。`,
-      source: noticeSource(t('转告「{title}」的动静', { title: task.title })),
-    })
+    const wake = (session: PodSession): void => this.wakes.wake({ ...input, task, botId: bot.id, sessionId: session.id, room, owner })
+    const current = this.deps.registry.activeFront(bot.id)
+    if (current !== undefined) {
+      wake(current)
+      return
+    }
+    this.session(bot)
+      .then(wake)
+      .catch((error: unknown) => this.deps.warn(t('叫醒前台没成'), error))
   }
 
   /** 前台开了任务：记下来，这一轮结束还没在那个聊天室回话，就替它补一句，任务卡挂在这句下面。 */
@@ -225,15 +222,10 @@ export class FrontDesk {
       return message === undefined || message.deletedAt !== null ? [] : [{ route, message }]
     })
     const rooms = this.group(session, items.map((item) => ({ message: item.message, note: item.route.note })))
-    const now = this.deps.now()
-    const cursor = this.cursors.get(botId) ?? this.activity.now(this.startedAt)
-    const activity = this.activity.since(bot, cursor, now)
     const roomIds = new Set(rooms.map((group) => group.room.id))
     const text = batchText({
       rooms,
       tasks: this.activity.openTasks(bot, roomIds),
-      activity: activity.lines,
-      omitted: activity.omitted,
       speaker: (author) => speakerOf(author, (id) => this.deps.bots.get(id)?.name),
       quoted: (id) => getMessage(this.deps.db, id),
     })
@@ -253,7 +245,6 @@ export class FrontDesk {
       )
       return created
     })
-    this.cursors.set(botId, activity.cursor)
     this.markSeen(session, rooms)
     const flight = this.flights.get(botId)
     const sameSession = flight?.sessionId === session.id
@@ -319,10 +310,11 @@ export class FrontDesk {
     return routes.length
   }
 
-  /** 前台一轮结束：开了任务没回话的补一句，收掉“正在……”，查没去向的；有排着的消息就送下一批。 */
+  /** 前台一轮结束：开了任务没回话的补一句，叫醒了没说的原样发，收掉“正在……”，查没去向的；有排着的消息就送下一批。 */
   onTurnEnd(session: PodSession, reason: string, failure?: TurnFailure): void {
     if (session.kind !== 'front') return
     this.confirmLeft(session.botId)
+    this.wakes.turnEnded(session.id)
     const flight = this.flightOf(session)
     if (flight !== undefined) {
       for (const roomId of flight.rooms) this.deps.preparing(this.key(session.botId, roomId), null)

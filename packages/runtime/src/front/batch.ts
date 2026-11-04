@@ -26,10 +26,6 @@ export interface BatchInput {
   readonly rooms: readonly BatchRoom[]
   /** 在忙的任务，每个一行。 */
   readonly tasks: readonly string[]
-  /** 攒下的任务动静，每件一行。 */
-  readonly activity: readonly string[]
-  /** 较早的动静没列出来的条数。 */
-  readonly omitted: number
   readonly speaker: (author: string) => string
   /** 被回复的那条（给一句它说了什么）。 */
   readonly quoted: (id: string) => RoomMessage | undefined
@@ -73,13 +69,11 @@ function itemLine(item: BatchItem, input: BatchInput): string {
   return `- ${message.id} ${input.speaker(message.author)}${reply}：${clipCard(message.body, BATCH_MESSAGE_LIMIT, message.id)}${note}`
 }
 
-/** 送进前台的一批：开头是在忙的任务和攒下的动静，后面按聊天室分组，每组带最近几条和新消息。 */
+/** 送进前台的一批：开头是在忙的任务，后面按聊天室分组，每组带最近几条和新消息。 */
 export function batchText(input: BatchInput): string {
   const count = input.rooms.reduce((sum, room) => sum + room.items.length, 0)
   const head = `[新消息] ${input.rooms.length} 个聊天室，${count} 条。每条用 dispatch 记去向；对用户说话用 reply。`
   const tasks = input.tasks.length === 0 ? '在忙：没有开着的任务。' : `在忙：\n${input.tasks.join('\n')}`
-  const activity =
-    input.activity.length === 0 ? undefined : `任务动静（只看，不用处理）：\n${input.activity.join('\n')}${input.omitted > 0 ? `\n（更早的 ${input.omitted} 条没列出）` : ''}`
   const groups = input.rooms.map((group) =>
     [
       roomHeader(group),
@@ -89,7 +83,7 @@ export function batchText(input: BatchInput): string {
       .filter((part): part is string => part !== undefined)
       .join('\n'),
   )
-  return [head, tasks, activity, ...groups].filter((part): part is string => part !== undefined).join('\n\n')
+  return [head, tasks, ...groups].join('\n\n')
 }
 
 /** 给前台看的说话人：你叫“用户”，dsh-bot 自己的话标出来，其余用名字。 */

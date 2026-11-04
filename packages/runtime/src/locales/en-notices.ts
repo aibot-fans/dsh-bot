@@ -281,4 +281,13 @@ export const RUNTIME_EN_NOTICES: Readonly<Record<string, string>> = {
   '换成现在的默认人设': 'Switched to the current default persona',
   '换成新的默认人设': 'Switched to the new default persona',
   '这个 bot 没有默认人设': 'This bot has no default persona',
+  '交了回答': 'delivered an answer',
+  '在问你': 'is asking you',
+  '没做成': "didn't get done",
+  '「{title}」{what}': '"{title}" {what}',
+  '干活的 bot': 'The working bot',
+  '叫醒前台没成': 'Could not wake the front desk',
+  '前台没来得及说，dsh-bot 已经原样发了': 'The front desk did not get to it, so dsh-bot posted it as is',
+  '{owner}问：{question}': '{owner} asks: {question}',
+  '「{title}」没做成：{reason}': '"{title}" didn\'t get done: {reason}',
 }

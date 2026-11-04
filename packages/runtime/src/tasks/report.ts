@@ -160,7 +160,7 @@ export class TaskReporting {
         const result = this.result(args, bypassed)
         const delivered = engine.tickets.patch(outcome.task, { result })
         // 交的回答原样回在每一处还没得到答复的提问下面，开了群的发在群里；交了就算做完。
-        replies.result(delivered, session.botId, session.id, result.summary)
+        replies.result(delivered, session.botId, session.id, result.summary, outcome.report.id)
         if (args.lessons !== '') this.deps.learn(session, delivered, args.lessons)
         if (outcome.standing) return ok({ task: delivered, message: t('已发出这次的结果，等下次到点。') })
         tasks.tellRequester(delivered, `[任务交付] 「${delivered.title}」已完成，结果已经发给用户。摘要：${args.summary}`)

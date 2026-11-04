@@ -333,7 +333,8 @@ export class PodRuntime {
       sent: (input, message) => {
         const task = input.taskId === null || input.taskId === undefined ? undefined : this.tasks.get(input.taskId)
         if (task !== undefined) this.engine.tickets.event(task, 'reply_sent', input.author, { roomId: message.roomId, messageId: message.id, purpose: input.purpose })
-        if (input.purpose === 'confirm' || input.purpose === 'answer' || input.purpose === 'relay') this.front.replied(input.author, message.roomId)
+        // 前台说了话（它自己说的、补的确认、叫醒后没说替它原样发的）：这个聊天室的“正在……”收掉。
+        if (input.sessionId !== null && input.sessionId !== undefined && this.registry.get(input.sessionId)?.kind === 'front') this.front.replied(input.author, message.roomId)
       },
       stuck: (taskId) => {
         this.engine.tickets.refresh(taskId)
@@ -347,13 +348,7 @@ export class PodRuntime {
         const id = taskCardMessage(db, taskId)
         return id === undefined ? undefined : getMessage(db, id)
       },
-      relay: (task, kind, body) => {
-        this.front.relay(task, kind, body).catch((error: unknown) => ctx.logger.warn('dsh-bot：转告没送到前台', error))
-      },
-      requester: (task) => {
-        const session = task.requesterSession === null ? undefined : this.registry.get(task.requesterSession)
-        return session?.kind === 'front' && this.bots.activeBot(session.botId) !== undefined ? { botId: session.botId, sessionId: session.id } : undefined
-      },
+      wake: (task, input) => this.front.wake(task, input),
     })
     this.engine = new Engine({
       db,
@@ -668,6 +663,7 @@ export class PodRuntime {
       bots: this.bots,
       registry: this.registry,
       dispatcher: this.dispatcher,
+      replies: this.replies,
       segments: this.segments,
       room: (roomId) => this.rooms.get(roomId),
       preparing: (key, state) => this.setPreparing(key, state),

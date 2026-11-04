@@ -1,8 +1,9 @@
 import type { DatabaseSync } from 'node:sqlite'
 import type { RoomMessage, Task } from 'pod-domain'
-import { getMessage, getWait, taskConversationOf } from 'pod-store'
+import { getMessage, taskConversationOf } from 'pod-store'
 import type { Replies } from '../chat/replies.ts'
 import type { RoomService } from '../chat/rooms.ts'
+import type { TaskWake } from '../front/wakes.ts'
 
 export interface TaskRepliesDeps {
   readonly db: DatabaseSync
@@ -10,20 +11,15 @@ export interface TaskRepliesDeps {
   readonly rooms: RoomService
   /** 任务的任务卡。 */
   readonly cardOf: (taskId: string) => RoomMessage | undefined
-  /** 有任务对话的根任务问了用户、没做成：叫开任务的前台在派活的聊天室转告一句。 */
-  readonly relay: (task: Task, kind: RelayKind, body: string) => void
-  /** 开这个任务的前台（bot 和会话）；不是前台开的返回 undefined。 */
-  readonly requester: (task: Task) => { readonly botId: string; readonly sessionId: string } | undefined
+  /** 有任务对话的根任务交了回答、问了用户、没做成：叫开任务的前台在派活的聊天室说（不是前台开的不叫）。 */
+  readonly wake: (task: Task, input: TaskWake) => void
 }
-
-/** 转告的几种：任务问用户、没做成。交的结果不用转告，以前台的名义原样发。 */
-export type RelayKind = 'wait' | 'failed'
 
 /**
  * 任务对外说的话（都走回复队列）：结果回在每一处还没得到答复的提问下面；等你（受阻、失败、要你处理的故障）
  * 由干活的 bot 回复任务卡；任务里被问到的话回在问的那条下面。有任务对话（另开的单聊、任务群）的根任务，
- * 结果和等你都发在那段对话里；在派活的地方问的，结果以开任务的前台的名义原样回在那句话上，
- * 等你由前台转告一句（你在任务对话里直接说的不转告）。
+ * 结果和等你都发在那段对话里；在派活的地方问的，再叫醒开任务的前台在那里说（你在任务对话里直接说的不叫）：
+ * 回答由它照用户问的重写，问的事卡片挂在它那句下面；它几分钟没说，dsh-bot 以它的名义原样发。
  */
 export class TaskReplies {
   private readonly deps: TaskRepliesDeps
@@ -50,7 +46,7 @@ export class TaskReplies {
   }
 
   /**
-   * 要不要由前台在派活的地方转告：最近一次是在任务对话以外问的（开任务时、前台从主对话转来的后续）才转告；
+   * 要不要叫前台在派活的地方说：最近一次是在任务对话以外问的（开任务时、前台从主对话转来的后续）才叫；
    * 你在任务对话里直接接着说的，回答、问题都留在那段对话里，主对话不多出消息。
    */
   private relayed(task: Task, conversation: string): boolean {
@@ -58,16 +54,17 @@ export class TaskReplies {
   }
 
   /**
-   * 结果就是干活的 bot 交的那条回答。有任务对话的根任务发在那里；最近一次是在派活的地方问的，再以开任务的前台的名义
-   * 原样回在那句话上（两处是同一段话）。没有任务对话的一个聊天室一条，回在那里最近一句还没得到答复的话上（开任务的那句、
+   * 结果就是干活的 bot 交的那条回答。有任务对话的根任务原样发在那里；最近一次是在派活的地方问的，再叫醒开任务的前台，
+   * 由它照用户问的写好回在那句话上。没有任务对话的一个聊天室一条，回在那里最近一句还没得到答复的话上（开任务的那句、
    * 之后接着问的）；都答过了挂在任务卡下。常开任务每次的结果挂在任务卡下（之后又在那里问过、还没答的，挂在最近那条下面）。
    * 干活的 bot 不在那个聊天室也照样以它的名义发。
    */
-  result(task: Task, author: string, sessionId: string | null, body: string): number {
+  result(task: Task, author: string, sessionId: string | null, body: string, reportId: string | null = null): number {
     const conversation = this.conversationOf(task)
     if (conversation !== undefined) {
-      this.deps.replies.send({ roomId: conversation, author, purpose: 'result', body, replyTo: null, sessionId, taskId: task.id })
-      return this.relayed(task, conversation) ? 1 + this.deliver(task, body) : 1
+      this.deps.replies.send({ roomId: conversation, author, purpose: 'result', body, replyTo: null, sessionId, taskId: task.id, ...(reportId === null ? {} : { data: { reportId } }) })
+      if (this.relayed(task, conversation)) this.deps.wake(task, { kind: 'result', body, anchor: this.askedIn(task)?.id ?? null, reportId })
+      return 1
     }
     const card = this.deps.cardOf(task.id)
     const roomIds = [...new Set([card?.roomId, ...task.replyTo.map((target) => target.roomId)].filter((id): id is string => typeof id === 'string'))]
@@ -93,17 +90,14 @@ export class TaskReplies {
     return sent
   }
 
-  /** 以开任务的前台的名义，把回答原样发到派活的聊天室，回在那里最近一句还没得到答复的话上。 */
-  private deliver(task: Task, body: string): number {
-    const front = this.deps.requester(task)
-    const room = task.roomId === null ? undefined : this.deps.rooms.get(task.roomId)
-    if (front === undefined || room === undefined || room.archivedAt !== null) return 0
-    const asked = task.replyTo
-      .filter((target) => target.roomId === room.id && target.messageId !== null)
+  /** 派活的聊天室里最近一句还没得到答复的话（开任务的那句、之后从那里转来的）：前台的回答回在它上面。 */
+  private askedIn(task: Task): RoomMessage | undefined {
+    if (task.roomId === null) return undefined
+    return task.replyTo
+      .filter((target) => target.roomId === task.roomId && target.messageId !== null)
       .map((target) => getMessage(this.deps.db, target.messageId ?? ''))
       .filter((message): message is RoomMessage => message !== undefined && message.deletedAt === null && !this.answered(message.id))
-    this.deps.replies.send({ roomId: room.id, author: front.botId, purpose: 'result', body, replyTo: asked.at(-1)?.id ?? null, sessionId: front.sessionId, taskId: task.id, data: { relayed: true } })
-    return 1
+      .at(-1)
   }
 
   /** 等你：干活的 bot 回复任务卡，说卡在哪、要你做什么；有任务对话的根任务直接在那里说。 */
@@ -112,7 +106,7 @@ export class TaskReplies {
     const card = conversation === undefined ? this.deps.cardOf(task.id) : undefined
     const roomId = conversation ?? card?.roomId ?? task.roomId
     if (roomId === null) return undefined
-    if (conversation !== undefined && this.relayed(task, conversation)) this.deps.relay(task, input.kind === 'wait' ? 'wait' : 'failed', `${input.body}${this.optionsOf(input.data)}`)
+    if (conversation !== undefined && this.relayed(task, conversation)) this.deps.wake(task, this.waitWake(input))
     return this.deps.replies.send({
       roomId,
       author,
@@ -126,11 +120,10 @@ export class TaskReplies {
     })
   }
 
-  /** 等你事项带的选项，转告时一起说。 */
-  private optionsOf(data: Readonly<Record<string, unknown>> | undefined): string {
-    const wait = typeof data?.waitId === 'string' ? getWait(this.deps.db, data.waitId) : undefined
-    const options = Array.isArray(wait?.data.options) ? wait.data.options.filter((option): option is string => typeof option === 'string') : []
-    return options.length === 0 ? '' : `（选项：${options.join(' / ')}）`
+  /** 等你事项（问题、批准、登录）叫前台说是谁在问什么；其余的是没做成。 */
+  private waitWake(input: { readonly body: string; readonly kind?: 'text' | 'wait'; readonly data?: Readonly<Record<string, unknown>> }): TaskWake {
+    const waitId = typeof input.data?.waitId === 'string' ? input.data.waitId : null
+    return input.kind === 'wait' && waitId !== null ? { kind: 'question', body: input.body, anchor: null, waitId } : { kind: 'failed', body: input.body, anchor: null }
   }
 
   /** 答复：任务里被问到时，回在问的那条下面。 */

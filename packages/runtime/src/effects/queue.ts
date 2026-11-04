@@ -30,7 +30,7 @@ export class Later extends Error {
 export const FAILURES_BEFORE_PROBLEM = 3
 
 /** 开工、送达、转交、通知、回复、判断、合批送进前台。 */
-export type EffectKind = 'open' | 'deliver' | 'relay' | 'notify' | 'reply' | 'judge' | 'front'
+export type EffectKind = 'open' | 'deliver' | 'relay' | 'notify' | 'reply' | 'judge' | 'front' | 'wake'
 
 export interface EffectRun {
   readonly key: string
@@ -79,6 +79,7 @@ const PROBLEM_LABELS: Readonly<Record<EffectKind, string>> = {
   reply: '往聊天室发消息',
   judge: '自动来源的判断',
   front: '把消息交给前台',
+  wake: '任务交来的事没等到前台说，原样发出去',
 }
 
 function errorText(error: unknown): string {

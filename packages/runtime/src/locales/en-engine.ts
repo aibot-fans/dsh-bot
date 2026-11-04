@@ -100,6 +100,7 @@ export const RUNTIME_EN_ENGINE: Readonly<Record<string, string>> = {
   '连续 {MAX_NUDGES} 次提醒都没有汇报，已停下。要接着做就点下面的“重试”，不要了点“不做了”。': 'No report after {MAX_NUDGES} reminders, so it stopped. Click "Retry" below to continue, or "Drop it" if you no longer need it.',
   '聊天室不在了': 'The chat room no longer exists',
   '把消息交给前台': 'Handing messages to the front desk',
+  '任务交来的事没等到前台说，原样发出去': 'Posting what a task sent, since the front desk did not',
   '连续 {count} 次用同样的参数调用 {name}': 'Called {name} {count} times in a row with the same arguments',
   '缺少问题的种类': 'Missing the problem kind',
   '漏掉后重试': 'Retried after being missed',

@@ -1,5 +1,5 @@
 import { OWNER, POD, TICKET_STAGE_LABELS, recurring, t, type Bot, type OriginQuote, type PodSession, type ReplyTarget, type Room, type RoomMessage, type Task, type TriggerSpec } from 'pod-domain'
-import { getMessage, taskConversationOf, transaction } from 'pod-store'
+import { getMessage, getWait, taskConversationOf, transaction } from 'pod-store'
 import { ownerSource, relaySource } from '../agents/messages.ts'
 import type { JsonSchema, ToolDefinition } from '../dsh.ts'
 import { isTicket } from '../engine/index.ts'
@@ -7,6 +7,7 @@ import type { PodRuntime } from '../pod.ts'
 import type { TaskConversation } from '../tasks/service.ts'
 import { bool, failure, oneOf, podTool, str, success, text } from '../tools/define.ts'
 import { TRIGGER_PROPS, readTriggerArgs, sourceFor } from '../tools/triggers.ts'
+import { speechOf } from './speech.ts'
 
 /** 一次 dispatch 最多管几条消息。 */
 const DISPATCH_MAX = 20
@@ -198,7 +199,7 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
     pod.front.opened(session.botId, { roomId: room.id, messageId: asked.id, sessionId: session.id, body: fallback, taskId: created.value.id })
     const where = conversation === undefined ? '' : conversation.kind === 'group' ? `，开了任务群（${[bot, ...members].map((member) => member.name).join('、')}）` : '，和它另开了一段单聊'
     const when = starts === '' ? '' : `，${starts}开工`
-    return `开了任务 ${created.value.id}「${created.value.title}」，交给${bot.name}${where}${when}\n现在用 reply（confirm，to 写 ${asked.id}）回用户一句：交给谁了、取了哪种理解，任务卡挂在这句下面`
+    return `开了任务 ${created.value.id}「${created.value.title}」，交给${bot.name}${where}${when}\n现在用 reply（to 写 ${asked.id}）回用户一句：交给谁了、取了哪种理解，任务卡挂在这句下面`
   }
 
   /**
@@ -361,27 +362,23 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
   const reply = podTool({
     name: 'reply',
     description:
-      '对用户说话：发一条消息到聊天室。写明回的是哪条消息（to，不回具体某条就写 room）和用途：confirm 确认（开了任务后回一句，任务卡挂在这句下面；转给任务后回一句，task 写那个任务，消息开头挂任务记号）、answer 答复（第一句就是答案）、relay 转告（任务问用户、没做成时，task 写那个任务，消息开头挂任务记号，任务问的事做成卡片挂在这句下面；交的回答 dsh-bot 会以你的名义原样发，不用转告）。用户问任务的细节时只讲问的那部分，task 写那个任务。你在别处写的文字用户看不到，只有 reply 会发出去。',
+      '对用户说话：发一条消息到聊天室。to 写回哪条消息（不回具体某条就写 room）；说的是哪个任务就在 task 写任务 id，消息开头会挂任务记号。叫醒你说任务交来的事（交结果、问用户、没做成）时照叫醒里写的 to、room、task 回，问的事会做成卡片挂在你这句下面。你在别处写的文字用户看不到，只有 reply 会发出去。',
     properties: {
       to: str('回哪条消息（消息 id）'),
       room: str('不回具体某条时，发到哪个聊天室（room id）'),
-      purpose: oneOf('confirm 确认 / answer 答复 / relay 转告', ['confirm', 'answer', 'relay']),
       text: str('要说的话'),
-      task: str('relay、confirm：说的是哪个任务（任务 id）；answer：答的是哪个任务（可选）'),
+      task: str('说的是哪个任务（任务 id）'),
     },
-    required: ['purpose', 'text'],
+    required: ['text'],
     parse: (args) => {
       const body = text(args, 'text')
       if (body === '') return '要写说什么'
       const to = text(args, 'to')
       const room = text(args, 'room')
       if (to === '' && room === '') return '要写回哪条消息（to）或者发到哪个聊天室（room）'
-      const raw = text(args, 'purpose')
-      const purpose: 'confirm' | 'answer' | 'relay' = raw === 'confirm' || raw === 'relay' ? raw : 'answer'
-      if (purpose === 'relay' && text(args, 'task') === '') return '转告要写 task（任务 id）'
-      return { to, room, purpose, body, task: text(args, 'task') }
+      return { to, room, body, task: text(args, 'task') }
     },
-    run: ({ to, room, purpose, body, task }) => {
+    run: ({ to, room, body, task }) => {
       const replied = to === '' ? undefined : getMessage(pod.db, to)
       if (to !== '' && (replied === undefined || replied.deletedAt !== null)) return failure(`找不到消息 ${to}`)
       const target = pod.rooms.get(replied?.roomId ?? room)
@@ -391,27 +388,36 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
       const about = task === '' ? undefined : pod.tasks.get(task)
       if (task !== '' && about === undefined) return failure(`找不到任务 ${task}`)
       const pageId = typeof replied?.data.pageId === 'string' ? replied.data.pageId : undefined
-      // 转告和确认挂任务记号（taskId）：刚开任务的那句没写 task 时挂这个聊天室刚开的任务，任务卡挂在这句下面。答复附报告（reportTaskId）。
-      const chipTask = purpose === 'answer' ? undefined : (about?.rootId ?? (purpose === 'confirm' ? pod.front.openedIn(session.botId, target.id) : undefined))
-      // 转告任务在问的事：那件事的卡片（问题、批准、登录）挂在这句下面，在这里点就是答复。
-      const asked = purpose === 'relay' && about !== undefined ? pod.waits.latestOpenFor(about.rootId) : undefined
+      // 这句是什么由它在回什么定：叫醒它说的那件、判过的消息的确认、答复（见 speechOf）。
+      const speech = speechOf(
+        { botId: session.botId, roomId: target.id, replied, task: about?.rootId },
+        {
+          pending: (botId, taskId) => pod.front.wakes.pending(botId, taskId),
+          onlyIn: (botId, roomId) => pod.front.wakes.onlyIn(botId, roomId),
+          routes: (messageId) => pod.engine.topics.routes(messageId),
+          rootOf: (taskId) => pod.tasks.get(taskId)?.rootId,
+          openedIn: (botId, roomId) => pod.front.openedIn(botId, roomId),
+          waitOpen: (waitId) => getWait(pod.db, waitId)?.status === 'open',
+        },
+      )
       // 走回复队列：按顺序发、留回执；群里挂在回的那条下面，单聊里回的正是最新那句就不挂引用。
       const messageId = pod.replies.send({
         roomId: target.id,
         author: session.botId,
-        purpose,
+        purpose: speech.purpose,
         body,
         sessionId: session.id,
-        replyTo: replied?.id ?? null,
-        ...(chipTask === undefined ? {} : { taskId: chipTask }),
+        replyTo: speech.replyTo,
+        ...(speech.taskId === undefined ? {} : { taskId: speech.taskId }),
         data: {
           ...(pageId === undefined ? {} : { pageId }),
-          ...(about === undefined || purpose !== 'answer' ? {} : { reportTaskId: about.rootId }),
-          ...(asked === undefined ? {} : { waitId: asked.id }),
+          ...(speech.waitId === undefined ? {} : { waitId: speech.waitId }),
+          ...(speech.reportId === undefined ? {} : { reportId: speech.reportId }),
         },
       })
-      if (replied !== undefined && purpose === 'answer' && pod.engine.topics.awaiting(replied.id, session.botId)) pod.engine.topics.decide(replied.id, session.botId, 'answered')
-      pod.front.confirmed(session.botId, target.id)
+      if (speech.wake !== undefined) pod.front.wakes.handled(speech.wake)
+      else pod.front.confirmed(session.botId, target.id)
+      if (replied !== undefined && speech.purpose === 'answer' && pod.engine.topics.awaiting(replied.id, session.botId)) pod.engine.topics.decide(replied.id, session.botId, 'answered')
       return success(`已发到「${target.title}」`, { messageId })
     },
   })

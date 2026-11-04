@@ -2,9 +2,10 @@
  * 前台的剧本：消息成批送来（[新消息] 开头，按聊天室分组），每条按内容记去向，一步调一个工具：
  * - “读一下 id [part=…] [page=…] [size=…]”：先 read，再把读到的 reply 出去。
  * - “交给主管/某某 …”或“委派”：open 开任务（交给谁写谁；成员只能开给自己；标题按关键词取；说了组个团队再叫上一个成员），
- *   再 reply（confirm）一句“交给某某了，做好我直接告诉你”，任务卡挂在这句下面。
- * - [转告]（任务问用户、没做成）：reply（relay）在派活的聊天室说一句，挂上那个任务。交的回答 dsh-bot 以前台的名义原样发，不经过这里。
- * - “转达给任务 task_x：…”：forward 转过去（说的是方案 A、B 的当成回答它在问的问题，不写后续），再 reply（confirm，挂上那个任务）一句。
+ *   再 reply 一句“交给某某了，做好我直接告诉你”，任务卡挂在这句下面。
+ * - 叫醒（[任务交结果]、[任务问你]、[任务没做成]）：照里面写的 to、room、task reply 一句：交结果写结论加“完整的在任务里”，
+ *   问你只说谁在问什么，没做成说原因。用户原话里有“测试兜底”的不回，等 dsh-bot 原样发。
+ * - “转达给任务 task_x：…”：forward 转过去（说的是方案 A、B 的当成回答它在问的问题，不写后续），再 reply 一句（挂上那个任务）。
  * - “停掉任务 task_x”：stop；“先等等 task_x”：pause；“接着做 task_x”：resume；“现在跑一次 task_x”：run。
  * - “谢谢”：ignore。
  * - “@ 一下 某某”：mention_member 叫它，再记 answer。
@@ -29,7 +30,7 @@ const THINK = [
 ].join('\n')
 
 const BATCH_HEAD = '[新消息]'
-const RELAY_HEAD = '[转告]'
+const WAKE_HEADS = ['[任务交结果]', '[任务问你]', '[任务没做成]']
 const NUDGE_HEAD = '[dsh-bot] 这几条还没有去向：'
 const RETRY_HEAD = '[dsh-bot] 刚才模型服务出错'
 
@@ -118,26 +119,36 @@ function confirmText(result, self) {
   return owner === self ? '我来做，做好告诉你。' : `交给${owner}了，做好我直接告诉你。`
 }
 
-/** 转告：任务在它自己的对话里问用户、没做成，在派活的聊天室说一句。 */
-function relayDecision(text, calls) {
-  if (calls > 0) return { text: '（前台）转告完了。' }
-  const target = /purpose 写 relay，room 写 (room_[0-9a-z]+)，task 写 (task_[0-9a-z]+)/.exec(text)
-  if (target === null) return { text: '（前台）这条转告看不懂，先不处理。' }
-  const owner = /（task_[0-9a-z]+，(.+?)在做）/.exec(text)?.[1] ?? '它'
+/** 叫醒：任务交了回答、问用户、没做成，照叫醒里写的 to、room、task 在派活的聊天室说一句。 */
+function wakeDecision(text, calls) {
+  if (calls > 0) return { text: '（前台）说完了。' }
+  if (text.includes('测试兜底')) return { text: '（前台）这件先不说。' }
+  const to = /to 写 (msg_[0-9a-z]+)/.exec(text)?.[1]
+  const room = /room 写 (room_[0-9a-z]+)/.exec(text)?.[1]
+  const task = /task 写 (task_[0-9a-z]+)/.exec(text)?.[1]
+  if (task === undefined || (to === undefined && room === undefined)) return { text: '（前台）这条叫醒看不懂，先不处理。' }
+  const owner = /（task_[0-9a-z]+，(.+?)(?:在做|做的)）/.exec(text)?.[1] ?? '它'
   const lines = text.split('\n')
-  const body = lines.slice(1, -1).join('\n').trim()
-  const first = body.split('\n')[0] ?? ''
-  // 问的事做成卡片挂在这句下面：只说谁在问什么，不列选项。
-  const said = text.includes('在任务对话里问用户') ? `${owner}问：${first.replace(/（选项：[^）]*）$/, '')}` : `${owner}没做成：${first}`
-  return { tool: 'reply', args: { room: target[1], purpose: 'relay', task: target[2], text: said } }
+  const where = to === undefined ? { room } : { to }
+  if (text.startsWith('[任务交结果]')) {
+    const from = lines.findIndex((line) => line.includes('交的完整回答'))
+    const answer = lines.slice(from + 1, -1).find((line) => line.trim() !== '') ?? ''
+    return { tool: 'reply', args: { ...where, task, text: `（测试模型）结论：${answer.trim()}\n完整的在任务里。` } }
+  }
+  if (text.startsWith('[任务问你]')) {
+    const question = /^(?:问题|问的是|在等用户批准|要用户登录)：(.*)$/m.exec(text)?.[1] ?? ''
+    // 问的事做成卡片挂在这句下面：只说谁在问什么，不列选项。
+    return { tool: 'reply', args: { ...where, task, text: `${owner}在问：${question}（要你定一下）` } }
+  }
+  return { tool: 'reply', args: { ...where, task, text: `${owner}没做成：${(lines[1] ?? '').trim()}` } }
 }
 
 function dispatch(id, fields) {
   return () => ({ tool: 'dispatch', args: { items: [{ messages: [id], ...fields }] } })
 }
 
-function reply(item, text, purpose = 'answer') {
-  return () => ({ tool: 'reply', args: { to: item.id, purpose, text } })
+function reply(item, text) {
+  return () => ({ tool: 'reply', args: { to: item.id, text } })
 }
 
 /** 一条消息要调哪几步；每步是 (上一步的结果) => 决定。 */
@@ -152,7 +163,7 @@ function stepsFor(item, context) {
     const answer = /方案 ?[AB]/.test(body)
     return [
       dispatch(id, { action: 'forward', task: relay, ...(answer ? {} : { brief: `补充同一件事的后续：用户又说「${body}」。照这句改，前面做好的不动。` }) }),
-      () => ({ tool: 'reply', args: { to: id, purpose: 'confirm', task: relay, text: answer ? `好，转给它了，接着做「${taskTitle(batch, relay)}」。` : `好，让它接着改「${taskTitle(batch, relay)}」。` } }),
+      () => ({ tool: 'reply', args: { to: id, task: relay, text: answer ? `好，转给它了，接着做「${taskTitle(batch, relay)}」。` : `好，让它接着改「${taskTitle(batch, relay)}」。` } }),
     ]
   }
   const stop = /停掉任务 (task_[0-9a-z]+)/.exec(body)?.[1]
@@ -160,7 +171,7 @@ function stepsFor(item, context) {
   const state = /(先等等|接着做|现在跑一次) (task_[0-9a-z]+)/.exec(body)
   if (state !== null) {
     const action = { 先等等: 'pause', 接着做: 'resume', 现在跑一次: 'run' }[state[1]]
-    return [dispatch(id, { action, task: state[2] }), (result) => ({ tool: 'reply', args: { to: id, purpose: 'answer', task: state[2], text: `（测试模型）${result.split('\n')[0].replace(/^msg_[0-9a-z、]+：/, '')}` } })]
+    return [dispatch(id, { action, task: state[2] }), (result) => ({ tool: 'reply', args: { to: id, task: state[2], text: `（测试模型）${result.split('\n')[0].replace(/^msg_[0-9a-z、]+：/, '')}` } })]
   }
   if (/^(谢谢|多谢|好的谢谢)/.test(body.trim())) return [dispatch(id, { action: 'ignore', reason: '道谢，不用处理' })]
   const asked = /@ ?一下\s*([^\s，。,、：:]+)/.exec(body)?.[1]
@@ -170,7 +181,7 @@ function stepsFor(item, context) {
   if (speaker !== '用户' && body.includes('应一声') && tools.has('mention_member')) {
     return [
       () => ({ tool: 'mention_member', args: { room: room.id, members: [speaker], message: '收到，我在' } }),
-      (result) => ({ tool: 'reply', args: { to: id, purpose: 'answer', text: `收到，我在。（没有 @ 回去：${result.slice(0, 40)}）` } }),
+      (result) => ({ tool: 'reply', args: { to: id, text: `收到，我在。（没有 @ 回去：${result.slice(0, 40)}）` } }),
     ]
   }
   if (speaker !== '用户') return [reply(item, `（测试模型）我是${self}，收到${speaker}的话：${body.slice(0, 80)}`)]
@@ -179,7 +190,7 @@ function stepsFor(item, context) {
     const [, target, part, page, size] = reading
     return [
       () => ({ tool: 'read', args: { id: target, ...(part === undefined ? {} : { part }), ...(page === undefined ? {} : { page: Number(page) }), ...(size === undefined ? {} : { size: Number(size) }) } }),
-      (result) => ({ tool: 'reply', args: { to: id, purpose: 'answer', text: `读到了：\n${result.slice(0, 3000)}` } }),
+      (result) => ({ tool: 'reply', args: { to: id, text: `读到了：\n${result.slice(0, 3000)}` } }),
     ]
   }
   if (/交给|委派/.test(body)) {
@@ -187,21 +198,21 @@ function stepsFor(item, context) {
     const bot = member || named === undefined ? '自己' : named
     // 组个团队：再叫上名册里另一个 bot，开成任务群。
     const partner = /组个团队|组队/.test(body) && !member ? context.roster.find((name) => name !== self && name !== bot) : undefined
-    return [dispatch(id, { action: 'open', title: openTitle(body), bot, brief: briefOf(body), ...(partner === undefined ? {} : { members: [partner] }) }), (result) => ({ tool: 'reply', args: { to: id, purpose: 'confirm', text: confirmText(result, self) } })]
+    return [dispatch(id, { action: 'open', title: openTitle(body), bot, brief: briefOf(body), ...(partner === undefined ? {} : { members: [partner] }) }), (result) => ({ tool: 'reply', args: { to: id, text: confirmText(result, self) } })]
   }
-  if (body.includes('进度') && tools.has('task_status')) return [() => ({ tool: 'task_status', args: {} }), (result) => ({ tool: 'reply', args: { to: id, purpose: 'answer', text: `进度：${result.slice(0, 300)}` } })]
+  if (body.includes('进度') && tools.has('task_status')) return [() => ({ tool: 'task_status', args: {} }), (result) => ({ tool: 'reply', args: { to: id, text: `进度：${result.slice(0, 300)}` } })]
   if (body.includes('记住') && tools.has('remember')) {
     const line = body.split('\n').find((part) => part.includes('记住')) ?? body
     return [
       () => ({ tool: 'remember', args: { scope: 'owner', type: 'preference', content: line.replace(/^.*记住/, '用户').slice(0, 60), owner_quote: line.slice(0, 30), room: room.id } }),
-      (result) => ({ tool: 'reply', args: { to: id, purpose: 'answer', text: `好的。${result.slice(0, 120)}` } }),
+      (result) => ({ tool: 'reply', args: { to: id, text: `好的。${result.slice(0, 120)}` } }),
     ]
   }
   if (body.includes('拉个群') && tools.has('create_group')) {
     const name = /拉个群「([^」]+)」/.exec(body)?.[1] ?? '监控播报'
     return [
       () => ({ tool: 'create_group', args: { name, members: context.roster.slice(0, 2), intro: '测试拉群' } }),
-      (result) => ({ tool: 'reply', args: { to: id, purpose: 'answer', text: `好的。${result.slice(0, 120)}` } }),
+      (result) => ({ tool: 'reply', args: { to: id, text: `好的。${result.slice(0, 120)}` } }),
     ]
   }
   if (body.includes('每天')) return [dispatch(id, { action: 'open', title: member ? '每日选题' : '早间资讯', bot: '自己', note: '', trigger: { time: '08:00' } })]
@@ -226,7 +237,7 @@ export function frontDecision(context) {
   const items = wanted === undefined ? all : all.filter((item) => wanted.has(item.id))
   // 追问里有、但最近一批里找不到的（比如更早一批的），按追问里的 id 直接答。
   const missing = wanted === undefined ? [] : [...wanted].filter((id) => !items.some((item) => item.id === id)).map((id) => ({ id, speaker: '用户', body: '测试追问', room: { kind: '单聊', id: '' } }))
-  if (userText.startsWith(RELAY_HEAD)) return relayDecision(userText, context.calls)
+  if (WAKE_HEADS.some((head) => userText.startsWith(head))) return wakeDecision(userText, context.calls)
   const shared = { tools, self, member, batch, nudged, roster: context.roster }
   const steps = [...items, ...missing].flatMap((item) => stepsFor(item, shared))
   if (!nudged && !retry && !userText.startsWith(BATCH_HEAD)) return { text: '（前台）收到。' }
