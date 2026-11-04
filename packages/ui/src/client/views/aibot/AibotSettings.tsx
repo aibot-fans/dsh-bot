@@ -17,18 +17,15 @@ function detailOf(status: AibotStatus): string {
       return t('第一次用自动开通，不用注册登录')
     case 'disabled':
       return t('不会自动重新开通；aibot 那边恢复以后，点“重试”就能接着用')
-    case 'ready': {
+    case 'ready':
       if (status.message !== '') return status.message
-      const free = status.dailyFree === null ? '' : t('每天免费 {limit} 次，读一次算一次，用你的 X 账号写一次算 4 次，监控不扣', { limit: status.dailyFree.limit })
-      const key = status.keyTail === '' ? '' : t('Key 尾号 {keyTail}', { keyTail: status.keyTail })
-      return [free, key].filter((part) => part !== '').join(' · ')
-    }
+      return status.keyTail === '' ? '' : t('Key 尾号 {keyTail}', { keyTail: status.keyTail })
     default:
       return retryText(status).replace(/^(，|,\s*)/, '')
   }
 }
 
-/** 设置里的 aibot：开关和今日剩余次数、监控、绑定账号（aibot 开放了才显示）。 */
+/** 用量页里 aibot 的几行：开关、监控、绑定账号（aibot 开放了才显示）。剩几次在上面的次数卡片里。 */
 export function AibotRows(props: { readonly settings: PodSettings; readonly update: Update }) {
   const app = useApp()
   const { data: status, error } = useAibot()

@@ -12,14 +12,14 @@ function dayWord(at: number, now: number): string {
   return new Date(at).toLocaleDateString(intlLocale(), { timeZone: 'Asia/Shanghai', month: 'short', day: 'numeric' })
 }
 
-/** 设置页那一行：「aibot · 已开通（免登录）· 今日剩余 N 次」；没开通好时说现在怎样。 */
+/** 用量页开关那一行：「aibot · 已开通（免登录）」；剩几次在上面的次数卡片里。没开通好时说现在怎样。 */
 export function aibotLine(status: AibotStatus): string {
   if (status.state === 'off') return t('aibot · 已关闭')
   if (status.state === 'starting') return t('aibot · 正在开通…')
   if (status.state === 'disabled') return status.message
   if (status.state !== 'ready') return `aibot · ${status.message}`
   const who = status.accountKind === 'account' ? t('已绑定 {value}', { value: status.accountDisplay ?? t('账号') }) : t('已开通（免登录）')
-  return status.dailyFree === null ? `aibot · ${who}` : t('aibot · {who} · 今日剩余 {remaining} 次', { who, remaining: status.dailyFree.remaining })
+  return `aibot · ${who}`
 }
 
 /** 免费次数什么时候恢复，按北京时间说：「明早 08:00 恢复」。 */

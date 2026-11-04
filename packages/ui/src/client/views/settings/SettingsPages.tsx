@@ -6,13 +6,9 @@ import { Badge, Button, RelativeTime, Segmented, Switch } from '../../components
 import { useApp } from '../../state/app.ts'
 import { CHAT_WIDTH_DEFAULT, setChatWidth, useChatWidth } from '../../state/chatWidth.ts'
 import { useResource } from '../../state/resource.ts'
-import { AibotRows } from '../aibot/AibotSettings.tsx'
-import { MemoryChanges } from '../memory/MemoryView.tsx'
 import { UpdateRow } from '../update/UpdateRow.tsx'
 import { BrowserSettings } from './BrowserSettings.tsx'
 import { Row, type Update } from './Row.tsx'
-import { XAccountRows } from './XAccountRows.tsx'
-import { XRulesRows } from './XRulesRows.tsx'
 
 function modelValue(model: ModelChoice | null): string {
   return model === null ? '' : `${model.provider}::${model.model}`
@@ -47,16 +43,13 @@ function Time(props: { readonly value: string; readonly onChange: (value: string
   return <input className="pod-input pod-input-time" type="time" aria-label={props.label} value={props.value} onChange={(event) => props.onChange(event.target.value)} />
 }
 
-/** 通用：暂停处理、语言、聊天区宽度、放手程度、通知、勿扰、自动记住要点、X 数据和监控（aibot）、x_ 工具用的 X 账号。 */
+/** 通用：语言、聊天区宽度、通知、勿扰和首次引导，都是你自己用起来的习惯。bot 怎么干活在“工作方式”页。 */
 export function GeneralPage(props: { readonly settings: PodSettings; readonly update: Update }) {
   const app = useApp()
   const width = useChatWidth()
   const { settings, update } = props
   return (
     <div className="pod-settings-body">
-      <Row label={t('暂停处理')} hint={t('开工、送消息、往聊天室发、例程都先停着，消息照旧记下；关掉后排着的按原来的顺序接着做。换模型、改提示词、升级重启前用')}>
-        <Switch checked={settings.paused} label={t('暂停处理')} onChange={(paused) => update({ paused })} />
-      </Row>
       <Row label={t('语言')} hint={t('跟随 dsh：和 dsh 设置里的界面语言一致。系统消息和 bot 的回答也用这个语言')}>
         <Segmented
           value={settings.language}
@@ -78,17 +71,6 @@ export function GeneralPage(props: { readonly settings: PodSettings; readonly up
           {t('铺满')}
         </Button>
       </Row>
-      <Row label={t('放手程度')} hint={t('谨慎：bot 组队开工前，先把计划发给你看')}>
-        <Segmented
-          value={settings.autonomy}
-          options={[
-            ['hands-off', t('放手')],
-            ['careful', t('谨慎')],
-          ]}
-          onChange={(autonomy) => update({ autonomy })}
-          label={t('放手程度')}
-        />
-      </Row>
       <Row label={t('浏览器通知')} hint={t('dsh 标签页不在前台时，任务完成和需要你的事会弹系统通知')}>
         <Switch
           checked={settings.browserNotifications}
@@ -105,12 +87,6 @@ export function GeneralPage(props: { readonly settings: PodSettings; readonly up
         <Time value={settings.quietHours.end} label={t('结束时间')} onChange={(end) => update({ quietHours: { ...settings.quietHours, end } })} />
         <Switch checked={settings.quietHours.enabled} label={t('勿扰时段')} onChange={(enabled) => update({ quietHours: { ...settings.quietHours, enabled } })} />
       </Row>
-      <Row label={t('自动记住要点')} hint={t('从对话里提取值得记的事，存进对应 bot 的记忆；无痕对话不提取')}>
-        <Switch checked={settings.memoryExtraction} label={t('自动记住要点')} onChange={(memoryExtraction) => update({ memoryExtraction })} />
-      </Row>
-      <AibotRows settings={settings} update={update} />
-      <XAccountRows settings={settings} update={update} />
-      <XRulesRows settings={settings} update={update} />
       <Row label={t('首次引导')}>
         <Button
           small
@@ -128,7 +104,7 @@ export function GeneralPage(props: { readonly settings: PodSettings; readonly up
   )
 }
 
-/** 模型：默认模型、轻量调用、闲时运行、并发。 */
+/** 模型：默认模型、轻量调用、闲时运行和换段长度。 */
 export function ModelsPage(props: { readonly settings: PodSettings; readonly update: Update }) {
   const app = useApp()
   const { settings, update } = props
@@ -145,11 +121,8 @@ export function ModelsPage(props: { readonly settings: PodSettings; readonly upd
       <Row label={t('闲时运行')} hint={t('用 DeepSeek 模型时，不急的自动化、夜间整理和复盘放到闲时跑，更便宜')}>
         <Switch checked={settings.offPeak} label={t('闲时运行')} onChange={(offPeak) => update({ offPeak })} />
       </Row>
-      <Row label={t('同时进行的任务')} hint={t('超出的排队，不拒绝')}>
-        <input className="pod-input pod-input-number" type="number" min={1} max={32} aria-label={t('同时进行的任务数')} value={settings.taskConcurrency} onChange={(event) => update({ taskConcurrency: Number(event.target.value) })} />
-      </Row>
-      <Row label={t('给你说话留的通道')} hint={t('任务再多，你说话也不用排队')}>
-        <input className="pod-input pod-input-number" type="number" min={1} max={32} aria-label={t('聊天通道数')} value={settings.chatConcurrency} onChange={(event) => update({ chatConcurrency: Number(event.target.value) })} />
+      <Row label={t('换段长度（token）')} hint={t('一段对话超过这个长度，就整理成摘要换一段继续')}>
+        <input className="pod-input pod-input-number" type="number" min={16000} step={1000} aria-label={t('换段长度')} value={settings.softContextTokens} onChange={(event) => update({ softContextTokens: Number(event.target.value) })} />
       </Row>
     </div>
   )
@@ -180,7 +153,7 @@ export function BrowserPage(props: { readonly settings: PodSettings; readonly up
   )
 }
 
-/** 高级：时区、休眠、换段长度、你的档案、记忆变更、版本和备份。回收站单独一页。 */
+/** 高级：时区、休眠、版本和更新、对外访问、数据目录和备份。 */
 export function AdvancedPage(props: { readonly settings: PodSettings; readonly update: Update }) {
   const app = useApp()
   const { settings, update } = props
@@ -195,18 +168,6 @@ export function AdvancedPage(props: { readonly settings: PodSettings; readonly u
       <Row label={t('有任务时不让电脑休眠')} hint={t('任务跑完就恢复')}>
         <Switch checked={settings.preventSleep} label={t('有任务时不让电脑休眠')} onChange={(preventSleep) => update({ preventSleep })} />
       </Row>
-      <Row label={t('换段长度（token）')} hint={t('一段对话超过这个长度，就整理成摘要换一段继续')}>
-        <input className="pod-input pod-input-number" type="number" min={16000} step={1000} aria-label={t('换段长度')} value={settings.softContextTokens} onChange={(event) => update({ softContextTokens: Number(event.target.value) })} />
-      </Row>
-      <Row label={t('你的档案')} hint={t('Super-agent 记下的关于你的事：偏好、习惯、约定')}>
-        <Button small onClick={() => app.openDrawer({ kind: 'memory', scope: 'owner', scopeId: '', label: t('你的档案') })}>
-          {t('打开')}
-        </Button>
-      </Row>
-      <details className="pod-settings-group">
-        <summary>{t('记忆变更日志')}</summary>
-        <MemoryChanges />
-      </details>
       {status === undefined ? null : (
         <>
           <Row label={t('版本')}>

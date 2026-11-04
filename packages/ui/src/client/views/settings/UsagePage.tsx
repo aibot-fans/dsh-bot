@@ -1,11 +1,13 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { t } from 'pod-domain'
+import { t, type PodSettings } from 'pod-domain'
 import { api, type UsageRange, type UsageReport, type UsageShare } from '../../api/endpoints.ts'
 import { Avatar, money, Segmented, tokens } from '../../components/common.tsx'
 import { GroupMark } from '../../components/GroupMark.tsx'
 import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
+import { AibotRows } from '../aibot/AibotSettings.tsx'
 import { AibotUsage } from '../aibot/AibotUsage.tsx'
+import type { Update } from './Row.tsx'
 
 const RANGES: readonly (readonly [UsageRange, string])[] = [
   ['today', '今天'],
@@ -183,8 +185,8 @@ function Breakdown(props: { readonly report: UsageReport }) {
   )
 }
 
-/** 设置里的用量：所有 bot、群聊和后台加在一起；选时间范围，看总数、走势和花在哪儿；最下面是 aibot 今天还剩几次。 */
-export function UsagePage() {
+/** 设置里的用量：所有 bot、群聊和后台加在一起；选时间范围，看总数、走势和花在哪儿；最下面是 X 数据（aibot）：今天还剩几次、开关、监控和绑定账号。 */
+export function UsagePage(props: { readonly settings: PodSettings; readonly update: Update }) {
   const app = useApp()
   const [range, setRange] = useState<UsageRange>('7d')
   const { data: report, error } = useResource(app.cache, `usage:${range}`, () => api.usage(range))
@@ -221,7 +223,13 @@ export function UsagePage() {
           <Breakdown report={report} />
         </>
       )}
-      <AibotUsage />
+      <section className="pod-stack-tight">
+        <div className="pod-section-title">{t('X 数据（aibot）')}</div>
+        <AibotUsage />
+        <div className="pod-settings-body">
+          <AibotRows settings={props.settings} update={props.update} />
+        </div>
+      </section>
     </div>
   )
 }

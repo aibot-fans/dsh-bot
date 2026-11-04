@@ -48,4 +48,11 @@ export const V18_CSS = `
   .pod-convo-head .pod-convo-title { flex-shrink: 0; max-width: 45%; }
   .pod-convo-head .pod-convo-subject { flex: 0 50 auto; }
 }
+.pod-settings-nav-group { display: flex; flex-direction: column; gap: 2px; }
+.pod-settings-nav-group + .pod-settings-nav-group { margin-top: 10px; }
+.pod-settings-nav-label { padding: 2px 12px 4px; font-size: 11.5px; font-weight: 600; letter-spacing: .02em; color: var(--dsw-alias-label-tertiary); }
+@media (max-width: 760px) {
+  .pod-settings-nav-group { display: contents; }
+  .pod-settings-nav-label { display: none; }
+}
 `

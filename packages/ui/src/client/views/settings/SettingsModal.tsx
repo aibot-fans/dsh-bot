@@ -15,19 +15,45 @@ import { Row, type Update } from './Row.tsx'
 import { AdvancedPage, BrowserPage, GeneralPage, ModelsPage } from './SettingsPages.tsx'
 import { TeamNotesPage } from './TeamNotesPage.tsx'
 import { UsagePage } from './UsagePage.tsx'
+import { WorkPage } from './WorkPage.tsx'
 
-const TABS: readonly (readonly [SettingsTab, string])[] = [
-  ['general', '通用'],
-  ['notes', '团队说明'],
-  ['usage', '用量'],
-  ['automations', '自动化'],
-  ['models', '模型'],
-  ['browser', '浏览器'],
-  ['computer', '用电脑'],
-  ['archive', '归档'],
-  ['recycle', '回收站'],
-  ['advanced', '高级'],
+type TabGroup = { readonly label: string; readonly tabs: readonly (readonly [SettingsTab, string])[] }
+
+/** 左栏分四组：常用的、bot 怎么干活、它们用的工具、数据和系统。 */
+const GROUPS: readonly TabGroup[] = [
+  {
+    label: '常用',
+    tabs: [
+      ['general', '通用'],
+      ['usage', '用量'],
+      ['automations', '自动化'],
+    ],
+  },
+  {
+    label: 'Bot',
+    tabs: [
+      ['work', '工作方式'],
+      ['notes', '团队说明'],
+      ['models', '模型'],
+    ],
+  },
+  {
+    label: '工具',
+    tabs: [
+      ['browser', '浏览器'],
+      ['computer', '用电脑'],
+    ],
+  },
+  {
+    label: '数据和系统',
+    tabs: [
+      ['archive', '归档和回收站'],
+      ['advanced', '高级'],
+    ],
+  },
 ]
+
+const TABS = GROUPS.flatMap((group) => group.tabs)
 
 type AutoFilter = 'all' | 'on' | 'off'
 
@@ -73,7 +99,23 @@ function AutomationsPage(props: { readonly settings: PodSettings; readonly updat
   )
 }
 
-/** 设置弹窗：从侧栏底部打开，分九页（含团队说明、归档和回收站）；左栏最下面是“停止所有任务”。改动立即生效。 */
+/** 归档和回收站放一页：收起来的 bot 和群聊在上，删掉的在下。 */
+function StoragePage() {
+  return (
+    <div className="pod-stack">
+      <section className="pod-stack-tight">
+        <div className="pod-section-title">{t('归档')}</div>
+        <ArchivePage />
+      </section>
+      <section className="pod-stack-tight">
+        <div className="pod-section-title">{t('回收站')}</div>
+        <RecycleBin />
+      </section>
+    </div>
+  )
+}
+
+/** 设置弹窗：从侧栏底部打开，左栏分四组十页；左栏最下面是“停止所有任务”。改动立即生效。 */
 export function SettingsModal() {
   const app = useApp()
   const nav = useNav()
@@ -111,10 +153,15 @@ export function SettingsModal() {
       <section className="pod-settings" role="dialog" aria-label={t('设置')} onClick={(event) => event.stopPropagation()}>
         <nav className="pod-settings-nav" aria-label={t('设置分类')}>
           <strong className="pod-settings-title">{t('设置')}</strong>
-          {TABS.map(([value, label]) => (
-            <button key={value} type="button" className={value === tab ? 'pod-settings-tab-on' : undefined} aria-current={value === tab ? 'page' : undefined} onClick={() => app.openSettings(value)}>
-              {t(label)}
-            </button>
+          {GROUPS.map((group) => (
+            <div key={group.label} className="pod-settings-nav-group" role="group" aria-label={t(group.label)}>
+              <span className="pod-settings-nav-label">{t(group.label)}</span>
+              {group.tabs.map(([value, label]) => (
+                <button key={value} type="button" className={value === tab ? 'pod-settings-tab-on' : undefined} aria-current={value === tab ? 'page' : undefined} onClick={() => app.openSettings(value)}>
+                  {t(label)}
+                </button>
+              ))}
+            </div>
           ))}
           <span className="pod-grow" />
           <button type="button" className="pod-settings-stop" onClick={stopAll}>
@@ -133,14 +180,14 @@ export function SettingsModal() {
           ) : (
             <>
               {tab === 'general' ? <GeneralPage settings={settings} update={update} /> : null}
-              {tab === 'notes' ? <TeamNotesPage settings={settings} update={update} /> : null}
-              {tab === 'usage' ? <UsagePage /> : null}
+              {tab === 'usage' ? <UsagePage settings={settings} update={update} /> : null}
               {tab === 'automations' ? <AutomationsPage settings={settings} update={update} /> : null}
+              {tab === 'work' ? <WorkPage settings={settings} update={update} /> : null}
+              {tab === 'notes' ? <TeamNotesPage settings={settings} update={update} /> : null}
               {tab === 'models' ? <ModelsPage settings={settings} update={update} /> : null}
               {tab === 'browser' ? <BrowserPage settings={settings} update={update} /> : null}
               {tab === 'computer' ? <ComputerPage settings={settings} update={update} /> : null}
-              {tab === 'archive' ? <ArchivePage /> : null}
-              {tab === 'recycle' ? <RecycleBin /> : null}
+              {tab === 'archive' ? <StoragePage /> : null}
               {tab === 'advanced' ? <AdvancedPage settings={settings} update={update} /> : null}
             </>
           )}
