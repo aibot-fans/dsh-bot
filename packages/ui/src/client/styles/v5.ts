@@ -6,8 +6,6 @@ export const V5_CSS = `
 .pod-side-badge { flex: none; display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; font-size: 11px; font-weight: 600; line-height: 1; color: #fff; background: var(--pod-danger); font-variant-numeric: tabular-nums; }
 .pod-side-collapsed .pod-side-badge { position: absolute; top: 1px; right: 3px; min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px; box-shadow: 0 0 0 2px var(--pod-side-bg); }
 .pod-side-item[draggable="true"] { -webkit-user-drag: element; }
-.pod-side-drop-before { box-shadow: inset 0 2px 0 var(--pod-info); }
-.pod-side-drop-after { box-shadow: inset 0 -2px 0 var(--pod-info); }
 .pod-side-drop-head { border-radius: 8px; background: color-mix(in srgb, var(--pod-info) 10%, transparent); color: var(--pod-info); }
 .pod-side-fold { flex: none; margin-left: 2px; }
 .pod-side-collapsed .pod-side-fold { order: -1; margin: 0 0 4px; }

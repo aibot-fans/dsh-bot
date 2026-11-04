@@ -23,7 +23,7 @@ export interface SideItemProps {
   readonly collapsed: boolean
   readonly store: SidebarStore
   readonly onError: (message: string) => void
-  /** 拖动排序；不给就不能拖。 */
+  /** 拖动（置顶、放进分组）；不给就不能拖。 */
   readonly drag?: RowDrag
 }
 
@@ -171,7 +171,7 @@ export function SideItem(props: SideItemProps) {
   const lastAt = item.room?.lastMessageAt ?? null
   return (
     <div
-      className={`pod-side-item${active ? ' pod-side-item-active' : ''}${menu.open ? ' pod-side-item-menu' : ''}${drag?.mark === undefined ? '' : ` pod-side-drop-${drag.mark}`}`}
+      className={`pod-side-item${active ? ' pod-side-item-active' : ''}${menu.open ? ' pod-side-item-menu' : ''}`}
       draggable={drag?.draggable === true}
       onDragStart={drag?.onDragStart}
       onDragOver={drag?.onDragOver}

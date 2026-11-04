@@ -161,15 +161,6 @@ function byRecent(left: SidebarItem, right: SidebarItem): number {
   return right.recentAt - left.recentAt
 }
 
-/** 一栏的顺序：没拖过的（新来的）在前、按最近使用排，拖过的按你排的顺序跟在后面。 */
-function arrange(items: readonly SidebarItem[], order: readonly string[] | undefined): readonly SidebarItem[] {
-  if (order === undefined || order.length === 0) return [...items].sort(byRecent)
-  const rank = new Map(order.map((key, index) => [key, index]))
-  const fresh = items.filter((item) => !rank.has(item.key)).sort(byRecent)
-  const placed = items.filter((item) => rank.has(item.key)).sort((left, right) => (rank.get(left.key) ?? 0) - (rank.get(right.key) ?? 0))
-  return [...fresh, ...placed]
-}
-
 /** 你和一个 bot 的每一段对话（单聊），最近的在前；临时对话和删掉的不算。 */
 export function botThreads(botId: string, rooms: readonly RoomSummary[]): readonly RoomSummary[] {
   return rooms
@@ -185,7 +176,7 @@ export function primaryRoom(botId: string, rooms: readonly RoomSummary[]): RoomS
 /**
  * 侧栏分区：归档的单独一栏（侧栏里不显示，在设置里看）；置顶的在最上面，主管总在置顶的第一个，
  * 不能取消置顶、归档或放进分组；放进分组的进分组；其余按 bot 和群聊分开。
- * 每一栏按你拖出来的顺序，没拖过的按最近使用排，不显示时间。
+ * 每一栏都按最新消息排，刚说过话的在最上面；拖动只用来置顶、放进分组，不改顺序。
  */
 export function sidebarSections(bots: readonly Bot[], rooms: readonly RoomSummary[], prefs: SidebarPrefs): SidebarSections {
   const botItems: readonly SidebarItem[] = bots
@@ -206,10 +197,10 @@ export function sidebarSections(bots: readonly Bot[], rooms: readonly RoomSummar
   const loose = open.filter((item) => !item.pinned && prefs.placement[item.key] === undefined)
   const pinned = open.filter((item) => item.pinned)
   return {
-    pinned: [...pinned.filter(isLead), ...arrange(pinned.filter((item) => !isLead(item)), prefs.order[SIDEBAR_PINNED])],
-    folders: prefs.folders.map((folder) => ({ folder, items: arrange(open.filter((item) => !item.pinned && prefs.placement[item.key] === folder.id), prefs.order[folder.id]) })),
-    bots: arrange(loose.filter((item) => item.kind === 'bot'), prefs.order[SIDEBAR_BOTS]),
-    groups: arrange(loose.filter((item) => item.kind === 'group'), prefs.order[SIDEBAR_GROUPS]),
+    pinned: [...pinned.filter(isLead), ...pinned.filter((item) => !isLead(item)).sort(byRecent)],
+    folders: prefs.folders.map((folder) => ({ folder, items: open.filter((item) => !item.pinned && prefs.placement[item.key] === folder.id).sort(byRecent) })),
+    bots: loose.filter((item) => item.kind === 'bot').sort(byRecent),
+    groups: loose.filter((item) => item.kind === 'group').sort(byRecent),
     archived: all.filter((item) => !isLead(item) && archived.has(item.key)).sort(byRecent),
   }
 }
