@@ -183,7 +183,7 @@ export function purgeArchivedRooms(db: DatabaseSync, before: number, now: number
 // ---------- 成员 ----------
 
 export function listRoomMembers(db: DatabaseSync, roomId: string): readonly { readonly botId: string; readonly muted: boolean }[] {
-  const rows = db.prepare('SELECT bot_id, muted FROM room_members WHERE room_id = ? ORDER BY joined_at').all(roomId) as unknown as readonly {
+  const rows = db.prepare('SELECT bot_id, muted FROM room_members WHERE room_id = ? ORDER BY joined_at, rowid').all(roomId) as unknown as readonly {
     readonly bot_id: string
     readonly muted: number
   }[]
@@ -452,6 +452,14 @@ export function lastChatBreak(db: DatabaseSync, roomId: string): number {
     .prepare("SELECT MAX(seq) AS seq FROM messages WHERE room_id = ? AND kind = 'notice' AND json_extract(data, '$.segment') = 1 AND deleted_at IS NULL")
     .get(roomId) as { readonly seq: number | null } | undefined
   return row?.seq ?? 0
+}
+
+/** 房间里每个作者说过几句话（文字消息）：给以前的群补组长时挑说话最多的成员。 */
+export function textCountsByAuthor(db: DatabaseSync, roomId: string): ReadonlyMap<string, number> {
+  const rows = db
+    .prepare("SELECT author, COUNT(*) AS count FROM messages WHERE room_id = ? AND kind = 'text' AND deleted_at IS NULL GROUP BY author")
+    .all(roomId) as unknown as readonly { readonly author: string; readonly count: number }[]
+  return new Map(rows.map((row) => [row.author, row.count]))
 }
 
 export function lastMessages(db: DatabaseSync): ReadonlyMap<string, RoomMessage> {

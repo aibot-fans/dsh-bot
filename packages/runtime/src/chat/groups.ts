@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { OWNER, POD, ROOM_TITLE_MAX, autoGroupName, fail, newId, ok, readId, readString, readStringArray, t, truncate, type Bot, type PodResult, type Room } from 'pod-domain'
-import { addRoomMember, insertRoom, listRooms, removeRoomMember, transaction, updateRoom } from 'pod-store'
+import { addRoomMember, insertRoom, listMessages, listRooms, removeRoomMember, textCountsByAuthor, transaction, updateRoom } from 'pod-store'
 import type { SessionRegistry } from '../agents/registry.ts'
 import type { BotService } from '../bots/service.ts'
 import type { Auditor } from '../core/audit.ts'
@@ -68,7 +68,7 @@ export class GroupService {
       return created
     })
     this.deps.audit.record('room.group', actor, room.id, { name, members, leader: leader.id })
-    this.announce(room.id, t('{name} 是组长：没点名的话{name}先接', { name: leader.name }), leader.id)
+    this.announce(room.id, leader, false)
     this.deps.bus.emit({ type: 'rooms' })
     return ok(room)
   }
@@ -96,7 +96,7 @@ export class GroupService {
     if (room.leadBotId === bot.id) return ok(room)
     const updated = updateRoom(this.db, room.id, { leadBotId: bot.id }) ?? room
     this.deps.audit.record('room.leader', actor, room.id, { botId: bot.id })
-    this.announce(room.id, t('组长换成了{name}：没点名的话{name}先接', { name: bot.name }), bot.id)
+    this.announce(room.id, bot, true)
     this.deps.bus.emit({ type: 'room', roomId: room.id })
     return ok(updated)
   }
@@ -128,7 +128,7 @@ export class GroupService {
     }
     this.deps.audit.record('room.member.remove', OWNER, room.id, { botId: bot.id })
     this.deps.rooms.milestone(room.id, t('{name} 移出了群聊', { name: bot.name }), { botId: bot.id })
-    if (next !== undefined) this.announce(room.id, t('组长换成了{name}：没点名的话{name}先接', { name: next.name }), next.id)
+    if (next !== undefined) this.announce(room.id, next, true)
     this.deps.bus.emit({ type: 'room', roomId: room.id })
     return ok(null)
   }
@@ -144,8 +144,40 @@ export class GroupService {
     return ok({ room, bot })
   }
 
-  /** 群里一行“没点名的话 X 先接”：用提示而不是里程碑，群里看得见（里程碑只在任务页里）。 */
-  private announce(roomId: string, body: string, botId: string): void {
-    this.deps.rooms.post(roomId, { author: POD, kind: 'notice', body, data: { botId, leader: true } })
+  /**
+   * 以前建的群补组长（库 17 版之前的群都没有）：名字对得上群名的成员，其次群里说话最多的，再其次最早进群的；
+   * 每个群留一行“没点名的话 X 先接”。启动时跑，补过的不再动；在群详情里随时能换。
+   */
+  assignLeaders(): void {
+    const missing = this.list().filter((room) => room.leadBotId === null)
+    for (const room of missing) {
+      const leader = pickLeader(room, this.deps.rooms.memberBots(room).filter((bot) => bot.role !== 'lead'), textCountsByAuthor(this.db, room.id))
+      if (leader === undefined) continue
+      updateRoom(this.db, room.id, { leadBotId: leader.id })
+      this.deps.audit.record('room.leader', POD, room.id, { botId: leader.id })
+      this.announce(room.id, leader, false)
+    }
+    if (missing.length > 0) this.deps.bus.emit({ type: 'rooms' })
   }
+
+  /**
+   * 群里一行“没点名的话 X 先接”：用提示而不是里程碑，群里看得见（里程碑只在任务页里）。
+   * 群里最后一条就是这一行（比如连着换了几次）时原地改它，不叠一串；原来写的是“X 是组长”的照旧这么写。
+   */
+  private announce(roomId: string, bot: Bot, changed: boolean): void {
+    const last = listMessages(this.db, roomId, { limit: 1 }).at(-1)
+    const line = last !== undefined && last.author === POD && last.kind === 'notice' && last.data.leader === true ? last : undefined
+    const first = line === undefined ? !changed : line.data.changed !== true
+    const body = first ? t('{name} 是组长：没点名的话{name}先接', { name: bot.name }) : t('组长换成了{name}：没点名的话{name}先接', { name: bot.name })
+    const data = { botId: bot.id, leader: true, changed: !first }
+    if (line === undefined) this.deps.rooms.post(roomId, { author: POD, kind: 'notice', body, data })
+    else this.deps.rooms.patchMessage(line.id, { body, data })
+  }
+}
+
+/** 以前的群挑组长：名字对得上群名的成员，其次群里说话最多的，再其次最早进群的（members 按进群先后排）。 */
+function pickLeader(room: Room, members: readonly Bot[], spoken: ReadonlyMap<string, number>): Bot | undefined {
+  const named = members.find((bot) => room.title.includes(bot.name) || bot.name.includes(room.title))
+  // 排序是稳定的：说话一样多的还按进群先后。
+  return named ?? [...members].sort((left, right) => (spoken.get(right.id) ?? 0) - (spoken.get(left.id) ?? 0))[0]
 }
