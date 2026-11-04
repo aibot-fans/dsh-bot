@@ -219,8 +219,8 @@ function ComputerButton() {
 
 /**
  * 对话顶部：左边是 bot 或群（点开详情）；右边单聊有对话记录和新对话，不挂任务的群聊有新对话；bot 在用浏览器、电脑时才多一个按钮。
- * 任务对话左边是任务名，下面写和谁的单聊或者群成员；右边多一个收起、打开详情的按钮，详情收起来时旁边留着任务状态。
- * 用量在设置里，页面在 bot 和群聊的详情里。手机上最左边是回到列表，名字后面带个箭头表示点开是详情。
+ * 任务对话左边是任务名，下面写和谁的单聊或者群成员，详情收起来时右边留着任务状态。
+ * 最右边是收起、打开详情的按钮，单聊、群聊都有；用量在设置里，页面、任务这些在详情里。手机上最左边是回到列表，名字后面带个箭头表示点开是详情。
  */
 export function ChatHeader(props: { readonly room: RoomSummary; readonly bots: ReadonlyMap<string, Bot>; readonly memberIds: readonly string[] }) {
   const app = useApp()
@@ -277,7 +277,7 @@ export function ChatHeader(props: { readonly room: RoomSummary; readonly bots: R
       )}
       {room.kind !== 'direct' && room.taskId === null ? <NewChatButton room={room} /> : null}
       {room.taskId === null ? null : <TaskStatusPill room={room} taskId={room.taskId} />}
-      {room.taskId === null || narrow ? null : <DetailsToggle room={room} />}
+      {narrow || temporary ? null : <DetailsToggle room={room} />}
     </header>
   )
 }

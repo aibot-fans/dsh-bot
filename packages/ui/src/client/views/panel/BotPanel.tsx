@@ -12,6 +12,8 @@ import { ScopedPages } from '../pages/ScopedPages.tsx'
 import { Automations } from '../settings/Routines.tsx'
 import { BotDetails } from './BotDetails.tsx'
 import { TabList } from './BrowserTabs.tsx'
+import { ComputerTab } from './ComputerTab.tsx'
+import { BotTasks } from './GroupTasks.tsx'
 import { Library } from './Library.tsx'
 import { MemberCard } from './MemberCard.tsx'
 
@@ -20,7 +22,9 @@ const TABS: readonly (readonly [BotTab, string])[] = [
   ['pages', '页面'],
   ['library', '资料库'],
   ['automations', '自动化'],
+  ['tasks', '任务'],
   ['browser', '浏览器'],
+  ['computer', '电脑'],
 ]
 
 function readBase64(file: File): Promise<string> {
@@ -223,11 +227,13 @@ const TAB_HINTS: Readonly<Record<Exclude<BotTab, 'details'>, string>> = {
   pages: '它做的报告、看板、跟踪表、幻灯片这些页面：点开查看，在页面里接着让它改。',
   library: '和它的单聊、它负责的任务里产出的文档、截图和网页存档。',
   automations: '它到点自动做的事，比如每天的简报、盯一个网页。',
+  tasks: '它在做和做过的任务：点一个看交代、进展和结果。',
   browser: '它现在打开的网页：可以看实时画面，也可以接管。',
+  computer: '它在不在用这台 Mac 上的应用：在用时能看画面、接管。',
 }
 
 /**
- * Bot 详情：从右侧滑出，分详情、页面、资料库、自动化、浏览器五页；在群里点进来时是成员卡片。
+ * Bot 详情：从右侧滑出，分详情、页面、资料库、自动化、任务、浏览器、电脑七页，和群聊详情一样；在群里点进来时是成员卡片。
  * 在和它的任务单聊里，「详情」最上面是这段对话的任务和进展。
  * 从成员卡片点“完整资料”进来时（back 是群的 id），左上角能返回成员卡片，换页也保留返回。
  */
@@ -270,7 +276,9 @@ export function BotPanel(props: { readonly botId: string; readonly tab: BotTab; 
           {props.tab === 'pages' ? <ScopedPages match={(page) => page.botId === bot.id} empty={t('跟{name}说“把结果做成看板”或“做一页报告”，做好的页面都在这里。', { name: bot.name })} /> : null}
           {props.tab === 'library' ? <Library botId={bot.id} /> : null}
           {props.tab === 'automations' ? <Automations match={(routine) => routine.botId === bot.id} defaults={{ botId: bot.id }} empty={t('也可以跟{name}说“每天 9 点帮我……”', { name: bot.name })} /> : null}
+          {props.tab === 'tasks' ? <BotTasks bot={bot} bots={bots ?? []} /> : null}
           {props.tab === 'browser' ? <BotBrowser bot={bot} /> : null}
+          {props.tab === 'computer' ? <ComputerTab mine={(user) => user.botId === bot.id} name={bot.name} /> : null}
         </div>
       )}
     </aside>

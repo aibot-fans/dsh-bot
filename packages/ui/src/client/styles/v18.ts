@@ -9,4 +9,13 @@ export const V18_CSS = `
 .pod-fix ol { margin: 0; padding-left: 20px; }
 .pod-fix .pod-row { flex-wrap: wrap; }
 .pod-fix .pod-muted { margin: 0; font-size: 12px; }
+.pod-task-hero { display: flex; flex-direction: column; gap: 6px; padding: 2px 4px 0; }
+.pod-task-hero-title { font-size: 17px; line-height: 1.4; }
+.pod-task-section-body { margin: 0; padding: 2px 14px 10px; font-size: 13.5px; }
+.pod-task-section .pod-md { line-height: 1.6; }
+.pod-task-child { appearance: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 6px; padding: 7px 8px; border: 0; border-radius: 8px; background: none; color: inherit; font: inherit; font-size: 13.5px; text-align: left; cursor: pointer; }
+.pod-task-child:hover { background: var(--pod-soft); }
+.pod-task-child + .pod-task-child { margin-top: 0; }
+.pod-panel-tabs { gap: 2px; }
+.pod-panel-tabs button { padding: 6px 9px; }
 `

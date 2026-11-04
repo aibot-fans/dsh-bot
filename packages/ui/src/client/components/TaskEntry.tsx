@@ -84,13 +84,14 @@ export function GroupChip(props: { readonly roomId: string; readonly title: stri
 
 /**
  * 打开任务的对话（另开的单聊、任务群）。在别的对话里点的（from 是点的地方所在的对话）在右边小窗打开，手机上直接进去；
- * 从任务栏、搜索这些地方点的（不给 from）整页打开；已经在它的对话里，打开右边的详情。
- * 没有自己对话的（就在原来的对话里干的、以前没开群的）跳到放结果的那条消息。
+ * 从任务栏、搜索这些地方点的（不给 from）整页打开；已经在它的对话里（比如群里开的任务就在群里干），在右边打开任务详情。
+ * 没有自己对话的（就在原来的对话里干的、以前没开群的）：在对话里点的在右边打开任务详情，
+ * 以前是跳到放结果的那条消息，可那条常常就在卡片旁边，点了像没反应；从搜索这些地方点的照旧跳过去。
  */
 export function openTaskConversation(app: AppState, snapshot: TaskSnapshot, from?: string): void {
   const conversation = snapshot.conversationId ?? null
-  if (conversation === null) app.openTaskResult(snapshot.task.id, snapshot.task.roomId)
-  else if (conversation === app.getNav().roomId) app.showRoomDetails(conversation)
+  if (conversation === null && from === undefined) app.openTaskResult(snapshot.task.id, snapshot.task.roomId)
+  else if (conversation === null || conversation === app.getNav().roomId) app.showTask(snapshot.task.id)
   else if (from !== undefined && from !== conversation && !matches(NARROW_QUERY)) app.openTaskWindow(snapshot.task.id)
   else app.openRoom(conversation)
 }

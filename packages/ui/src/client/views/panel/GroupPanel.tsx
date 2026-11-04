@@ -13,6 +13,7 @@ import { useResource } from '../../state/resource.ts'
 import { ScopedPages } from '../pages/ScopedPages.tsx'
 import { Automations } from '../settings/Routines.tsx'
 import { GroupBrowser } from './BrowserTabs.tsx'
+import { ComputerTab } from './ComputerTab.tsx'
 import { GroupTasks } from './GroupTasks.tsx'
 import { Library } from './Library.tsx'
 import { TaskFacts } from './TaskFacts.tsx'
@@ -24,6 +25,7 @@ const TABS: readonly (readonly [GroupTab, string])[] = [
   ['automations', '自动化'],
   ['tasks', '任务'],
   ['browser', '浏览器'],
+  ['computer', '电脑'],
 ]
 
 /** 每一页顶上一句话，说清这一页放的是什么。 */
@@ -31,8 +33,9 @@ const TAB_HINTS: Readonly<Record<Exclude<GroupTab, 'details'>, string>> = {
   pages: '群里做的报告、看板、跟踪表、幻灯片这些页面：点开查看，在页面里接着让 bot 改。',
   library: '群里产出的文档、截图和网页存档。',
   automations: '到点自动跑、结果发到这个群的事，比如每天的简报、盯一个网页。',
-  tasks: '交给 bot 的一件件事：有分工、进度和验收，做完交付成果。',
+  tasks: '在这个群里交代的一件件事：点一个看交代、进展和结果。',
   browser: '群里的 bot 打开的网页，和你在这里开的网页：可以看实时画面，也可以接管。',
+  computer: '群里的 bot 在不在用这台 Mac 上的应用：在用时能看画面、接管。',
 }
 
 const NOTIFY: readonly (readonly [NotifyLevel, string])[] = [
@@ -317,6 +320,7 @@ export function GroupPanel(props: { readonly roomId: string; readonly tab: Group
           {props.tab === 'automations' ? <Automations match={(routine) => routine.roomId === room.id} defaults={{ roomId: room.id }} empty={t('结果发到这个群的自动化会出现在这里。')} /> : null}
           {props.tab === 'tasks' ? <GroupTasks room={room} bots={bots ?? []} /> : null}
           {props.tab === 'browser' ? <GroupBrowser room={room} /> : null}
+          {props.tab === 'computer' ? <ComputerTab mine={(user) => room.memberIds.includes(user.botId)} name={t('群里的 bot')} /> : null}
         </div>
       )}
     </aside>

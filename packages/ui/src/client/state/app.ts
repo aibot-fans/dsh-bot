@@ -4,8 +4,8 @@ import { api } from '../api/endpoints.ts'
 import { PodEvents } from '../api/events.ts'
 import { ResourceCache } from './resource.ts'
 
-export type BotTab = 'details' | 'pages' | 'library' | 'automations' | 'browser'
-export type GroupTab = 'details' | 'pages' | 'library' | 'automations' | 'tasks' | 'browser'
+export type BotTab = 'details' | 'pages' | 'library' | 'automations' | 'tasks' | 'browser' | 'computer'
+export type GroupTab = 'details' | 'pages' | 'library' | 'automations' | 'tasks' | 'browser' | 'computer'
 export type SettingsTab = 'general' | 'notes' | 'usage' | 'automations' | 'models' | 'browser' | 'computer' | 'archive' | 'recycle' | 'advanced'
 
 /**
@@ -14,6 +14,7 @@ export type SettingsTab = 'general' | 'notes' | 'usage' | 'automations' | 'model
  * 在群里点成员时 bot 详情带着 from（群的 id）：显示成员卡片，可以返回群聊详情；
  * 从成员卡片点“完整资料”时带着 back（群的 id）：完整资料左上角能返回那张成员卡片。
  * 从群聊或 bot 详情的浏览器页放大看一个网页时，浏览器带着 back（来的那个面板）：左上角和 Esc 回到那里。
+ * 任务详情是在任务干活的对话里（群、任务单聊）点任务卡、记号打开的；从详情的任务页点进来时带着 back。
  */
 export type PanelState =
   | { readonly kind: 'bot'; readonly botId: string; readonly tab: BotTab; readonly from?: string; readonly back?: string }
@@ -22,6 +23,7 @@ export type PanelState =
   | { readonly kind: 'computer' }
   | { readonly kind: 'pages' }
   | { readonly kind: 'tasks'; readonly taskIds: readonly string[]; readonly active: string }
+  | { readonly kind: 'task'; readonly taskId: string; readonly back?: PanelState }
   | null
 
 /** 中间换成页面查看器时看的页面；version 是正在预览的旧版本，不给是最新版。 */
@@ -260,6 +262,11 @@ export class AppState {
 
   closePanel(): void {
     this.navigate({ panel: null })
+  }
+
+  /** 在右边打开任务详情（交代、状态和进展、结果、子任务）；back 是左上角返回到的面板。 */
+  showTask(taskId: string, back?: PanelState): void {
+    this.navigate({ panel: back === undefined || back === null ? { kind: 'task', taskId } : { kind: 'task', taskId, back } })
   }
 
   /** 在右边的任务小窗打开一个任务的对话：小窗开着就多一个标签页（开过的直接切过去），没开就开小窗。 */
