@@ -124,15 +124,12 @@ export interface DelegateInput {
   readonly card?: Readonly<Record<string, unknown>>
   /** false：先不排第一次执行（带了触发器，到点再开工）。 */
   readonly start?: boolean
-  /** 任务对话；不给就在派活的对话里干，结果也回在那里。 */
-  readonly conversation?: TaskConversation
+  /**
+   * 交进哪个群（团队）：活在那个群里干，组长或写明的成员接。不给就在派活的那段对话里干，结果也回在那里
+   * （Super-agent 自己干的、你在 bot 单聊里让它干的、群里开的、放在群里的例程）。
+   */
+  readonly conversation?: Room
 }
-
-/**
- * 任务对话：chat 和干活的 bot 另开一段单聊，group 开任务群（members 是负责的 bot 以外的成员），room 交进已有的群（团队），
- * 组长接。不开的（Super-agent 自己干的、你在 bot 单聊里让它干的、群里开的、例程）就在派活的那段对话里干。
- */
-export type TaskConversation = { readonly kind: 'chat' } | { readonly kind: 'group'; readonly members: readonly Bot[] } | { readonly kind: 'room'; readonly room: Room }
 
 /** 暂停是你让它先等等（整棵树停着，重启也不变）；继续是接着做；停止、取消结束任务；重试再做一次；收下是你验收通过。 */
 export type ControlAction = 'pause' | 'resume' | 'stop' | 'cancel' | 'retry' | 'accept'
@@ -283,7 +280,7 @@ export class TaskService {
       })
       this.event(opened, 'delegated', requester.botId, { to: bot.id, reason: input.reason })
       // 自带的话题：你交代这件事的那几条消息所在的回复串，之后回复、引用它们的话直接到这个任务。
-      // 有自己对话的任务话题就是那段对话；在派活的地方接着它说的，由前台认出来再转进去。
+      // 交进群的任务话题是群里交代那一串；在派活的地方接着它说的，由前台认出来再转进去。
       if (input.conversation === undefined) for (const quote of quotes) if (quote.messageId !== null) this.engine.topics.followMessage(opened.id, quote.messageId, 'own')
       // 带触发器开的（到点或等别的任务就绪再开工）先不排，触发器到点再开工。
       if (input.start !== false) this.engine.runs.queue(opened.id, 'new', { assumptions: input.assumptions })
@@ -305,7 +302,7 @@ export class TaskService {
   }
 
   /**
-   * 放不放任务卡：Super-agent 的主对话里放，活另开了对话在别处干的、常开任务也放（卡片就是去那里的入口、每次结果挂在下面）；
+   * 放不放任务卡：Super-agent 的主对话里放，交进群在别处干的、常开任务也放（卡片就是去那里的入口、每次结果挂在下面）；
    * 群、任务对话、成员单聊里活就在这段对话里干，干到哪记在详情的动态里，不另挂卡片。
    */
   private carded(roomId: string, input: DelegateInput, conversation: Room | undefined): boolean {
@@ -316,26 +313,17 @@ export class TaskService {
   }
 
   /**
-   * 开任务对话：建单聊或任务群，整个对话是这个任务的话题（你在里面说的话直接到它）；交进群（团队）的用那个群，
-   * 群是大家的，话题只是交代那一串（回复交代、结果的话到它，群里别的话照常给组长）。第一条是派活的 bot 写的交代，
-   * 就是干活的 bot 收到的那条；群里先 @ 负责的 bot（负责的就是派活的 bot 自己时不 @）。
+   * 交进群：群是大家的，任务的话题只是交代那一串（回复交代、结果的话到它，群里别的话照常给组长）。第一条是派活的 bot 写的交代，
+   * 就是干活的 bot 收到的那条，先 @ 负责的 bot（负责的就是派活的 bot 自己时不 @）。
    */
-  private openConversation(task: Task, owner: Bot, conversation: TaskConversation, author: string): Room {
-    const room =
-      conversation.kind === 'room'
-        ? conversation.room
-        : conversation.kind === 'chat'
-          ? this.deps.rooms.createTaskChat(owner, task.title, task.id)
-          : this.deps.rooms.createTaskRoom(task.title, task.id, [owner.id, ...conversation.members.map((member) => member.id)], null)
+  private openConversation(task: Task, owner: Bot, room: Room, author: string): Room {
     const brief = composeBrief(task, { assumptions: [], conventions: [], upstream: [] })
     transaction(this.db, () => {
       setTaskConversation(this.db, task.id, room.id)
-      // 先有话题再发交代：交代算进话题，回复它的话也直接到任务。
-      if (conversation.kind !== 'room') this.engine.topics.follow(task.id, this.engine.topics.ensureTeam(room.id, task.id).id, 'own')
-      const body = conversation.kind !== 'chat' && owner.id !== author ? `@${owner.name} ${brief}` : brief
+      const body = owner.id !== author ? `@${owner.name} ${brief}` : brief
       const posted = this.deps.rooms.post(room.id, { author, kind: 'text', body, data: { purpose: 'brief', taskId: task.id } })
-      if (conversation.kind === 'room' && posted !== undefined) this.engine.topics.followMessage(task.id, posted.id, 'own')
-      if (conversation.kind !== 'chat') this.event(task, 'team_room', author, { roomId: room.id, title: room.title })
+      if (posted !== undefined) this.engine.topics.followMessage(task.id, posted.id, 'own')
+      this.event(task, 'team_room', author, { roomId: room.id, title: room.title })
     })
     return room
   }

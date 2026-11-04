@@ -158,7 +158,7 @@ export class RoomService {
     return this.createDirect(lead, { topic: '', pinned: true, incognito: false })
   }
 
-  private createDirect(bot: Bot, options: { readonly topic: string; readonly pinned: boolean; readonly incognito: boolean; readonly taskId?: string }): Room {
+  private createDirect(bot: Bot, options: { readonly topic: string; readonly pinned: boolean; readonly incognito: boolean }): Room {
     const now = this.deps.now()
     const room = transaction(this.db, () => {
       const created = insertRoom(this.db, {
@@ -166,7 +166,6 @@ export class RoomService {
         kind: 'direct',
         title: options.topic === '' ? bot.name : truncate(options.topic, ROOM_TITLE_MAX),
         botId: bot.id,
-        taskId: options.taskId ?? null,
         topic: options.topic,
         pinned: options.pinned,
         incognito: options.incognito,
@@ -177,11 +176,6 @@ export class RoomService {
     })
     this.deps.bus.emit({ type: 'rooms' })
     return room
-  }
-
-  /** 任务单聊：把任务交给这个 bot 时和它另开的一段单聊，标题是任务名，进它的对话记录。 */
-  createTaskChat(bot: Bot, title: string, taskId: string): Room {
-    return this.createDirect(bot, { topic: title, pinned: false, incognito: false, taskId })
   }
 
   /** 你和一个 bot 的每一段对话（单聊），最近的在前；不含临时对话和删掉的。 */

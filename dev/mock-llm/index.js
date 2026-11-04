@@ -394,7 +394,9 @@ function decide(options) {
       .filter((message) => message.role === 'assistant')
       .flatMap((message) => (Array.isArray(message.content) ? message.content : []))
       .filter((block) => block && block.type === 'tool-call').length
-    return frontDecision({ system, userText, tools, calls: made, result: lastToolText(messages), batch: batchAt < 0 ? '' : textOf(messages[batchAt].content), roster: rosterNames(system) })
+    // 现有的群只在有变化时随批送来：取最近送来的那一段。
+    const groups = messages.filter(isUser).map((message) => textOf(message.content)).filter((text) => text.includes('现有的群')).at(-1) ?? ''
+    return frontDecision({ system, userText, tools, calls: made, result: lastToolText(messages), batch: batchAt < 0 ? '' : textOf(messages[batchAt].content), roster: rosterNames(system), groups })
   }
 
   const lastTool = messages.filter((message) => message.role === 'tool').at(-1)

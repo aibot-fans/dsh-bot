@@ -1,9 +1,11 @@
 /**
  * 前台的剧本：消息成批送来（[新消息] 开头，按聊天室分组），每条按内容记去向，一步调一个工具：
  * - “读一下 id [part=…] [page=…] [size=…]”：先 read，再把读到的 reply 出去。
- * - “交给群「某群」…”：Super-agent 用 open 的 group 交进那个群（组长接），再 reply 一句。
+ * - “交给群「某群」…”：Super-agent 用 open 的 group 交进那个群（组长接），再 reply 一句；带“让「某某」”就写 bot，带“每天”就是放在群里的例程。
+ *   “交给新群「某群」让「某某」…”：group 写新群名、bot 写它、about 写管什么，建群再交进去；带“不写管什么”就不写 about（看 dsh-bot 拦下）。
  * - “交给主管/某某 …”或“委派”：open 开任务（交给谁写谁；成员只能开给自己，群里的组长能开给群成员；标题按关键词取；说了组个团队再叫上一个成员），
- *   再 reply 一句“交给某某了，做好我直接告诉你”，任务卡挂在这句下面。
+ *   再 reply 一句“交给某某了，做好我直接告诉你”，任务卡挂在这句下面。Super-agent 在主对话里交给别的 bot 的，学真实模型照“现有的群”挑：
+ *   有它在的群就交进去，没有就按它建一个“某某小组”；带“不进群”就不写 group（看 dsh-bot 拦下），把拦下的话 reply 出来。
  * - 叫醒（[任务交结果]、[任务问你]、[任务没做成]）：照里面写的 to、room、task reply 一句：交结果写结论加“完整的在任务里”，
  *   问你只说谁在问什么，没做成说原因。用户原话里有“测试兜底”的不回，等 dsh-bot 原样发。
  * - “转达给任务 task_x：…”：forward 转过去（说的是方案 A、B 的当成回答它在问的问题，不写后续），再 reply 一句（挂上那个任务）。
@@ -146,6 +148,22 @@ function wakeDecision(text, calls) {
   return { tool: 'reply', args: { ...where, task, text: `${owner}没做成：${(lines[1] ?? '').trim()}` } }
 }
 
+/** 最近一次“现有的群”那一段里的群：群名和成员。 */
+function groupsOf(text) {
+  return [...text.matchAll(/^- 「([^」]+)」（room_[0-9a-z]+）.*；成员：(.*)$/gm)].map((match) => ({ title: match[1], members: match[2].split('、') }))
+}
+
+/** Super-agent 在主对话里交给别的 bot：有它在的群就交进去，没有就按它建一个群。 */
+function groupFor(bot, context) {
+  const found = groupsOf(context.groups).find((group) => group.members.includes(bot))
+  return found === undefined ? { group: `${bot}小组`, about: `测试：${bot}接的活` } : { group: found.title }
+}
+
+/** 开了任务就照结果确认一句，没开成把 dsh-bot 拦下的话原样回出来。 */
+function confirmOrShow(id, self) {
+  return (result) => ({ tool: 'reply', args: { to: id, text: result.includes('开了任务') ? confirmText(result, self) : `（测试模型）${result.slice(0, 240)}` } })
+}
+
 function dispatch(id, fields) {
   return () => ({ tool: 'dispatch', args: { items: [{ messages: [id], ...fields }] } })
 }
@@ -201,26 +219,40 @@ function stepsFor(item, context) {
   // “两件事”：一次开两个任务（标题取两个关键词），一句话确认两个。
   if (/两件事/.test(body) && /交给/.test(body) && !member) {
     const named = /交给([^\s，。,]+)/.exec(body)?.[1] ?? '自己'
+    const where = room.kind === '单聊' && named !== '自己' && named !== self ? groupFor(named, context) : {}
     const items = [
-      { messages: [id], action: 'open', title: '周报素材', bot: named, brief: '我理解是要整理这周的周报素材。' },
-      { messages: [id], action: 'open', title: '选方案测试', bot: named, brief: '我理解是要比较两种写法。' },
+      { messages: [id], action: 'open', title: '周报素材', bot: named, brief: '我理解是要整理这周的周报素材。', ...where },
+      { messages: [id], action: 'open', title: '选方案测试', bot: named, brief: '我理解是要比较两种写法。', ...where },
     ]
     const opened = () => ({ tool: 'dispatch', args: { items } })
     // “忘了回”：开了任务不回话，看 dsh-bot 补的那句。
     if (/忘了回/.test(body)) return [opened]
     return [opened, (result) => ({ tool: 'reply', args: { to: id, text: confirmText(result, self) } })]
   }
-  const team = /交给群「([^」]+)」/.exec(body)?.[1]
-  if (team !== undefined && !member) {
-    return [dispatch(id, { action: 'open', title: openTitle(body), group: team, brief: briefOf(body) }), (result) => ({ tool: 'reply', args: { to: id, text: confirmText(result, self) } })]
+  const team = /交给(新)?群「([^」]+)」/.exec(body)
+  if (team !== null && !member) {
+    const owner = /让「([^」]+)」/.exec(body)?.[1]
+    const daily = body.includes('每天')
+    const fields = {
+      action: 'open',
+      title: daily ? '早间资讯' : openTitle(body),
+      group: team[2],
+      brief: briefOf(body),
+      ...(owner === undefined ? {} : { bot: owner }),
+      ...(team[1] === '新' && !body.includes('不写管什么') ? { about: `测试：${team[2]}管的事` } : {}),
+      ...(daily ? { trigger: { time: '08:00' } } : {}),
+    }
+    return [dispatch(id, fields), confirmOrShow(id, self)]
   }
   if (/交给|委派/.test(body)) {
     const named = /交给([^\s，。,]+)/.exec(body)?.[1]
     // 成员只能开给自己；在自己当组长的群里能开给群成员。
     const bot = (member && !room.leading) || named === undefined ? '自己' : named
-    // 组个团队：再叫上名册里另一个 bot，开成任务群。
+    // 组个团队：再叫上名册里另一个 bot，一起进群。
     const partner = /组个团队|组队/.test(body) && !member ? context.roster.find((name) => name !== self && name !== bot) : undefined
-    return [dispatch(id, { action: 'open', title: openTitle(body), bot, brief: briefOf(body), ...(partner === undefined ? {} : { members: [partner] }) }), (result) => ({ tool: 'reply', args: { to: id, text: confirmText(result, self) } })]
+    // 主对话里交给别的 bot 的进群。
+    const where = !member && room.kind === '单聊' && bot !== '自己' && bot !== self && !body.includes('不进群') ? groupFor(bot, context) : {}
+    return [dispatch(id, { action: 'open', title: openTitle(body), bot, brief: briefOf(body), ...where, ...(partner === undefined ? {} : { members: [partner] }) }), confirmOrShow(id, self)]
   }
   if (body.includes('进度') && tools.has('task_status')) return [() => ({ tool: 'task_status', args: {} }), (result) => ({ tool: 'reply', args: { to: id, text: `进度：${result.slice(0, 300)}` } })]
   if (body.includes('记住') && tools.has('remember')) {
@@ -262,7 +294,7 @@ export function frontDecision(context) {
   // 追问里有、但最近一批里找不到的（比如更早一批的），按追问里的 id 直接答。
   const missing = wanted === undefined ? [] : [...wanted].filter((id) => !items.some((item) => item.id === id)).map((id) => ({ id, speaker: '用户', body: '测试追问', room: { kind: '单聊', id: '' } }))
   if (WAKE_HEADS.some((head) => userText.startsWith(head))) return wakeDecision(userText, context.calls)
-  const shared = { tools, self, member, batch, nudged, roster: context.roster }
+  const shared = { tools, self, member, batch, nudged, roster: context.roster, groups: context.groups ?? '' }
   const steps = [...items, ...missing].flatMap((item) => stepsFor(item, shared))
   if (!nudged && !retry && !userText.startsWith(BATCH_HEAD)) return { text: '（前台）收到。' }
   const next = steps[context.calls]

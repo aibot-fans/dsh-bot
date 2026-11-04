@@ -102,6 +102,21 @@ export class GroupService {
     return ok(updated)
   }
 
+  /** Super-agent 把活交进群时，负责的 bot、一起做的成员还不在群里的补进去，群里留一行谁进群了；返回补进来的。 */
+  join(roomId: string, botIds: readonly string[], actor: string): readonly Bot[] {
+    const inside = new Set(this.deps.rooms.members(roomId).map((member) => member.botId))
+    const joined = [...new Set(botIds)].filter((id) => !inside.has(id)).flatMap((id) => this.deps.bots.activeBot(id) ?? [])
+    if (joined.length === 0) return []
+    const now = this.deps.now()
+    transaction(this.db, () => {
+      for (const bot of joined) addRoomMember(this.db, roomId, bot.id, now)
+    })
+    this.deps.audit.record('room.member.add', actor, roomId, { botIds: joined.map((bot) => bot.id) })
+    this.deps.rooms.post(roomId, { author: POD, kind: 'notice', body: t('{names} 进群了', { names: joined.map((bot) => bot.name).join(t('、')) }), data: { botIds: joined.map((bot) => bot.id) } })
+    this.deps.bus.emit({ type: 'room', roomId })
+    return joined
+  }
+
   /** 换组长：要是群里 Super-agent 以外的成员；群里留一行“没点名的话 X 先接”。任务群、正式团队不另设组长。 */
   setLeader(roomId: string, botId: string, actor: string): PodResult<Room> {
     const room = this.deps.rooms.get(roomId)

@@ -103,7 +103,7 @@ export interface GroupLine {
 
 /** Super-agent 交活先找对口的群：每个群一行，群名、管什么、组长、成员。 */
 export function groupsText(groups: readonly GroupLine[]): string {
-  if (groups.length === 0) return '现有的群：还没有。'
+  if (groups.length === 0) return '现有的群：还没有。交给别的 bot 的活，group 写一个新的群名就会建群。'
   const lines = groups.map(({ room, leader, members }) => {
     const about = room.topic === '' ? '没写管什么' : `管：${room.topic}`
     return `- 「${room.title}」（${room.id}）${about}；组长：${leader === '' ? '还没有' : leader}；成员：${members.join('、') || '还没有'}`
