@@ -422,6 +422,23 @@ function decide(options) {
       return { tool: 'reply', args: { to: routedIds[0] ?? '', text: '（测试模型）任务暂停着，先记下你的话；你说接着做我再动手。' } }
     }
     if (userText.includes('这个任务暂停着') && last?.role === 'tool' && calls.at(-1) === 'reply' && tools.has('report')) return { tool: 'report', args: { status: 'waiting', summary: '暂停着，只回了话' } }
+    // 直通消息写着“再问一遍”：把拿主意的问题原样再报一次（dsh-bot 不该再出一张卡片）；“换个问题”：换一个问题问（旧卡片收起）。
+    if (last?.role === 'tool' && calls.at(-1) === 'ack' && /再问一遍|换个问题/.test(userText) && tools.has('report')) {
+      const changed = userText.includes('换个问题')
+      return {
+        tool: 'report',
+        args: {
+          status: 'blocked',
+          summary: changed ? '方案定了，还差一个：周报发给谁' : '有两种做法，要你选一个',
+          report: '## 要你做什么\n选一个',
+          question: changed ? '周报发给团队还是只发给你？' : '用方案 A（快）还是方案 B（全）？',
+          question_kind: 'ambiguity',
+          options: changed ? ['发给团队', '只发给我'] : ['方案 A', '方案 B'],
+          option_notes: changed ? ['全组都能看到', '先给你看过再说'] : ['半小时内出结果，只看主要来源', '要两三个小时，能找到的来源都看一遍'],
+          recommended: true,
+        },
+      }
+    }
     if (last?.role === 'tool' && calls.at(-1) === 'ack') {
       // 直通消息里问问题（写着“测试答复”）：用 reply 答在那条下面，再报 waiting。
       if (userText.includes('测试答复') && tools.has('reply')) return { tool: 'reply', args: { to: routedIds[0], text: '（测试模型）做到第 2 步了，再过几分钟交结果。' } }

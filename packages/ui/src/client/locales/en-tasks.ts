@@ -37,6 +37,7 @@ export const UI_EN_TASKS: Readonly<Record<string, string>> = {
   '自动来源的判断': 'Judging automatic sources',
   '把消息交给前台': 'Handing messages to the front desk',
   '任务交来的事没等到前台说，原样发出去': 'Posting what a task sent, since the front desk did not',
+  '不用处理': 'No action needed',
   '任务文件夹里还没有文件。': 'No files in the task folder yet.',
   '在跑 {count} 个任务': '{count} tasks running',
   '新任务': 'new task',

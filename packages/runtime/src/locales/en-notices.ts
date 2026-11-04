@@ -297,4 +297,5 @@ export const RUNTIME_EN_NOTICES: Readonly<Record<string, string>> = {
   '「{title}」暂停了': '"{title}" is paused',
   '「{title}」接着做了': '"{title}" is back in progress',
   '「{title}」不用做了': '"{title}" needs no work',
+  '换了问题，旧的不用答了': 'Replaced by a new question; no need to answer this one',
 }

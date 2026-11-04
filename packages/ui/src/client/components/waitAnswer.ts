@@ -19,7 +19,8 @@ export function readSettled(value: unknown): Settled | undefined {
 /** 卡片上按钮收起后写的处理结果：你批准了、你没批准、你答：……。 */
 export function settledText(settled: Settled): string {
   const answer = (settled.answer ?? '').trim()
-  if (settled.status === 'closed') return t('你说不用管')
+  // 关掉的：你点了不用管，或者写着别的原因（比如换了问题）。
+  if (settled.status === 'closed') return answer === '' || answer === t('不用处理') ? t('你说不用管') : answer
   if (settled.status === 'suspended') return t('任务停了，这件事先放着')
   if (answer === t('批准') || answer === t('允许')) return answer === t('批准') ? t('你批准了') : t('你允许了一次')
   if (answer.startsWith(t('不批准')) || answer.startsWith(t('不允许'))) return answer.startsWith(t('不批准')) ? t('你没批准') : t('你没允许')

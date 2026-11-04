@@ -89,6 +89,13 @@ export class WaitService {
 
   ask(input: AskInput): Wait {
     const task = input.session.taskId === null ? undefined : this.deps.task(input.session.taskId)
+    // 同一件事还问着：不再问一遍，还是那张卡片；换了问题，旧的问题卡片收起。
+    const repeated = task === undefined || input.bypassed ? undefined : this.repeated(task.id, input)
+    if (repeated !== undefined) {
+      this.deps.audit.record('wait.repeat', input.session.botId, repeated.id, { kind: repeated.kind, title: repeated.title })
+      return repeated
+    }
+    if (task !== undefined && !input.bypassed && QUESTION_KINDS.has(input.kind)) this.replaceQuestions(task.id)
     // 有任务对话（另开的单聊、任务群）的根任务在那里问，提醒和未读也落在那里。
     const conversation = task === undefined || task.parentId !== null ? undefined : taskConversationOf(this.db, task.id)?.id
     const roomId = conversation ?? task?.roomId ?? input.session.roomId
@@ -117,6 +124,20 @@ export class WaitService {
 
   get(id: string): Wait | undefined {
     return getWait(this.db, id)
+  }
+
+  /** 这个任务还开着的同一件事：种类、问题、选项都一样。 */
+  private repeated(taskId: string, input: AskInput): Wait | undefined {
+    const title = truncate(input.title, 120)
+    const options = JSON.stringify(optionData(input).options ?? [])
+    return this.open().find((wait) => wait.taskId === taskId && wait.status === 'open' && wait.kind === input.kind && wait.title === title && JSON.stringify(wait.data.options ?? []) === options)
+  }
+
+  /** 干活的 bot 换了个问题：它还开着的旧问题关掉，带着卡片的消息写上换了问题。 */
+  private replaceQuestions(taskId: string): void {
+    for (const wait of this.open().filter((item) => item.taskId === taskId && item.status === 'open' && QUESTION_KINDS.has(item.kind))) {
+      this.settleMessages(setWaitStatus(this.db, wait.id, 'closed', t('换了问题，旧的不用答了'), this.deps.now()) ?? wait)
+    }
   }
 
   /** “等你处理”列表：还卡着的和已先绕过的。 */
