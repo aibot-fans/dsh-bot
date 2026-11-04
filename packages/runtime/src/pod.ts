@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { join } from 'node:path'
 import { LEAD_BOT_ID, LEAD_PERSONA, OWNER, POD, POD_VERSION, PRIORITY, botFolder, composePersona, roomFolder, fail, sessionBrowses, sessionMakesPages, t, withLanguage, worthSummary, type Bot, type BotStats, type Language, type PodEvent, type PodResult, type PodSession, type Room, type Task, type TaskTeam, type TeamTemplate, triggerSource } from 'pod-domain'
-import { afterCommit, deliveryByMessageId, getMessage, inTransaction, onAfterCommitError, pinnedMessages, raiseProblem, resolveProblem, runningTasksByRoom, taskCardMessage, taskConversationOf, taskRoomOf, teamsOfBot } from 'pod-store'
+import { afterCommit, deliveryByMessageId, getMessage, inTransaction, onAfterCommitError, pinnedMessages, raiseProblem, resolveProblem, runningTasksByRoom, taskCardMessage, taskConversationOf, teamsOfBot } from 'pod-store'
 import { SegmentManager } from './agents/segments.ts'
 import { AibotService } from './aibot/service.ts'
 import { MemoryExtractor } from './memory/extract.ts'
@@ -460,7 +460,8 @@ export class PodRuntime {
       toFront: (message, note) => this.rooms.toFront(message, note),
       childrenIn: (roomId) => {
         const room = this.rooms.get(roomId)
-        return room?.taskId == null ? [] : this.engine.tickets.openChildren(room.taskId)
+        if (room === undefined || room.kind === 'direct') return []
+        return room.taskId === null ? this.engine.tickets.openChildrenIn(roomId) : this.engine.tickets.openChildren(room.taskId)
       },
       conversationOf: (task) => taskConversationOf(db, task.rootId)?.id,
     })
@@ -1113,11 +1114,18 @@ export class PodRuntime {
     })
   }
 
-  /** 任务会话在团队里的位置：任务群里的根任务（工单）的会话是组长，子任务写明父任务和组长；一个 bot 的任务不在团队里。 */
+  /**
+   * 任务会话在团队里的位置：带着成员干活的根任务（工单）的会话是组长（在普通群里的写上群名），子任务写明父任务和组长；
+   * 一个 bot 的任务不在团队里。
+   */
   private teamOf(session: PodSession): TaskTeam | undefined {
     const task = session.kind !== 'task' || session.taskId === null ? undefined : this.tasks.get(session.taskId)
     if (task === undefined || !isTicket(task)) return undefined
-    if (task.parentId === null) return taskRoomOf(this.db, task.id) === undefined ? undefined : { role: 'leader' }
+    if (task.parentId === null) {
+      const room = this.tasks.teamRoomOf(task)
+      if (room === undefined) return undefined
+      return room.taskId === task.id ? { role: 'leader' } : { role: 'leader', group: room.title }
+    }
     const parent = this.tasks.get(task.parentId)
     return { role: 'member', leader: this.bots.get(parent?.ownerBotId ?? '')?.name ?? '组长', parent: parent?.title ?? '' }
   }

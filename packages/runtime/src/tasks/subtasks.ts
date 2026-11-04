@@ -94,8 +94,19 @@ export class Subtasks {
     return ok(bot)
   }
 
-  /** 任务群：开第一个子任务时建，组长跟进整个群的话题，你在群里说的话直接到组长。 */
+  /** 组长在普通群里干活的那个群（群是大家的，不是这个任务专用的任务群）。 */
+  private sharedRoom(parent: Task): Room | undefined {
+    const room = this.deps.tasks.teamRoomOf(parent)
+    return room === undefined || room.taskId === parent.id ? undefined : room
+  }
+
+  /**
+   * 子任务开在哪：组长在普通群里干活的，就开在那个群里（只开给群里的成员），群里的话不整个跟进，免得别的事也送进来；
+   * 不然是任务群：开第一个子任务时建，组长跟进整个群的话题，你在群里说的话直接到组长。
+   */
   private room(parent: Task, leader: string, member: string): Room {
+    const shared = this.sharedRoom(parent)
+    if (shared !== undefined) return shared
     const existing = taskRoomOf(this.db, parent.id)
     const room = existing ?? this.deps.rooms.createTaskRoom(parent.title, parent.id, [leader, member], null)
     if (existing !== undefined) this.deps.rooms.addMember(room.id, member)
@@ -119,6 +130,11 @@ export class Subtasks {
     if (!bot.ok) return bot
     const after = input.after === '' ? undefined : this.childOf(parent, input.after)
     if (after !== undefined && !after.ok) return after
+    const shared = this.sharedRoom(parent)
+    if (shared !== undefined && !this.deps.rooms.members(shared.id).some((member) => member.botId === bot.value.id)) {
+      return fail('invalid-input', t('「{name}」不在群「{title}」里：子任务只能开给群里的成员；要它一起做，请用户把它拉进群', { name: bot.value.name, title: shared.title }))
+    }
+    if (shared !== undefined && bot.value.role === 'lead') return fail('invalid-input', t('{name}在群里只管组织上的事，不接活：子任务开给干活的成员', { name: bot.value.name }))
     const upstream = after?.value
     const id = newId('task')
     const opened = transaction(this.db, () => {
@@ -148,8 +164,8 @@ export class Subtasks {
         replyTo: [],
         actor: session.botId,
       })
-      // 子任务只读跟进整个群：在跑的下一步看到别人的结论；回复它的任务卡直接到它。
-      this.deps.engine.topics.follow(task.id, this.deps.engine.topics.ensureTeam(room.id, parent.id).id, 'readonly')
+      // 任务群里子任务只读跟进整个群：在跑的下一步看到别人的结论；回复它的任务卡直接到它。普通群不整个跟进。
+      if (shared === undefined) this.deps.engine.topics.follow(task.id, this.deps.engine.topics.ensureTeam(room.id, parent.id).id, 'readonly')
       const card = this.deps.rooms.post(room.id, { author: session.botId, kind: 'task-card', body: input.title, data: { taskId: id, rootId: parent.rootId, parentId: parent.id } })
       if (card !== undefined) this.deps.engine.topics.followMessage(id, card.id, 'own')
       this.deps.tasks.event(parent, 'subtask_opened', session.botId, { taskId: id, title: input.title, to: bot.value.id, after: upstream?.id ?? null })

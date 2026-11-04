@@ -213,6 +213,8 @@ export const RUNTIME_EN_MESSAGES: Readonly<Record<string, string>> = {
   '{name}要留在群里：点它的名，就能叫它拉人、建 bot、换组长': '{name} stays in the group: @ it to add members, create bots, or change the lead',
   '{name} 移出了群聊': '{name} was removed from the group',
   '组长要是群里的成员': 'The lead must be a member of the group',
+  '「{name}」不在群「{title}」里：子任务只能开给群里的成员；要它一起做，请用户把它拉进群': '“{name}” isn’t in the group “{title}”: subtasks can only go to group members. To include it, ask the user to add it to the group',
+  '{name}在群里只管组织上的事，不接活：子任务开给干活的成员': '{name} only handles organizing in groups and doesn’t take work: give the subtask to a working member',
   '{name}在群里只在被点名时说话，不当组长': '{name} only speaks in groups when @-mentioned, so it can’t be the lead',
   '{name} 是组长：没点名的话{name}先接': '{name} is the lead: messages that don’t @ anyone go to {name} first',
   '组长换成了{name}：没点名的话{name}先接': 'The lead is now {name}: messages that don’t @ anyone go to {name} first',

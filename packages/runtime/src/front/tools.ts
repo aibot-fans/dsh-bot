@@ -119,42 +119,68 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
   const pushedNote = (id: string): string =>
     [...pod.engine.topics.routes(id)].reverse().find((route) => route.route === 'front' && route.botId === session.botId)?.note ?? ''
 
-  const target = (name: string): Bot | string => {
+  /**
+   * 能不能把活开给它：Super-agent 能开给任何 bot，组长在自己的群里能开给群里的成员，其余只能开给自己。
+   * 群里开的活就在这个群里干，所以开给的 bot 要在群里。
+   */
+  const assignable = (self: Bot, bot: Bot, room: Room): Bot | string => {
+    if (bot.id === self.id) return bot
+    const inGroup = room.kind !== 'direct'
+    const member = inGroup && pod.rooms.members(room.id).some((entry) => entry.botId === bot.id)
+    if (self.role === 'lead') return !inGroup || member ? bot : `${bot.name}不在「${room.title}」里：群里的活在群里干，先用 create_group（写同一个群名）把它拉进群，再开给它`
+    const leader = inGroup ? pod.rooms.leaderOf(room) : undefined
+    if (leader?.id === self.id && bot.role === 'lead') return `${bot.name}在群里只管组织上的事，不接活：开给干活的成员`
+    if (leader?.id === self.id) return member ? bot : `${bot.name}不在「${room.title}」里：你只能开给群里的成员；要它一起做，请用户把它拉进群`
+    if (inGroup) return `你不是「${room.title}」的组长，只能开给自己；要${bot.name}干活，请用户点它的名${leader === undefined ? '' : `，或者找组长${leader.name}`}`
+    return `你只能开给自己；要${bot.name}干活，请用户找${pod.bots.lead().name}或者点它的名`
+  }
+
+  const target = (name: string, room: Room): Bot | string => {
     const self = me()
     if (self === undefined) return '找不到你自己'
     if (name === '' || SELF_NAMES.has(name.toLowerCase()) || name === self.name) return self
     const bot = pod.bots.resolve(name)
     if (bot === undefined || bot.archivedAt !== null) return `找不到 bot「${name}」，先用 find_bots 查，或用 create_bot 新建`
-    if (self.role !== 'lead' && bot.id !== self.id) return `你只能开给自己；要${bot.name}干活，请用户找${pod.bots.lead().name}或者点它的名`
-    return bot
+    return assignable(self, bot, room)
   }
 
-  /** 任务群里负责的 bot 以外的成员；找不到的、成员前台想拉别人的说清为什么。 */
-  const groupMembers = (names: readonly string[], owner: Bot): readonly Bot[] | string => {
+  /**
+   * 一起做的成员（负责的 bot 以外）；找不到的、开不了的说清为什么。群里要几个成员一起做的开给组长，
+   * 由它在任务里开子任务分，不另开任务群。
+   */
+  const groupMembers = (names: readonly string[], owner: Bot, room: Room): readonly Bot[] | string => {
+    const self = me()
+    if (self === undefined) return '找不到你自己'
     const found: Bot[] = []
     for (const name of names) {
-      const self = me()
-      const bot = self !== undefined && (SELF_NAMES.has(name.toLowerCase()) || name === self.name) ? self : pod.bots.resolve(name)
+      const bot = SELF_NAMES.has(name.toLowerCase()) || name === self.name ? self : pod.bots.resolve(name)
       if (bot === undefined || bot.archivedAt !== null) return `找不到 bot「${name}」，先用 find_bots 查，或用 create_bot 新建`
-      if (self?.role !== 'lead' && bot.id !== self?.id) return `你只能开给自己；要${bot.name}一起做，请用户找${pod.bots.lead().name}`
+      // 群里不另开任务群，成员只用来核对；Super-agent 在群里不接活，写了也不算进来。
+      if (room.kind !== 'direct' && bot.role === 'lead' && bot.id !== self.id) continue
+      const allowed = assignable(self, bot, room)
+      if (typeof allowed === 'string') return allowed
       if (bot.id !== owner.id && !found.some((member) => member.id === bot.id)) found.push(bot)
     }
+    const leader = room.kind === 'direct' ? undefined : pod.rooms.leaderOf(room)
+    if (found.length > 0 && leader !== undefined && leader.id !== owner.id) return `群里要几个成员一起做的，开给组长${leader.name}，由它在任务里开子任务分给大家`
     return found
   }
 
   const open = async (item: Item, messages: readonly RoomMessage[]): Promise<string> => {
-    const bot = target(item.bot)
-    if (typeof bot === 'string') return bot
-    const members = groupMembers(item.members, bot)
-    if (typeof members === 'string') return members
-    const spec: TriggerSpec | string | undefined = item.trigger === undefined ? undefined : readTriggerArgs(pod, item.trigger)
-    if (typeof spec === 'string') return `trigger 写得不对：${spec}`
-    // 任务对话：几个 bot 一起的开任务群，交给别的 bot 的和它另开一段单聊；自己干的、例程就在这里干，结果回在这里。
-    const standing = spec !== undefined && recurring(spec)
-    const conversation: TaskConversation | undefined = standing ? undefined : members.length > 0 ? { kind: 'group', members } : bot.id === session.botId ? undefined : { kind: 'chat' }
     const first = messages[0]
     const room = first === undefined ? undefined : pod.rooms.get(first.roomId)
     if (first === undefined || room === undefined) return '找不到消息所在的聊天室'
+    const bot = target(item.bot, room)
+    if (typeof bot === 'string') return bot
+    const members = groupMembers(item.members, bot, room)
+    if (typeof members === 'string') return members
+    const spec: TriggerSpec | string | undefined = item.trigger === undefined ? undefined : readTriggerArgs(pod, item.trigger)
+    if (typeof spec === 'string') return `trigger 写得不对：${spec}`
+    // 任务对话：群里开的就在这个群里干（群就是团队）；单聊里几个 bot 一起的开任务群，交给别的 bot 的和它另开一段单聊；
+    // 自己干的、例程就在这里干，结果回在这里。
+    const standing = spec !== undefined && recurring(spec)
+    const inGroup = room.kind !== 'direct'
+    const conversation: TaskConversation | undefined = standing || inGroup ? undefined : members.length > 0 ? { kind: 'group', members } : bot.id === session.botId ? undefined : { kind: 'chat' }
     const quotes: OriginQuote[] = messages.map((message) => ({ messageId: message.id, author: speaker(message.author), text: message.body }))
     // 交代照 Super-agent 写的；交给前台时附的说明（上传的文件、页面修改要求、交还的原因）它没写进去的补在后面。
     const written = item.brief !== '' ? item.brief : item.note
@@ -201,9 +227,19 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
         ? t('好，「{title}」{when}开工，结果发在这里。', { title, when: starts })
         : bot.id === session.botId
           ? t('「{title}」我来做，做好了直接发你。', { title })
-          : t('交给{name}做「{title}」了，结果出来我直接发你。', { name: bot.name, title })
+          : inGroup
+            ? t('交给{name}做「{title}」了，它做好了就在这里说。', { name: bot.name, title })
+            : t('交给{name}做「{title}」了，结果出来我直接发你。', { name: bot.name, title })
     pod.front.opened(session.botId, { roomId: room.id, messageId: asked.id, sessionId: session.id, body: fallback, taskId: created.value.id })
-    const where = conversation === undefined ? '' : conversation.kind === 'group' ? `，开了任务群（${[bot, ...members].map((member) => member.name).join('、')}）` : '，和它另开了一段单聊'
+    const where = inGroup
+      ? bot.id === session.botId
+        ? '，就在这个群里做'
+        : '，就在这个群里做：它自己在群里问用户、交结果，你不会被叫醒'
+      : conversation === undefined
+        ? ''
+        : conversation.kind === 'group'
+          ? `，开了任务群（${[bot, ...members].map((member) => member.name).join('、')}）`
+          : '，和它另开了一段单聊'
     const when = starts === '' ? '' : `，${starts}开工`
     return `开了任务 ${created.value.id}「${created.value.title}」，交给${bot.name}${where}${when}\n现在用 reply（to 写 ${asked.id}）回用户一句：交给谁、做什么、做到哪，你怎么理解的`
   }

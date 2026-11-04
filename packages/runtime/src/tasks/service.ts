@@ -323,6 +323,20 @@ export class TaskService {
     return room
   }
 
+  /**
+   * 根任务带着成员干活的群：它自己的任务群（开任务时带了成员、或者开第一个子任务时建的）；或者它就在一个群里干
+   * （群里开的），执行者是这个群的组长。没有就是一个 bot 自己干的任务，不能开子任务。
+   */
+  teamRoomOf(task: Task): Room | undefined {
+    if (task.parentId !== null) return undefined
+    const own = taskRoomOf(this.db, task.id)
+    if (own !== undefined) return own
+    const roomId = taskConversationOf(this.db, task.id)?.id ?? task.roomId
+    const room = roomId === null ? undefined : this.deps.rooms.get(roomId)
+    if (room === undefined || room.kind === 'direct' || room.archivedAt !== null) return undefined
+    return this.deps.rooms.leaderOf(room)?.id === task.ownerBotId ? room : undefined
+  }
+
   /** 任务会话所属的任务。 */
   taskOf(session: PodSession): Task | undefined {
     return session.taskId === null ? undefined : this.get(session.taskId)

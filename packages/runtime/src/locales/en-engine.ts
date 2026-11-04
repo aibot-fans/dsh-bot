@@ -73,6 +73,7 @@ export const RUNTIME_EN_ENGINE: Readonly<Record<string, string>> = {
   '好，「{title}」{when}开工，结果发在这里。': 'OK, "{title}" starts {when}; results will be posted here.',
   '「{title}」我来做，做好了直接发你。': "I'll do \"{title}\" and send you the result when it's done.",
   '交给{name}做「{title}」了，结果出来我直接发你。': "Handed \"{title}\" to {name}; I'll send you the result as soon as it's ready.",
+  '交给{name}做「{title}」了，它做好了就在这里说。': "Handed \"{title}\" to {name}; it will post here when it's done.",
   '还有子任务没结束：{titles}。先用 review_subtask 验收，或者 stop_subtask 停掉': 'Some subtasks are still open: {titles}. Review them with review_subtask first, or stop them with stop_subtask',
   '已经交给组长；组长答复后会开一次新的执行，答复带给你。这一轮到这里结束。': 'Handed to the team lead. Once the lead replies, a new run starts with the reply. This turn ends here.',
   '已记下失败，交给组长处理。这一轮到这里结束。': 'Failure recorded and handed to the team lead. This turn ends here.',

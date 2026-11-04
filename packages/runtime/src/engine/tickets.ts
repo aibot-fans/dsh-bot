@@ -106,6 +106,15 @@ export class Tickets {
     })
   }
 
+  /** 开在这个群里、还没结束的子任务（组长在普通群里开的）。 */
+  openChildrenIn(roomId: string): readonly Task[] {
+    const rows = this.db.prepare('SELECT id FROM tasks WHERE room_id = ? AND parent_id IS NOT NULL AND ended_at IS NULL AND deleted_at IS NULL ORDER BY created_at').all(roomId) as unknown as readonly { readonly id: string }[]
+    return rows.flatMap((row) => {
+      const child = this.get(row.id)
+      return child !== undefined && isTicket(child) ? [child] : []
+    })
+  }
+
   /** 后来在别处问的：结果也回在那条消息下面。 */
   addReplyTarget(task: Task, target: ReplyTarget): Task {
     if (task.replyTo.some((item) => item.roomId === target.roomId && item.messageId === target.messageId)) return task

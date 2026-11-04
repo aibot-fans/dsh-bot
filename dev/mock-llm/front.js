@@ -1,7 +1,7 @@
 /**
  * 前台的剧本：消息成批送来（[新消息] 开头，按聊天室分组），每条按内容记去向，一步调一个工具：
  * - “读一下 id [part=…] [page=…] [size=…]”：先 read，再把读到的 reply 出去。
- * - “交给主管/某某 …”或“委派”：open 开任务（交给谁写谁；成员只能开给自己；标题按关键词取；说了组个团队再叫上一个成员），
+ * - “交给主管/某某 …”或“委派”：open 开任务（交给谁写谁；成员只能开给自己，群里的组长能开给群成员；标题按关键词取；说了组个团队再叫上一个成员），
  *   再 reply 一句“交给某某了，做好我直接告诉你”，任务卡挂在这句下面。
  * - 叫醒（[任务交结果]、[任务问你]、[任务没做成]）：照里面写的 to、room、task reply 一句：交结果写结论加“完整的在任务里”，
  *   问你只说谁在问什么，没做成说原因。用户原话里有“测试兜底”的不回，等 dsh-bot 原样发。
@@ -50,7 +50,7 @@ export function batchItems(raw) {
   for (const line of text.split('\n')) {
     const header = /^== (单聊|群聊|任务群)「([^」]*)」（(room_[0-9a-z]+)/.exec(line)
     if (header !== null) {
-      room = { kind: header[1], title: header[2], id: header[3] }
+      room = { kind: header[1], title: header[2], id: header[3], leading: line.includes('（你）') }
       fresh = false
       continue
     }
@@ -211,7 +211,8 @@ function stepsFor(item, context) {
   }
   if (/交给|委派/.test(body)) {
     const named = /交给([^\s，。,]+)/.exec(body)?.[1]
-    const bot = member || named === undefined ? '自己' : named
+    // 成员只能开给自己；在自己当组长的群里能开给群成员。
+    const bot = (member && !room.leading) || named === undefined ? '自己' : named
     // 组个团队：再叫上名册里另一个 bot，开成任务群。
     const partner = /组个团队|组队/.test(body) && !member ? context.roster.find((name) => name !== self && name !== bot) : undefined
     return [dispatch(id, { action: 'open', title: openTitle(body), bot, brief: briefOf(body), ...(partner === undefined ? {} : { members: [partner] }) }), (result) => ({ tool: 'reply', args: { to: id, text: confirmText(result, self) } })]

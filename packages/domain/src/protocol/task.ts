@@ -1,5 +1,8 @@
-/** 任务会话在团队里的位置：根任务的会话能开子任务（组长），子任务写明是谁的、组长是谁。 */
-export type TaskTeam = { readonly role: 'leader' } | { readonly role: 'member'; readonly leader: string; readonly parent: string }
+/**
+ * 任务会话在团队里的位置：根任务的会话能开子任务（组长），子任务写明是谁的、组长是谁。
+ * group 是组长在普通群里干活时的群名（群是大家的，不是这个任务专用的任务群）。
+ */
+export type TaskTeam = { readonly role: 'leader'; readonly group?: string } | { readonly role: 'member'; readonly leader: string; readonly parent: string }
 
 /** 组长（根任务的会话）怎么开子任务、验收；子任务的汇报交给组长。 */
 function teamLines(team: TaskTeam | undefined, careful: boolean): readonly string[] {
@@ -10,7 +13,9 @@ function teamLines(team: TaskTeam | undefined, careful: boolean): readonly strin
     ]
   }
   return [
-    '- 这个任务是几个 bot 一起做的，在任务群里，由你负责：要成员做的用 subtask 开子任务交给它（也可以交给你自己），写标题、说明和 1–5 条验收项；要等另一个子任务就绪再开工写 after。群里会显示成你 @ 它说要做什么，不在群里的 bot 会拉进群。用户在群里没点名的话到你这里，@ 了成员的直接到它。小事自己做，不用拆；用户说“组个团队”时，一开工就拆。',
+    team.group === undefined
+      ? '- 这个任务是几个 bot 一起做的，在任务群里，由你负责：要成员做的用 subtask 开子任务交给它（也可以交给你自己），写标题、说明和 1–5 条验收项；要等另一个子任务就绪再开工写 after。群里会显示成你 @ 它说要做什么，不在群里的 bot 会拉进群。用户在群里没点名的话到你这里，@ 了成员的直接到它。小事自己做，不用拆；用户说“组个团队”时，一开工就拆。'
+      : `- 这个任务在群「${team.group}」里，你是组长：要成员做的用 subtask 开子任务交给它（只能交给群里的成员，也可以交给你自己），写标题、说明和 1–5 条验收项；要等另一个子任务就绪再开工写 after。子任务的任务卡发在群里，成员在群里交结果。用户回复你的任务卡、你在群里说的话直接到你这里；群里没点名的话先到你的前台，点了成员名的直接到它。小事自己做，不用拆；几块不同的专长、要接力的活再拆。`,
     '- 子任务开好就报 waiting 结束这一轮，它们有了结果 dsh-bot 会叫醒你：就绪的用 review_subtask 验收（通过，或者写清要改什么打回，最多返工 2 次）；受阻、失败的你来定（tell_subtask 答复它、改派、自己做、stop_subtask 停掉）。list_subtasks 看全部子任务。',
     '- 子任务都结束、合成结果以后再报 ready，你的回答直接发给用户。',
     ...(careful ? ['- 用户选了“谨慎”档：开子任务前先报 blocked，问题写“计划可以吗”，report 里写打算怎么拆；用户答复后再开。'] : []),
@@ -31,7 +36,7 @@ const EVIDENCE_RULES = [
 /** 任务会话的协议：怎么汇报、怎么接直通的消息、文件放哪；组长和子任务另有几条，常开任务（例程）每次到点做一次。 */
 export function taskProtocol(folder: string, team: TaskTeam | undefined, careful: boolean): string {
   return [
-    '你正在执行一个任务，不是在和用户聊天。第一条消息是交代：最前面是用户的原话，后面是 Super-agent 写的理解、背景、给谁看；它的理解和原话对不上时照原话。怎么做由你自己定，拿不准、要用户拿主意的再问。之后的消息是用户或 Super-agent 接着说的话，或者开工说明（重试、触发器到点、重启恢复……）。',
+    '你正在执行一个任务，不是在和用户聊天。第一条消息是交代：最前面是用户的原话，后面是派活的一方（Super-agent 或群的组长）写的理解、背景、给谁看；它的理解和原话对不上时照原话。怎么做由你自己定，拿不准、要用户拿主意的再问。之后的消息是用户或派活的一方接着说的话，或者开工说明（重试、触发器到点、重启恢复……）。',
     EVIDENCE_RULES,
     '- 用 report 向 dsh-bot 汇报，一次一种状态。做成一步报 progress，一句话写做成了什么（比如“找到 3 家的公开报价”“初稿写完了”），不写正在做什么：它带着时间列在任务对话的进展里，不叫醒谁；正在做哪一步用户在对话最下面看得到。组长写了验收项的，完成一条勾一条。progress 不结束这一轮，别的汇报之后这一轮就结束了。',
     '- 全部做完报 ready：summary 写完整回答（写法见上面和团队说明的交付要求），会原样发到对话里；做了哪些假设、哪些没核实、跳过了什么，写在回答里。交了这件事就算做完，不用用户验收，不写“请查看”“看过再收下”。',

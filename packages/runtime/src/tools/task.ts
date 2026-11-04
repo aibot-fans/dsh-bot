@@ -1,5 +1,4 @@
 import { WAIT_KINDS, t, type PodSession, type WaitKind } from 'pod-domain'
-import { taskRoomOf } from 'pod-store'
 import type { ToolDefinition } from '../dsh.ts'
 import type { PodRuntime } from '../pod.ts'
 import { isTicket } from '../engine/index.ts'
@@ -12,13 +11,13 @@ import { wakeTool } from './triggers.ts'
 
 /**
  * 任务会话的工具：汇报（进展、等消息、就绪、受阻、失败、无需处理）；工单还能答复、确认、交还直通进来的消息，
- * 跟进、取消跟进话题、定时叫醒自己；任务群里根任务的会话还能开子任务、验收（组长）。
+ * 跟进、取消跟进话题、定时叫醒自己；带着成员干活的根任务（任务群里的、群里组长的）还能开子任务、验收。
  */
 export function taskTools(pod: PodRuntime, session: PodSession): readonly ToolDefinition[] {
   const task = pod.tasks.taskOf(session)
   if (task === undefined || !isTicket(task)) return [reportTool(pod, session)]
   const base = [reportTool(pod, session), answerTool(pod, session), ackTool(pod, session), handbackTool(pod, session), followTool(pod, session), unfollowTool(pod, session), wakeTool(pod, session)]
-  return task.parentId === null && taskRoomOf(pod.db, task.id) !== undefined ? [...base, ...subtaskTools(pod, session)] : base
+  return pod.tasks.teamRoomOf(task) !== undefined ? [...base, ...subtaskTools(pod, session)] : base
 }
 
 /** 找用户：组长的协调会话用（任务会话改用 report 的 blocked）。 */
