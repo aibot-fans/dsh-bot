@@ -310,6 +310,11 @@ export class TriggerClock {
       this.advance(trigger, next, t('任务受阻或失败，这次没叫醒；看过以后重试或回一句话就会接着做'))
       return
     }
+    // 你让它先等等的：到点、等的任务做完都不叫醒，你说接着做以后照常。
+    if (why !== 'manual' && task.pausedAt !== null) {
+      this.advance(trigger, next, t('任务暂停着，这次没叫醒；你说接着做以后照常'))
+      return
+    }
     if (why === 'schedule' && trigger.state.catchUp === false && trigger.nextAt !== null && now - trigger.nextAt > MISSED_AFTER) {
       this.advance(trigger, next, t('错过了，没有补跑'))
       return
@@ -348,7 +353,7 @@ export class TriggerClock {
         this.deps.steer(task, run.sessionId, `[dsh-bot] 触发器「${label}」到点了。${text === '' ? '' : `\n${text}`}`)
       } else {
         const first = latestRun(this.db, task.id) === undefined
-        this.deps.runs.queue(task.id, 'trigger', { trigger: label, note: text, triggerId: trigger.id, ...(first ? { first } : {}) })
+        this.deps.runs.queue(task.id, 'trigger', { trigger: label, note: text, triggerId: trigger.id, ...(first ? { first } : {}), ...(why === 'manual' ? { manual: true } : {}) })
       }
       this.deps.tickets.event(task, 'trigger_fired', 'pod', { triggerId: trigger.id, text: label, why })
       updateTrigger(this.db, trigger.id, { lastAt: now, nextAt: done ? null : next, state: { ...trigger.state, lastStatus: t('叫醒了任务') }, ...(done ? { closedAt: now } : {}) }, now)

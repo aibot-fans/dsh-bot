@@ -34,6 +34,7 @@ interface TaskRow {
   readonly reply_to: string
   readonly ended_at: number | null
   readonly end_reason: string | null
+  readonly paused_at: number | null
   readonly stage_cache: string | null
   readonly nudges: number
   readonly created_at: number
@@ -75,6 +76,7 @@ function toTask(row: TaskRow): Task {
     replyTo: readJson<readonly ReplyTarget[]>(row.reply_to, []),
     endedAt: row.ended_at,
     endReason: (row.end_reason as EndReason | null) ?? null,
+    pausedAt: row.paused_at ?? null,
     ticketStage: (row.stage_cache as TicketStage | null) ?? null,
     nudges: row.nudges,
     createdAt: row.created_at,
@@ -248,6 +250,7 @@ export interface TaskPatch {
   readonly replyTo?: readonly ReplyTarget[]
   readonly endedAt?: number | null
   readonly endReason?: EndReason | null
+  readonly pausedAt?: number | null
   readonly ticketStage?: TicketStage | null
   readonly nudges?: number
 }
@@ -259,7 +262,7 @@ export function updateTask(db: DatabaseSync, id: string, patch: TaskPatch, now: 
   db.prepare(
     `UPDATE tasks SET title = ?, brief = ?, deliverable = ?, acceptance = ?, depends_on = ?, owner_bot_id = ?, status = ?, stage = ?,
        note = ?, result = ?, room_id = ?, plan_version = ?, urgent = ?, tainted = ?, plan_pending = ?, kind = ?, needs = ?,
-       requester_session = ?, attempts = ?, started_at = ?, finished_at = ?, reply_to = ?, ended_at = ?, end_reason = ?, stage_cache = ?, nudges = ?,
+       requester_session = ?, attempts = ?, started_at = ?, finished_at = ?, reply_to = ?, ended_at = ?, end_reason = ?, paused_at = ?, stage_cache = ?, nudges = ?,
        updated_at = ?
      WHERE id = ?`,
   ).run(
@@ -287,6 +290,7 @@ export function updateTask(db: DatabaseSync, id: string, patch: TaskPatch, now: 
     writeJson(next.replyTo),
     next.endedAt,
     next.endReason,
+    next.pausedAt,
     next.ticketStage,
     next.nudges,
     now,

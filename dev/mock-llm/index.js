@@ -417,6 +417,11 @@ function decide(options) {
       return { tool: 'ack', args: { message_ids: routedIds } }
     }
     if (last?.role === 'tool' && calls.at(-1) === 'handback') return { tool: 'report', args: { status: 'waiting', summary: '交还了一条不归这个任务的消息' } }
+    // 暂停着时用户说话：只回话，记下交代，报 waiting，不接着做。
+    if (userText.includes('这个任务暂停着') && last?.role === 'tool' && calls.at(-1) === 'ack' && tools.has('reply')) {
+      return { tool: 'reply', args: { to: routedIds[0] ?? '', text: '（测试模型）任务暂停着，先记下你的话；你说接着做我再动手。' } }
+    }
+    if (userText.includes('这个任务暂停着') && last?.role === 'tool' && calls.at(-1) === 'reply' && tools.has('report')) return { tool: 'report', args: { status: 'waiting', summary: '暂停着，只回了话' } }
     if (last?.role === 'tool' && calls.at(-1) === 'ack') {
       // 直通消息里问问题（写着“测试答复”）：用 reply 答在那条下面，再报 waiting。
       if (userText.includes('测试答复') && tools.has('reply')) return { tool: 'reply', args: { to: routedIds[0], text: '（测试模型）做到第 2 步了，再过几分钟交结果。' } }

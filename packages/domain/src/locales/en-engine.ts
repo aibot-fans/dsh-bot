@@ -3,6 +3,7 @@ export const DOMAIN_EN_ENGINE: Readonly<Record<string, string>> = {
   '已结束': 'Ended',
   '消息没送到': 'Message not delivered',
   '等你答复': 'Waiting for your answer',
+  '暂停着': 'Paused',
   '等你验收': 'Waiting for your review',
   '受阻': 'Blocked',
   '失败': 'Failed',

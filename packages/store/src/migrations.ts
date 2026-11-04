@@ -727,6 +727,10 @@ const MIGRATIONS: readonly string[] = [
   ALTER TABLE triggers ADD COLUMN created_by TEXT NOT NULL DEFAULT '';
   ALTER TABLE routines ADD COLUMN task_id TEXT;
   `,
+  // v16：你让任务先等等的时间：暂停是任务自己的状态，重启后还停着，只有你说接着做才清掉。
+  `
+  ALTER TABLE tasks ADD COLUMN paused_at INTEGER;
+  `,
 ]
 
 function readVersion(db: DatabaseSync): number {

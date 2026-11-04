@@ -5,12 +5,14 @@ import type { EndReason, ReportStatus, RunStatus } from './tickets.ts'
  * 任务卡和概览上的阶段：不存下来（库里那份只是缓存），每次按事实从上往下对，第一条对上的就是。
  * 同样的事实推出同样的阶段。
  */
-export type TicketStage = 'ended' | 'undelivered' | 'waiting' | 'review' | 'blocked' | 'failed' | 'queued' | 'scheduled' | 'idle' | 'running'
+export type TicketStage = 'ended' | 'undelivered' | 'paused' | 'waiting' | 'review' | 'blocked' | 'failed' | 'queued' | 'scheduled' | 'idle' | 'running'
 
 export interface StageFacts {
   readonly endReason: EndReason | null
   /** 有一条回复发不出去。 */
   readonly undelivered: boolean
+  /** 你让它先等等了（还没说接着做）。 */
+  readonly paused: boolean
   readonly openWaits: number
   /**
    * 最后一次汇报（进展不算），只算最近一次执行的：之后又开了新的执行（你说了话、点了重试），
@@ -25,6 +27,7 @@ export interface StageFacts {
 export function deriveStage(facts: StageFacts): TicketStage {
   if (facts.endReason !== null) return 'ended'
   if (facts.undelivered) return 'undelivered'
+  if (facts.paused) return 'paused'
   if (facts.openWaits > 0) return 'waiting'
   if (facts.lastReport === 'blocked' || facts.lastReport === 'failed') return facts.lastReport
   if (facts.armed && facts.lastRun !== 'running' && facts.lastRun !== 'queued') return 'scheduled'
@@ -37,6 +40,7 @@ export function deriveStage(facts: StageFacts): TicketStage {
 export const TICKET_STAGE_LABELS: Readonly<Record<TicketStage, string>> = {
   ended: '已结束',
   undelivered: '消息没送到',
+  paused: '暂停着',
   waiting: '等你答复',
   review: '等你验收',
   blocked: '受阻',
@@ -62,6 +66,7 @@ export function stageGroup(stage: TicketStage): StageGroup {
     case 'running':
       return 'active'
     case 'ended':
+    case 'paused':
     case 'scheduled':
     case 'idle':
       return 'hidden'
@@ -78,6 +83,8 @@ export function statusFromStage(stage: TicketStage, endReason: EndReason | null,
       return endReason === 'stopped' ? 'stopped' : endReason === 'dismissed' ? 'cancelled' : 'done'
     case 'undelivered':
       return running ? 'running' : 'paused'
+    case 'paused':
+      return 'paused'
     case 'waiting':
     case 'blocked':
       return 'waiting'

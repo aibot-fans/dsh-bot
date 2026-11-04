@@ -62,7 +62,7 @@ import type { AgentRegistry, MessageSource } from '../dsh.ts'
 import type { Dispatcher } from '../effects/delivery.ts'
 import { isTicket, type Engine } from '../engine/index.ts'
 import type { UsageMeter } from '../usage/meter.ts'
-import { composeBrief } from './brief.ts'
+import { composeBrief, resumeText } from './brief.ts'
 import { snapshotText } from './snapshot.ts'
 
 /** 给任务的消息连续交不出去几次，任务卡上显示“消息没送到”。 */
@@ -133,7 +133,7 @@ export interface DelegateInput {
  */
 export type TaskConversation = { readonly kind: 'chat' } | { readonly kind: 'group'; readonly members: readonly Bot[] }
 
-/** 暂停是停下这次执行；继续开一次新的；停止、取消结束任务；重试再做一次；收下是你验收通过。 */
+/** 暂停是你让它先等等（整棵树停着，重启也不变）；继续是接着做；停止、取消结束任务；重试再做一次；收下是你验收通过。 */
 export type ControlAction = 'pause' | 'resume' | 'stop' | 'cancel' | 'retry' | 'accept'
 
 /**
@@ -434,12 +434,22 @@ export class TaskService {
   private controlTicket(task: Task, action: ControlAction, actor: string): PodResult<Task> {
     const run = this.engine.runs.current(task.id)
     switch (action) {
-      case 'pause':
-        if (run === undefined) return fail('conflict', t('任务现在没有在做'))
-        this.engine.runs.end(run.id, 'paused')
-        return ok(task)
+      case 'pause': {
+        if (task.endedAt !== null) return fail('conflict', t('任务已经结束'))
+        const open = this.tree(task.id).filter((item) => isTicket(item) && item.endedAt === null && item.pausedAt === null)
+        if (open.length === 0) return ok(task)
+        transaction(this.db, () => {
+          for (const item of open) {
+            this.engine.tickets.patch(item, { pausedAt: this.deps.now() })
+            const current = this.engine.runs.current(item.id)
+            if (current !== undefined) this.engine.runs.end(current.id, 'paused')
+          }
+        })
+        return ok(this.get(task.id) ?? task)
+      }
       case 'resume':
       case 'retry': {
+        if (task.pausedAt !== null) return this.unpause(task)
         if (run !== undefined) return fail('conflict', t('任务正在做'))
         if (task.endedAt !== null && this.engine.tickets.reopen(task.id, actor, true) === undefined) return fail('conflict', t('任务现在的状态不能这样操作'))
         const queued = this.engine.runs.queue(task.id, action, {})
@@ -455,6 +465,32 @@ export class TaskService {
         this.engine.tickets.end(task.id, 'done', actor)
         return ok(task)
     }
+  }
+
+  /**
+   * 你说接着做：整棵树不再暂停。做到一半被停下的接着做（正在只回话的那一轮直接接着做，先排着的开工），
+   * 本来就在等消息、等子任务的回去等。
+   */
+  private unpause(root: Task): PodResult<Task> {
+    const paused = this.tree(root.id).filter((item) => isTicket(item) && item.endedAt === null && item.pausedAt !== null)
+    transaction(this.db, () => {
+      for (const item of paused) {
+        this.engine.tickets.patch(item, { pausedAt: null })
+        const run = this.engine.runs.current(item.id)
+        if (run?.status === 'running' && run.sessionId !== null) this.deliver(run.sessionId, resumeText(item, 'paused'), noticeSource(t('任务继续')))
+        else if (run !== undefined) this.engine.runs.release(run.id)
+        else if (this.pausedMidWork(item.id)) this.engine.runs.queue(item.id, 'resume', {})
+      }
+    })
+    return ok(this.get(root.id) ?? root)
+  }
+
+  /** 暂停时正做到一半：最近一次干活的执行（暂停后只回话的那几次不算）是被暂停停下的。 */
+  private pausedMidWork(taskId: string): boolean {
+    const row = this.db
+      .prepare("SELECT outcome FROM task_runs WHERE task_id = ? AND json_extract(detail, '$.replyOnly') IS NOT 1 ORDER BY queued_at DESC, rowid DESC LIMIT 1")
+      .get(taskId) as { readonly outcome: string | null } | undefined
+    return row?.outcome === 'paused'
   }
 
   private controlTeam(root: Task, action: ControlAction): PodResult<Task> {
@@ -514,7 +550,7 @@ export class TaskService {
     if (isTicket(task)) {
       if (task.endedAt !== null) return task.endReason === 'stopped'
       if (this.engine.runs.current(task.id) !== undefined) return false
-      return latestRun(this.db, task.id)?.outcome === 'paused'
+      return task.pausedAt !== null || latestRun(this.db, task.id)?.outcome === 'paused'
     }
     return task.status === 'paused' || task.status === 'stopped' || task.status === 'cancelled'
   }

@@ -130,19 +130,22 @@ function runNotices(run: TaskRun): readonly string[] {
   return Array.isArray(run.detail.notices) ? run.detail.notices.filter((item): item is string => typeof item === 'string') : []
 }
 
+/** 暂停着的时候你对它说话：只回话，不接着做。 */
+const PAUSED_REPLY = '[dsh-bot] 这个任务暂停着（用户让你先等等）：只回用户这几句话，问的就答，交代的记下、接着做时照办；不接着做，也不对外操作。答完用 report 报 waiting。用户说接着做或点继续以后再接着做。'
+
 /**
  * 同一个任务的又一次执行：同一个会话、同一个文件夹，开工说明写明原因。接着说的话（你在任务对话里说的、Super-agent
- * 转来的后续）只送那几句话本身；文件夹和汇报办法在系统提示里。
+ * 转来的后续）只送那几句话本身；文件夹和汇报办法在系统提示里。暂停着时你说的话开头写明只回话。
  */
 export function runBrief(task: Task, run: TaskRun, context: RunBriefContext): string {
   const messages = runMessages(run)
   const notices = runNotices(run)
   const routed = messages.some((message) => message.id !== null)
+  const paused = run.detail.replyOnly === true ? PAUSED_REPLY : undefined
+  const said = messages.length === 0 ? undefined : [...messages.map(routedLine), ...(routed ? [ROUTED_HOWTO] : [])].join('\n')
   const watching =
     context.watching.length === 0 ? undefined : ['只读跟进的话题里的新消息（只看不接，不用确认或交还）：', ...context.watching.map((message) => `- ${message.id ?? ''} ${message.author}：${message.text}`)].join('\n')
-  if (run.reason === 'message' && messages.length > 0) {
-    return [[...messages.map(routedLine), ...(routed ? [ROUTED_HOWTO] : [])].join('\n'), watching].filter((part): part is string => part !== undefined).join('\n\n')
-  }
+  if (run.reason === 'message' && said !== undefined) return [paused, said, watching].filter((part): part is string => part !== undefined).join('\n\n')
   const head = `[dsh-bot] 任务「${task.title}」开始新的一次执行。`
   const reason = ((): string => {
     switch (run.reason) {
@@ -175,7 +178,8 @@ export function runBrief(task: Task, run: TaskRun, context: RunBriefContext): st
     }
   })()
   const subtasks = notices.length === 0 ? undefined : notices.join('\n\n')
-  return [head, reason, subtasks, watching].filter((part): part is string => part !== undefined).join('\n\n')
+  // 排着的时候又来了话（并进这一次的），一起带上。
+  return [paused, head, reason, subtasks, said, watching].filter((part): part is string => part !== undefined).join('\n\n')
 }
 
 /** 一轮结束却没汇报时的提醒。 */

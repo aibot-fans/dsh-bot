@@ -33,6 +33,7 @@ export function stageFacts(db: DatabaseSync, task: Task): StageFacts {
   return {
     endReason: task.endedAt === null ? null : (task.endReason ?? 'done'),
     undelivered: undeliveredReply(db, task.id),
+    paused: task.endedAt === null && task.pausedAt !== null,
     openWaits: openWaits(db, task),
     lastReport: current ? report.status : null,
     lastRun: run?.status ?? null,

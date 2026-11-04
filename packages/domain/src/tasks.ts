@@ -85,6 +85,8 @@ export interface Task {
   /** 结束的时间和方式；开着的是 null。 */
   readonly endedAt: number | null
   readonly endReason: EndReason | null
+  /** 你让它先等等的时间；没暂停是 null。暂停时到点、别的任务做完、你的答复都不让它接着做，你说接着做才清掉。 */
+  readonly pausedAt: number | null
   /** 引擎按事实推出的阶段（缓存）；团队编排的任务按旧状态对回来。 */
   readonly ticketStage: TicketStage | null
   /** 这次执行里一轮结束没汇报、催了几次。 */

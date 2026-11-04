@@ -39,6 +39,14 @@ export interface ReportOutcome {
   readonly standing: boolean
 }
 
+/**
+ * 暂停着也照常开工的执行：你点的继续和重试、你让它现在跑一次（manual）、你对它说的话（只回话，replyOnly）。
+ * 别的（子任务的消息、返工）先排着不开工，你说接着做再开；到点和重启恢复干脆不排。
+ */
+export function runsWhilePaused(reason: RunReason, detail: Readonly<Record<string, unknown>>): boolean {
+  return reason === 'resume' || reason === 'retry' || detail.replyOnly === true || detail.manual === true
+}
+
 /** 排着的执行合并开工原因：新来的消息、子任务的消息接在后面。 */
 function mergeDetail(current: Readonly<Record<string, unknown>>, next: Readonly<Record<string, unknown>>): Readonly<Record<string, unknown>> {
   const joined = (key: string): readonly unknown[] => [...(Array.isArray(current[key]) ? current[key] : []), ...(Array.isArray(next[key]) ? next[key] : [])]
@@ -72,24 +80,38 @@ export class Runs {
 
   /**
    * 排一次执行。任务结束了不排（要先重新打开）；已经有进行中的返回 undefined，调用方把消息直接送进会话。
+   * 暂停着的：你的话照样开工，但只回话不接着做；到点、重启恢复不排；别的先排着，你说接着做再开（runsWhilePaused）。
    */
   queue(taskId: string, reason: RunReason, detail: Readonly<Record<string, unknown>> = {}): TaskRun | undefined {
     return transaction(this.db, () => {
       const task = this.deps.tickets.get(taskId)
       if (task === undefined || task.endedAt !== null) return undefined
+      const paused = task.pausedAt !== null
+      const asked = paused && reason === 'message' ? { ...detail, replyOnly: true } : detail
+      if (paused && (reason === 'trigger' || reason === 'recover') && !runsWhilePaused(reason, asked)) return undefined
       const open = openRun(this.db, taskId)
       if (open?.status === 'running') return undefined
       if (open !== undefined) {
-        const merged = mergeDetail(open.detail, detail)
+        const merged = mergeDetail(open.detail, asked)
         mergeRunDetail(this.db, open.id, merged)
+        // 暂停着先排着的那次，你又说了话：开工，只回话。
+        if (paused && asked.replyOnly === true) this.deps.launch(task, { ...open, detail: merged })
         return { ...open, detail: merged }
       }
-      const run = insertRun(this.db, { id: newId('run'), taskId, reason, detail, now: this.deps.now() })
+      const run = insertRun(this.db, { id: newId('run'), taskId, reason, detail: asked, now: this.deps.now() })
       this.deps.tickets.event(task, 'run_queued', 'pod', { runId: run.id, reason })
-      this.deps.launch(task, run)
+      if (!paused || runsWhilePaused(reason, asked)) this.deps.launch(task, run)
       this.deps.tickets.refresh(taskId)
       return run
     })
+  }
+
+  /** 暂停时先排着没开工的那次执行：你说接着做了，登记开工。 */
+  release(runId: string): void {
+    const run = getRun(this.db, runId)
+    const task = run === undefined ? undefined : this.deps.tickets.get(run.taskId)
+    if (run?.status !== 'queued' || task === undefined) return
+    this.deps.launch(task, run)
   }
 
   /** 开工：会话开好、开工说明登记好了。 */

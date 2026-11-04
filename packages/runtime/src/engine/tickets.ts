@@ -75,7 +75,7 @@ export class Tickets {
         if (run.status === 'running') this.deps.released()
       }
       this.deps.cancelLaunch(task.id)
-      updateTask(this.db, task.id, { endedAt: now, endReason: reason, finishedAt: now, nudges: 0, ...(note === undefined ? {} : { note }) }, now)
+      updateTask(this.db, task.id, { endedAt: now, endReason: reason, finishedAt: now, nudges: 0, pausedAt: null, ...(note === undefined ? {} : { note }) }, now)
       this.event(task, 'task_ended', actor, { reason })
       // 还没结束的子任务跟着停掉。
       for (const child of this.openChildren(task.id)) this.end(child.id, 'stopped', actor)

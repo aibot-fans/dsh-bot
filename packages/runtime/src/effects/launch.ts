@@ -6,6 +6,7 @@ import type { SessionRegistry } from '../agents/registry.ts'
 import type { BotService } from '../bots/service.ts'
 import type { Engine } from '../engine/index.ts'
 import { isTicket } from '../engine/index.ts'
+import { runsWhilePaused } from '../engine/runs.ts'
 import { CARD_LIMITS, clipCard } from '../core/cards.ts'
 import { composeBrief, runBrief } from '../tasks/brief.ts'
 import type { Dispatcher } from './delivery.ts'
@@ -71,6 +72,8 @@ export class Launcher {
       return
     }
     if (this.deps.paused()) throw new Later()
+    // 你让它先等等的：先排着不开工；你说的话（只回话）、继续、重试、现在跑一次照常开。
+    if (task.pausedAt !== null && !runsWhilePaused(run.reason, run.detail)) return
     const reserve = run.detail.owner === true || run.reason === 'message' || run.reason === 'retry' || run.reason === 'resume' ? 1 : 0
     if (countRunning(db) >= this.deps.settings().taskConcurrency + reserve) throw new Later()
     const bot = task.ownerBotId === null ? undefined : this.deps.bots.get(task.ownerBotId)
