@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { join } from 'node:path'
 import { LEAD_BOT_ID, LEAD_PERSONA, OWNER, POD, POD_VERSION, PRIORITY, botFolder, composePersona, roomFolder, fail, sessionBrowses, sessionMakesPages, t, withLanguage, worthSummary, type Bot, type BotStats, type Language, type PodEvent, type PodResult, type PodSession, type Room, type Task, type TaskTeam, type TeamTemplate, triggerSource } from 'pod-domain'
-import { afterCommit, deliveryByMessageId, getMessage, inTransaction, onAfterCommitError, pinnedMessages, raiseProblem, resolveProblem, runningTasksByRoom, taskCardMessage, taskConversationOf, teamsOfBot } from 'pod-store'
+import { afterCommit, deliveryByMessageId, getMessage, inTransaction, onAfterCommitError, pendingFor, pinnedMessages, raiseProblem, resolveProblem, runningTasksByRoom, taskCardMessage, taskConversationOf, teamsOfBot } from 'pod-store'
 import { SegmentManager } from './agents/segments.ts'
 import { AibotService } from './aibot/service.ts'
 import { MemoryExtractor } from './memory/extract.ts'
@@ -443,6 +443,12 @@ export class PodRuntime {
       bots: this.bots,
       settings: () => this.settings.get(),
       paused: () => this.settings.get().paused,
+      oversized: (session) =>
+        session.contextTokens >= this.settings.get().softContextTokens &&
+        !this.dispatcher.isRunning(session.id) &&
+        pendingFor(db, session.id).length === 0 &&
+        this.observer.backgroundJobs(session.id) === 0,
+      rotate: (task, bot, old) => this.segments.rotateTask(task, bot, old),
     })
     this.intake = new Intake({
       db,

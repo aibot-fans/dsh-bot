@@ -3,6 +3,7 @@ import { OWNER, PRIORITY, maskSecrets, t, type Bot, type PodSession, type PodSet
 import { countRunning, getRun, latestDecisiveReport, runsByStatus, runsFor, taskConversationOf, topicMessagesSince, transaction } from 'pod-store'
 import { noticeSource, relaySource } from '../agents/messages.ts'
 import type { SessionRegistry } from '../agents/registry.ts'
+import type { Rotation } from '../agents/segments.ts'
 import type { BotService } from '../bots/service.ts'
 import type { Engine } from '../engine/index.ts'
 import { isTicket } from '../engine/index.ts'
@@ -28,6 +29,10 @@ export interface LauncherDeps {
   readonly settings: () => PodSettings
   /** 处理暂停了：先不开工（暂停处理那一阶段接上）。 */
   readonly paused: () => boolean
+  /** 任务会话的上下文到了换段长度、这会儿也没在跑：开工前先换一段。 */
+  readonly oversized: (session: PodSession) => boolean
+  /** 换一段新的任务会话，带回交接笔记。 */
+  readonly rotate: (task: Task, bot: Bot, old: PodSession) => Promise<Rotation>
 }
 
 function errorText(error: unknown): string {
@@ -83,10 +88,19 @@ export class Launcher {
     }
     let session: PodSession
     let fresh = false
+    let preface = ''
     try {
       const existing = this.deps.registry.activeForTask(task.id, 'task')
-      fresh = existing === undefined
-      session = existing ?? (await this.open(task, bot))
+      if (existing !== undefined && this.deps.oversized(existing)) {
+        // 上一次执行留下的会话已经到了换段长度（常开任务一轮轮交了汇报，不会在执行中途换段）：换一段新的接着做。
+        const rotation = await this.deps.rotate(task, bot, existing)
+        session = rotation.session
+        preface = rotation.preface
+        fresh = true
+      } else {
+        fresh = existing === undefined
+        session = existing ?? (await this.open(task, bot))
+      }
     } catch (error) {
       if (attempts + 1 >= LAUNCH_FAILURES) {
         this.fail(task, run, t('开任务会话失败：{value}', { value: errorText(error) }))
@@ -102,7 +116,7 @@ export class Launcher {
         sessionId: session.id,
         mode: 'followup',
         priority: run.reason === 'message' ? PRIORITY.owner : current.urgent ? PRIORITY.urgent : PRIORITY.task,
-        text: this.briefFor(current, started, fresh),
+        text: preface === '' ? this.briefFor(current, started, fresh) : `${preface}\n\n${this.briefFor(current, started, fresh)}`,
         source: run.reason === 'new' ? relaySource(current.requesterSession ?? 'pod') : noticeSource(t('任务开始新的一次执行')),
       })
       // 这次执行带进去的消息，读没读过改看开工说明这次投递。
