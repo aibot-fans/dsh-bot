@@ -297,6 +297,16 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
     return resumed.ok ? done(`「${task.title}」接着做了`) : refused(resumed.error.message)
   }
 
+  /** 按用户的话停了任务：任务对话里留一句是在哪说的，干活的 bot 和之后翻看的人都知道为什么停（就在任务对话里说的不用）。 */
+  const stopNote = (task: Task, said: RoomMessage | undefined): void => {
+    const conversation = taskConversationOf(pod.db, task.id)
+    if (conversation === undefined || said === undefined || said.roomId === conversation.id) return
+    const room = pod.rooms.get(said.roomId)
+    if (room === undefined) return
+    const where = room.kind === 'direct' && room.botId === pod.bots.lead().id ? t('主对话') : `「${room.title}」`
+    pod.rooms.post(conversation.id, { author: POD, kind: 'notice', body: t('你在{where}说先不做了', { where }), data: { taskId: task.id } })
+  }
+
   const apply = async (item: Item, found: readonly (RoomMessage | string)[]): Promise<{ readonly ok: boolean; readonly line: string }> => {
     const problems = found.filter((value): value is string => typeof value === 'string')
     if (problems.length > 0) return { ok: false, line: problems.join('；') }
@@ -319,7 +329,12 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
         transaction(pod.db, () => {
           for (const message of messages) if (pod.engine.topics.awaiting(message.id, session.botId)) pod.engine.topics.decide(message.id, session.botId, 'stopped', stopped.value.id)
         })
-        return { ok: true, line: `${ids}：停了「${stopped.value.title}」` }
+        stopNote(stopped.value, messages[0])
+        const doing = stopped.value.note === '' ? '' : `（停之前在做：${stopped.value.note}）`
+        return {
+          ok: true,
+          line: `${ids}：停了「${stopped.value.title}」${doing}。它已经发出去、改过的东西不会撤回：做过对外的事（发了帖或消息、改了文件或服务器）就用 reply 说清楚哪些已经做了、不会撤回，拿不准先用 task_status 看；没做过就不用回，状态那一行 dsh-bot 会写`,
+        }
       }
       case 'pause':
       case 'resume':

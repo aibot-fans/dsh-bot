@@ -294,6 +294,8 @@ export const RUNTIME_EN_NOTICES: Readonly<Record<string, string>> = {
   '「{title}」在等你': '"{title}" is waiting for you',
   '「{title}」没做成': '"{title}" didn\'t get done',
   '「{title}」停了': '"{title}" stopped',
+  '你在{where}说先不做了': 'You said in {where} to stop this',
+  '主对话': 'the main chat',
   '「{title}」暂停了': '"{title}" is paused',
   '「{title}」接着做了': '"{title}" is back in progress',
   '「{title}」不用做了': '"{title}" needs no work',
