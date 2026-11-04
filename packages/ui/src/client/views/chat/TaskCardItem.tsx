@@ -10,11 +10,11 @@ import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 
 interface Foot {
-  readonly tone: 'live' | 'ask' | 'quiet'
+  readonly tone: 'live' | 'ask' | 'failed' | 'quiet'
   readonly text: string
 }
 
-/** 卡片最下面那行：在做时是这一步在做什么（蓝字），等你时是在等什么、没做成写原因（红字），做完写更新时间。 */
+/** 卡片最下面那行：在做时是这一步在做什么（蓝字），等你时是在等什么（橙字），没做成写原因（红字），做完写更新时间。 */
 function footOf(snapshot: TaskSnapshot, bots: ReadonlyMap<string, Bot>, now: number): Foot {
   const { task, stage } = snapshot
   const bucket = bucketOf(snapshot)
@@ -28,7 +28,7 @@ function footOf(snapshot: TaskSnapshot, bots: ReadonlyMap<string, Bot>, now: num
       return { tone: 'ask', text: t('{label}：{text}', { label: t(label), text: question.title }) }
     }
     const label = stage === 'failed' ? t('没做成') : bucketLabel(snapshot, bucket)
-    return { tone: 'ask', text: task.note === '' ? label : t('{label}：{text}', { label, text: task.note }) }
+    return { tone: stage === 'failed' ? 'failed' : 'ask', text: task.note === '' ? label : t('{label}：{text}', { label, text: task.note }) }
   }
   return { tone: 'live', text: workLine(snapshot, bots) }
 }

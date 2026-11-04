@@ -9,4 +9,6 @@ export const V17_CSS = `
 .pod-state-attention { background: var(--pod-warn); }
 .pod-task-fact-attention { color: var(--pod-warn); }
 .pod-task-fact-failed { color: var(--pod-danger); }
+.pod-tcard-foot-ask { color: var(--pod-warn); }
+.pod-tcard-foot-failed { color: var(--pod-danger); }
 `
