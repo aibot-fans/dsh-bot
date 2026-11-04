@@ -9,6 +9,7 @@ export function computerRoutes(pod: PodRuntime): readonly RouteSpec[] {
     get('/computer/status', () => ok(pod.computer.status())),
     post('/computer/check', async () => ok(await pod.computer.check())),
     post('/computer/permissions', async () => ok(await pod.computer.openPermissionFlow())),
+    post('/computer/system-pane', (body) => pod.computer.openSystemPane(readString(body, 'pane'))),
     post('/computer/takeover', () => pod.computer.takeover()),
     post('/computer/handback', (body) => pod.computer.handback(readString(body, 'note').slice(0, 500))),
   ]

@@ -236,7 +236,9 @@ export function describeResponse(response: DaemonResponse, notices: readonly str
   return [
     ...notices,
     response.ok ? (response.message?.trim() ?? '') : (response.error?.trim() || response.message?.trim() || (response.interrupted === true ? '被打断了' : '没做成')),
-    missing.length === 0 ? '' : `小助手缺系统权限（${missing.join('、')}）：请用户在 设置 → 用电脑 里点“打开授权窗口”授权，授权好再试`,
+    missing.length === 0
+      ? ''
+      : `小助手缺系统权限（${missing.join('、')}）：请用户到 设置 → 用电脑 按页面上的步骤授权，授权好再试。用户说系统设置里已经开了的，告诉用户那是旧版小助手的授权，要在系统设置里删掉再加回来`,
     response.instructions?.trim() ?? '',
     text,
   ]

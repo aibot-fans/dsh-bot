@@ -30,4 +30,5 @@ export const RUNTIME_EN_COMPUTER: Readonly<Record<string, string>> = {
   '滚动 #{index}': 'Scrolling #{index}',
   '{action} #{index}': '{action} #{index}',
   '拖动': 'Dragging',
+  '只能打开辅助功能或屏幕录制': 'Only Accessibility or Screen Recording can be opened',
 }

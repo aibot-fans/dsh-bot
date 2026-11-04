@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { t, type ComputerStatus, type PodSettings } from 'pod-domain'
+import { t, type ComputerPermissions, type ComputerStatus, type PodSettings } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { computerApi } from '../../api/computer.ts'
 import { errorText } from '../../api/http.ts'
@@ -9,6 +9,38 @@ import { useResource } from '../../state/resource.ts'
 import { Row, type Update } from './Row.tsx'
 
 type Busy = 'check' | 'permissions'
+
+/**
+ * 还缺系统权限时页面最上面的步骤：缺哪项，怎么删掉旧的重新加。系统设置里开关开着、这里还说没授权，
+ * 多半是系统记着的是旧版小助手（重新编译过就换了签名），只打开开关不管用。
+ */
+function PermissionFix(props: { readonly permissions: ComputerPermissions; readonly busy: boolean; readonly onFlow: () => void; readonly onProblem: (message: string) => void }) {
+  const lacks = [
+    ...(props.permissions.accessibility ? [] : [{ pane: 'accessibility' as const, label: t('辅助功能') }]),
+    ...(props.permissions.screenRecording ? [] : [{ pane: 'screen' as const, label: t('屏幕录制') }]),
+  ]
+  const names = lacks.map((lack) => lack.label).join(t('、'))
+  return (
+    <section className="pod-fix" role="status">
+      <strong>{t('小助手还没有{names}授权', { names })}</strong>
+      <ol>
+        <li>{t('打开系统设置的{names}，找到 dsh-bot Computer Use：开关已经开着的，选中它点下面的“−”删掉。那是旧版小助手的授权，开着也不算', { names })}</li>
+        <li>{t('回到这里点“打开授权窗口”，按提示重新加上并打开开关')}</li>
+      </ol>
+      <div className="pod-row">
+        {lacks.map((lack) => (
+          <Button key={lack.pane} small onClick={() => void computerApi.systemPane(lack.pane).catch((reason: unknown) => props.onProblem(errorText(reason)))}>
+            {t('打开系统设置的{label}', { label: lack.label })}
+          </Button>
+        ))}
+        <Button small kind="primary" disabled={props.busy} onClick={props.onFlow}>
+          {t('打开授权窗口')}
+        </Button>
+      </div>
+      <p className="pod-muted">{t('授权好切回这个页面会自动再检查。之后小助手不重新编译，授权就一直有效')}</p>
+    </section>
+  )
+}
 
 /**
  * 用电脑：开关、小助手（随 dsh-bot 一起装，不用另外装）、系统权限、现在谁在用（点“看画面”打开电脑面板）。
@@ -61,6 +93,7 @@ export function ComputerPage(props: { readonly settings: PodSettings; readonly u
   const user = status.user
   return (
     <div className="pod-settings-body">
+      {missing && permissions !== null ? <PermissionFix permissions={permissions} busy={busy !== undefined} onFlow={() => act('permissions', computerApi.permissions)} onProblem={setProblem} /> : null}
       <Row label={t('用电脑')} hint={t('做任务的 bot 能在后台用这台 Mac 上别的应用：看窗口内容、点按钮、填字，不占用你的鼠标键盘。每个任务第一次用某个应用前先问你；浏览器、终端、系统设置和密码类应用不让碰。关掉时收回所有授权')}>
         <Switch checked={settings.computerUse} label={t('用电脑')} onChange={(computerUse) => update({ computerUse })} />
       </Row>
@@ -78,12 +111,7 @@ export function ComputerPage(props: { readonly settings: PodSettings; readonly u
       {!ready ? null : (
         <Row
           label={t('系统权限')}
-          hint={
-            <>
-              <span>{t('小助手要辅助功能（读窗口、点按钮）和屏幕录制（截窗口的图、推画面）两项授权：点“打开授权窗口”，按提示在系统设置里打开 dsh-bot Computer Use')}</span>
-              {missing ? <span className="pod-aibot-detail">{t('系统设置里开着、这里还显示没授权：系统记着的是旧版小助手（dsh-bot 升级换了小助手就会这样），只打开开关不管用。在系统设置对应的那一项里选中 dsh-bot Computer Use，点“−”删掉，再回来点“打开授权窗口”重新加上')}</span> : null}
-            </>
-          }
+          hint={t('小助手要辅助功能（读窗口、点按钮）和屏幕录制（截窗口的图、推画面）两项授权：点“打开授权窗口”，按提示在系统设置里打开 dsh-bot Computer Use')}
         >
           {permissions === null ? null : (
             <>

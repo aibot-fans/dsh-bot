@@ -8,7 +8,6 @@ export const UI_EN_COMPUTER: Readonly<Record<string, string>> = {
   '读写窗口、推画面靠开源项目 Comma（AGPL-3.0）的 macOS 小助手，只在这台电脑上运行': 'Reading and using windows and streaming them relies on the macOS helper from the open-source project Comma (AGPL-3.0). It runs only on this computer',
   '系统权限': 'System permissions',
   '小助手要辅助功能（读窗口、点按钮）和屏幕录制（截窗口的图、推画面）两项授权：点“打开授权窗口”，按提示在系统设置里打开 dsh-bot Computer Use': 'The helper needs Accessibility (to read windows and click buttons) and Screen Recording (to capture and stream windows): click “Open authorization window” and turn on dsh-bot Computer Use in System Settings as prompted',
-  '系统设置里开着、这里还显示没授权：系统记着的是旧版小助手（dsh-bot 升级换了小助手就会这样），只打开开关不管用。在系统设置对应的那一项里选中 dsh-bot Computer Use，点“−”删掉，再回来点“打开授权窗口”重新加上': 'On in System Settings but still missing here? macOS remembers an older copy of the helper (this happens when a dsh-bot update replaces it), so turning the switch on does nothing. In that System Settings list, select dsh-bot Computer Use, click “−” to remove it, then come back and click “Open authorization window” to add it again',
   '辅助功能已授权': 'Accessibility granted',
   '辅助功能没授权': 'Accessibility missing',
   '屏幕录制已授权': 'Screen Recording granted',

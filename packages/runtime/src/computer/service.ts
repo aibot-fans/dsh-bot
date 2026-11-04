@@ -116,6 +116,14 @@ export class ComputerService {
     return this.status()
   }
 
+  /** 打开系统设置里辅助功能或屏幕录制那一页：旧的授权要在那里删掉重加。只是打开，不改设置。 */
+  async openSystemPane(pane: string): Promise<PodResult<null>> {
+    const anchor = pane === 'accessibility' ? 'Privacy_Accessibility' : pane === 'screen' ? 'Privacy_ScreenCapture' : undefined
+    if (anchor === undefined) return failed('invalid-input', t('只能打开辅助功能或屏幕录制'))
+    await run('open', [`x-apple.systempreferences:com.apple.preference.security?${anchor}`], { timeout: 10_000 })
+    return ok(null)
+  }
+
   /** 关掉“用电脑”：收回所有授权，结束会话，小助手退出。 */
   async turnOff(): Promise<void> {
     this.grants.clear()
