@@ -330,15 +330,16 @@ export class RoomService {
     return ok(updated)
   }
 
-  /** 页面上的新建群聊：{ name, memberIds }；没起名字时按成员起一个。 */
+  /** 页面上的新建群聊：{ name, memberIds, leaderId? }；没起名字时按成员起一个，没写组长就是第一个成员。 */
   createGroupFromPage(input: unknown): PodResult<Room> {
     const memberIds = readStringArray(input, 'memberIds') ?? []
+    const leaderId = readId(input, 'leaderId')
     const named = readString(input, 'name').trim()
     const names = memberIds.flatMap((id) => {
       const bot = this.deps.bots.activeBot(id)
       return bot === undefined || bot.role === 'lead' ? [] : [bot.name]
     })
-    return this.createGroup({ name: named === '' ? autoGroupName(names) : named, memberIds }, OWNER)
+    return this.createGroup({ name: named === '' ? autoGroupName(names) : named, memberIds, ...(leaderId === undefined ? {} : { leaderId }) }, OWNER)
   }
 
   private groupAndBot(input: unknown): PodResult<{ readonly room: Room; readonly bot: Bot }> {

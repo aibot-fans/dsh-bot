@@ -63,4 +63,9 @@ export const UI_EN_V4: Readonly<Record<string, string>> = {
   '写下你的回答…': 'Write your answer…',
   '任务停了，这件事先放着': 'The task is stopped, so this can wait',
   '继续': 'Resume',
+  '组长': 'Lead',
+  '还没有': 'None yet',
+  '任务群的组长是负责这个任务的 bot': 'In a task group, the lead is the bot handling the task',
+  '正式团队的组长就是团队组长': 'In a formal team, the lead is the team lead',
+  '没点名的话它先接：自己答、自己干，或者交给对口的成员': 'Messages that don’t @ anyone go to it first: it answers, does the work itself, or hands it to the right member',
 }

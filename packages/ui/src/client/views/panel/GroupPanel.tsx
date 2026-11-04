@@ -154,9 +154,36 @@ function AddMembers(props: { readonly room: RoomSummary; readonly others: readon
   )
 }
 
-/** 成员：图标加完整名字排成一格一格，最后一格是“添加”；点成员打开成员卡片（能返回这里）。 */
-/** 群成员；任务群里负责的 bot 标「负责」。 */
-function Members(props: { readonly room: RoomSummary; readonly members: readonly Bot[]; readonly bots: readonly Bot[]; readonly ownerId: string | null }) {
+/** 组长：群里没点名的话先给它。普通群在这里换（群里留一行）；任务群是负责的 bot，正式团队是团队组长，不在这里换。 */
+function Leader(props: { readonly room: RoomSummary; readonly members: readonly Bot[]; readonly leaderId: string | null; readonly onChange: (botId: string) => void }) {
+  const choices = props.members.filter((bot) => bot.role !== 'lead')
+  const leader = choices.find((bot) => bot.id === props.leaderId)
+  const fixed = props.room.taskId !== null || props.room.teamId !== null
+  const hint = props.room.taskId !== null ? t('任务群的组长是负责这个任务的 bot') : props.room.teamId !== null ? t('正式团队的组长就是团队组长') : t('没点名的话它先接：自己答、自己干，或者交给对口的成员')
+  return (
+    <div className="pod-kv pod-kv-top">
+      <span>{t('组长')}</span>
+      <div className="pod-stack-tight">
+        {fixed || choices.length < 2 ? (
+          <span>{leader?.name ?? t('还没有')}</span>
+        ) : (
+          <select className="pod-input" aria-label={t('组长')} value={leader?.id ?? ''} onChange={(event) => props.onChange(event.target.value)}>
+            {leader === undefined ? <option value="">{t('还没有')}</option> : null}
+            {choices.map((bot) => (
+              <option key={bot.id} value={bot.id}>
+                {bot.name}
+              </option>
+            ))}
+          </select>
+        )}
+        <span className="pod-muted-inline">{hint}</span>
+      </div>
+    </div>
+  )
+}
+
+/** 成员：图标加完整名字排成一格一格，最后一格是“添加”；点成员打开成员卡片（能返回这里）。组长标「组长」，下面一行写组长。 */
+function Members(props: { readonly room: RoomSummary; readonly members: readonly Bot[]; readonly bots: readonly Bot[]; readonly leaderId: string | null; readonly onLeader: (botId: string) => void }) {
   const app = useApp()
   const [adding, setAdding] = useState(false)
   const others = props.bots.filter((bot) => !props.room.memberIds.includes(bot.id))
@@ -171,7 +198,7 @@ function Members(props: { readonly room: RoomSummary; readonly members: readonly
           <button key={bot.id} type="button" className="pod-member-tile" onClick={() => app.showBot(bot.id, 'details', props.room.id)} title={bot.card.duties || bot.title}>
             <Avatar bot={bot} size={44} />
             <span className="pod-member-name">{bot.name}</span>
-            {bot.id === props.ownerId ? <span className="pod-member-role">{t('负责')}</span> : bot.role === 'lead' && bot.name !== 'Super-agent' ? <span className="pod-member-role">Super-agent</span> : null}
+            {bot.id === props.leaderId ? <span className="pod-member-role">{t('组长')}</span> : bot.role === 'lead' && bot.name !== 'Super-agent' ? <span className="pod-member-role">Super-agent</span> : null}
           </button>
         ))}
         <button type="button" className="pod-member-tile pod-member-add" onClick={() => setAdding(true)}>
@@ -181,6 +208,7 @@ function Members(props: { readonly room: RoomSummary; readonly members: readonly
           <span className="pod-member-name">{t('添加')}</span>
         </button>
       </div>
+      <Leader room={props.room} members={props.members} leaderId={props.leaderId} onChange={props.onLeader} />
       {adding ? <AddMembers room={props.room} others={others} onClose={() => setAdding(false)} /> : null}
     </section>
   )
@@ -188,7 +216,7 @@ function Members(props: { readonly room: RoomSummary; readonly members: readonly
 
 /**
  * 群聊详情：从右侧滑出，顶上左边是群图标、右边是群名和成员；
- * 分详情（任务群最上面是任务和进展，再是成员、群约定、群记忆、提醒、删除）、页面、资料库、自动化、任务、浏览器六页。
+ * 分详情（任务群最上面是任务和进展，再是成员和组长、群约定、群记忆、提醒、删除）、页面、资料库、自动化、任务、浏览器六页。
  */
 export function GroupPanel(props: { readonly roomId: string; readonly tab: GroupTab }) {
   const app = useApp()
@@ -252,7 +280,7 @@ export function GroupPanel(props: { readonly roomId: string; readonly tab: Group
           {props.tab === 'details' ? (
             <div className="pod-stack">
               {room.taskId === null ? null : <TaskFacts taskId={room.taskId} title={t('任务')} />}
-              <Members room={room} members={members} bots={active} ownerId={snapshot?.task.ownerBotId ?? null} />
+              <Members room={room} members={members} bots={active} leaderId={room.leaderId ?? snapshot?.task.ownerBotId ?? null} onLeader={(leadBotId) => update({ leadBotId })} />
               <section className="pod-box">
                 <div className="pod-box-head">
                   <strong>{t('群约定')}</strong>

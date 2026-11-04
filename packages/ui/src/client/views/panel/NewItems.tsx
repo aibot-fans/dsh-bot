@@ -153,7 +153,7 @@ export function NewBotFlow(props: { readonly bots: readonly Bot[]; readonly onCl
   )
 }
 
-/** 新建群聊：点选成员就行，主管自动在群里；群名可以不填，按成员起一个。 */
+/** 新建群聊：点选成员就行，先点的是组长，主管自动在群里；群名可以不填，按成员起一个。 */
 export function NewGroup(props: { readonly bots: readonly Bot[]; readonly onClose: () => void }) {
   const app = useApp()
   const [picked, setPicked] = useState<readonly string[]>([])
@@ -169,7 +169,7 @@ export function NewGroup(props: { readonly bots: readonly Bot[]; readonly onClos
     setBusy(true)
     setProblem(undefined)
     api
-      .createGroup(name.trim(), picked)
+      .createGroup(name.trim(), picked, picked[0])
       .then((room) => {
         app.cache.invalidate('rooms')
         app.openRoom(room.id)
@@ -181,7 +181,7 @@ export function NewGroup(props: { readonly bots: readonly Bot[]; readonly onClos
   return (
     <Modal title={t('新建群聊')} onClose={props.onClose}>
       <div className="pod-stack">
-        <p className="pod-muted">{t('点选要拉进群的 bot。Super-agent 会自动在群里，负责分派和组织；没点名的话按分工交给对口的成员来接。')}</p>
+        <p className="pod-muted">{t('点选要拉进群的 bot，先点的是组长：群里没点名的话它先接，建好后在群详情里能换。Super-agent 会自动在群里，只在被点名时说话。')}</p>
         {candidates.length === 0 ? (
           <p className="pod-muted">
             {t('还没有别的 bot。')}
@@ -204,6 +204,7 @@ export function NewGroup(props: { readonly bots: readonly Bot[]; readonly onClos
               <button key={bot.id} type="button" className={`pod-member-tile${on ? ' pod-member-tile-on' : ''}`} aria-pressed={on} onClick={() => toggle(bot.id)} title={bot.card.duties || bot.title}>
                 <Avatar bot={bot} size={44} />
                 <span className="pod-member-name">{bot.name}</span>
+                {picked[0] === bot.id ? <span className="pod-member-role">{t('组长')}</span> : null}
                 {on ? (
                   <span className="pod-member-check" aria-hidden>
                     <Icon name="check" size={12} />

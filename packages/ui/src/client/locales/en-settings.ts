@@ -14,7 +14,7 @@ export const UI_EN_SETTINGS: Readonly<Record<string, string>> = {
   'Super-agent 会把人设、能力标签和角色卡写完整': 'Super-agent will fill in the persona, capability tags and role card',
   '让 Super-agent 来建': 'Let Super-agent create it',
   '新建群聊': 'New group',
-  '点选要拉进群的 bot。Super-agent 会自动在群里，负责分派和组织；没点名的话按分工交给对口的成员来接。': 'Pick the bots to add. Super-agent joins automatically to assign and organize work; when nobody is mentioned, the member whose role fits picks it up.',
+  '点选要拉进群的 bot，先点的是组长：群里没点名的话它先接，建好后在群详情里能换。Super-agent 会自动在群里，只在被点名时说话。': 'Pick the bots to add. The first one you pick is the lead: messages that don’t @ anyone go to it first, and you can change it in group details later. Super-agent joins automatically and only speaks when mentioned.',
   '还没有别的 bot。': 'No other bots yet.',
   '先新建一个': 'Create one first',
   '选成员': 'Choose members',
