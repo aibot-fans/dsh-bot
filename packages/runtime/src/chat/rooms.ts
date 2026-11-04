@@ -298,7 +298,7 @@ export class RoomService {
       return created
     })
     this.deps.audit.record('room.group', actor, room.id, { name, members, leader: leader.id })
-    this.milestone(room.id, t('{name} 是组长：没点名的话{name}先接', { name: leader.name }), { botId: leader.id, leader: true })
+    this.leaderNotice(room.id, t('{name} 是组长：没点名的话{name}先接', { name: leader.name }), leader.id)
     this.deps.bus.emit({ type: 'rooms' })
     return ok(room)
   }
@@ -325,7 +325,7 @@ export class RoomService {
     if (room.leadBotId === bot.id) return ok(room)
     const updated = updateRoom(this.db, room.id, { leadBotId: bot.id }) ?? room
     this.deps.audit.record('room.leader', actor, room.id, { botId: bot.id })
-    this.milestone(room.id, t('组长换成了{name}：没点名的话{name}先接', { name: bot.name }), { botId: bot.id, leader: true })
+    this.leaderNotice(room.id, t('组长换成了{name}：没点名的话{name}先接', { name: bot.name }), bot.id)
     this.deps.bus.emit({ type: 'room', roomId: room.id })
     return ok(updated)
   }
@@ -379,7 +379,7 @@ export class RoomService {
     }
     this.deps.audit.record('room.member.remove', OWNER, room.id, { botId: bot.id })
     this.milestone(room.id, t('{name} 移出了群聊', { name: bot.name }), { botId: bot.id })
-    if (next !== undefined) this.milestone(room.id, t('组长换成了{name}：没点名的话{name}先接', { name: next.name }), { botId: next.id, leader: true })
+    if (next !== undefined) this.leaderNotice(room.id, t('组长换成了{name}：没点名的话{name}先接', { name: next.name }), next.id)
     this.deps.bus.emit({ type: 'room', roomId: room.id })
     return ok(null)
   }
@@ -532,6 +532,11 @@ export class RoomService {
   milestone(roomId: string | null, body: string, data: Readonly<Record<string, unknown>> = {}): void {
     if (roomId === null) return
     this.post(roomId, { author: POD, kind: 'milestone', body, data })
+  }
+
+  /** 群里一行“没点名的话 X 先接”：用提示而不是里程碑，群里看得见（里程碑只在任务页里）。 */
+  private leaderNotice(roomId: string, body: string, botId: string): void {
+    this.post(roomId, { author: POD, kind: 'notice', body, data: { botId, leader: true } })
   }
 
   /** 你在房间里说话：先打码再存；在有任务跟进的话题里就直通任务，否则交给前台。 */

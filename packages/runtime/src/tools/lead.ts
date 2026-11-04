@@ -146,27 +146,34 @@ export function orgTools(pod: PodRuntime, session: PodSession): readonly ToolDef
   const createGroup = podTool({
     name: 'create_group',
     description: [
-      '拉群：把几个 bot 拉进一个新群聊，用户可以在群里 @ 它们分别说话；没点名的话由你判断交给谁。',
-      `群名用简短的主题词（最好不超过 ${groupNameMax()} 个字），例如“博客小组”；已经有同名的群就直接用那个群，不重复建。`,
-      '用户说“拉个群”“把写手和程序员叫到一起”时用它；要几个人配合干一件事，开任务交给一个负责的 bot，它会开子任务、建任务群。',
+      '拉群、建团队：把几个 bot 拉进一个群聊。群里没点名的话由组长先接（它自己答、自己干，或者交给对口的成员），点了谁的名就是谁接；你在群里只在被点名时说话。',
+      `群名用简短的主题词（最好不超过 ${groupNameMax()} 个字），例如“博客小组”；已经有同名的群就直接用那个群，不重复建：members 里新的拉进去，写了 leader 就换它当组长（换组长也这样用）。`,
+      '组长按分工挑一个干活的 bot：群里的事多半从它那块开始、它能统筹先后；不能是你。',
+      '用户说“拉个群”“把写手和程序员叫到一起”“组个团队”时用它；只为一件事要几个人配合，开任务交给一个负责的 bot，它会开子任务、建任务群。',
     ].join(''),
     properties: {
       name: str(`群名，最好不超过 ${groupNameMax()} 个字`),
       members: strList('拉谁进群：bot 的名字或 id；你会自动在群里'),
-      intro: str('开场白：这个群是干什么的，作为群里的第一条消息'),
+      leader: str('组长：群里一个干活 bot 的名字或 id，没点名的话它先接；不写就是 members 的第一个'),
+      intro: str('开场白：这个群是干什么的、谁管哪块，作为新群的第一条消息（用已有的群时不发）'),
       to: str('用户在哪条消息里要的（消息 id）：进群的入口放在那条所在的聊天室'),
     },
     required: ['name', 'members'],
-    parse: (args) => ({ name: text(args, 'name'), members: texts(args, 'members'), intro: text(args, 'intro'), to: text(args, 'to') }),
-    run: ({ name, members, intro, to }) => {
+    parse: (args) => ({ name: text(args, 'name'), members: texts(args, 'members'), leader: text(args, 'leader'), intro: text(args, 'intro'), to: text(args, 'to') }),
+    run: ({ name, members, leader, intro, to }) => {
       const resolved = members.map((item) => ({ item, bot: pod.bots.resolve(item) }))
       const missing = resolved.filter((entry) => entry.bot === undefined || entry.bot.archivedAt !== null).map((entry) => entry.item)
       if (missing.length > 0) return failure(`找不到这些 bot：${missing.join('、')}。先用 find_bots 查，或用 create_bot 新建`)
+      const chosen = leader === '' ? undefined : pod.bots.resolve(leader)
+      if (leader !== '' && (chosen === undefined || chosen.archivedAt !== null)) return failure(`找不到 bot「${leader}」：组长要是群里的一个 bot`)
+      const memberIds = [...resolved.map((entry) => entry.bot?.id ?? ''), ...(chosen === undefined ? [] : [chosen.id])]
       const before = new Set(listRooms(pod.db, { archived: false }).map((room) => room.id))
-      const created = pod.rooms.createGroup({ name, memberIds: resolved.map((entry) => entry.bot?.id ?? '') }, session.botId)
+      const created = pod.rooms.createGroup({ name, memberIds, ...(chosen === undefined ? {} : { leaderId: chosen.id }) }, session.botId)
       if (!created.ok) return failure(created.error.message)
       const room = created.value
-      if (intro !== '') pod.rooms.post(room.id, { author: session.botId, kind: 'text', body: intro, sessionId: session.id })
+      const head = pod.rooms.leaderOf(room)
+      // 开场白只在新建时发：用已有的群（加人、换组长）不再发一遍。
+      if (intro !== '' && !before.has(room.id)) pod.rooms.post(room.id, { author: session.botId, kind: 'text', body: intro, sessionId: session.id })
       // 进群的入口放在用户要的那个聊天室：写了 to 就是那条所在的；前台不在某个聊天室里，就看它手上还没去向的最后一条。
       const where = (to === '' ? undefined : getMessage(pod.db, to)?.roomId) ?? session.roomId ?? pendingRoom(pod, session)
       if (where !== undefined && where !== room.id) {
@@ -175,7 +182,8 @@ export function orgTools(pod: PodRuntime, session: PodSession): readonly ToolDef
       }
       const names = resolved.map((entry) => entry.bot?.name ?? '').join('、')
       const done = before.has(room.id) ? `已经有同名的群「${room.title}」，直接用它（${names} 都在群里）` : `群「${room.title}」建好了，成员：${names}`
-      return success(`${done}。进群的入口已经放在聊天里，用户可以在群里 @ 它们。`, { roomId: room.id })
+      const reply = head === undefined ? '' : `组长是${head.name}，没点名的话${head.name}先接。回用户就说在群里直接说就行，没点名的话${head.name}先接；不说由你分派。`
+      return success(`${done}。进群的入口已经放在聊天里。${reply}`, { roomId: room.id })
     },
   })
 

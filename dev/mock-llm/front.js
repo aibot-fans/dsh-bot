@@ -13,7 +13,7 @@
  * - 被别的成员点名、话里有“应一声”：学真实模型的毛病先 @ 回去（dsh-bot 应该拦下），再直接 reply。
  * - “进度”：先 task_status，再把结果 reply 出去。
  * - “记住…”：先 remember，再 reply。
- * - “拉个群「…」”：create_group（只有 Super-agent 有），再 reply。
+ * - “拉个群「…」”：create_group（只有 Super-agent 有），再 reply；带“组长「…」”就写 leader，带“拉上「…」”就只拉这几个。
  * - “每天”：open 开一个挂着“每天 08:00”触发器的常开任务（例程），任务卡放在这个聊天室。
  * - “测试漏掉”：一直不记去向（追问一次，再没有就记成漏掉）；“测试追问”：第一次不记，被追问后再答。
  * - 话里有“想一想”：第一步之前先想一会儿（思考流一点点吐），主对话最底下那一行写着想的最后一句。
@@ -232,9 +232,11 @@ function stepsFor(item, context) {
   }
   if (body.includes('拉个群') && tools.has('create_group')) {
     const name = /拉个群「([^」]+)」/.exec(body)?.[1] ?? '监控播报'
+    const leader = /组长「([^」]+)」/.exec(body)?.[1]
+    const members = /拉上「([^」]+)」/.exec(body)?.[1]?.split('、') ?? context.roster.slice(0, 2)
     return [
-      () => ({ tool: 'create_group', args: { name, members: context.roster.slice(0, 2), intro: '测试拉群' } }),
-      (result) => ({ tool: 'reply', args: { to: id, text: `好的。${result.slice(0, 120)}` } }),
+      () => ({ tool: 'create_group', args: { name, members, intro: '测试拉群', ...(leader === undefined ? {} : { leader }) } }),
+      (result) => ({ tool: 'reply', args: { to: id, text: `好的。${result.slice(0, 160)}` } }),
     ]
   }
   if (body.includes('每天')) return [dispatch(id, { action: 'open', title: member ? '每日选题' : '早间资讯', bot: '自己', note: '', trigger: { time: '08:00' } })]
