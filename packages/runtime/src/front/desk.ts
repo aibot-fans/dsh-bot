@@ -204,6 +204,11 @@ export class FrontDesk {
     if (flight !== undefined) this.flights.set(botId, { ...flight, rooms: flight.rooms.filter((id) => id !== roomId) })
   }
 
+  /** 前台这一轮在看这个聊天室、还没在那里回话（那里最底下写着它在看消息）。 */
+  looksAt(session: PodSession, roomId: string): boolean {
+    return this.flightOf(session)?.rooms.includes(roomId) === true
+  }
+
   /** 前台这一轮在想什么、在做哪一步：它在看、还没回话的那几个聊天室最底下那一行跟着变。 */
   progressed(session: PodSession, label: string, progress: TurnProgress | null): void {
     const flight = this.flightOf(session)

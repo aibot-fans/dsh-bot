@@ -108,8 +108,14 @@ export interface RoomServiceDeps {
   readonly front: (message: RoomMessage, bots: readonly Bot[], note: string) => void
   /** 这个 bot 现在的前台。 */
   readonly frontOf: (botId: string) => PodSession | undefined
+  /** 前台这一轮在看这个聊天室（那里最底下写着它在看消息）。 */
+  readonly frontLooksAt: (session: PodSession, roomId: string) => boolean
+  /** 任务会话在哪个聊天室里干活（它在做什么写在那里最底下）。 */
+  readonly workRoomOf: (session: PodSession) => string | null
   /** 停掉一条会话正在跑的这一轮（停止回复、清空记录、开新对话时用）。 */
   readonly stopSession: (sessionId: string) => void
+  /** 停下任务这一次执行：这一轮停下，任务还开着。 */
+  readonly stopTaskTurn: (session: PodSession) => void
   /** 临时对话删掉时，把 dsh 里对应的会话也归档，dsh 的会话列表里就不再出现。 */
   readonly hideSession?: (sessionId: string) => void
 }
@@ -292,15 +298,24 @@ export class RoomService {
     return room === undefined || room.archivedAt !== null ? fail('not-found', t('找不到这个对话')) : ok(room)
   }
 
-  /** 停止回复：停掉这个房间里正在回答的 bot（它的前台这一轮）。任务不受影响，任务用任务卡上的“停止”。 */
+  /**
+   * 停止回答：停掉这个对话最底下写着在做的。聊天会话、正在看这里的前台停下这一轮；在这里干活的任务停下这一次执行，
+   * 任务还开着，你再说话、到点了照常接着做。要整件停掉用任务详情里的“停止”或 /停止。
+   */
   stop(input: unknown): PodResult<{ readonly stopped: number }> {
     const found = this.room(input)
     if (!found.ok) return found
     const room = found.value
     const bots = room.kind === 'direct' ? (room.botId === null ? [] : [room.botId]) : this.members(room.id).map((member) => member.botId)
-    const fronts = bots.map((botId) => this.deps.frontOf(botId)).filter((session): session is PodSession => session !== undefined)
-    const running = [...this.chatsIn(room.id), ...fronts].filter((session) => this.deps.dispatcher.isRunning(session.id))
-    for (const session of running) this.deps.stopSession(session.id)
+    const fronts = bots
+      .map((botId) => this.deps.frontOf(botId))
+      .filter((session): session is PodSession => session !== undefined && this.deps.frontLooksAt(session, room.id))
+    const working = this.deps.registry.active().filter((session) => (session.kind === 'task' || session.kind === 'coord') && this.deps.workRoomOf(session) === room.id)
+    const running = [...this.chatsIn(room.id), ...fronts, ...working].filter((session) => this.deps.dispatcher.isRunning(session.id))
+    for (const session of running) {
+      if (session.kind === 'task' || session.kind === 'coord') this.deps.stopTaskTurn(session)
+      else this.deps.stopSession(session.id)
+    }
     return ok({ stopped: running.length })
   }
 

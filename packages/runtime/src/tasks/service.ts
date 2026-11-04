@@ -425,6 +425,21 @@ export class TaskService {
     this.deps.dispatcher.enqueue({ sessionId, mode: this.deps.dispatcher.isRunning(sessionId) ? 'steer' : 'followup', priority: PRIORITY.owner, text, source })
   }
 
+  /**
+   * 你在对话里按了停止：这条任务会话正在跑的这一轮停下、排着的消息撤掉，这次执行记成“停下这次”。
+   * 任务还开着，不算暂停：你再说话、到点了照常开工。
+   */
+  halt(session: PodSession): void {
+    this.deps.dispatcher.cancelPending(session.id)
+    this.deps.agents.get(session.id)?.cancel({ kind: 'user' })
+    const task = session.taskId === null ? undefined : this.get(session.taskId)
+    if (task === undefined || !isTicket(task)) return
+    const run = this.engine.runs.current(task.id)
+    if (run?.status !== 'running' || run.sessionId !== session.id) return
+    this.engine.runs.end(run.id, 'paused')
+    this.deps.audit.record('task.halt', OWNER, task.id, { title: task.title })
+  }
+
   /** 暂停、继续、停止、取消、重试、收下；作用于整棵任务树。why 是 dsh-bot 自己暂停时的原因，写进对话里的那一行。 */
   control(taskId: string, action: ControlAction, actor: string, why?: string): PodResult<Task> {
     const root = this.get(this.rootOf(taskId) ?? taskId)

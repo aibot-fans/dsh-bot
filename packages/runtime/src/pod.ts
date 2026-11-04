@@ -305,6 +305,7 @@ export class PodRuntime {
         this.dispatcher.cancelPending(sessionId)
         ctx.agents.get(sessionId)?.cancel({ kind: 'user' })
       },
+      stopTaskTurn: (session) => this.tasks.halt(session),
       hideSession: (sessionId) => {
         void Promise.resolve()
           .then(() => ctx.workspaceRegistry.archiveSession?.(sessionId, { stopActivity: true }))
@@ -312,6 +313,8 @@ export class PodRuntime {
       },
       front: (message, bots, note) => this.front.push(message, bots, note),
       frontOf: (botId) => this.registry.activeFront(botId),
+      frontLooksAt: (session, roomId) => this.front.looksAt(session, roomId),
+      workRoomOf: (session) => this.cardRoomOf(session),
     })
     this.pages = new PageService({
       db,
