@@ -1,5 +1,5 @@
 /**
- * 对话照 Comma：你的话是靠右的蓝气泡，bot 的话是靠左的灰气泡，一组的最后一个带尾巴，头像在左边那一列、和那组最后一个气泡底边对齐。
+ * 对话照 Comma：你的话是靠右的灰气泡（@ 到的名字是蓝的，气泡不用蓝色免得撞色），bot 的话是靠左的灰气泡，一组的最后一个带尾巴，头像在左边那一列、和那组最后一个气泡底边对齐。
  * 时间居中，隔一段时间才写一次；回的话不在旁边时，气泡上面一小段引用；说到任务的气泡开头是任务记号。
  * 回答过程是对话最底下一个灰气泡，只有一行字（这一步在做什么、想的最后一句、输入中），字上一道光慢慢扫过；
  * 几个 bot 一起或交出去的任务在做时，气泡里是它们的小头像。
@@ -23,11 +23,8 @@ export const V15_CSS = `
 .pod-bubble.pod-bubble-bot, .pod-bubble.pod-bubble-owner { padding: 9px 14px; border-radius: 20px; }
 .pod-bubble-bot .pod-md, .pod-bubble-owner .pod-md { line-height: 1.6; }
 .pod-bubble.pod-bubble-bot { display: flow-root; max-width: min(var(--pod-card-max), 100%); background: var(--pod-bot-bubble); color: var(--dsw-alias-label-primary); }
-.pod-bubble.pod-bubble-owner { max-width: min(78%, 560px); background: var(--pod-owner-bubble); color: var(--pod-owner-ink); }
-.pod-bubble-owner a { color: inherit; text-decoration: underline; }
-.pod-bubble-owner code { background: color-mix(in srgb, var(--pod-owner-ink) 18%, transparent); color: inherit; }
-.pod-bubble-owner .pod-muted-inline { color: color-mix(in srgb, var(--pod-owner-ink) 75%, transparent); }
-.pod-tail-right { right: 8px; color: var(--pod-owner-bubble); }
+.pod-bubble.pod-bubble-owner { max-width: min(78%, 560px); background: var(--pod-bubble); color: var(--dsw-alias-label-primary); }
+.pod-tail-right { right: 8px; color: var(--pod-bubble); }
 
 .pod-bubble-chip { float: left; max-width: 100%; margin: 0 8px 0 0; }
 /* 正文不是一段话开头（列表、标题、代码）时，记号单独占一行，免得压住列表的圆点。 */

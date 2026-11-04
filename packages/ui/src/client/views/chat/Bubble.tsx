@@ -81,7 +81,7 @@ export function BotBubble(props: {
   )
 }
 
-/** 你的一条：靠右的蓝气泡，一组的最后一条带尾巴；回的话不在旁边时，上面一条左边框的小块引着原话。 */
+/** 你的一条：靠右的灰气泡，一组的最后一条带尾巴；回的话不在旁边时，上面一条左边框的小块引着原话。 */
 export function OwnerBubble(props: { readonly message: RoomMessage; readonly bots: ReadonlyMap<string, Bot>; readonly last: boolean; readonly quoted: RoomMessage | undefined; readonly children: ReactNode }) {
   const { quoted } = props
   return (
