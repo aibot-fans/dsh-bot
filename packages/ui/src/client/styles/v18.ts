@@ -16,6 +16,19 @@ export const V18_CSS = `
 .pod-reply-ref svg { flex: none; }
 .pod-reply-who { flex: none; }
 .pod-reply-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pod-usage-chip { appearance: none; padding: 5px 10px; border: 0; border-radius: 8px; background: var(--pod-btn-fill); color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer; transition: background-color .12s ease, color .12s ease; }
+.pod-usage-chip:hover, .pod-usage-chip[aria-expanded="true"] { background: var(--pod-btn-fill-hover); color: var(--dsw-alias-label-primary); }
+.pod-usage-chip:focus-visible { outline: 2px solid var(--pod-info); outline-offset: 1px; }
+.pod-usage-popover { display: flex; flex-direction: column; gap: 8px; width: 320px; padding: 6px; }
+.pod-usage-subject { font-size: 12px; color: var(--dsw-alias-label-tertiary); }
+.pod-usage-total { display: flex; flex-direction: column; gap: 2px; }
+.pod-usage-total strong { font-size: 20px; }
+.pod-usage-row { display: grid; grid-template-columns: 120px minmax(0, 1fr) 56px; gap: 8px; align-items: center; font-size: 13px; }
+.pod-usage-place { font-size: 13px; color: var(--dsw-alias-label-secondary); }
+.pod-usage-bar { height: 6px; overflow: hidden; border-radius: 3px; background: var(--pod-soft); }
+.pod-usage-bar span { display: block; height: 100%; border-radius: 0 3px 3px 0; background: var(--pod-series); }
+.pod-usage-value { text-align: right; font-variant-numeric: tabular-nums; color: var(--dsw-alias-label-secondary); }
+.pod-sheet-wide .pod-usage-popover { width: auto; }
 .pod-task-hero { display: flex; flex-direction: column; gap: 6px; padding: 2px 4px 0; }
 .pod-task-hero-title { font-size: 17px; line-height: 1.4; }
 .pod-task-section-body { margin: 0; padding: 2px 14px 10px; font-size: 13.5px; }
@@ -25,4 +38,8 @@ export const V18_CSS = `
 .pod-task-child + .pod-task-child { margin-top: 0; }
 .pod-panel-tabs { gap: 2px; }
 .pod-panel-tabs button { padding: 6px 9px; }
+@media (min-width: 761px) {
+  .pod-convo-head .pod-convo-title { flex-shrink: 0; max-width: 45%; }
+  .pod-convo-head .pod-convo-subject { flex: 0 50 auto; }
+}
 `

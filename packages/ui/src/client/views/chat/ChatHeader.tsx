@@ -12,6 +12,7 @@ import { RenameInput } from '../../components/RenameInput.tsx'
 import { useApp, useNav } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 import { DetailsToggle, TaskStatusPill } from './TaskHead.tsx'
+import { UsageChip } from './UsageChip.tsx'
 
 /**
  * 新对话。单聊开一段空白的新对话，之前的那段原样留在对话记录里，随时能回去接着聊；
@@ -220,7 +221,7 @@ function ComputerButton() {
 /**
  * 对话顶部：左边是 bot 或群（点开详情）；右边单聊有对话记录和新对话，不挂任务的群聊有新对话；bot 在用浏览器、电脑时才多一个按钮。
  * 任务对话左边是任务名，下面写和谁的单聊或者群成员，详情收起来时右边留着任务状态。
- * 最右边是收起、打开详情的按钮，单聊、群聊都有；用量在设置里，页面、任务这些在详情里。手机上最左边是回到列表，名字后面带个箭头表示点开是详情。
+ * 右边是今天的用量（单聊算这个 bot 的，群聊算这个群的，点开看分布）和收起、打开详情的按钮；页面、任务这些在详情里。手机上最左边是回到列表，名字后面带个箭头表示点开是详情。
  */
 export function ChatHeader(props: { readonly room: RoomSummary; readonly bots: ReadonlyMap<string, Bot>; readonly memberIds: readonly string[] }) {
   const app = useApp()
@@ -276,6 +277,7 @@ export function ChatHeader(props: { readonly room: RoomSummary; readonly bots: R
         </>
       )}
       {room.kind !== 'direct' && room.taskId === null ? <NewChatButton room={room} /> : null}
+      {narrow ? null : <UsageChip scope={room.kind === 'direct' && !temporary && bot !== undefined ? { kind: 'bot', bot } : { kind: 'room', room }} bots={props.bots} />}
       {room.taskId === null ? null : <TaskStatusPill room={room} taskId={room.taskId} />}
       {narrow || temporary ? null : <DetailsToggle room={room} />}
     </header>
