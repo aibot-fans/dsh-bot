@@ -33,8 +33,8 @@ function WriteRow(props: { readonly first: boolean; readonly busy: boolean; read
           {props.first ? t('写下你的回答…') : t('其他，自己写…')}
         </button>
         {props.onSkip === undefined ? null : (
-          <button type="button" className="pod-link pod-qcard-skip" disabled={props.busy} onClick={props.onSkip}>
-            {t('不用管')}
+          <button type="button" className="pod-link pod-qcard-skip" disabled={props.busy} onClick={props.onSkip} title={t('不答这个问题，让它自己定')}>
+            {t('跳过')}
           </button>
         )}
       </div>
@@ -64,7 +64,7 @@ function WriteRow(props: { readonly first: boolean; readonly busy: boolean; read
 
 /**
  * 问题卡片：要你拿主意的事。最上面是问题，下面每个选项一行，选项下面一行小字写选了会怎样，推荐的在第一个、带“推荐”；
- * 点一个就是你的回答。最后一行“其他，自己写…”；没有选项时只有这一行和“不用管”。
+ * 点一个就是你的回答。最后一行“其他，自己写…”和“跳过”（不答，让干活的 bot 自己定）；没有选项时这一行写“写下你的回答…”。
  * 答过以后选的那个标蓝、其余变灰，自己写的答复标蓝放在最后一行。
  */
 export function QuestionCard(props: { readonly wait: Wait; readonly place: CardPlace }) {
@@ -99,7 +99,7 @@ export function QuestionCard(props: { readonly wait: Wait; readonly place: CardP
         </button>
       ))}
       {settled === undefined ? (
-        <WriteRow first={options.length === 0} busy={actions.busy} onSend={actions.answer} onSkip={options.length === 0 ? actions.dismiss : undefined} />
+        <WriteRow first={options.length === 0} busy={actions.busy} onSend={actions.answer} onSkip={actions.skip} />
       ) : written ? (
         <div className="pod-qcard-other pod-qcard-picked">{answer}</div>
       ) : answer === '' ? (

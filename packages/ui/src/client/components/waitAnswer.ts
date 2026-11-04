@@ -19,8 +19,8 @@ export function readSettled(value: unknown): Settled | undefined {
 /** 卡片上按钮收起后写的处理结果：你批准了、你没批准、你答：……。 */
 export function settledText(settled: Settled): string {
   const answer = (settled.answer ?? '').trim()
-  // 关掉的：你点了不用管，或者写着别的原因（比如换了问题）。
-  if (settled.status === 'closed') return answer === '' || answer === t('不用处理') ? t('你说不用管') : answer
+  // 关掉的：你点了不用管、跳过了问题，或者写着别的原因（比如换了问题）。
+  if (settled.status === 'closed') return answer === '' || answer === t('不用处理') ? t('你说不用管') : answer === t('跳过了') ? t('你跳过了，让它自己定') : answer
   if (settled.status === 'suspended') return t('任务停了，这件事先放着')
   if (answer === t('批准') || answer === t('允许')) return answer === t('批准') ? t('你批准了') : t('你允许了一次')
   if (answer.startsWith(t('不批准')) || answer.startsWith(t('不允许'))) return answer.startsWith(t('不批准')) ? t('你没批准') : t('你没允许')
@@ -51,6 +51,8 @@ export interface WaitActions {
   readonly settled: Settled | undefined
   readonly answer: (text: string) => void
   readonly dismiss: () => void
+  /** 问题卡片上的跳过：不给答复，让干活的 bot 自己定。 */
+  readonly skip: () => void
 }
 
 /** 卡片上的答复、不用管：点完马上按处理过的画（页面刷新前用这边记下的），失败了写原因。 */
@@ -77,5 +79,6 @@ export function useWaitActions(wait: Wait, place: CardPlace): WaitActions {
     settled: done ?? (isOpenWait(wait) ? undefined : { status: wait.status, answer: wait.answer }),
     answer: (text) => run(() => api.answerWait(wait.id, text, place), { status: 'resolved', answer: text }),
     dismiss: () => run(() => api.dismissWait(wait.id), { status: 'closed', answer: null }),
+    skip: () => run(() => api.dismissWait(wait.id), { status: 'closed', answer: t('跳过了') }),
   }
 }
