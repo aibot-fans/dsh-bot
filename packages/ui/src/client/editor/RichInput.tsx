@@ -4,7 +4,7 @@ import { EditorState, Selection, TextSelection } from 'prosemirror-state'
 import { EditorView } from 'prosemirror-view'
 import { fromMarkdown, isBlank, toMarkdown } from './convert.ts'
 import { composerKeys } from './keys.ts'
-import { mentionHighlight, mentionQuery, type MentionQuery } from './mentions.ts'
+import { mentionDelete, mentionHighlight, mentionQuery, type MentionQuery } from './mentions.ts'
 import { dropHandler, pasteHandler, sliceToText, textToSlice } from './paste.ts'
 import { composerRules } from './rules.ts'
 import { schema } from './schema.ts'
@@ -58,7 +58,7 @@ export const RichInput = forwardRef<RichInputHandle, RichInputProps>(function Ri
 
   const create = (markdown: string): EditorState => {
     const doc = fromMarkdown(markdown)
-    const plugins = [composerRules(), ...composerKeys(() => latest.current.onSend()), history(), mentionHighlight(() => latest.current.mentions)]
+    const plugins = [mentionDelete(() => latest.current.mentions), composerRules(), ...composerKeys(() => latest.current.onSend()), history(), mentionHighlight(() => latest.current.mentions)]
     return EditorState.create({ doc, selection: Selection.atEnd(doc), plugins })
   }
 
