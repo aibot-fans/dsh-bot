@@ -279,14 +279,14 @@ export function reportTool(pod: PodRuntime, session: PodSession): ToolDefinition
     name: 'report',
     description: [
       '向 dsh-bot 汇报这个任务，一次只能是一种状态，最多附一个问题：',
-      'progress 进展（只更新任务卡，聊天室里不说话）；waiting 这一步做完了，等后续消息；ready 做完了，交上回答；',
+      'progress 里程碑（做成了一步，带着时间列在任务对话的进展里，不叫醒谁，聊天室里不说话）；waiting 这一步做完了，等后续消息；ready 做完了，交上回答；',
       'blocked 缺东西做不下去（登录、权限、用户的决定），必须附一个问题；failed 试过了做不成，写原因；dismissed 看过了不用做（重复、已经做过）。',
-      'summary 会原样发到对话里：ready 时是给用户的完整回答，failed 时是原因，progress 时是现在在做什么；blocked、failed 还要写 report（卡在哪、试过什么，不发到对话里）。',
+      'summary 会原样发到对话里：ready 时是给用户的完整回答，failed 时是原因；progress 时是做成了什么，只进进展；blocked、failed 还要写 report（卡在哪、试过什么，不发到对话里）。',
       '交了就算做完，不用用户验收。除了 progress，汇报后这一轮结束。',
     ].join(''),
     properties: {
       status: oneOf('progress / waiting / ready / blocked / failed / dismissed', [...REPORT_STATUSES]),
-      summary: str('发到对话里的话。ready：给用户的完整回答，先一句说答案，再列要点，来源、假设、没核实的写在里面；failed：没做成的原因；progress：一句现在在做什么'),
+      summary: str('发到对话里的话。ready：给用户的完整回答，先一句说答案，再列要点，来源、假设、没核实的写在里面；failed：没做成的原因；progress：一句做成了什么（比如“找到 3 家的公开报价”），不写正在做什么'),
       report: str('blocked、failed 必填：卡在哪、试过什么、还缺什么，给 Super-agent 和组长看，不发到对话里'),
       question: str('blocked 时要用户处理的事：只问一个问题，一句话说清'),
       options: strList('问题的选项（2–6 个，能给就给），用户点一下就是答复；有推荐的放第一个，recommended 写 true'),
