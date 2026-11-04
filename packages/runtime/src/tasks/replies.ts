@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import type { RoomMessage, Task } from 'pod-domain'
-import { getMessage, taskConversationOf } from 'pod-store'
+import { briefMessageOf, getMessage, taskConversationOf } from 'pod-store'
 import type { Replies } from '../chat/replies.ts'
 import type { RoomService } from '../chat/rooms.ts'
 import type { TaskWake } from '../front/wakes.ts'
@@ -40,9 +40,24 @@ export class TaskReplies {
     return queued !== undefined
   }
 
-  /** 根任务自己的对话（另开的单聊、任务群）。 */
+  /** 根任务自己的对话（另开的单聊、任务群、交进的群）。 */
   private conversationOf(task: Task): string | undefined {
     return task.parentId === null ? taskConversationOf(this.deps.db, task.id)?.id : undefined
+  }
+
+  /**
+   * 在任务对话里回在哪条下面：单聊、任务群是这个任务专用的，不挂；交进的群是大家的，挂在那里最近一句还没得到答复的话上
+   * （回复交代、结果接着问的），都答过了挂在交代下面，不散在群里。
+   */
+  private anchorIn(task: Task, conversation: string): string | null {
+    const room = this.deps.rooms.get(conversation)
+    if (room === undefined || room.kind === 'direct' || room.taskId === task.id) return null
+    const asked = task.replyTo
+      .filter((target) => target.roomId === conversation && target.messageId !== null)
+      .map((target) => getMessage(this.deps.db, target.messageId ?? ''))
+      .filter((message): message is RoomMessage => message !== undefined && message.deletedAt === null && !this.answered(message.id))
+      .at(-1)
+    return asked?.id ?? briefMessageOf(this.deps.db, conversation, task.id) ?? null
   }
 
   /**
@@ -62,7 +77,7 @@ export class TaskReplies {
   result(task: Task, author: string, sessionId: string | null, body: string, reportId: string | null = null): number {
     const conversation = this.conversationOf(task)
     if (conversation !== undefined) {
-      this.deps.replies.send({ roomId: conversation, author, purpose: 'result', body, replyTo: null, sessionId, taskId: task.id, ...(reportId === null ? {} : { data: { reportId } }) })
+      this.deps.replies.send({ roomId: conversation, author, purpose: 'result', body, replyTo: this.anchorIn(task, conversation), sessionId, taskId: task.id, ...(reportId === null ? {} : { data: { reportId } }) })
       if (this.relayed(task, conversation)) this.deps.wake(task, { kind: 'result', body, anchor: this.askedIn(task)?.id ?? null, reportId })
       return 1
     }
@@ -113,7 +128,7 @@ export class TaskReplies {
       purpose: 'wait',
       kind: input.kind ?? 'text',
       body: input.body,
-      replyTo: card?.id ?? null,
+      replyTo: conversation === undefined ? (card?.id ?? null) : this.anchorIn(task, conversation),
       sessionId: input.sessionId ?? null,
       taskId: task.id,
       ...(input.data === undefined ? {} : { data: input.data }),

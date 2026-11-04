@@ -600,6 +600,11 @@ export class RoomService {
     return Promise.resolve()
   }
 
+  /** 普通群（你或 Super-agent 拉的、不挂任务的群聊），最近说过话的在前。 */
+  groups(): readonly Room[] {
+    return listRooms(this.db, { archived: false }).filter((room) => room.kind !== 'direct' && room.taskId === null && room.teamId === null)
+  }
+
   /** 群里现在的成员（在用的 bot）。 */
   memberBots(room: Room): readonly Bot[] {
     return listRoomMembers(this.db, room.id)

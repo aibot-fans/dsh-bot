@@ -43,6 +43,7 @@ import {
   openTriggersOf,
   recentOwnerMessages,
   stuckDelivery,
+  setTaskConversation,
   taskConversationOf,
   taskRoomOf,
   transaction,
@@ -128,10 +129,10 @@ export interface DelegateInput {
 }
 
 /**
- * 任务对话：chat 和干活的 bot 另开一段单聊，group 开任务群（members 是负责的 bot 以外的成员）。
- * 不开的（Super-agent 自己干的、你在 bot 单聊里让它干的、例程）就在派活的那段对话里干。
+ * 任务对话：chat 和干活的 bot 另开一段单聊，group 开任务群（members 是负责的 bot 以外的成员），room 交进已有的群（团队），
+ * 组长接。不开的（Super-agent 自己干的、你在 bot 单聊里让它干的、群里开的、例程）就在派活的那段对话里干。
  */
-export type TaskConversation = { readonly kind: 'chat' } | { readonly kind: 'group'; readonly members: readonly Bot[] }
+export type TaskConversation = { readonly kind: 'chat' } | { readonly kind: 'group'; readonly members: readonly Bot[] } | { readonly kind: 'room'; readonly room: Room }
 
 /** 暂停是你让它先等等（整棵树停着，重启也不变）；继续是接着做；停止、取消结束任务；重试再做一次；收下是你验收通过。 */
 export type ControlAction = 'pause' | 'resume' | 'stop' | 'cancel' | 'retry' | 'accept'
@@ -304,21 +305,26 @@ export class TaskService {
   }
 
   /**
-   * 开任务对话：建单聊或任务群，整个对话是这个任务的话题（你在里面说的话直接到它）。第一条是派活的 bot 写的交代，
+   * 开任务对话：建单聊或任务群，整个对话是这个任务的话题（你在里面说的话直接到它）；交进群（团队）的用那个群，
+   * 群是大家的，话题只是交代那一串（回复交代、结果的话到它，群里别的话照常给组长）。第一条是派活的 bot 写的交代，
    * 就是干活的 bot 收到的那条；群里先 @ 负责的 bot（负责的就是派活的 bot 自己时不 @）。
    */
   private openConversation(task: Task, owner: Bot, conversation: TaskConversation, author: string): Room {
     const room =
-      conversation.kind === 'chat'
-        ? this.deps.rooms.createTaskChat(owner, task.title, task.id)
-        : this.deps.rooms.createTaskRoom(task.title, task.id, [owner.id, ...conversation.members.map((member) => member.id)], null)
+      conversation.kind === 'room'
+        ? conversation.room
+        : conversation.kind === 'chat'
+          ? this.deps.rooms.createTaskChat(owner, task.title, task.id)
+          : this.deps.rooms.createTaskRoom(task.title, task.id, [owner.id, ...conversation.members.map((member) => member.id)], null)
     const brief = composeBrief(task, { assumptions: [], conventions: [], upstream: [] })
     transaction(this.db, () => {
+      setTaskConversation(this.db, task.id, room.id)
       // 先有话题再发交代：交代算进话题，回复它的话也直接到任务。
-      this.engine.topics.follow(task.id, this.engine.topics.ensureTeam(room.id, task.id).id, 'own')
-      const body = conversation.kind === 'group' && owner.id !== author ? `@${owner.name} ${brief}` : brief
-      this.deps.rooms.post(room.id, { author, kind: 'text', body, data: { purpose: 'brief', taskId: task.id } })
-      if (conversation.kind === 'group') this.event(task, 'team_room', author, { roomId: room.id, title: room.title })
+      if (conversation.kind !== 'room') this.engine.topics.follow(task.id, this.engine.topics.ensureTeam(room.id, task.id).id, 'own')
+      const body = conversation.kind !== 'chat' && owner.id !== author ? `@${owner.name} ${brief}` : brief
+      const posted = this.deps.rooms.post(room.id, { author, kind: 'text', body, data: { purpose: 'brief', taskId: task.id } })
+      if (conversation.kind === 'room' && posted !== undefined) this.engine.topics.followMessage(task.id, posted.id, 'own')
+      if (conversation.kind !== 'chat') this.event(task, 'team_room', author, { roomId: room.id, title: room.title })
     })
     return room
   }

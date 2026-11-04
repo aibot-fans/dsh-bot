@@ -1,6 +1,7 @@
 /**
  * 前台的剧本：消息成批送来（[新消息] 开头，按聊天室分组），每条按内容记去向，一步调一个工具：
  * - “读一下 id [part=…] [page=…] [size=…]”：先 read，再把读到的 reply 出去。
+ * - “交给群「某群」…”：Super-agent 用 open 的 group 交进那个群（组长接），再 reply 一句。
  * - “交给主管/某某 …”或“委派”：open 开任务（交给谁写谁；成员只能开给自己，群里的组长能开给群成员；标题按关键词取；说了组个团队再叫上一个成员），
  *   再 reply 一句“交给某某了，做好我直接告诉你”，任务卡挂在这句下面。
  * - 叫醒（[任务交结果]、[任务问你]、[任务没做成]）：照里面写的 to、room、task reply 一句：交结果写结论加“完整的在任务里”，
@@ -208,6 +209,10 @@ function stepsFor(item, context) {
     // “忘了回”：开了任务不回话，看 dsh-bot 补的那句。
     if (/忘了回/.test(body)) return [opened]
     return [opened, (result) => ({ tool: 'reply', args: { to: id, text: confirmText(result, self) } })]
+  }
+  const team = /交给群「([^」]+)」/.exec(body)?.[1]
+  if (team !== undefined && !member) {
+    return [dispatch(id, { action: 'open', title: openTitle(body), group: team, brief: briefOf(body) }), (result) => ({ tool: 'reply', args: { to: id, text: confirmText(result, self) } })]
   }
   if (/交给|委派/.test(body)) {
     const named = /交给([^\s，。,]+)/.exec(body)?.[1]

@@ -735,6 +735,10 @@ const MIGRATIONS: readonly string[] = [
   `
   ALTER TABLE rooms ADD COLUMN lead_bot_id TEXT;
   `,
+  // v18：任务记下自己的对话是哪个聊天室：交进群的任务在那个群里干，一个群放得下好几个任务（聊天室上只挂得了一个任务）。
+  `
+  ALTER TABLE tasks ADD COLUMN conversation_id TEXT;
+  `,
 ]
 
 function readVersion(db: DatabaseSync): number {

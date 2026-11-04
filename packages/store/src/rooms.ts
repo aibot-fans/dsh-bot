@@ -63,12 +63,33 @@ export function taskRoomOf(db: DatabaseSync, taskId: string): Room | undefined {
   return row === undefined ? undefined : toRoom(row)
 }
 
-/** 任务自己的对话：交给别的 bot 时和它另开的单聊，或者几个 bot 一起的任务群；就在原来的对话里干的任务没有。 */
+/**
+ * 任务自己的对话：交给别的 bot 时和它另开的单聊、几个 bot 一起的任务群、交进的群；就在原来的对话里干的任务没有。
+ * 先看任务上记的（交进的群只能这样找），以前的任务按聊天室上挂的任务找。
+ */
 export function taskConversationOf(db: DatabaseSync, taskId: string): Room | undefined {
+  const linked = db.prepare('SELECT conversation_id FROM tasks WHERE id = ?').get(taskId) as { readonly conversation_id: string | null } | undefined
+  if (linked?.conversation_id != null) {
+    const room = getRoom(db, linked.conversation_id)
+    return room === undefined || room.archivedAt !== null ? undefined : room
+  }
   const row = db
     .prepare("SELECT * FROM rooms WHERE task_id = ? AND kind IN ('direct', 'task') AND purged_at IS NULL AND archived_at IS NULL ORDER BY created_at LIMIT 1")
     .get(taskId) as RoomRow | undefined
   return row === undefined ? undefined : toRoom(row)
+}
+
+/** 记下任务自己的对话是哪个聊天室。 */
+export function setTaskConversation(db: DatabaseSync, taskId: string, roomId: string): void {
+  db.prepare('UPDATE tasks SET conversation_id = ? WHERE id = ?').run(roomId, taskId)
+}
+
+/** 任务在这个聊天室里的交代（开任务对话时发的那条）。 */
+export function briefMessageOf(db: DatabaseSync, roomId: string, taskId: string): string | undefined {
+  const row = db
+    .prepare("SELECT id FROM messages WHERE room_id = ? AND deleted_at IS NULL AND json_extract(data, '$.purpose') = 'brief' AND json_extract(data, '$.taskId') = ? ORDER BY seq LIMIT 1")
+    .get(roomId, taskId) as { readonly id: string } | undefined
+  return row?.id
 }
 
 export function findDirectRooms(db: DatabaseSync, botId: string): readonly Room[] {
