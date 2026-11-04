@@ -1,4 +1,5 @@
 export * from './aibot.ts'
+export * from './activity.ts'
 export * from './avatars.ts'
 export * from './bot-colors.ts'
 export * from './bots.ts'

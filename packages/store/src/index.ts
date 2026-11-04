@@ -1,4 +1,5 @@
 export * from './aibot.ts'
+export * from './activity.ts'
 export * from './audit.ts'
 export * from './backup.ts'
 export * from './bots.ts'

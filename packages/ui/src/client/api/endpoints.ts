@@ -1,4 +1,5 @@
 import type {
+  ActivityJob,
   Bot,
   CoreMemory,
   Language,
@@ -12,6 +13,7 @@ import type {
   PodSession,
   PodSettings,
   Room,
+  RoomActivity,
   RoomMessage,
   RoomSummary,
   TaskActivity,
@@ -236,12 +238,16 @@ export const api = {
   updateRoom: (roomId: string, patch: unknown) => apiPost<Room>('/room/update', { roomId, patch }),
   pinMessage: (messageId: string, pinned: boolean) => apiPost<RoomMessage>('/message/pin', { messageId, pinned }),
   pinnedMessages: (roomId: string) => apiGet<readonly RoomMessage[]>('/room/pins', { roomId }),
+  /** 群、单聊的动态：建群、进群出群、一件活一组，先的在前。 */
+  roomActivity: (id: string) => apiGet<RoomActivity>('/room/activity', { id }),
 
   tasks: (status?: string) => apiGet<readonly TaskSnapshot[]>('/tasks', { status }),
   taskSnapshot: (id: string) => apiGet<TaskSnapshot>('/task/snapshot', { id }),
   /** 任务连同子任务报过的进展，最近的在前。 */
   taskProgress: (id: string) => apiGet<readonly TaskReport[]>('/task/progress', { id }),
   /** 没有自己对话的任务放结果的那条消息；一条有关的消息都没有是 null。 */
+  /** 任务详情里的动态：有任务对话的按交代和接着说分组。 */
+  taskActivity: (id: string) => apiGet<readonly ActivityJob[]>('/task/activity', { id }),
   taskMessage: (id: string) => apiGet<RoomMessage | null>('/task/message', { id }),
   controlTask: (taskId: string, action: 'pause' | 'resume' | 'stop' | 'cancel' | 'retry' | 'accept') => apiPost('/task/control', { taskId, action }),
   redeliverTask: (taskId: string) => apiPost('/task/redeliver', { taskId }),
