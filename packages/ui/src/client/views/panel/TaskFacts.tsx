@@ -68,7 +68,7 @@ function TaskProgress(props: { readonly rootId: string }) {
 }
 
 /**
- * 任务对话右边「详情」最上面：这段对话的任务（状态、来源、在哪干活，没结束的写开始时间、能停止，结束了写用时），
+ * 任务对话右边「详情」最上面：这段对话的任务（状态、来源、在哪干活，没结束的写开始时间、能停止，暂停着的能继续，结束了写用时），
  * 下面是「进展」。单聊放在干活的 bot 的详情里，群聊放在群详情里。
  */
 export function TaskFacts(props: { readonly taskId: string; readonly title: string }) {
@@ -86,11 +86,11 @@ export function TaskFacts(props: { readonly taskId: string; readonly title: stri
   const quote = (task.origin?.quotes ?? []).filter((item) => item.messageId !== null).at(-1)
   const sourceRoom = rooms?.find((room) => room.id === (task.origin?.roomId ?? task.roomId))
   const sourceBot = bots?.find((bot) => bot.id === sourceRoom?.botId)
-  const stop = (): void => {
+  const control = (action: 'stop' | 'resume'): void => {
     setBusy(true)
     setProblem(undefined)
     api
-      .controlTask(task.id, 'stop')
+      .controlTask(task.id, action)
       .catch((reason: unknown) => setProblem(errorText(reason)))
       .finally(() => setBusy(false))
   }
@@ -101,7 +101,12 @@ export function TaskFacts(props: { readonly taskId: string; readonly title: stri
           <strong>{props.title}</strong>
           {finished ? null : (
             <span className="pod-box-action">
-              <Button small kind="quiet" icon="stop" disabled={busy} onClick={stop}>
+              {snapshot.stage === 'paused' ? (
+                <Button small kind="quiet" icon="play" disabled={busy} onClick={() => control('resume')}>
+                  {t('继续')}
+                </Button>
+              ) : null}
+              <Button small kind="quiet" icon="stop" disabled={busy} onClick={() => control('stop')}>
                 {t('停止')}
               </Button>
             </span>

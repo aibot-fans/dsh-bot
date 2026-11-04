@@ -60,4 +60,5 @@ export const UI_EN_V4: Readonly<Record<string, string>> = {
   '其他，自己写…': 'Other, write your own…',
   '写下你的回答…': 'Write your answer…',
   '任务停了，这件事先放着': 'The task is stopped, so this can wait',
+  '继续': 'Resume',
 }

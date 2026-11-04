@@ -26,7 +26,7 @@ export function bucketLabel(snapshot: TaskSnapshot, bucket: TaskBucket): string 
   if (task.parentId !== null && stage === 'review') return t('等组长验收')
   // 组长开完子任务在等它们交上来：对你来说这件事还在做。
   if (stage === 'idle' && snapshot.children.some((child) => child.endedAt === null)) return t('进行中')
-  if (bucket === 'attention' || stage === 'scheduled' || stage === 'idle') return t(TICKET_STAGE_LABELS[stage])
+  if (bucket === 'attention' || stage === 'scheduled' || stage === 'idle' || stage === 'paused') return t(TICKET_STAGE_LABELS[stage])
   return t('进行中')
 }
 
@@ -36,9 +36,10 @@ export function isMoving(snapshot: TaskSnapshot): boolean {
   return snapshot.stage === 'idle' && snapshot.children.some((child) => child.endedAt === null)
 }
 
-/** 任务的状态图标：转圈是进行中，红点是等你，红叉是没做成，圈住的勾是完成（你停掉的、无需处理的是灰勾）。 */
+/** 任务的状态图标：转圈是进行中，两道竖线是暂停着，红点是等你，红叉是没做成，圈住的勾是完成（你停掉的、无需处理的是灰勾）。 */
 export function TaskStateIcon(props: { readonly snapshot: TaskSnapshot }) {
   const bucket = bucketOf(props.snapshot)
+  if (props.snapshot.stage === 'paused') return <span className="pod-state-icon pod-state-paused" aria-hidden />
   if (bucket === 'attention' && props.snapshot.stage === 'failed') {
     return (
       <span className="pod-state-icon pod-state-failed" aria-hidden>
