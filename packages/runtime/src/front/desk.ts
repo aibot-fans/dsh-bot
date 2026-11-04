@@ -32,6 +32,8 @@ export interface FrontDeskDeps {
   readonly replies: Replies
   readonly segments: SegmentManager
   readonly room: (roomId: string) => Room | undefined
+  /** 群的组长：没点名的话先给它。 */
+  readonly leaderOf: (room: Room) => Bot | undefined
   readonly preparing: (key: string, state: PreparingState | null) => void
   /** dsh-bot 在聊天室里说一句（前台出错没处理成时）。 */
   readonly notice: (roomId: string, body: string, data: Readonly<Record<string, unknown>>) => void
@@ -284,7 +286,8 @@ export class FrontDesk {
       const recent = listMessages(this.deps.db, roomId, { before: first, limit: seen?.has(roomId) === true ? RECENT_MORE : RECENT_FIRST })
         .filter((message) => message.seq > since && !ids.has(message.id) && message.author !== POD && (message.kind === 'text' || message.kind === 'task-card'))
       const members = room.kind === 'direct' ? [] : listRoomMembers(this.deps.db, roomId).flatMap((member) => this.deps.bots.get(member.botId)?.name ?? [])
-      return [{ room, members, recent, items: list }]
+      const leader = this.deps.leaderOf(room)
+      return [{ room, members, leader: leader?.name ?? '', leading: leader !== undefined && leader.id === session.botId, recent, items: list }]
     })
   }
 

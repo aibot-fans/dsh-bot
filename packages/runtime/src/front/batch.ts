@@ -17,6 +17,10 @@ export interface BatchRoom {
   readonly room: Room
   /** 群里的成员（名字）；单聊是空的。 */
   readonly members: readonly string[]
+  /** 群的组长（名字）；单聊是空的。 */
+  readonly leader: string
+  /** 这个前台的 bot 就是组长：群里没点名的话是给它的。 */
+  readonly leading: boolean
   /** 这批新消息之前、前台还没看过的几条（包括 bot 说的）。 */
   readonly recent: readonly RoomMessage[]
   readonly items: readonly BatchItem[]
@@ -34,9 +38,10 @@ export interface BatchInput {
 function roomHeader(group: BatchRoom): string {
   const { room } = group
   if (room.kind === 'direct') return `== 单聊「${room.title}」（${room.id}）==`
+  const leader = group.leader === '' ? '' : ` 组长：${group.leader}${group.leading ? '（你）' : ''}`
   const members = group.members.length === 0 ? '' : ` 成员：${group.members.join('、')}`
-  if (room.taskId !== null) return `== 任务群「${room.title}」（${room.id}，任务 ${room.taskId}）${members} ==`
-  return `== 群聊「${room.title}」（${room.id}）${members} ==`
+  if (room.taskId !== null) return `== 任务群「${room.title}」（${room.id}，任务 ${room.taskId}）${leader}${members} ==`
+  return `== 群聊「${room.title}」（${room.id}）${leader}${members} ==`
 }
 
 /** 说的是哪个任务（结果、转告、确认这些话带着任务 id）。 */

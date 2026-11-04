@@ -669,6 +669,7 @@ export class PodRuntime {
       replies: this.replies,
       segments: this.segments,
       room: (roomId) => this.rooms.get(roomId),
+      leaderOf: (room) => this.rooms.leaderOf(room),
       preparing: (key, state) => this.setPreparing(key, state),
       notice: (roomId, body, data) => {
         this.rooms.post(roomId, { author: POD, kind: 'notice', body, data })
