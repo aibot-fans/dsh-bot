@@ -236,7 +236,7 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
   }
 
   const forward = (item: Item, messages: readonly RoomMessage[], task: Task): string => {
-    if (task.endedAt !== null && task.endReason === 'stopped') return `任务「${task.title}」已经停掉了；要接着做，请用户点继续`
+    if (task.endedAt !== null && task.endReason === 'stopped') return `「${task.title}」是用户停掉的，不转进去：用户说接着做才用 resume，要做的是新的事用 open`
     const errors: string[] = []
     const name = me()?.name ?? '前台'
     const conversation = isTicket(task) ? taskConversationOf(pod.db, task.id) : undefined
