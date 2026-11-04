@@ -16,6 +16,8 @@ export interface Room {
   readonly teamId: string | null
   /** 任务记录对应的根任务。 */
   readonly taskId: string | null
+  /** 群的组长：群里没点名的话先给它。建群时定、群详情里能换；任务群（负责的 bot）、正式团队（团队组长）和单聊是 null。 */
+  readonly leadBotId: string | null
   /** 同一个 bot 可以按话题开多个单聊。 */
   readonly topic: string
   readonly pinned: boolean
@@ -75,6 +77,8 @@ export interface RoomSummary extends Room {
   readonly waits: number
   /** 房间成员（bot id），群聊详情和 bot 的“所在群聊”用。 */
   readonly memberIds: readonly string[]
+  /** 群里没点名的话先给谁（组长、任务群负责的 bot、团队组长）；单聊是 null。 */
+  readonly leaderId?: string | null
   /** 单聊：你在这段对话里说的第一句话，对话记录里当标题；还没说过话或群聊是空串。 */
   readonly subject: string
 }

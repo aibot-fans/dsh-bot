@@ -731,6 +731,10 @@ const MIGRATIONS: readonly string[] = [
   `
   ALTER TABLE tasks ADD COLUMN paused_at INTEGER;
   `,
+  // v17：群的组长：群里没点名的话先给它（以前都给 Super-agent）。已有的群启动时补上。
+  `
+  ALTER TABLE rooms ADD COLUMN lead_bot_id TEXT;
+  `,
 ]
 
 function readVersion(db: DatabaseSync): number {

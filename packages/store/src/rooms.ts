@@ -9,6 +9,7 @@ interface RoomRow {
   readonly bot_id: string | null
   readonly team_id: string | null
   readonly task_id: string | null
+  readonly lead_bot_id: string | null
   readonly topic: string
   readonly pinned: number
   readonly incognito: number
@@ -28,6 +29,7 @@ function toRoom(row: RoomRow): Room {
     botId: row.bot_id,
     teamId: row.team_id,
     taskId: row.task_id,
+    leadBotId: row.lead_bot_id ?? null,
     topic: row.topic,
     pinned: flag(row.pinned),
     incognito: flag(row.incognito),
@@ -92,6 +94,7 @@ export interface NewRoom {
   readonly botId?: string | null
   readonly teamId?: string | null
   readonly taskId?: string | null
+  readonly leadBotId?: string | null
   readonly topic?: string
   readonly pinned?: boolean
   readonly incognito?: boolean
@@ -100,8 +103,8 @@ export interface NewRoom {
 
 export function insertRoom(db: DatabaseSync, input: NewRoom): Room {
   db.prepare(
-    `INSERT INTO rooms (id, kind, title, bot_id, team_id, task_id, topic, pinned, incognito, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO rooms (id, kind, title, bot_id, team_id, task_id, lead_bot_id, topic, pinned, incognito, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     input.id,
     input.kind,
@@ -109,6 +112,7 @@ export function insertRoom(db: DatabaseSync, input: NewRoom): Room {
     input.botId ?? null,
     input.teamId ?? null,
     input.taskId ?? null,
+    input.leadBotId ?? null,
     input.topic ?? '',
     input.pinned === true ? 1 : 0,
     input.incognito === true ? 1 : 0,
@@ -126,19 +130,21 @@ export interface RoomPatch {
   readonly incognito?: boolean
   readonly notifyLevel?: NotifyLevel
   readonly archivedAt?: number | null
+  readonly leadBotId?: string | null
 }
 
 export function updateRoom(db: DatabaseSync, id: string, patch: RoomPatch): Room | undefined {
   const current = getRoom(db, id)
   if (current === undefined) return undefined
   const next = { ...current, ...patch }
-  db.prepare('UPDATE rooms SET title = ?, topic = ?, pinned = ?, incognito = ?, notify_level = ?, archived_at = ? WHERE id = ?').run(
+  db.prepare('UPDATE rooms SET title = ?, topic = ?, pinned = ?, incognito = ?, notify_level = ?, archived_at = ?, lead_bot_id = ? WHERE id = ?').run(
     next.title,
     next.topic,
     next.pinned ? 1 : 0,
     next.incognito ? 1 : 0,
     next.notifyLevel,
     next.archivedAt,
+    next.leadBotId,
     id,
   )
   return getRoom(db, id)

@@ -1141,11 +1141,14 @@ export class PodRuntime {
     return withLanguage(fallback, this.language.get())
   }
 
-  /** 任务记录里谁来回答：正式团队的任务交给组长，其余交给主管。 */
+  /** 没另记组长的群里谁先接：正式团队是团队组长，任务群是负责的 bot（根任务的执行者）。 */
   leaderForRoom(room: Room): Bot | undefined {
-    if (room.teamId === null) return undefined
-    const team = this.teams.get(room.teamId)
-    return team === undefined ? undefined : this.bots.activeBot(team.leaderBotId)
+    if (room.teamId !== null) {
+      const team = this.teams.get(room.teamId)
+      return team === undefined ? undefined : this.bots.activeBot(team.leaderBotId)
+    }
+    const owner = room.taskId === null ? undefined : this.tasks.get(room.taskId)?.ownerBotId
+    return owner == null ? undefined : this.bots.activeBot(owner)
   }
 
   /** 评分卡给分配打分的数据：一次验收通过率。 */

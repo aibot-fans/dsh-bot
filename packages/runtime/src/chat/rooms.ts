@@ -98,7 +98,7 @@ export interface RoomServiceDeps {
   readonly openWaits: (roomId: string) => number
   /** 消息写入或更新后进搜索索引。 */
   readonly indexed: (message: RoomMessage) => void
-  /** 正式团队的任务记录交给组长回答。 */
+  /** 没另记组长的群里谁先接：正式团队是团队组长，任务群是负责的 bot。 */
   readonly leaderFor: (room: Room) => Bot | undefined
   /** 你在房间里说了话（自我优化据此认出“以后别这样”之类的纠正）。 */
   readonly onOwnerText?: (message: RoomMessage) => void
@@ -118,8 +118,8 @@ export interface RoomServiceDeps {
 
 /**
  * 房间和消息：你的话先看话题，有任务跟进就直通任务；没有就交给前台（每个 bot 一个，跨聊天室）：
- * 单聊是那个 bot 的，群里被 @ 或被引用的成员是它自己的，其他没点名的是组长（任务群）或 Super-agent 的。
- * 前台用 reply 说话；房间记录是唯一的事实来源。
+ * 单聊是那个 bot 的，群里被 @ 或被引用的成员是它自己的，其他没点名的是组长的（普通群建群时定，任务群是负责的 bot，
+ * 正式团队是团队组长）。Super-agent 在群里只在被点名、被引用时接。前台用 reply 说话；房间记录是唯一的事实来源。
  */
 export class RoomService {
   private readonly opening = new Map<string, Promise<PodSession>>()
@@ -270,28 +270,64 @@ export class RoomService {
     return room
   }
 
-  /** 拉群：建一个不挂任务的群聊。同名的群还在就直接用它，把没进群的成员补进去。主管总在群里。 */
-  createGroup(input: { readonly name: string; readonly memberIds: readonly string[]; readonly max?: number }, actor: string): PodResult<Room> {
+  /**
+   * 拉群：建一个不挂任务的群聊，定一个组长（没点名的话先给它；没写就是排在最前的成员），群里留一行“没点名的话 X 先接”。
+   * 同名的群还在就直接用它：把没进群的成员补进去，写了组长就换成它。主管总在群里，但不当组长，只在被点名时说话。
+   */
+  createGroup(input: { readonly name: string; readonly memberIds: readonly string[]; readonly leaderId?: string; readonly max?: number }, actor: string): PodResult<Room> {
     const name = truncate(input.name.replace(/\s+/g, ' ').trim(), input.max ?? ROOM_TITLE_MAX)
     if (name === '') return fail('invalid-input', t('群要有名字'))
     const lead = this.deps.bots.lead()
     const members = [...new Set([lead.id, ...input.memberIds])].filter((id) => this.deps.bots.activeBot(id) !== undefined)
-    if (members.length < 2) return fail('invalid-input', t('至少拉一个 bot 进群'))
     const now = this.deps.now()
     const existing = listRooms(this.db, { archived: false }).find((room) => room.kind === 'task' && room.taskId === null && room.title === name)
     if (existing !== undefined) {
       for (const botId of members) addRoomMember(this.db, existing.id, botId, now)
       this.deps.bus.emit({ type: 'room', roomId: existing.id })
-      return ok(existing)
+      if (input.leaderId === undefined || input.leaderId === this.leaderOf(existing)?.id) return ok(this.get(existing.id) ?? existing)
+      return this.setLeader(existing.id, input.leaderId, actor)
     }
+    if (members.length < 2) return fail('invalid-input', t('至少拉一个 bot 进群'))
+    const leaderId = input.leaderId ?? members.find((id) => id !== lead.id)
+    const leader = leaderId === undefined || !members.includes(leaderId) ? undefined : this.deps.bots.activeBot(leaderId)
+    if (leader === undefined) return fail('invalid-input', t('组长要是群里的成员'))
+    if (leader.role === 'lead') return fail('invalid-input', t('{name}在群里只在被点名时说话，不当组长', { name: leader.name }))
     const room = transaction(this.db, () => {
-      const created = insertRoom(this.db, { id: newId('room'), kind: 'task', title: name, now })
+      const created = insertRoom(this.db, { id: newId('room'), kind: 'task', title: name, leadBotId: leader.id, now })
       for (const botId of members) addRoomMember(this.db, created.id, botId, now)
       return created
     })
-    this.deps.audit.record('room.group', actor, room.id, { name, members })
+    this.deps.audit.record('room.group', actor, room.id, { name, members, leader: leader.id })
+    this.milestone(room.id, t('{name} 是组长：没点名的话{name}先接', { name: leader.name }), { botId: leader.id, leader: true })
     this.deps.bus.emit({ type: 'rooms' })
     return ok(room)
+  }
+
+  /**
+   * 群的组长：没点名的话先给它。普通群是建群时定的（定的那个不在群里了，就是排在最前的成员），
+   * 任务群是负责的 bot，正式团队是团队组长；单聊没有。
+   */
+  leaderOf(room: Room): Bot | undefined {
+    if (room.kind === 'direct') return undefined
+    const members = this.memberBots(room)
+    const chosen = room.leadBotId === null ? undefined : members.find((bot) => bot.id === room.leadBotId)
+    return chosen ?? this.deps.leaderFor(room) ?? members.find((bot) => bot.role !== 'lead')
+  }
+
+  /** 换组长：要是群里 Super-agent 以外的成员；群里留一行“没点名的话 X 先接”。任务群、正式团队不另设组长。 */
+  setLeader(roomId: string, botId: string, actor: string): PodResult<Room> {
+    const room = this.get(roomId)
+    if (room === undefined || room.archivedAt !== null || room.kind === 'direct') return fail('not-found', t('找不到这个群聊'))
+    if (room.taskId !== null || room.teamId !== null) return fail('invalid-input', t('任务群由负责的 bot 先接，正式团队由团队组长先接，不另设组长'))
+    const bot = this.memberBots(room).find((member) => member.id === botId)
+    if (bot === undefined) return fail('invalid-input', t('组长要是群里的成员'))
+    if (bot.role === 'lead') return fail('invalid-input', t('{name}在群里只在被点名时说话，不当组长', { name: bot.name }))
+    if (room.leadBotId === bot.id) return ok(room)
+    const updated = updateRoom(this.db, room.id, { leadBotId: bot.id }) ?? room
+    this.deps.audit.record('room.leader', actor, room.id, { botId: bot.id })
+    this.milestone(room.id, t('组长换成了{name}：没点名的话{name}先接', { name: bot.name }), { botId: bot.id, leader: true })
+    this.deps.bus.emit({ type: 'room', roomId: room.id })
+    return ok(updated)
   }
 
   /** 页面上的新建群聊：{ name, memberIds }；没起名字时按成员起一个。 */
@@ -331,8 +367,11 @@ export class RoomService {
     const found = this.groupAndBot(input)
     if (!found.ok) return found
     const { room, bot } = found.value
-    if (bot.role === 'lead') return fail('lead-protected', t('Super-agent 要留在群里，负责分派和组织'))
+    if (bot.role === 'lead') return fail('lead-protected', t('{name}要留在群里：点它的名，就能叫它拉人、建 bot、换组长', { name: bot.name }))
     removeRoomMember(this.db, room.id, bot.id)
+    // 移走的是组长：换成排在最前的成员。
+    const next = room.leadBotId === bot.id ? this.memberBots(room).find((member) => member.role !== 'lead') : undefined
+    if (room.leadBotId === bot.id) updateRoom(this.db, room.id, { leadBotId: next?.id ?? null })
     const session = this.deps.registry.activeForRoom(room.id, bot.id)
     if (session !== undefined) {
       this.deps.stopSession(session.id)
@@ -340,6 +379,7 @@ export class RoomService {
     }
     this.deps.audit.record('room.member.remove', OWNER, room.id, { botId: bot.id })
     this.milestone(room.id, t('{name} 移出了群聊', { name: bot.name }), { botId: bot.id })
+    if (next !== undefined) this.milestone(room.id, t('组长换成了{name}：没点名的话{name}先接', { name: next.name }), { botId: next.id, leader: true })
     this.deps.bus.emit({ type: 'room', roomId: room.id })
     return ok(null)
   }
@@ -411,6 +451,7 @@ export class RoomService {
           running: running.get(room.id) ?? 0,
           waits: this.deps.openWaits(room.id),
           memberIds: listRoomMembers(this.db, room.id).map((member) => member.botId),
+          leaderId: this.leaderOf(room)?.id ?? null,
           // 任务单聊的题目就是任务名；别的单聊取你说的第一句。
           subject: room.kind !== 'direct' ? '' : room.taskId !== null && room.topic !== '' ? room.topic : chatSubject(subjects.get(room.id) ?? ''),
         }
@@ -526,7 +567,7 @@ export class RoomService {
     return ok(message)
   }
 
-  /** 交给前台：单聊是那个 bot；群里被 @ 的、被引用的成员各自接，其他没点名的给组长或 Super-agent。 */
+  /** 交给前台：单聊是那个 bot；群里被 @ 的、被引用的成员各自接，其他没点名的给组长。 */
   private toFronts(room: Room, message: RoomMessage, note: string): void {
     const bots = this.frontsFor(room, message)
     if (bots.length === 0) {
@@ -643,10 +684,10 @@ export class RoomService {
     this.toFronts(room, message, note)
   }
 
-  /** 默认谁来回答：单聊是对面的 bot；群里没点名时是组长（任务群、正式团队）或主管。 */
+  /** 默认谁来回答：单聊是对面的 bot；群里没点名时是组长，群里只剩 Super-agent 时才是它。 */
   responder(room: Room): Bot | undefined {
     if (room.kind === 'direct') return room.botId === null ? undefined : this.deps.bots.activeBot(room.botId)
-    return this.deps.leaderFor(room) ?? this.deps.bots.lead()
+    return this.leaderOf(room) ?? this.deps.bots.lead()
   }
 
   /**
@@ -716,6 +757,12 @@ export class RoomService {
     const roomId = readId(input, 'roomId')
     if (roomId === undefined) return fail('invalid-input', t('缺少房间 id'))
     const raw = readObject(input, 'patch')
+    // 群详情里换组长：照换组长的规矩，群里留一行。
+    const leader = readId(raw, 'leadBotId')
+    if (leader !== undefined) {
+      const set = this.setLeader(roomId, leader, OWNER)
+      if (!set.ok) return set
+    }
     const title = readString(raw, 'title')
     const patch: RoomPatch = {
       ...(title === '' ? {} : { title: truncate(title, ROOM_TITLE_MAX) }),
