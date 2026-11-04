@@ -13,6 +13,7 @@ import type { Mentions } from '../../components/mentions.tsx'
 import { MenuItem, MenuPanel, useMenu } from '../../components/Menu.tsx'
 import { decidedText } from '../../components/TaskDecision.tsx'
 import { GroupChip, TaskChip } from '../../components/TaskEntry.tsx'
+import { buildTaskLinks, namedIn, taskRefs } from '../../components/taskLinks.tsx'
 import { useSnapshot } from '../../components/taskParts.tsx'
 import { WaitCard } from '../../components/WaitCard.tsx'
 import { PageCard, PageChip } from '../pages/PageCard.tsx'
@@ -163,17 +164,25 @@ export function MessageItem(props: MessageProps) {
   }
   // 等你：发问的 bot 问的事画成卡片（问题、批准、登录）；X 上的事件是一张卡片。这两种不套灰气泡。
   const card = message.kind === 'wait' ? <WaitCard message={message} /> : xEvent === undefined ? undefined : <XEventCard view={xEvent} />
+  // 说到任务的话：句子里提到标题的地方画成任务链接，没提到标题的放在气泡开头。
+  const refs = props.chip === true ? taskRefs(message) : []
+  const links = buildTaskLinks(
+    refs.filter((ref) => namedIn(message.body, ref)),
+    (taskId, key) => <TaskChip key={key} taskId={taskId} roomId={message.roomId} inline />,
+  )
   return (
     <MessageFrame {...props} owner={false} className={rowClass('pod-msg pod-msg-bot', props)}>
       <BotBubble message={message} bots={bots} named={props.named === true} first={props.first !== false} last={props.last !== false} quoted={props.quoted} card={card}>
-        {/* 说到任务的话（开任务时的那句、交来的回答、转告）：气泡开头是那个任务的记号，点一下在右边小窗打开任务对话。 */}
-        {props.chip === true && typeof message.data.taskId === 'string' ? (
-          <span className="pod-bubble-chip">
-            <TaskChip taskId={message.data.taskId} roomId={message.roomId} />
-          </span>
-        ) : null}
+        {/* 说到任务的话（开任务时的那句、交来的回答、转告）没提到标题的：气泡开头是那个任务的记号，点一下在右边小窗打开任务对话。 */}
+        {refs
+          .filter((ref) => !namedIn(message.body, ref))
+          .map((ref) => (
+            <span key={ref.id} className="pod-bubble-chip">
+              <TaskChip taskId={ref.id} roomId={message.roomId} />
+            </span>
+          ))}
         {pageId === undefined ? null : <PageChip pageId={pageId} />}
-        <Markdown text={message.body} mentions={calledMentions(message, props.mentions, false)} />
+        <Markdown text={message.body} mentions={calledMentions(message, props.mentions, false)} links={links} />
         {attachment === undefined ? null : <Attachment attachment={attachment} />}
       </BotBubble>
       {/* Super-agent 转告任务在问的事：那件事的卡片（问题、批准、登录）挂在这句下面，在这里点就是答复。 */}

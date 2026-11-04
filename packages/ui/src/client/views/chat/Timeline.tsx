@@ -290,13 +290,18 @@ export function Timeline(props: TimelineProps) {
   })
   const replies = sessions.filter((reply) => !isPreparing(reply.sessionId) || !sessions.some((other) => !isPreparing(other.sessionId) && other.botId === reply.botId))
   const blocks = arrange(messages.filter((message) => shownInChat(message, room.taskId !== null)))
-  const ordered = blocks.flatMap((block) => [...block.texts, ...block.cards])
+  // 一次开了几个任务：任务卡都不出，开任务那句里的任务链接就够了；恰好一个新任务才在那句下面出卡片。
+  const crowded = new Set(blocks.flatMap((block) => {
+    const cards = block.cards.filter((card) => card.kind === 'task-card')
+    return cards.length > 1 ? cards.map((card) => card.id) : []
+  }))
+  const ordered = blocks.flatMap((block) => [...block.texts, ...block.cards.filter((card) => !crowded.has(card.id))])
   // 回的正是这段下面跟着的任务记号，或者紧挨在上面的那张任务卡片（结果、没做成挂在任务卡下）：卡片就在旁边，不再引用一遍。
   const unquoted = new Set([
     ...blocks.flatMap((block) => block.texts.filter((message) => block.cards.some((card) => card.id === message.replyTo)).map((message) => message.id)),
     ...ordered.filter((message, index) => message.replyTo !== null && ordered[index - 1]?.id === message.replyTo && ordered[index - 1]?.kind === 'task-card').map((message) => message.id),
   ])
-  // 说到任务的话，气泡开头挂那个任务的记号（点一下在右边小窗打开任务对话）；任务卡只在开任务那句下面出现一次。任务自己的对话里不挂。
+  // 说到任务的话挂那个任务的记号（句子里提到标题的地方，或者气泡开头；点一下在右边小窗打开任务对话）；任务卡只在开任务那句下面出现一次。任务自己的对话里不挂。
   const chipped = new Set(
     room.taskId !== null ? [] : ordered.filter((message) => message.author !== OWNER && message.kind === 'text' && typeof message.data.taskId === 'string').map((message) => message.id),
   )

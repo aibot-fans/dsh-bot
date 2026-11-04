@@ -101,10 +101,10 @@ export function openTaskById(app: AppState, taskId: string): Promise<void> {
 }
 
 /**
- * 对话里的任务记号，放在说到这个任务的气泡开头：状态图标加任务名，图标跟着状态变（转圈在做，红点等你，勾是做完），
- * 不写用时、进展。点一下在右边小窗打开这个任务的对话。
+ * 对话里的任务记号：句子里说到任务标题的地方（inline），没说到标题的放在气泡开头。状态图标加任务名，
+ * 图标跟着状态变（转圈在做，红点等你，勾是做完），不写用时、进展。点一下在右边小窗打开这个任务的对话。
  */
-export function TaskChip(props: { readonly taskId: string; readonly roomId: string }) {
+export function TaskChip(props: { readonly taskId: string; readonly roomId: string; readonly inline?: boolean }) {
   const app = useApp()
   const { snapshot, error } = useSnapshot(props.taskId)
   if (snapshot === undefined) return <span className="pod-task-chip pod-task-chip-loading">{error ?? t('正在读取任务…')}</span>
@@ -112,7 +112,7 @@ export function TaskChip(props: { readonly taskId: string; readonly roomId: stri
   const bucket = bucketOf(snapshot)
   const label = bucketLabel(snapshot, bucket)
   return (
-    <span className="pod-task-chip-wrap">
+    <span className={props.inline === true ? 'pod-task-chip-wrap pod-task-chip-inline' : 'pod-task-chip-wrap'}>
       <button
         type="button"
         className={`pod-task-chip pod-task-chip-${bucket}`}
