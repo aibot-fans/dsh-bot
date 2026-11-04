@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { PRIORITY, type RoutedMessage, type Task } from 'pod-domain'
-import { transaction } from 'pod-store'
+import { taskConversationOf, transaction } from 'pod-store'
 import { ownerSource } from '../agents/messages.ts'
 import type { Dispatcher } from '../effects/delivery.ts'
 import { isTicket, type Engine } from '../engine/index.ts'
@@ -33,7 +33,7 @@ export function routeIn(deps: RouteInDeps, task: Task, message: RoutedMessage): 
         sessionId: run.sessionId,
         mode: dispatcher.isRunning(run.sessionId) ? 'steer' : 'followup',
         priority: PRIORITY.owner,
-        text: routedText(engine.tickets.get(task.id) ?? task, message),
+        text: routedText(engine.tickets.get(task.id) ?? task, message, taskConversationOf(deps.db, task.rootId) !== undefined),
         source: ownerSource(),
       })
       return delivery.id

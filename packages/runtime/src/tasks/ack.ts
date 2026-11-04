@@ -12,7 +12,7 @@ function ticketOf(pod: PodRuntime, session: PodSession): Task | undefined {
 export function ackTool(pod: PodRuntime, session: PodSession): ToolDefinition {
   return podTool({
     name: 'ack',
-    description: '确认直通或转来的消息归这个任务（消息前面标着 [直通消息 id]），然后接着做。可以一次确认几条。',
+    description: '确认别处话题里直通进来的消息归这个任务（消息前面标着 [直通消息 id]），然后接着做；任务对话里接着说的（[接着说 id]）不用确认。可以一次确认几条。',
     properties: { message_ids: strList('要确认的消息 id') },
     required: ['message_ids'],
     parse: (args) => {
@@ -33,7 +33,7 @@ export function ackTool(pod: PodRuntime, session: PodSession): ToolDefinition {
 export function handbackTool(pod: PodRuntime, session: PodSession): ToolDefinition {
   return podTool({
     name: 'handback',
-    description: '直通或转来的消息不归这个任务（超出范围、属于别的任务）时交还，写一句原因，它会回到前台重新判断；每条只能交还一次。整个话题都不归你就设 unfollow，之后那里的消息不再直通给你。',
+    description: '送进来的消息（接着说的、直通的、转来的）不归这个任务（另一件事、属于别的任务）时交还，写一句原因，它会回到前台重新判断；每条只能交还一次。整个话题都不归你就设 unfollow，之后那里的消息不再直通给你。',
     properties: {
       message_id: str('要交还的消息 id'),
       reason: str('为什么不归这个任务，一句话'),

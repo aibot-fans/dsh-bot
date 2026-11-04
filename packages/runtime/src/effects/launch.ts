@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { OWNER, PRIORITY, maskSecrets, t, type Bot, type PodSession, type PodSettings, type RoutedMessage, type Task, type TaskRun } from 'pod-domain'
-import { countRunning, getRun, latestDecisiveReport, runsByStatus, runsFor, topicMessagesSince, transaction } from 'pod-store'
+import { countRunning, getRun, latestDecisiveReport, runsByStatus, runsFor, taskConversationOf, topicMessagesSince, transaction } from 'pod-store'
 import { noticeSource, relaySource } from '../agents/messages.ts'
 import type { SessionRegistry } from '../agents/registry.ts'
 import type { BotService } from '../bots/service.ts'
@@ -126,7 +126,7 @@ export class Launcher {
   private briefFor(task: Task, run: TaskRun, fresh: boolean): string {
     if (run.reason !== 'new' && fresh) return `${this.kickoff(task, run)}\n\n${this.briefFor(task, run, false)}`
     if (run.reason === 'new') return this.kickoff(task, run)
-    return runBrief(task, run, { lastReport: latestDecisiveReport(this.deps.db, task.id), watching: this.watching(task, run) })
+    return runBrief(task, run, { lastReport: latestDecisiveReport(this.deps.db, task.id), watching: this.watching(task, run), talking: taskConversationOf(this.deps.db, task.rootId) !== undefined })
   }
 
   /** 完整的交代（会话是新开的、不是新任务时，先补上交代再写开工原因）。 */

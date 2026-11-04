@@ -234,7 +234,7 @@ function leaderDecision({ brief, userText, messages, tools, last, system }) {
   const start = messages.findLastIndex((message) => message.role === 'user' && MEANINGFUL.has(message.source?.kind))
   const turn = toolCalls(messages.slice(start + 1))
   if (!userText.includes('[子任务')) {
-    if (userText.includes('[直通消息')) return undefined
+    if (userText.includes('[直通消息') || userText.includes('[接着说')) return undefined
     const opened = names.filter((name) => name === 'subtask').length
     if (opened === 0) return { tool: 'subtask', args: { title: 'A 公司', bot: firstRosterName(system) ?? '自己', brief: '查 A 公司的公开定价，写进 A.md', acceptance: ['列出版本', '写清价格'] } }
     if (opened === 1 && turn.length > 0) return { tool: 'subtask', args: { title: 'B 公司', bot: '自己', brief: '查 B 公司的公开定价，写进 B.md', acceptance: ['列出版本', '写清价格', '写主要限制'] } }
@@ -410,20 +410,25 @@ function decide(options) {
     if (last?.role === 'tool' && calls.at(-1) === 'ask_owner') return { text: '已经请用户处理，等用户答复后接着做。' }
     const leading = leaderDecision({ brief, userText, messages, tools, last, system })
     if (leading !== undefined) return leading
-    // 直通进来的消息：写着“（测试交还）”的交还，其余确认后交结果。
+    // 送进来的消息：写着“（测试交还）”的交还；别处话题直通的先确认，任务对话里接着说的不用确认，直接照做。
     const routedIds = [...userText.matchAll(/\[直通消息 (msg_[0-9a-f]+)\]/g)].map((match) => match[1])
-    if (routedIds.length > 0 && tools.has('ack') && last?.role !== 'tool') {
-      if (userText.includes('（测试交还）')) return { tool: 'handback', args: { message_id: routedIds[0], reason: '这件事不归这个任务', unfollow: false } }
-      return { tool: 'ack', args: { message_ids: routedIds } }
+    const talkIds = [...userText.matchAll(/\[接着说 (msg_[0-9a-f]+)\]/g)].map((match) => match[1])
+    const fresh = last?.role !== 'tool'
+    if (routedIds.length + talkIds.length > 0 && fresh && userText.includes('（测试交还）') && tools.has('handback')) {
+      return { tool: 'handback', args: { message_id: routedIds[0] ?? talkIds[0], reason: '这件事不归这个任务', unfollow: false } }
     }
+    if (routedIds.length > 0 && tools.has('ack') && fresh) return { tool: 'ack', args: { message_ids: routedIds } }
     if (last?.role === 'tool' && calls.at(-1) === 'handback') return { tool: 'report', args: { status: 'waiting', summary: '交还了一条不归这个任务的消息' } }
+    // 能照着做了：直通的确认过了，或者是任务对话里接着说的。
+    const said = (last?.role === 'tool' && calls.at(-1) === 'ack') || (talkIds.length > 0 && fresh)
+    const saidIds = routedIds.length > 0 ? routedIds : talkIds
     // 暂停着时用户说话：只回话，记下交代，报 waiting，不接着做。
-    if (userText.includes('这个任务暂停着') && last?.role === 'tool' && calls.at(-1) === 'ack' && tools.has('reply')) {
-      return { tool: 'reply', args: { to: routedIds[0] ?? '', text: '（测试模型）任务暂停着，先记下你的话；你说接着做我再动手。' } }
+    if (userText.includes('这个任务暂停着') && said && tools.has('reply')) {
+      return { tool: 'reply', args: { to: saidIds[0] ?? '', text: '（测试模型）任务暂停着，先记下你的话；你说接着做我再动手。' } }
     }
     if (userText.includes('这个任务暂停着') && last?.role === 'tool' && calls.at(-1) === 'reply' && tools.has('report')) return { tool: 'report', args: { status: 'waiting', summary: '暂停着，只回了话' } }
     // 直通消息写着“再问一遍”：把拿主意的问题原样再报一次（dsh-bot 不该再出一张卡片）；“换个问题”：换一个问题问（旧卡片收起）。
-    if (last?.role === 'tool' && calls.at(-1) === 'ack' && /再问一遍|换个问题/.test(userText) && tools.has('report')) {
+    if (said && /再问一遍|换个问题/.test(userText) && tools.has('report')) {
       const changed = userText.includes('换个问题')
       return {
         tool: 'report',
@@ -439,9 +444,9 @@ function decide(options) {
         },
       }
     }
-    if (last?.role === 'tool' && calls.at(-1) === 'ack') {
-      // 直通消息里问问题（写着“测试答复”）：用 reply 答在那条下面，再报 waiting。
-      if (userText.includes('测试答复') && tools.has('reply')) return { tool: 'reply', args: { to: routedIds[0], text: '（测试模型）做到第 2 步了，再过几分钟交结果。' } }
+    if (said) {
+      // 送进来的话里问问题（写着“测试答复”）：用 reply 答在那条下面，再报 waiting。
+      if (userText.includes('测试答复') && tools.has('reply')) return { tool: 'reply', args: { to: saidIds[0], text: '（测试模型）做到第 2 步了，再过几分钟交结果。' } }
       return { tool: 'complete_task', args: { summary: '- 按直通进来的消息改好了', files: ['shared/测试结果.md'], assumptions: [], unverified: [], skipped: [] } }
     }
     if (last?.role === 'tool' && calls.at(-1) === 'reply' && tools.has('report')) return { tool: 'report', args: { status: 'waiting', summary: '答复了用户的问题，接着等' } }

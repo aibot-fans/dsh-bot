@@ -85,15 +85,20 @@ export interface RunBriefContext {
   readonly lastReport: TaskReport | undefined
   /** 只读跟进的话题里上次开工以后的新消息（只看不接）。 */
   readonly watching: readonly RoutedMessage[]
+  /** 任务有自己的对话：送进来的话都是在那段对话里接着说的。 */
+  readonly talking: boolean
 }
 
-/** 直通、转来的消息怎么处理：确认了再做，不归这个任务的交还。 */
-export const ROUTED_HOWTO = '这些消息直接送到了你这里：归这个任务的用 ack 确认再接着做；不归它的（超出范围、属于别的任务）用 handback 交还，写一句原因，整个话题都不归你就顺便取消跟进。'
+/** 别处跟着这个任务的话题里直通进来的消息（比如群里回复任务卡的）：确认了再做，不归这个任务的交还。 */
+const ROUTED_HOWTO = '这些消息直接送到了你这里：归这个任务的用 ack 确认再接着做；不归它的（超出范围、属于别的任务）用 handback 交还，写一句原因，整个话题都不归你就顺便取消跟进。'
 
-function routedLine(message: RoutedMessage): string {
+/** 任务对话里接着说的话（用户说的、Super-agent 转来的后续）：当成接着交代的照做，不用先确认。 */
+const TALK_HOWTO = '这是任务对话里接着说的话：当成接着交代的照做，不用先确认；问你的用 reply 答在那条下面。不是这个任务的事（另一件事、属于别的任务）用 handback 交还，写一句原因，它会当成新的事重新判断。'
+
+function routedLine(message: RoutedMessage, talking: boolean): string {
   const reply = message.replyTo === null ? '' : `（回复 ${message.replyTo}）`
   const note = message.note === undefined || message.note === '' ? '' : `\n转来时的说明：${message.note}`
-  if (message.id !== null) return `[直通消息 ${message.id}] ${message.author}${reply}：${message.text}${note}`
+  if (message.id !== null) return `[${talking ? '接着说' : '直通消息'} ${message.id}] ${message.author}${reply}：${message.text}${note}`
   return message.author === '用户' ? `[用户原话] ${message.text}` : `[${message.author}补充] ${message.text}`
 }
 
@@ -117,9 +122,10 @@ function runMessages(run: TaskRun): readonly RoutedMessage[] {
   })
 }
 
-/** 会话正在跑时直通进来的一条消息。 */
-export function routedText(task: Task, message: RoutedMessage): string {
-  return [`[dsh-bot] 任务「${task.title}」的话题里有一条新消息。`, routedLine(message), ROUTED_HOWTO].join('\n')
+/** 会话正在跑时送进来的一条消息：任务对话里接着说的，或者别处话题里直通的。 */
+export function routedText(task: Task, message: RoutedMessage, talking: boolean): string {
+  if (talking) return ['[dsh-bot] 任务对话里有一条新消息。', routedLine(message, true), TALK_HOWTO].join('\n')
+  return [`[dsh-bot] 任务「${task.title}」的话题里有一条新消息。`, routedLine(message, false), ROUTED_HOWTO].join('\n')
 }
 
 /** 子任务汇报后送给组长的那几段。 */
@@ -139,7 +145,8 @@ export function runBrief(task: Task, run: TaskRun, context: RunBriefContext): st
   const notices = runNotices(run)
   const routed = messages.some((message) => message.id !== null)
   const paused = run.detail.replyOnly === true ? PAUSED_REPLY : undefined
-  const said = messages.length === 0 ? undefined : [...messages.map(routedLine), ...(routed ? [ROUTED_HOWTO] : [])].join('\n')
+  const howto = context.talking ? TALK_HOWTO : ROUTED_HOWTO
+  const said = messages.length === 0 ? undefined : [...messages.map((message) => routedLine(message, context.talking)), ...(routed ? [howto] : [])].join('\n')
   const watching =
     context.watching.length === 0 ? undefined : ['只读跟进的话题里的新消息（只看不接，不用确认或交还）：', ...context.watching.map((message) => `- ${message.id ?? ''} ${message.author}：${message.text}`)].join('\n')
   if (run.reason === 'message' && said !== undefined) return [paused, said, watching].filter((part): part is string => part !== undefined).join('\n\n')
