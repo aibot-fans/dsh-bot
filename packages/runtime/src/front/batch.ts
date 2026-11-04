@@ -48,9 +48,14 @@ function taskOf(message: RoomMessage): string {
   return typeof message.data.taskId === 'string' ? `，任务 ${message.data.taskId}` : ''
 }
 
+/** 你在等你卡片上点的答复：已经转给问的任务了，这里只是记录。 */
+function answerOf(message: RoomMessage): string {
+  return typeof message.data.answerOf === 'string' ? '，在卡片上答的，已转给任务' : ''
+}
+
 function recentLine(message: RoomMessage, speaker: (author: string) => string): string {
   if (message.kind === 'task-card') return `  [任务卡 ${String(message.data.taskId ?? '')}「${message.body}」] ${message.id}`
-  return `  ${speaker(message.author)}（${message.id}${taskOf(message)}）：${truncate(oneLine(message.body), RECENT_LIMIT)}`
+  return `  ${speaker(message.author)}（${message.id}${taskOf(message)}${answerOf(message)}）：${truncate(oneLine(message.body), RECENT_LIMIT)}`
 }
 
 function itemLine(item: BatchItem, input: BatchInput): string {

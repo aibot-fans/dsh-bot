@@ -455,10 +455,31 @@ function decide(options) {
     if (brief.includes('需要登录') && !calls.includes('ask_owner') && tools.has('ask_owner')) {
       return { tool: 'ask_owner', args: { kind: 'login', question: '需要登录 example.com 才能看到价格', detail: '登录页在 https://example.com/login', bypassed: false } }
     }
-    if (brief.includes('拿主意') && !userText.includes('开始新的一次执行') && !calls.includes('report') && tools.has('report')) {
+    if (brief.includes('拿主意') && !/开始新的一次执行|\[用户对|\[用户原话\]/.test(userText) && !calls.includes('report') && tools.has('report')) {
       return {
         tool: 'report',
-        args: { status: 'blocked', summary: '有两种做法，要你选一个', report: '## 结论\n有两种做法，结果方向不同\n\n## 要你做什么\n选方案 A 或方案 B', question: '用方案 A（快）还是方案 B（全）？', question_kind: 'ambiguity', options: ['方案 A', '方案 B'] },
+        args: {
+          status: 'blocked',
+          summary: '有两种做法，要你选一个',
+          report: '## 结论\n有两种做法，结果方向不同\n\n## 要你做什么\n选方案 A 或方案 B',
+          question: '用方案 A（快）还是方案 B（全）？',
+          question_kind: 'ambiguity',
+          options: ['方案 A', '方案 B'],
+          option_notes: ['半小时内出结果，只看主要来源', '要两三个小时，能找到的来源都看一遍'],
+          recommended: true,
+        },
+      }
+    }
+    if (brief.includes('要批准') && !/开始新的一次执行|\[用户对|\[用户原话\]/.test(userText) && !calls.includes('report') && tools.has('report')) {
+      return {
+        tool: 'report',
+        args: {
+          status: 'blocked',
+          summary: '在 web-01 上新建这个文件：每天切一次，压缩旧的，留 30 天；改完先用 logrotate -d 检查一遍。\n\n```\n/var/log/nginx/*.log {\n  daily\n  rotate 30\n  compress\n}\n```',
+          report: '## 结论\n要改服务器上的配置，等用户批准',
+          question: '写入 /etc/logrotate.d/nginx',
+          question_kind: 'write',
+        },
       }
     }
     if (brief.includes('测试失败') && !userText.includes('开始新的一次执行') && !calls.includes('report') && tools.has('report')) {

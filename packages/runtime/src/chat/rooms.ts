@@ -517,9 +517,9 @@ export class RoomService {
     if (message === undefined) return fail('not-found', t('找不到这个房间'))
     markRoomRead(this.db, roomId, message.seq)
     this.deps.onOwnerText?.(message)
-    // 引用了等你的那句话回字：就是答复，答复照常转回给问的任务。
+    // 引用了挂着等你卡片的那句话（问的那句、前台转告的那句）回字：就是答复，答复照常转回给问的任务。
     const quoted = replyTo === null ? undefined : getMessage(this.db, replyTo)
-    if (quoted?.kind === 'wait' && typeof quoted.data.waitId === 'string' && this.deps.answerWait?.(quoted.data.waitId, masked.text) === true) return ok(message)
+    if (typeof quoted?.data.waitId === 'string' && this.deps.answerWait?.(quoted.data.waitId, masked.text) === true) return ok(message)
     // 回复、引用的是有任务跟进的话题（比如任务卡）：直接送进那些任务，不再交给前台。
     if ((this.deps.intake?.(message, mentioned) ?? 0) > 0) return ok(message)
     this.toFronts(room, message, '')

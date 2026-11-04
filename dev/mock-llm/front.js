@@ -93,6 +93,7 @@ function openTitle(body) {
   if (body.includes('沉淀')) return '沉淀测试'
   if (body.includes('后台命令')) return '后台命令测试'
   if (body.includes('拿主意')) return '选方案测试'
+  if (body.includes('要批准')) return '切分 nginx 日志'
   if (body.includes('定时叫醒')) return '定时叫醒测试'
   if (body.includes('看门狗')) return '看门狗测试'
   if (body.includes('测试失败')) return '失败测试'
@@ -126,7 +127,8 @@ function relayDecision(text, calls) {
   const lines = text.split('\n')
   const body = lines.slice(1, -1).join('\n').trim()
   const first = body.split('\n')[0] ?? ''
-  const said = text.includes('在任务对话里问用户') ? `${owner}在问：${first}在任务里点一下，或者直接回我都行。` : `${owner}没做成：${first}`
+  // 问的事做成卡片挂在这句下面：只说谁在问什么，不列选项。
+  const said = text.includes('在任务对话里问用户') ? `${owner}问：${first.replace(/（选项：[^）]*）$/, '')}` : `${owner}没做成：${first}`
   return { tool: 'reply', args: { room: target[1], purpose: 'relay', task: target[2], text: said } }
 }
 

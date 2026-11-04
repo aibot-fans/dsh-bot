@@ -305,7 +305,7 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
   const reply = podTool({
     name: 'reply',
     description:
-      '对用户说话：发一条消息到聊天室。写明回的是哪条消息（to，不回具体某条就写 room）和用途：confirm 确认（开了任务后回一句，任务卡挂在这句下面；转给任务后回一句，task 写那个任务，消息下面挂任务记号）、answer 答复（第一句就是答案）、relay 转告（任务问用户、没做成时，task 写那个任务，消息下面挂任务记号；交的回答 dsh-bot 会以你的名义原样发，不用转告）。用户问任务的细节时只讲问的那部分，task 写那个任务。你在别处写的文字用户看不到，只有 reply 会发出去。',
+      '对用户说话：发一条消息到聊天室。写明回的是哪条消息（to，不回具体某条就写 room）和用途：confirm 确认（开了任务后回一句，任务卡挂在这句下面；转给任务后回一句，task 写那个任务，消息开头挂任务记号）、answer 答复（第一句就是答案）、relay 转告（任务问用户、没做成时，task 写那个任务，消息开头挂任务记号，任务问的事做成卡片挂在这句下面；交的回答 dsh-bot 会以你的名义原样发，不用转告）。用户问任务的细节时只讲问的那部分，task 写那个任务。你在别处写的文字用户看不到，只有 reply 会发出去。',
     properties: {
       to: str('回哪条消息（消息 id）'),
       room: str('不回具体某条时，发到哪个聊天室（room id）'),
@@ -337,6 +337,8 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
       const pageId = typeof replied?.data.pageId === 'string' ? replied.data.pageId : undefined
       // 转告和确认挂任务记号（taskId）：刚开任务的那句没写 task 时挂这个聊天室刚开的任务，任务卡挂在这句下面。答复附报告（reportTaskId）。
       const chipTask = purpose === 'answer' ? undefined : (about?.rootId ?? (purpose === 'confirm' ? pod.front.openedIn(session.botId, target.id) : undefined))
+      // 转告任务在问的事：那件事的卡片（问题、批准、登录）挂在这句下面，在这里点就是答复。
+      const asked = purpose === 'relay' && about !== undefined ? pod.waits.latestOpenFor(about.rootId) : undefined
       // 走回复队列：按顺序发、留回执；群里挂在回的那条下面，单聊里回的正是最新那句就不挂引用。
       const messageId = pod.replies.send({
         roomId: target.id,
@@ -346,7 +348,11 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
         sessionId: session.id,
         replyTo: replied?.id ?? null,
         ...(chipTask === undefined ? {} : { taskId: chipTask }),
-        data: { ...(pageId === undefined ? {} : { pageId }), ...(about === undefined || purpose !== 'answer' ? {} : { reportTaskId: about.rootId }) },
+        data: {
+          ...(pageId === undefined ? {} : { pageId }),
+          ...(about === undefined || purpose !== 'answer' ? {} : { reportTaskId: about.rootId }),
+          ...(asked === undefined ? {} : { waitId: asked.id }),
+        },
       })
       if (replied !== undefined && purpose === 'answer' && pod.engine.topics.awaiting(replied.id, session.botId)) pod.engine.topics.decide(replied.id, session.botId, 'answered')
       pod.front.confirmed(session.botId, target.id)

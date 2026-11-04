@@ -54,6 +54,21 @@ export interface AskInput {
   readonly reportId?: string | null
   /** 问题的几个选项，你点一下就是答复。 */
   readonly options?: readonly string[]
+  /** 每个选项下面的一句说明，和选项一一对应。 */
+  readonly optionNotes?: readonly string[]
+  /** 第一个选项是 bot 推荐的。 */
+  readonly recommended?: boolean
+}
+
+/** 用问题卡片问的几种：在卡片上答了，你的回答也作为你的一句话留在对话里。 */
+const QUESTION_KINDS: ReadonlySet<WaitKind> = new Set(['ambiguity', 'unknown-state'])
+
+/** 问题的选项放进事项的 data：选项、每个选项下面的说明（都没写就不放）、第一个是不是推荐的。 */
+function optionData(input: AskInput): Readonly<Record<string, unknown>> {
+  const options = (input.options ?? []).map((option) => truncate(option, 60))
+  if (options.length === 0) return {}
+  const notes = options.map((_, index) => truncate(input.optionNotes?.[index] ?? '', 80))
+  return { options, ...(notes.some(Boolean) ? { optionNotes: notes } : {}), ...(input.recommended === true ? { recommended: true } : {}) }
 }
 
 /**
@@ -83,7 +98,7 @@ export class WaitService {
       status: input.bypassed ? 'bypassed' : 'open',
       title: truncate(input.title, 120),
       detail: input.detail,
-      data: { ...input.data, ...(input.options === undefined || input.options.length === 0 ? {} : { options: input.options.map((option) => truncate(option, 60)) }) },
+      data: { ...input.data, ...optionData(input) },
       taskId: task?.id ?? null,
       rootId: task?.rootId ?? null,
       sessionId: input.session.id,
@@ -113,11 +128,20 @@ export class WaitService {
     return waitsForRoot(this.db, rootId).filter(isOpenWait).length
   }
 
+  private latestOpen(rootId: string, test: (wait: Wait) => boolean): Wait | undefined {
+    return waitsForRoot(this.db, rootId)
+      .filter((wait) => isOpenWait(wait) && test(wait))
+      .reduce<Wait | undefined>((latest, wait) => (latest === undefined || wait.createdAt > latest.createdAt ? wait : latest), undefined)
+  }
+
   /** 这个任务（整棵树）最近一件还开着的、要你拿主意的事：你回前台的话转进任务时就是答它。 */
   latestQuestionFor(rootId: string): Wait | undefined {
-    return waitsForRoot(this.db, rootId)
-      .filter((wait) => isOpenWait(wait) && wait.kind === 'ambiguity')
-      .reduce<Wait | undefined>((latest, wait) => (latest === undefined || wait.createdAt > latest.createdAt ? wait : latest), undefined)
+    return this.latestOpen(rootId, (wait) => wait.kind === 'ambiguity')
+  }
+
+  /** 这个任务（整棵树）最近一件还开着的事：前台转告时，它的卡片挂在转告的那句话下面。 */
+  latestOpenFor(rootId: string): Wait | undefined {
+    return this.latestOpen(rootId, () => true)
   }
 
   openCountInRoom(roomId: string): number {
@@ -141,6 +165,7 @@ export class WaitService {
     const resolved = setWaitStatus(this.db, id, 'resolved', answer === '' ? t('已处理') : answer, this.deps.now()) ?? wait
     const handled = this.resolvers.get(resolved.kind)?.(resolved, answer) ?? false
     if (!handled) this.forward(resolved, answer)
+    this.echo(resolved, answer, input)
     this.afterChange(resolved)
     this.deps.audit.record('wait.answer', OWNER, id, { answer })
     return ok(resolved)
@@ -156,6 +181,17 @@ export class WaitService {
     if (wait.status === 'open') this.forward(closed, '这件事不用管了，按你能做到的继续，并在交付里注明。')
     this.afterChange(closed)
     return ok(closed)
+  }
+
+  /**
+   * 在对话里的问题卡片上答的（页面带着卡片所在的对话）：你的回答也作为你的一句话留在那里，回在卡片那条下面。
+   * 只是记录，不再交给谁，答复已经转给问的任务了。
+   */
+  private echo(wait: Wait, answer: string, input: unknown): void {
+    const roomId = readString(input, 'roomId')
+    if (roomId === '' || answer === '' || !QUESTION_KINDS.has(wait.kind)) return
+    const card = getMessage(this.db, readString(input, 'messageId'))
+    this.deps.rooms.post(roomId, { author: OWNER, kind: 'text', body: answer, replyTo: card?.roomId === roomId ? card.id : null, data: { answerOf: wait.id } })
   }
 
   private forward(wait: Wait, answer: string): void {
@@ -180,14 +216,14 @@ export class WaitService {
       const stillBlocked = task !== undefined && this.blockingFor(task.id) > 0
       if (task !== undefined && task.status === 'waiting' && !stillBlocked) this.deps.setTaskWaiting(task, false)
     }
-    // 聊天室里的等你卡自己收成“已处理”一行，不再另发里程碑。
+    // 对话里的等你卡片自己显示处理结果，不再另发里程碑。
     this.deps.bus.emit({ type: 'waits' })
   }
 
-  /** 对话里问的那句话记下怎么处理的：页面上按钮收起，留一行“你批准了”这样的小字。 */
+  /** 带着这件事卡片的消息（问的那句、前台转告的那句）记下怎么处理的：卡片上的按钮收起，写上处理结果。 */
   private settleMessages(wait: Wait): void {
     const rows = this.db
-      .prepare("SELECT id FROM messages WHERE kind = 'wait' AND json_extract(data, '$.waitId') = ? AND deleted_at IS NULL")
+      .prepare("SELECT id FROM messages WHERE json_extract(data, '$.waitId') = ? AND deleted_at IS NULL")
       .all(wait.id) as unknown as readonly { readonly id: string }[]
     for (const row of rows) {
       const message = getMessage(this.db, row.id)

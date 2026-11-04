@@ -151,6 +151,11 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
     }),
 
     get('/waits', () => ok(pod.waits.open())),
+    get('/wait', (query) => {
+      const id = readId(query, 'id')
+      const wait = id === undefined ? undefined : pod.waits.get(id)
+      return wait === undefined ? fail('not-found', t('找不到这件事')) : ok(wait)
+    }),
 
     // ---------- 例程和通知 ----------
     get('/routines', () => ok(pod.routines.list().map((routine) => ({ ...routine, description: pod.routines.describe(routine) })))),

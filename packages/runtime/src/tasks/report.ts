@@ -17,7 +17,7 @@ import type { BotService } from '../bots/service.ts'
 import type { ToolDefinition } from '../dsh.ts'
 import { isTicket, type Engine } from '../engine/index.ts'
 import type { PodRuntime } from '../pod.ts'
-import { failure, intList, oneOf, podTool, str, strList, success, text, texts, ints } from '../tools/define.ts'
+import { bool, failure, flag, intList, oneOf, podTool, str, strList, success, text, texts, ints } from '../tools/define.ts'
 import type { TaskReplies } from './replies.ts'
 import type { TaskService } from './service.ts'
 import type { Subtasks } from './subtasks.ts'
@@ -31,6 +31,10 @@ export interface ReportArgs {
   readonly questionKind: WaitKind
   /** 问题的几个选项，你点一下就是答复。 */
   readonly options: readonly string[]
+  /** 每个选项下面的一句说明，和选项一一对应，没写的是空串。 */
+  readonly optionNotes: readonly string[]
+  /** 第一个选项是 bot 推荐的。 */
+  readonly recommended: boolean
   readonly aboutMessage: string | null
   readonly replyMessage: string | null
   /** 勾的验收项（组长给子任务写的），编号从 1 开始。 */
@@ -51,7 +55,11 @@ export interface ReportingDeps {
     readonly title: string
     readonly detail: string
     readonly reportId: string | null
+    /** 写给用户的那段说明（汇报的 summary），卡片上显示它；detail 里还带着给 Super-agent 和组长看的 report。 */
+    readonly summary: string
     readonly options: readonly string[]
+    readonly optionNotes: readonly string[]
+    readonly recommended: boolean
   }) => Wait
   readonly notify: (task: Task, event: 'done' | 'failed' | 'stalled') => void
   readonly onRootStateChange: (rootId: string, change: 'delivered') => readonly string[]
@@ -106,7 +114,17 @@ export class TaskReporting {
   }
 
   private ask(session: PodSession, args: ReportArgs, reportId: string | null): void {
-    this.deps.ask({ session, kind: args.questionKind, title: args.question, detail: [args.summary, args.report].filter(Boolean).join('\n\n'), reportId, options: args.options })
+    this.deps.ask({
+      session,
+      kind: args.questionKind,
+      title: args.question,
+      detail: [args.summary, args.report].filter(Boolean).join('\n\n'),
+      reportId,
+      summary: args.summary,
+      options: args.options,
+      optionNotes: args.optionNotes,
+      recommended: args.recommended,
+    })
   }
 
   private ticket(session: PodSession, task: Task, args: ReportArgs): PodResult<{ readonly task: Task; readonly message: string }> {
@@ -240,6 +258,20 @@ export class TaskReporting {
 
 const ASK_KINDS: readonly WaitKind[] = WAIT_KINDS.filter((kind) => kind === 'login' || kind === 'write' || kind === 'security' || kind === 'ambiguity')
 
+/** 问题最多给几个选项。 */
+const MAX_OPTIONS = 6
+
+/** 选项和它下面的说明：一一对应，空的选项连同说明一起不要，没写说明的是空串。 */
+function optionsOf(args: Readonly<Record<string, unknown>>): { readonly options: readonly string[]; readonly notes: readonly string[] } {
+  const listOf = (key: string): readonly string[] => (Array.isArray(args[key]) ? (args[key] as readonly unknown[]).map((item) => (typeof item === 'string' ? item.trim() : '')) : [])
+  const notes = listOf('option_notes')
+  const pairs = listOf('options')
+    .map((option, index): readonly [string, string] => [option, notes[index] ?? ''])
+    .filter(([option]) => option !== '')
+    .slice(0, MAX_OPTIONS)
+  return { options: pairs.map(([option]) => option), notes: pairs.map(([, note]) => note) }
+}
+
 /** 汇报工具：任务会话用它交结果、问问题、报失败，代替以前的 update_task、complete_task、ask_owner。 */
 export function reportTool(pod: PodRuntime, session: PodSession): ToolDefinition {
   const current = (): PodSession => pod.registry.get(session.id) ?? session
@@ -257,7 +289,9 @@ export function reportTool(pod: PodRuntime, session: PodSession): ToolDefinition
       summary: str('发到对话里的话。ready：给用户的完整回答，先一句说答案，再列要点，来源、假设、没核实的写在里面；failed：没做成的原因；progress：一句现在在做什么'),
       report: str('blocked、failed 必填：卡在哪、试过什么、还缺什么，给 Super-agent 和组长看，不发到对话里'),
       question: str('blocked 时要用户处理的事：只问一个问题，一句话说清'),
-      options: strList('问题的选项（2–4 个，能给就给，推荐的放第一个），用户点一下就是答复'),
+      options: strList('问题的选项（2–6 个，能给就给），用户点一下就是答复；有推荐的放第一个，recommended 写 true'),
+      option_notes: strList('每个选项下面的一句说明（选了会怎样、代价），和 options 一一对应'),
+      recommended: bool('第一个选项是你推荐的'),
       question_kind: oneOf('问题的种类：login 需要登录或验证；write 要批准不可撤回的对外操作；security 被安全规则拦下；ambiguity 要用户拿主意', [...ASK_KINDS]),
       about_message: str('问题针对哪条消息（消息 id，可选）'),
       reply_message: str('这次汇报回的是哪条消息（消息 id，可选）'),
@@ -276,13 +310,16 @@ export function reportTool(pod: PodRuntime, session: PodSession): ToolDefinition
       const question = text(args, 'question')
       if (status === 'blocked' && question === '') return 'blocked 要附一个问题'
       const kind = text(args, 'question_kind')
+      const { options, notes } = optionsOf(args)
       return {
         status: status as ReportStatus,
         summary,
         report,
         question,
         questionKind: (ASK_KINDS as readonly string[]).includes(kind) ? (kind as WaitKind) : 'ambiguity',
-        options: texts(args, 'options').slice(0, 4),
+        options,
+        optionNotes: notes,
+        recommended: flag(args, 'recommended') === true && options.length > 0,
         aboutMessage: text(args, 'about_message') || null,
         replyMessage: text(args, 'reply_message') || null,
         checks: ints(args, 'checks'),
