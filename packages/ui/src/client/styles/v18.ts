@@ -38,6 +38,12 @@ export const V18_CSS = `
 .pod-task-child + .pod-task-child { margin-top: 0; }
 .pod-panel-tabs { gap: 2px; }
 .pod-panel-tabs button { padding: 6px 9px; }
+.pod-convo { position: relative; }
+.pod-chat-resize { position: absolute; top: 56px; bottom: 0; left: min(calc(50% + var(--pod-chat-max) / 2), calc(100% - 6px)); z-index: 3; width: 12px; margin-left: -6px; cursor: col-resize; touch-action: none; }
+.pod-chat-resize::after { content: ''; position: absolute; top: 12px; bottom: 12px; left: 5px; width: 2px; border-radius: 1px; background: transparent; transition: background-color .12s ease; }
+.pod-chat-resize:hover::after, .pod-chat-resize:focus-visible::after, .pod-chat-resize-on::after { background: color-mix(in srgb, var(--pod-info) 55%, transparent); }
+.pod-chat-resize:focus-visible { outline: none; }
+.pod-chat-resize-on { cursor: col-resize; }
 @media (min-width: 761px) {
   .pod-convo-head .pod-convo-title { flex-shrink: 0; max-width: 45%; }
   .pod-convo-head .pod-convo-subject { flex: 0 50 auto; }

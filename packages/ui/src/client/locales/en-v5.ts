@@ -42,5 +42,9 @@ export const UI_EN_V5: Readonly<Record<string, string>> = {
   '同一时间只有一个任务能用电脑，几分钟没动静会自动让出来。': 'Only one task can use the computer at a time; it is released after a few idle minutes.',
   '群里的 bot': 'Bots in this group',
   '关掉这个标签页？{ownerName}要重新打开才能继续用。': 'Close this tab? {ownerName} will have to open it again to keep using it.',
+  '在对话区右边缘左右拖动调整，双击边缘恢复默认；只存在这台设备上，手机上总是铺满': 'Drag the right edge of the chat left or right to adjust; double-click the edge to restore the default. Saved on this device only; always full width on phones',
+  '{width} 像素': '{width} px',
+  '聊天宽度：左右拖动调整，双击恢复默认': 'Chat width: drag left or right to adjust, double-click to restore the default',
+  '左右拖动调整聊天宽度，双击恢复默认': 'Drag left or right to adjust the chat width; double-click to restore the default',
   '停着的': 'Stopped or paused',
 }

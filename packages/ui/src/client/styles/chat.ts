@@ -8,7 +8,6 @@ export const CHAT_CSS = `
 .pod-jump-count { position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 9px; corner-shape: round; background: var(--pod-danger); color: #fff; font-size: 11px; line-height: 18px; text-align: center; box-shadow: 0 0 0 2px var(--dsw-alias-bg-layer-1, #fff); }
 @keyframes pod-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .pod-convo { --pod-chat-max: 780px; --pod-card-max: 640px; }
-.pod-width-wide { --pod-chat-max: 1080px; --pod-card-max: 860px; }
 .pod-width-full { --pod-chat-max: 100%; --pod-card-max: 960px; }
 .pod-timeline-inner { display: flex; flex-direction: column; gap: 4px; max-width: var(--pod-chat-max); margin: 0 auto; padding: 8px 24px 24px; }
 .pod-load-older { align-self: center; margin-bottom: 8px; }

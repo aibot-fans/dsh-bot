@@ -4,7 +4,7 @@ import { api, type ModelCatalog } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { Badge, Button, RelativeTime, Segmented, Switch } from '../../components/common.tsx'
 import { useApp } from '../../state/app.ts'
-import { setChatWidth, useChatWidth } from '../../state/chatWidth.ts'
+import { CHAT_WIDTH_DEFAULT, setChatWidth, useChatWidth } from '../../state/chatWidth.ts'
 import { useResource } from '../../state/resource.ts'
 import { AibotRows } from '../aibot/AibotSettings.tsx'
 import { MemoryChanges } from '../memory/MemoryView.tsx'
@@ -69,17 +69,14 @@ export function GeneralPage(props: { readonly settings: PodSettings; readonly up
           label={t('语言')}
         />
       </Row>
-      <Row label={t('聊天区宽度')} hint={t('宽屏上中间对话区多宽；只存在这台设备上，手机上总是铺满')}>
-        <Segmented
-          value={width}
-          options={[
-            ['narrow', t('窄')],
-            ['wide', t('宽')],
-            ['full', t('铺满')],
-          ]}
-          onChange={setChatWidth}
-          label={t('聊天区宽度')}
-        />
+      <Row label={t('聊天区宽度')} hint={t('在对话区右边缘左右拖动调整，双击边缘恢复默认；只存在这台设备上，手机上总是铺满')}>
+        <span className="pod-muted-inline">{width === 'full' ? t('铺满') : t('{width} 像素', { width })}</span>
+        <Button small kind="quiet" disabled={width === CHAT_WIDTH_DEFAULT} onClick={() => setChatWidth(CHAT_WIDTH_DEFAULT)}>
+          {t('恢复默认')}
+        </Button>
+        <Button small kind="quiet" disabled={width === 'full'} onClick={() => setChatWidth('full')}>
+          {t('铺满')}
+        </Button>
       </Row>
       <Row label={t('放手程度')} hint={t('谨慎：bot 组队开工前，先把计划发给你看')}>
         <Segmented
