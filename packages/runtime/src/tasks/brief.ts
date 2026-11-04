@@ -163,7 +163,7 @@ export function runBrief(task: Task, run: TaskRun, context: RunBriefContext): st
       case 'recover':
         return '开工原因：dsh web 重启过，上一次执行被打断了，在后台跑的命令也跟着停了。重启前可能做到一半：对外的操作（发帖、发消息、改远程的东西）先核对做没做过，再决定要不要做。看一下任务文件夹里已有的产出，从停下的地方接着做。'
       case 'resume':
-        return `开工原因：用户点了继续。${task.note === '' ? '' : `你最近的进度说明是：「${task.note}」。`}从停下的地方接着做，已完成的部分不用重做。`
+        return `开工原因：用户让你接着做。${task.note === '' ? '' : `你最近的进度说明是：「${task.note}」。`}从停下的地方接着做，已完成的部分不用重做。`
       case 'trigger':
         return `开工原因：触发器${typeof run.detail.trigger === 'string' ? `「${run.detail.trigger}」` : ''}到点了。${typeof run.detail.note === 'string' ? run.detail.note : ''}`
       case 'review': {

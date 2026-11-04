@@ -1,4 +1,4 @@
-import { OWNER, POD, recurring, t, type Bot, type OriginQuote, type PodSession, type ReplyTarget, type Room, type RoomMessage, type Task, type TriggerSpec } from 'pod-domain'
+import { OWNER, POD, TICKET_STAGE_LABELS, recurring, t, type Bot, type OriginQuote, type PodSession, type ReplyTarget, type Room, type RoomMessage, type Task, type TriggerSpec } from 'pod-domain'
 import { getMessage, taskConversationOf, transaction } from 'pod-store'
 import { ownerSource, relaySource } from '../agents/messages.ts'
 import type { JsonSchema, ToolDefinition } from '../dsh.ts'
@@ -13,8 +13,13 @@ const DISPATCH_MAX = 20
 
 const SELF_NAMES = new Set(['自己', '我', '主管', 'me', 'self', 'lead'])
 
-const ACTIONS = ['open', 'forward', 'stop', 'ignore', 'answer'] as const
+const ACTIONS = ['open', 'forward', 'stop', 'pause', 'resume', 'run', 'ignore', 'answer'] as const
 type Action = (typeof ACTIONS)[number]
+
+/** 按用户的话改任务状态的几种（要写 task）。 */
+const STATE_ACTIONS: ReadonlySet<Action> = new Set(['stop', 'pause', 'resume', 'run'])
+
+const STATE_ROUTES = { stop: 'stopped', pause: 'paused', resume: 'resumed', run: 'ran' } as const
 
 interface Item {
   readonly messages: readonly string[]
@@ -37,14 +42,17 @@ const ITEM_SCHEMA: JsonSchema = {
   type: 'object',
   properties: {
     messages: { type: 'array', items: { type: 'string' }, description: '这一项管哪几条消息（消息 id）；说的是同一件事的放在一起' },
-    action: oneOf('open 开任务 / forward 转给任务 / stop 停任务 / ignore 不用处理 / answer 直接答（用 reply 答）', [...ACTIONS]),
+    action: oneOf(
+      'open 开任务 / forward 转给任务 / stop 停任务 / pause 暂停（先等等）/ resume 接着做（暂停的、停掉的、没做成的、暂停的例程）/ run 例程现在跑一次 / ignore 不用处理 / answer 直接答（用 reply 答）',
+      [...ACTIONS],
+    ),
     title: str('open：任务标题，简短'),
     bot: str('open：交给谁（名字或 id；交给自己写“自己”）'),
     brief: str(
       'open：交代全文，就是干活的 bot 在任务对话里看到的第一条（用户也看得到）。它看不到这边的对话，要单独能看懂：先引用户原话，再写要做成什么、它不知道的背景和用户定过的要求、要弄清的几点、给谁看、要多细；不写怎么做，不写 id、文件夹、验收项。forward：一条完整的后续：用户又说了什么（引原话）、要改什么、哪些不动',
     ),
     members: { type: 'array', items: { type: 'string' }, description: 'open：要几个 bot 一起做时，写负责的 bot 以外的成员（名字或 id），开成任务群；一个 bot 能做完的不写' },
-    task: str('forward、stop：任务 id'),
+    task: str('forward、stop、pause、resume、run：任务 id'),
     reason: str('ignore：一句原因'),
     urgent: bool('open：用户说了急'),
     trigger: {
@@ -66,7 +74,7 @@ function readItems(args: Readonly<Record<string, unknown>>): readonly Item[] | s
     const messages = Array.isArray(entry.messages) ? entry.messages.filter((id): id is string => typeof id === 'string' && id.trim() !== '').map((id) => id.trim()) : []
     const action = text(entry, 'action')
     if (messages.length === 0) return '每一项都要写 messages（消息 id）'
-    if (!(ACTIONS as readonly string[]).includes(action)) return 'action 只能是 open、forward、stop、ignore、answer'
+    if (!(ACTIONS as readonly string[]).includes(action)) return `action 只能是 ${ACTIONS.join('、')}`
     const item: Item = {
       messages,
       action: action as Action,
@@ -81,7 +89,7 @@ function readItems(args: Readonly<Record<string, unknown>>): readonly Item[] | s
       trigger: typeof entry.trigger === 'object' && entry.trigger !== null && !Array.isArray(entry.trigger) ? (entry.trigger as Readonly<Record<string, unknown>>) : undefined,
     }
     if (item.action === 'open' && item.title === '') return 'open 要写 title'
-    if ((item.action === 'forward' || item.action === 'stop') && item.task === '') return `${item.action} 要写 task（任务 id）`
+    if ((item.action === 'forward' || STATE_ACTIONS.has(item.action)) && item.task === '') return `${item.action} 要写 task（任务 id）`
     if (item.action === 'ignore' && item.reason === '') return 'ignore 要写一句 reason'
     items.push(item)
   }
@@ -101,7 +109,7 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
     if (message === undefined || message.deletedAt !== null) return `${id}：找不到这条消息`
     if (pod.engine.topics.awaiting(id, session.botId)) return message
     const held = pod.engine.topics.routes(id).find((route) => route.route === 'direct' && route.taskId !== null)
-    if (held !== undefined) return action === 'stop' ? message : `${id}：已经直通任务 ${held.taskId}，任务在管；只有用户要求停下时才能 stop`
+    if (held !== undefined) return STATE_ACTIONS.has(action) ? message : `${id}：已经直通任务 ${held.taskId}，任务在管；只有用户要求停下、先等等、接着做时才能改它的状态`
     const decided = pod.engine.topics.routes(id).some((route) => route.botId === session.botId && route.route !== 'front')
     return decided ? `${id}：已经记过去向了` : `${id}：这条不是交给你的消息`
   }
@@ -249,6 +257,39 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
     return errors.length > 0 ? errors.join('；') : `转给了「${task.title}」`
   }
 
+  /**
+   * 按用户的话改任务状态：暂停（例程是到点先不跑）、接着做（暂停的继续，停掉的重新打开，没做成的再做一次，暂停的例程恢复）、
+   * 例程现在跑一次。返回做成了的那句，或者为什么没做。
+   */
+  const changeState = async (action: 'pause' | 'resume' | 'run', task: Task): Promise<{ readonly ok: boolean; readonly line: string }> => {
+    const routine = pod.routines.get(task.id)
+    const done = (line: string) => ({ ok: true, line })
+    const refused = (line: string) => ({ ok: false, line })
+    if (action === 'run') {
+      if (routine === undefined) return refused(`「${task.title}」不是例程；要它接着做用 resume，要它做新的事用 forward`)
+      const ran = await pod.routines.runNow({ id: task.id })
+      return ran.ok ? done(`「${task.title}」现在跑一次，结果出来照常发`) : refused(ran.error.message)
+    }
+    if (action === 'pause') {
+      if (routine !== undefined && task.pausedAt === null) {
+        if (!routine.enabled) return done(`例程「${task.title}」本来就暂停着`)
+        const paused = pod.routines.update({ id: task.id, patch: { enabled: false } }, session.botId)
+        return paused.ok ? done(`暂停了例程「${task.title}」：到点先不跑，用户说接着做再恢复`) : refused(paused.error.message)
+      }
+      const paused = pod.tasks.control(task.id, 'pause', session.botId)
+      return paused.ok ? done(`暂停了「${task.title}」：重启也不会自己接着做，用户说接着做才继续；这期间用户在任务里问它，它只回话`) : refused(paused.error.message)
+    }
+    if (routine !== undefined && !routine.enabled && task.pausedAt === null) {
+      const resumed = pod.routines.update({ id: task.id, patch: { enabled: true } }, session.botId)
+      return resumed.ok ? done(`恢复了例程「${task.title}」：${pod.routines.describeNext(resumed.value)}`) : refused(resumed.error.message)
+    }
+    const stage = pod.engine.tickets.stageOf(task)
+    if (task.endedAt !== null && task.endReason !== 'stopped') return refused(`「${task.title}」已经做完了；用户要改或接着问，用 forward 转给它`)
+    if (task.endedAt === null && task.pausedAt === null && stage !== 'failed' && stage !== 'blocked') return refused(`「${task.title}」没停（现在${TICKET_STAGE_LABELS[stage]}）；用户接着说的话用 forward 转给它`)
+    const resumed = pod.tasks.control(task.id, stage === 'failed' || stage === 'blocked' ? 'retry' : 'resume', session.botId)
+    return resumed.ok ? done(`「${task.title}」接着做了`) : refused(resumed.error.message)
+  }
+
   const apply = async (item: Item): Promise<{ readonly ok: boolean; readonly line: string }> => {
     const found = item.messages.map((id) => assigned(id, item.action))
     const problems = found.filter((value): value is string => typeof value === 'string')
@@ -274,6 +315,20 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
         })
         return { ok: true, line: `${ids}：停了「${stopped.value.title}」` }
       }
+      case 'pause':
+      case 'resume':
+      case 'run': {
+        const task = pod.tasks.get(item.task)
+        if (task === undefined || task.parentId !== null) return { ok: false, line: `${ids}：找不到任务 ${item.task}` }
+        const route = STATE_ROUTES[item.action]
+        const changed = await changeState(item.action, task)
+        if (changed.ok) {
+          transaction(pod.db, () => {
+            for (const message of messages) if (pod.engine.topics.awaiting(message.id, session.botId)) pod.engine.topics.decide(message.id, session.botId, route, task.id)
+          })
+        }
+        return { ok: changed.ok, line: `${ids}：${changed.line}` }
+      }
       case 'ignore':
       case 'answer':
         transaction(pod.db, () => {
@@ -288,7 +343,8 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
     description: [
       '给新消息记去向，一次 1 到 20 条，几条说的是同一件事放在同一项里。每条新消息都要有去向：',
       'open 开任务交给对口的 bot（要查要跑的、要写成长东西的），brief 写交代；forward 转给明确指向的任务（同时让它跟进那条消息所在的话题），brief 写完整的后续；',
-      'stop 用户要求时停任务；ignore 不用处理（写原因）；answer 直接答，然后用 reply 答（reply 回的那条会自动记成直接答，不用再记）。',
+      '按用户的话改任务状态也用它：stop 停任务，pause 暂停（用户说先等等），resume 接着做（暂停的、停掉的、没做成的、暂停的例程），run 让例程现在跑一次；',
+      'ignore 不用处理（写原因）；answer 直接答，然后用 reply 答（reply 回的那条会自动记成直接答，不用再记）。',
     ].join(''),
     properties: { items: { type: 'array', items: ITEM_SCHEMA, description: '每项一个去向' } },
     required: ['items'],

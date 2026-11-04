@@ -5,7 +5,7 @@
  *   再 reply（confirm）一句“交给某某了，做好我直接告诉你”，任务卡挂在这句下面。
  * - [转告]（任务问用户、没做成）：reply（relay）在派活的聊天室说一句，挂上那个任务。交的回答 dsh-bot 以前台的名义原样发，不经过这里。
  * - “转达给任务 task_x：…”：forward 转过去（说的是方案 A、B 的当成回答它在问的问题，不写后续），再 reply（confirm，挂上那个任务）一句。
- * - “停掉任务 task_x”：stop。
+ * - “停掉任务 task_x”：stop；“先等等 task_x”：pause；“接着做 task_x”：resume；“现在跑一次 task_x”：run。
  * - “谢谢”：ignore。
  * - “@ 一下 某某”：mention_member 叫它，再记 answer。
  * - 被别的成员点名、话里有“应一声”：学真实模型的毛病先 @ 回去（dsh-bot 应该拦下），再直接 reply。
@@ -157,6 +157,11 @@ function stepsFor(item, context) {
   }
   const stop = /停掉任务 (task_[0-9a-z]+)/.exec(body)?.[1]
   if (stop !== undefined) return [dispatch(id, { action: 'stop', task: stop })]
+  const state = /(先等等|接着做|现在跑一次) (task_[0-9a-z]+)/.exec(body)
+  if (state !== null) {
+    const action = { 先等等: 'pause', 接着做: 'resume', 现在跑一次: 'run' }[state[1]]
+    return [dispatch(id, { action, task: state[2] }), (result) => ({ tool: 'reply', args: { to: id, purpose: 'answer', task: state[2], text: `（测试模型）${result.split('\n')[0].replace(/^msg_[0-9a-z、]+：/, '')}` } })]
+  }
   if (/^(谢谢|多谢|好的谢谢)/.test(body.trim())) return [dispatch(id, { action: 'ignore', reason: '道谢，不用处理' })]
   const asked = /@ ?一下\s*([^\s，。,、：:]+)/.exec(body)?.[1]
   if (asked !== undefined && tools.has('mention_member')) {

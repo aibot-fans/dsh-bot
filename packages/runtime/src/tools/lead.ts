@@ -1,4 +1,4 @@
-import { BOT_PRESETS, TICKET_STAGE_LABELS, TOOL_PROFILES, botLabel, botPreset, groupNameMax, isActive, t, validateDraft, type Bot, type ModelChoice, type PodSession, type ToolProfile } from 'pod-domain'
+import { BOT_PRESETS, TOOL_PROFILES, botLabel, botPreset, groupNameMax, isActive, t, validateDraft, type Bot, type ModelChoice, type PodSession, type ToolProfile } from 'pod-domain'
 import { getMessage, listRooms } from 'pod-store'
 import type { ToolDefinition } from '../dsh.ts'
 import type { PodRuntime } from '../pod.ts'
@@ -192,7 +192,7 @@ function pendingRoom(pod: PodRuntime, session: PodSession): string | undefined {
     .at(-1)?.roomId
 }
 
-/** 前台看任务、控制任务：查进度、重试、暂停、继续、停止。 */
+/** 前台看任务：查进度、问看门狗为什么卡住。改任务状态（停、暂停、接着做、例程现在跑一次）用 dispatch，去向和动作记在一起。 */
 export function taskInfoTools(pod: PodRuntime, session: PodSession): readonly ToolDefinition[] {
   const taskStatus = podTool({
     name: 'task_status',
@@ -211,25 +211,6 @@ export function taskInfoTools(pod: PodRuntime, session: PodSession): readonly To
     },
   })
 
-  const control = podTool({
-    name: 'control_task',
-    description: '让失败、受阻的任务再做一次（retry），用户说暂停、继续、停止时直接执行。暂停：停下这次执行；继续：接着做；停止：结束任务，之后用户可以点继续。停止只在用户要求时用。',
-    properties: {
-      task_id: str('任务 id'),
-      action: oneOf('retry 再做一次 / pause 暂停 / resume 继续 / stop 停止', ['retry', 'pause', 'resume', 'stop']),
-    },
-    required: ['task_id', 'action'],
-    parse: (args) => {
-      const action = text(args, 'action')
-      if (!['retry', 'pause', 'resume', 'stop'].includes(action)) return 'action 只能是 retry、pause、resume、stop'
-      return { taskId: text(args, 'task_id'), action: action as 'retry' | 'pause' | 'resume' | 'stop' }
-    },
-    run: ({ taskId, action }) => {
-      const result = pod.tasks.control(taskId, action, session.botId)
-      return result.ok ? success(`「${result.value.title}」现在是${result.value.ticketStage === null ? result.value.status : TICKET_STAGE_LABELS[result.value.ticketStage]}`) : failure(result.error.message)
-    },
-  })
-
   const diagnose = podTool({
     name: 'diagnose_task',
     description: '问看门狗一个任务为什么卡住、有没有在推进。只读，不会打断任务；回答里引用任务事件的 id（#12）。用户问“怎么还没好”“是不是卡住了”时用。',
@@ -244,5 +225,5 @@ export function taskInfoTools(pod: PodRuntime, session: PodSession): readonly To
     },
   })
 
-  return [taskStatus, control, diagnose]
+  return [taskStatus, diagnose]
 }

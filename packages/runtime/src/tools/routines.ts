@@ -1,7 +1,7 @@
 import type { Bot, PodSession } from 'pod-domain'
 import type { ToolDefinition } from '../dsh.ts'
 import type { PodRuntime } from '../pod.ts'
-import { bool, failure, int, podTool, str, success, text } from './define.ts'
+import { failure, int, podTool, str, success, text } from './define.ts'
 import { SCHEDULE_PROPS, readSchedule } from './schedule.ts'
 
 /**
@@ -82,7 +82,7 @@ export function routineTools(pod: PodRuntime, session: PodSession): readonly Too
   const change = podTool({
     name: 'update_routine',
     description: [
-      `改${lead ? '' : '你名下的'}一个例程或盯网页：名字、指令、时间、页面、${lead ? '谁来做、' : ''}结果发到哪，或者暂停、恢复。只写要改的，没写的不变。`,
+      `改${lead ? '' : '你名下的'}一个例程或盯网页：名字、指令、时间、页面、${lead ? '谁来做、' : ''}结果发到哪。只写要改的，没写的不变。暂停、恢复、现在跑一次、不要了用 dispatch（pause、resume、run、stop，task 写例程 id）。`,
       '时间的写法和 create_routine 一样；盯网页改 interval_minutes。',
       '返回改好以后的安排和下次运行时间，以它为准，不用再去查库或者另外验证。',
     ].join(''),
@@ -95,7 +95,6 @@ export function routineTools(pod: PodRuntime, session: PodSession): readonly Too
       page: str('每次运行都更新这个页面（页面 id）；写 none 不再更新页面'),
       ...(lead ? { bot: str('换成哪个 bot 来做：bot 名字') } : {}),
       room: str('结果发到哪：「这里」是当前房间，「单聊」是负责的 bot 和用户的单聊，也可以写群名'),
-      enabled: bool('false 暂停，true 恢复'),
     },
     required: ['routine'],
     parse: (args) => {
@@ -110,7 +109,6 @@ export function routineTools(pod: PodRuntime, session: PodSession): readonly Too
         page: text(args, 'page'),
         bot: lead ? text(args, 'bot') : '',
         room: text(args, 'room'),
-        enabled: typeof args.enabled === 'boolean' ? args.enabled : undefined,
       }
     },
     run: (args) => {
@@ -129,7 +127,6 @@ export function routineTools(pod: PodRuntime, session: PodSession): readonly Too
         ...(args.page === '' ? {} : { pageId: args.page === 'none' ? null : args.page }),
         ...(target === undefined ? {} : { botId: target.id }),
         ...(room === undefined ? {} : { roomId: room.id }),
-        ...(args.enabled === undefined ? {} : { enabled: args.enabled }),
       }
       if (Object.keys(patch).length === 0) return failure('没写要改什么')
       const result = pod.routines.update({ id: routine.id, patch }, current().botId)

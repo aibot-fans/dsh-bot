@@ -27,12 +27,28 @@ export interface TopicFollow {
 
 /**
  * 一条消息的去向，每一步记一行：直通了哪个任务、交给前台、前台转给任务、任务确认、任务交还、
- * 任务结束时没读退回前台、被挡掉；前台的判断：开了任务、停了任务、不用处理、直接答，一轮结束还没判断的记成漏掉。
+ * 任务结束时没读退回前台、被挡掉；前台的判断：开了任务、停了、暂停了、让它接着做、让例程现在跑一次、不用处理、直接答，
+ * 一轮结束还没判断的记成漏掉。
  */
-export type RouteKind = 'direct' | 'front' | 'relayed' | 'acked' | 'handed_back' | 'returned' | 'blocked' | 'opened' | 'stopped' | 'ignored' | 'answered' | 'missed'
+export type RouteKind =
+  | 'direct'
+  | 'front'
+  | 'relayed'
+  | 'acked'
+  | 'handed_back'
+  | 'returned'
+  | 'blocked'
+  | 'opened'
+  | 'stopped'
+  | 'paused'
+  | 'resumed'
+  | 'ran'
+  | 'ignored'
+  | 'answered'
+  | 'missed'
 
 /** 前台给出的判断：交给前台以后有了其中一条，这条消息在这个前台就算有去向了。 */
-export const FRONT_DECISIONS: readonly RouteKind[] = ['opened', 'relayed', 'stopped', 'ignored', 'answered', 'missed']
+export const FRONT_DECISIONS: readonly RouteKind[] = ['opened', 'relayed', 'stopped', 'paused', 'resumed', 'ran', 'ignored', 'answered', 'missed']
 
 export interface MessageRoute {
   readonly id: number
@@ -59,6 +75,9 @@ export const ROUTE_LABELS: Readonly<Record<RouteKind, string>> = {
   blocked: '挡掉',
   opened: '前台开了任务',
   stopped: '前台停了任务',
+  paused: '前台暂停了任务',
+  resumed: '前台让任务接着做',
+  ran: '前台让例程现在跑一次',
   ignored: '前台判断不用处理',
   answered: '前台直接答了',
   missed: '前台漏掉',
