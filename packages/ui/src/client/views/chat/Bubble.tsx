@@ -1,11 +1,13 @@
 import type { ReactNode } from 'react'
 import { OWNER, POD, oneLine, t, type Bot, type RoomMessage } from 'pod-domain'
 import { Avatar, nameColor } from '../../components/common.tsx'
+import { Icon } from '../../components/Icon.tsx'
+import { useApp } from '../../state/app.ts'
 import { BubbleTail } from './BubbleTail.tsx'
 import { fullTime } from './bubbles.ts'
 import { useOpenBot } from './openBot.ts'
 
-/** 引用里最多放这么多字（显示时最多两行）。 */
+/** 引用里最多放这么多字（显示时只有一行）。 */
 const QUOTE_CHARS = 160
 
 export function authorName(author: string, bots: ReadonlyMap<string, Bot>): string {
@@ -23,22 +25,33 @@ function quoteText(quoted: RoomMessage): string {
   return oneLine(quoted.body).slice(0, QUOTE_CHARS)
 }
 
-/** bot 的话上面的引用：一个带边框的小框，左边那一列是原话那人的小头像（你的是一个“你”字）。 */
-function QuotePill(props: { readonly quoted: RoomMessage; readonly bots: ReadonlyMap<string, Bot> }) {
+/**
+ * 回的那句话不在旁边、看不出回的是哪句时，气泡上面一行灰色小字：“回复你：……”（只写一行），点一下跳到原话；
+ * 回的是任务卡时写“回复任务：任务名”，点一下在右边看任务详情。你点“回复”引的和 bot 回的都这么画，左右跟着气泡。
+ */
+function ReplyRef(props: { readonly quoted: RoomMessage; readonly bots: ReadonlyMap<string, Bot> }) {
+  const app = useApp()
   const { quoted } = props
+  const name = authorName(quoted.author, props.bots)
   const text = quoteText(quoted)
+  // 回的是任务卡：点了在右边看那个任务的详情。
+  const taskId = quoted.kind === 'task-card' && typeof quoted.data.taskId === 'string' ? quoted.data.taskId : undefined
   return (
-    <div className="pod-quote-pill" title={t('{name}：{text}', { name: authorName(quoted.author, props.bots), text })}>
-      <span className="pod-quote-who" aria-hidden>
-        {quoted.author === OWNER ? <span className="pod-you-avatar">{t('你')}</span> : <Avatar bot={props.bots.get(quoted.author)} size={16} />}
-      </span>
-      <span className="pod-quote-text">{text}</span>
-    </div>
+    <button
+      type="button"
+      className="pod-reply-ref"
+      onClick={() => (taskId === undefined ? app.focusMessage(quoted.roomId, quoted.seq, quoted.id) : app.showTask(taskId))}
+      title={taskId === undefined ? t('{name}：{text}', { name, text }) : t('看任务「{title}」的详情', { title: text })}
+    >
+      <Icon name="reply" size={12} />
+      <span className="pod-reply-who">{taskId === undefined ? t('回复{name}：', { name }) : t('回复任务：')}</span>
+      <span className="pod-reply-text">{text}</span>
+    </button>
   )
 }
 
 /**
- * bot 的一条：几个人说话的对话里，一组话的第一条上面写名字；回的话不在旁边时上面引一小段；
+ * bot 的一条：几个人说话的对话里，一组话的第一条上面写名字；看不出回的是哪句时上面一行小字写出来；
  * 一组的最后一条左边那一列是头像（和气泡底边对齐），灰气泡带尾巴。等你、X 事件这些卡片不套气泡。
  */
 export function BotBubble(props: {
@@ -63,7 +76,7 @@ export function BotBubble(props: {
           {name}
         </span>
       ) : null}
-      {props.quoted === undefined ? null : <QuotePill quoted={props.quoted} bots={props.bots} />}
+      {props.quoted === undefined ? null : <ReplyRef quoted={props.quoted} bots={props.bots} />}
       <div className={`pod-bubble-wrap${props.card === undefined ? '' : ' pod-bubble-wrap-card'}`}>
         {props.last ? (
           <button type="button" className="pod-msg-avatar" onClick={() => bot !== undefined && showBot(bot.id)} aria-label={t('{authorName} 的详情', { authorName: name })}>
@@ -81,16 +94,12 @@ export function BotBubble(props: {
   )
 }
 
-/** 你的一条：靠右的灰气泡，一组的最后一条带尾巴；回的话不在旁边时，上面一条左边框的小块引着原话。 */
+/** 你的一条：靠右的灰气泡，一组的最后一条带尾巴；回的话不在旁边时，上面一行小字写回的是哪句。 */
 export function OwnerBubble(props: { readonly message: RoomMessage; readonly bots: ReadonlyMap<string, Bot>; readonly last: boolean; readonly quoted: RoomMessage | undefined; readonly children: ReactNode }) {
   const { quoted } = props
   return (
     <>
-      {quoted === undefined ? null : (
-        <div className="pod-quote-owner" title={t('{name}：{text}', { name: authorName(quoted.author, props.bots), text: quoteText(quoted) })}>
-          {quoteText(quoted)}
-        </div>
-      )}
+      {quoted === undefined ? null : <ReplyRef quoted={quoted} bots={props.bots} />}
       <div className="pod-bubble pod-bubble-owner" title={fullTime(props.message.createdAt)}>
         {props.children}
         {props.last ? <BubbleTail side="right" /> : null}

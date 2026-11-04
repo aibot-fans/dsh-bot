@@ -10,7 +10,7 @@ import { isPreparing, useApp, useLive, useNav, usePodEvent } from '../../state/a
 import { useResource } from '../../state/resource.ts'
 import { ActivityLine, type Responding } from './ActivityLine.tsx'
 import { arrange, shownInChat } from './arrange.ts'
-import { answersRightAbove, layoutOf } from './bubbles.ts'
+import { layoutOf, needsReplyRef } from './bubbles.ts'
 import { MessageItem } from './MessageItem.tsx'
 import { useOpenBot } from './openBot.ts'
 
@@ -305,10 +305,10 @@ export function Timeline(props: TimelineProps) {
   const chipped = new Set(
     room.taskId !== null ? [] : ordered.filter((message) => message.author !== OWNER && message.kind === 'text' && typeof message.data.taskId === 'string').map((message) => message.id),
   )
-  // 回的那句话不在旁边（中间隔了别人的话）才在气泡上面引一小段。
+  // 分不清回的是哪句时，气泡上面一行小字写出来（见 needsReplyRef）。
   const quotes = new Map(
     ordered.flatMap((message, index): [string, RoomMessage][] => {
-      const target = message.replyTo === null || unquoted.has(message.id) || answersRightAbove(ordered, index) ? undefined : byId.get(message.replyTo)
+      const target = message.replyTo === null || unquoted.has(message.id) || !needsReplyRef(ordered, index) ? undefined : byId.get(message.replyTo)
       return target === undefined ? [] : [[message.id, target]]
     }),
   )

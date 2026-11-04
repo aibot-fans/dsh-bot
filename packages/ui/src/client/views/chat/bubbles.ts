@@ -74,13 +74,19 @@ export function layoutOf(messages: readonly RoomMessage[], quoted: (message: Roo
 }
 
 /**
- * 回的那句话就在上面（中间只隔着同一个人说的话和它的卡片）：不用再引一遍。
- * 隔了别人的话才在气泡上面放一小段引用。
+ * 气泡上面要不要写回的是哪句。你点“回复”引的：原话不在紧上面（中间隔了别人的话）就写。
+ * bot 回的：回的是那个人最近说的一句（比如你刚说的，中间只隔着别的 bot 的话），看得出来，不写；
+ * 那个人后来又说了话、分不清回的是哪句时才写。
  */
-export function answersRightAbove(messages: readonly RoomMessage[], index: number): boolean {
+export function needsReplyRef(messages: readonly RoomMessage[], index: number): boolean {
   const message = messages[index]
   if (message === undefined || message.replyTo === null) return false
   const before = messages.slice(0, index)
-  const stop = before.findLast((previous) => previous.id === message.replyTo || previous.author !== message.author)
-  return stop?.id === message.replyTo
+  if (message.author === OWNER) {
+    const stop = before.findLast((previous) => previous.id === message.replyTo || previous.author !== message.author)
+    return stop?.id !== message.replyTo
+  }
+  const target = before.find((previous) => previous.id === message.replyTo)
+  if (target === undefined) return true
+  return before.findLast((previous) => previous.author === target.author)?.id !== target.id
 }

@@ -9,6 +9,13 @@ export const V18_CSS = `
 .pod-fix ol { margin: 0; padding-left: 20px; }
 .pod-fix .pod-row { flex-wrap: wrap; }
 .pod-fix .pod-muted { margin: 0; font-size: 12px; }
+.pod-reply-ref { appearance: none; display: flex; align-items: center; gap: 4px; max-width: min(420px, 100%); margin: 0 0 3px; padding: 0 4px; border: 0; background: none; color: var(--dsw-alias-label-tertiary); font: inherit; font-size: 12px; line-height: 18px; cursor: pointer; }
+.pod-reply-ref:hover { color: var(--dsw-alias-label-secondary); }
+.pod-reply-ref:hover .pod-reply-text { text-decoration: underline; }
+.pod-reply-ref:focus-visible { outline: 2px solid var(--pod-info); outline-offset: 1px; border-radius: 4px; }
+.pod-reply-ref svg { flex: none; }
+.pod-reply-who { flex: none; }
+.pod-reply-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pod-task-hero { display: flex; flex-direction: column; gap: 6px; padding: 2px 4px 0; }
 .pod-task-hero-title { font-size: 17px; line-height: 1.4; }
 .pod-task-section-body { margin: 0; padding: 2px 14px 10px; font-size: 13.5px; }

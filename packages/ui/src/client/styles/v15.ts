@@ -1,6 +1,6 @@
 /**
  * 对话照 Comma：你的话是靠右的灰气泡（@ 到的名字是蓝的，气泡不用蓝色免得撞色），bot 的话是靠左的灰气泡，一组的最后一个带尾巴，头像在左边那一列、和那组最后一个气泡底边对齐。
- * 时间居中，隔一段时间才写一次；回的话不在旁边时，气泡上面一小段引用；说到任务的气泡开头是任务记号。
+ * 时间居中，隔一段时间才写一次；回的话看不出是哪句时，气泡上面一行小字“回复谁：原话”；说到任务的气泡开头是任务记号。
  * 回答过程是对话最底下一个灰气泡，只有一行字（这一步在做什么、想的最后一句、输入中），字上一道光慢慢扫过；
  * 几个 bot 一起或交出去的任务在做时，气泡里是它们的小头像。
  */
@@ -34,11 +34,6 @@ export const V15_CSS = `
 .pod-bubble-chip .pod-task-chip:hover { background: color-mix(in srgb, var(--dsw-alias-label-primary) 12%, var(--pod-bot-bubble)); }
 .pod-bubble-chip .pod-task-chip .pod-task-chip-title { font-weight: 500; }
 
-.pod-quote-pill { position: relative; display: flex; align-items: center; max-width: min(420px, 100%); margin: 0 0 6px; padding: 4px 10px; border: 1px solid var(--pod-line); border-radius: 14px; font-size: 12.5px; line-height: 18px; color: var(--dsw-alias-label-tertiary); }
-.pod-quote-who { position: absolute; left: -32px; top: 50%; display: inline-flex; transform: translateY(-50%); }
-.pod-quote-text { min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.pod-you-avatar { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: color-mix(in srgb, var(--pod-owner-bubble) 22%, var(--dsw-alias-bg-layer-1, #fff)); color: var(--pod-owner-bubble); font-size: 9px; font-weight: 700; }
-.pod-quote-owner { max-width: min(62%, 480px); margin: 0 0 6px; padding: 5px 10px; border-left: 3px solid color-mix(in srgb, var(--pod-owner-bubble) 25%, transparent); border-radius: 4px; background: color-mix(in srgb, var(--pod-owner-bubble) 5%, var(--dsw-alias-bg-layer-1, #fff)); color: var(--dsw-alias-label-tertiary); font-size: 12.5px; line-height: 18px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
 .pod-msg-gutter { flex: none; display: flex; align-items: flex-end; width: 28px; }
 .pod-msg-label { margin: 0 0 3px 13px; font-size: 12px; line-height: 16px; font-weight: 600; }
