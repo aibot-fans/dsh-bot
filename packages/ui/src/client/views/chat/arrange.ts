@@ -8,10 +8,12 @@ const HIDDEN: ReadonlySet<string> = new Set(['milestone', 'receipt', 'browser', 
 
 /**
  * 对话里只有对话：上面这几种都不放；任务群里回合出错也不放（任务自己重试，恢复不了才变成等你）。
- * 消息本身照旧留着，任务页的时间线里还在。
+ * 任务卡只在 Super-agent 的主对话里放（cards）：群、任务对话、成员单聊里以前挂的不再显示，干了什么在详情的动态里；
+ * 活另开了对话在别处干的（卡上带着那段对话）和常开任务的卡照旧。消息本身照旧留着。
  */
-export function shownInChat(message: RoomMessage, taskRoom: boolean): boolean {
+export function shownInChat(message: RoomMessage, taskRoom: boolean, cards: boolean): boolean {
   if (HIDDEN.has(message.kind)) return false
+  if (message.kind === 'task-card' && !cards && message.data.standing !== true && (typeof message.data.roomId !== 'string' || message.data.roomId === message.roomId)) return false
   return !(taskRoom && message.kind === 'notice' && message.data.turnError !== undefined)
 }
 

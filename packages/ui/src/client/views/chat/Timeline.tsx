@@ -289,7 +289,9 @@ export function Timeline(props: TimelineProps) {
     return { sessionId, stream, status, botId: stream?.botId ?? status?.botId ?? '' }
   })
   const replies = sessions.filter((reply) => !isPreparing(reply.sessionId) || !sessions.some((other) => !isPreparing(other.sessionId) && other.botId === reply.botId))
-  const blocks = arrange(messages.filter((message) => shownInChat(message, room.taskId !== null)))
+  // 任务卡只在 Super-agent 的主对话里放（见 shownInChat）。
+  const lead = room.kind === 'direct' && room.taskId === null && room.botId !== null && props.bots.get(room.botId)?.role === 'lead'
+  const blocks = arrange(messages.filter((message) => shownInChat(message, room.taskId !== null, lead)))
   // 一次开了几个任务：任务卡都不出，开任务那句里的任务链接就够了；恰好一个新任务才在那句下面出卡片。
   const crowded = new Set(blocks.flatMap((block) => {
     const cards = block.cards.filter((card) => card.kind === 'task-card')
@@ -309,6 +311,8 @@ export function Timeline(props: TimelineProps) {
   const quotes = new Map(
     ordered.flatMap((message, index): [string, RoomMessage][] => {
       const target = message.replyTo === null || unquoted.has(message.id) || !needsReplyRef(ordered, index) ? undefined : byId.get(message.replyTo)
+      // 回的是不显示的旧任务卡，自己又挂着那个任务的记号：记号就说明了是哪件事，不再多写一行。
+      if (target?.kind === 'task-card' && chipped.has(message.id) && target.data.taskId === message.data.taskId) return []
       return target === undefined ? [] : [[message.id, target]]
     }),
   )
