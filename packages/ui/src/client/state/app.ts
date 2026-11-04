@@ -2,6 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useSyncExternalStore
 import { TEMPORARY_TOPIC, isTemporaryRoom, t, type MemoryScopeKind, type PodEvent, type PodNotification, type PodSettings, type RoomSummary, type TurnProgress } from 'pod-domain'
 import { api } from '../api/endpoints.ts'
 import { PodEvents } from '../api/events.ts'
+import { NARROW_QUERY, matches } from '../components/media.ts'
+import { setGroupDetailsWanted } from './groupDetails.ts'
 import { ResourceCache } from './resource.ts'
 
 export type BotTab = 'details' | 'pages' | 'library' | 'automations' | 'tasks' | 'browser' | 'computer'
@@ -243,8 +245,16 @@ export class AppState {
     this.showBot(botId, 'details', room !== undefined && room.kind !== 'direct' && room.memberIds.includes(botId) ? room.id : undefined)
   }
 
+  /** 打开群详情；宽屏上打开的是群聊的详情，就记成“群详情开着”，之后进群默认打开（见 groupDetails）。 */
   showGroup(roomId: string, tab: GroupTab = 'details'): void {
+    if (this.plainGroup(roomId) && !matches(NARROW_QUERY)) setGroupDetailsWanted(true)
     this.navigate({ panel: { kind: 'group', roomId, tab } })
+  }
+
+  /** 群聊（不是任务对话）：群详情开着还是关着，记在这台设备上的只算它。 */
+  private plainGroup(roomId: string): boolean {
+    const room = this.cache.snapshot<readonly RoomSummary[]>('rooms').data?.find((item) => item.id === roomId)
+    return room !== undefined && room.kind !== 'direct' && room.taskId === null
   }
 
   /** 打开一个对话的详情：单聊是那个 bot 的详情，群聊是群详情。 */
@@ -260,7 +270,10 @@ export class AppState {
     this.navigate({ panel: { kind: 'browser', tabId, botId, ...(roomId === undefined ? {} : { roomId }), ...(back === undefined || back === null ? {} : { back }) } })
   }
 
+  /** 关掉右边的面板；宽屏上关的是群聊的详情，就记住，之后进群不再自动打开。 */
   closePanel(): void {
+    const panel = this.nav.panel
+    if (panel?.kind === 'group' && this.plainGroup(panel.roomId) && !matches(NARROW_QUERY)) setGroupDetailsWanted(false)
     this.navigate({ panel: null })
   }
 

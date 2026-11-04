@@ -5,6 +5,7 @@ import { Empty } from '../../components/common.tsx'
 import { useNarrow } from '../../components/media.ts'
 import { useApp, useNav } from '../../state/app.ts'
 import { chatWidthStyle, useChatWidth } from '../../state/chatWidth.ts'
+import { groupDetailsWanted } from '../../state/groupDetails.ts'
 import { useResource } from '../../state/resource.ts'
 import { ChatBody, useChatBots } from './ChatBody.tsx'
 import { ChatHeader } from './ChatHeader.tsx'
@@ -14,7 +15,7 @@ import { PinnedBar } from './PinnedBar.tsx'
 /**
  * 中间的对话：顶部是对象（有置顶消息时下面一条置顶条），中间是时间线，底部是输入框；群里不放状态条，状态在群详情里；
  * 宽窄在对话区右边缘拖出来（设置里也能恢复默认、铺满）。默认打开和主管的单聊（主对话）；任务的状态在左侧列表每一行的右边，主对话右边不放任务栏。
- * 进了任务对话，右边默认打开干活的 bot 或任务群的详情（手机上不自动打开）。
+ * 进了任务对话，右边默认打开干活的 bot 或任务群的详情；进了群聊默认打开群详情，你在宽屏上关掉过就不再自动开（手机上都不自动打开）。
  */
 export function Conversation() {
   const app = useApp()
@@ -35,13 +36,14 @@ export function Conversation() {
     if (room === undefined && lead !== undefined) app.openBot(lead.id)
   }, [app, rooms, roomsLoading, room?.id, nav.roomId, lead?.id])
 
-  // 换进一个任务对话时打开一次详情；右边已经开着别的、或者你在这个对话里把它收起来了，就不再开。
+  // 换进一个任务对话、群聊时打开一次详情；右边已经开着别的、或者你在这个对话里把它收起来了，就不再开。
   const entered = useRef<string | undefined>(undefined)
   useEffect(() => {
     if (room === undefined || entered.current === room.id) return
     entered.current = room.id
-    if (narrow || room.taskId === null || app.getNav().panel !== null) return
-    app.showRoomDetails(room.id)
+    if (narrow || app.getNav().panel !== null) return
+    const group = room.kind !== 'direct' && room.taskId === null
+    if (room.taskId !== null || (group && groupDetailsWanted())) app.showRoomDetails(room.id)
   }, [app, room?.id, narrow])
 
   if (room === undefined) {
