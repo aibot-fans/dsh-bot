@@ -195,11 +195,17 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
     })
     // 开了任务先回用户一句，任务卡挂在这句下面；这一轮结束还没回，dsh-bot 以你的名义补上这句。
     const asked = messages.filter((message) => message.roomId === room.id).at(-1) ?? first
-    const fallback = starts !== '' ? t('好，{when}开工，结果发在这里。', { when: starts }) : bot.id === session.botId ? t('我来做，做好了直接发你。') : t('交给{name}了，结果出来我直接发你。', { name: bot.name })
+    const title = created.value.title
+    const fallback =
+      starts !== ''
+        ? t('好，「{title}」{when}开工，结果发在这里。', { title, when: starts })
+        : bot.id === session.botId
+          ? t('「{title}」我来做，做好了直接发你。', { title })
+          : t('交给{name}做「{title}」了，结果出来我直接发你。', { name: bot.name, title })
     pod.front.opened(session.botId, { roomId: room.id, messageId: asked.id, sessionId: session.id, body: fallback, taskId: created.value.id })
     const where = conversation === undefined ? '' : conversation.kind === 'group' ? `，开了任务群（${[bot, ...members].map((member) => member.name).join('、')}）` : '，和它另开了一段单聊'
     const when = starts === '' ? '' : `，${starts}开工`
-    return `开了任务 ${created.value.id}「${created.value.title}」，交给${bot.name}${where}${when}\n现在用 reply（to 写 ${asked.id}）回用户一句：交给谁了、取了哪种理解，任务卡挂在这句下面`
+    return `开了任务 ${created.value.id}「${created.value.title}」，交给${bot.name}${where}${when}\n现在用 reply（to 写 ${asked.id}）回用户一句：交给谁、做什么、做到哪，你怎么理解的`
   }
 
   /**
@@ -291,8 +297,7 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
     return resumed.ok ? done(`「${task.title}」接着做了`) : refused(resumed.error.message)
   }
 
-  const apply = async (item: Item): Promise<{ readonly ok: boolean; readonly line: string }> => {
-    const found = item.messages.map((id) => assigned(id, item.action))
+  const apply = async (item: Item, found: readonly (RoomMessage | string)[]): Promise<{ readonly ok: boolean; readonly line: string }> => {
     const problems = found.filter((value): value is string => typeof value === 'string')
     if (problems.length > 0) return { ok: false, line: problems.join('；') }
     const messages = found.filter((value): value is RoomMessage => typeof value !== 'string')
@@ -351,8 +356,10 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
     required: ['items'],
     parse: readItems,
     run: async (items) => {
+      // 先一起看每条是不是交给你的、还没判，再一项项记：一句话说了几件事，同一条可以开几个任务。
+      const checked = items.map((item) => ({ item, found: item.messages.map((id) => assigned(id, item.action)) }))
       const results: { readonly ok: boolean; readonly line: string }[] = []
-      for (const item of items) results.push(await apply(item))
+      for (const { item, found } of checked) results.push(await apply(item, found))
       const failed = results.filter((result) => !result.ok)
       const lines = results.map((result) => `${result.ok ? '' : '没记上：'}${result.line}`).join('\n')
       return failed.length === 0 ? success(lines) : failure(lines)
@@ -411,6 +418,7 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
         ...(speech.taskId === undefined ? {} : { taskId: speech.taskId }),
         data: {
           ...(pageId === undefined ? {} : { pageId }),
+          ...(speech.taskIds.length === 0 ? {} : { tasks: speech.taskIds.map((id) => ({ id, title: pod.tasks.get(id)?.title ?? '' })) }),
           ...(speech.waitId === undefined ? {} : { waitId: speech.waitId }),
           ...(speech.reportId === undefined ? {} : { reportId: speech.reportId }),
         },

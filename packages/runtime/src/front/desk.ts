@@ -36,7 +36,7 @@ export interface FrontDeskDeps {
   /** dsh-bot 在聊天室里说一句（前台出错没处理成时）。 */
   readonly notice: (roomId: string, body: string, data: Readonly<Record<string, unknown>>) => void
   /** 以前台的名义回一句确认（开了任务却没回话时补上的那句）。 */
-  readonly confirm: (input: { readonly roomId: string; readonly author: string; readonly sessionId: string; readonly replyTo: string; readonly body: string; readonly taskId: string }) => void
+  readonly confirm: (input: { readonly roomId: string; readonly author: string; readonly sessionId: string; readonly replyTo: string; readonly body: string; readonly taskIds: readonly string[] }) => void
   /** 前台漏掉消息记成系统问题；detail 为 null 时恢复。 */
   readonly problem: (detail: string | null) => void
   readonly warn: (message: string, error?: unknown) => void
@@ -168,9 +168,9 @@ export class FrontDesk {
     this.unconfirmed.set(botId, [...(this.unconfirmed.get(botId) ?? []), entry])
   }
 
-  /** 前台在这个聊天室刚开、还没回话的任务：开任务那句挂它的记号。 */
-  openedIn(botId: string, roomId: string): string | undefined {
-    return (this.unconfirmed.get(botId) ?? []).findLast((entry) => entry.roomId === roomId)?.taskId
+  /** 前台在这个聊天室刚开、还没回话的任务（先开的在前）：开任务那句说的就是它们。 */
+  openedIn(botId: string, roomId: string): readonly string[] {
+    return (this.unconfirmed.get(botId) ?? []).filter((entry) => entry.roomId === roomId).map((entry) => entry.taskId)
   }
 
   /** 前台在这个聊天室回了话：开任务那句算回过了。 */
@@ -180,11 +180,17 @@ export class FrontDesk {
     else this.unconfirmed.set(botId, left)
   }
 
-  /** 一轮结束还没回的：以前台的名义补上那一句。 */
+  /** 一轮结束还没回的：以前台的名义补上那一句，同一条消息开了几个任务只补一句。 */
   private confirmLeft(botId: string): void {
     const left = this.unconfirmed.get(botId) ?? []
     this.unconfirmed.delete(botId)
-    for (const entry of left) this.deps.confirm({ roomId: entry.roomId, author: botId, sessionId: entry.sessionId, replyTo: entry.messageId, body: entry.body, taskId: entry.taskId })
+    const asked = [...new Set(left.map((entry) => entry.messageId))]
+    for (const messageId of asked) {
+      const entries = left.filter((entry) => entry.messageId === messageId)
+      const head = entries[0]
+      if (head === undefined) continue
+      this.deps.confirm({ roomId: head.roomId, author: botId, sessionId: head.sessionId, replyTo: messageId, body: entries.map((entry) => entry.body).join(''), taskIds: entries.map((entry) => entry.taskId) })
+    }
   }
 
   /** 前台说了话（reply）：这个聊天室的“正在……”收掉，这一轮后面的进度也不再写到这里。 */

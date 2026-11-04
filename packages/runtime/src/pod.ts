@@ -673,8 +673,9 @@ export class PodRuntime {
       notice: (roomId, body, data) => {
         this.rooms.post(roomId, { author: POD, kind: 'notice', body, data })
       },
-      confirm: (input) => {
-        this.replies.send({ ...input, purpose: 'confirm' })
+      confirm: ({ taskIds, ...input }) => {
+        const tasks = taskIds.map((id) => ({ id, title: this.tasks.get(id)?.title ?? '' }))
+        this.replies.send({ ...input, purpose: 'confirm', ...(taskIds[0] === undefined ? {} : { taskId: taskIds[0] }), data: { tasks } })
       },
       problem: (detail) => {
         if (detail === null && !resolveProblem(db, 'front:missed', now())) return

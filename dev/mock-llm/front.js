@@ -106,17 +106,19 @@ function openTitle(body) {
   return '整理测试说明'
 }
 
-/** 交代：学 Super-agent 的写法，先引用户原话，再写要做成什么、给谁看。 */
+/** 交代：学 Super-agent 的写法，原话 dsh-bot 放在最前面，这里只写理解、给谁看。 */
 function briefOf(body) {
   const hurry = body.includes('急') ? '用户说了急，先交能用的。' : ''
-  return `用户说：「${body}」\n请照用户说的做完。${hurry}结果用中文写给用户，先说结论。`
+  return `我的理解：照用户说的做完。${hurry}结果用中文写给用户，先说结论。`
 }
 
 /** 开了任务后回的那句：从 dispatch 的结果里认出交给了谁。 */
 function confirmText(result, self) {
-  const owner = /开了任务 \S+「[^」]*」，交给([^，\n]+)/.exec(result)?.[1]
-  if (owner === undefined) return '好，我安排一下。'
-  return owner === self ? '我来做，做好告诉你。' : `交给${owner}了，做好我直接告诉你。`
+  const opened = [...result.matchAll(/开了任务 \S+「([^」]*)」，交给([^，\n]+)/g)]
+  if (opened.length === 0) return '好，我安排一下。'
+  // 说到任务照标题说（页面画成任务链接）。
+  const parts = opened.map(([, title, owner]) => (owner === self ? `「${title}」我来做` : `「${title}」交给${owner}`))
+  return `${parts.join('，')}，做好我直接告诉你。`
 }
 
 /** 叫醒：任务交了回答、问用户、没做成，照叫醒里写的 to、room、task 在派活的聊天室说一句。 */
@@ -194,6 +196,18 @@ function stepsFor(item, context) {
       () => ({ tool: 'read', args: { id: target, ...(part === undefined ? {} : { part }), ...(page === undefined ? {} : { page: Number(page) }), ...(size === undefined ? {} : { size: Number(size) }) } }),
       (result) => ({ tool: 'reply', args: { to: id, text: `读到了：\n${result.slice(0, 3000)}` } }),
     ]
+  }
+  // “两件事”：一次开两个任务（标题取两个关键词），一句话确认两个。
+  if (/两件事/.test(body) && /交给/.test(body) && !member) {
+    const named = /交给([^\s，。,]+)/.exec(body)?.[1] ?? '自己'
+    const items = [
+      { messages: [id], action: 'open', title: '周报素材', bot: named, brief: '我理解是要整理这周的周报素材。' },
+      { messages: [id], action: 'open', title: '选方案测试', bot: named, brief: '我理解是要比较两种写法。' },
+    ]
+    const opened = () => ({ tool: 'dispatch', args: { items } })
+    // “忘了回”：开了任务不回话，看 dsh-bot 补的那句。
+    if (/忘了回/.test(body)) return [opened]
+    return [opened, (result) => ({ tool: 'reply', args: { to: id, text: confirmText(result, self) } })]
   }
   if (/交给|委派/.test(body)) {
     const named = /交给([^\s，。,]+)/.exec(body)?.[1]

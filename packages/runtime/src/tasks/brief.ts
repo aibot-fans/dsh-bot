@@ -15,15 +15,12 @@ function numbered(items: readonly string[]): string {
 /** 开工说明里一段收短后最少留多少字。 */
 const PART_MIN = 60
 
-/** 交代里引原话时，拿原话开头这么多字比对。 */
-const QUOTE_PROBE = 24
-
 /**
- * 交代里没引到的原话补在最前面：Super-agent 写的交代自己引了原话；别处开的任务（例程、子任务、旧任务）只有原话加说明。
+ * 用户的原话每次都放在交代最前面，Super-agent 写的交代只写它的理解和背景，对不上时照原话。
  * 太长截断，截断处留着消息 id 能读回全文。limit 是这一段一共多少字。
  */
 function originLines(task: Task, limit: number = CARD_LIMITS.message): string {
-  const quotes = (task.origin?.quotes ?? []).filter((quote) => quote.text.trim() !== '' && !task.brief.includes(quote.text.trim().slice(0, QUOTE_PROBE)))
+  const quotes = (task.origin?.quotes ?? []).filter((quote) => quote.text.trim() !== '')
   if (quotes.length === 0) return ''
   const each = Math.max(PART_MIN, Math.floor(limit / quotes.length) - 20)
   return quotes.map((quote) => `${quote.author}说：「${clipCard(quote.text.trim(), each, quote.messageId)}」`).join('\n')
@@ -59,7 +56,7 @@ function bulletList(title: string, items: readonly string[], limit: number): str
 }
 
 /**
- * 交给任务会话的第一条消息，就是任务对话里的那条交代：Super-agent 写的交代（没引到的原话补在前面），子任务再带上
+ * 交给任务会话的第一条消息，就是任务对话里的那条交代：用户的原话在最前面，后面是 Super-agent 写的交代，子任务再带上
  * 要做到的几条、前提、约定和上游结果。任务 id、文件夹、汇报办法都在系统提示里，这里不写。整张不超过开工说明的上限：
  * 太长时依次收短上游结果、约定、前提、交代，最后才收短原话；截断处都留着 id，能用 read 读回全文。
  */
