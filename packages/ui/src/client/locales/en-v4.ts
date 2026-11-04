@@ -47,8 +47,6 @@ export const UI_EN_V4: Readonly<Record<string, string>> = {
   '打开它的任务对话': 'Open its task chat',
   '输入中': 'Typing',
   '和': ' and ',
-  '{first}等 {count} 个': '{first} and others',
-  '{names}正在处理': '{names} are working on it',
   '正在等「{title}」完成': 'Waiting for "{title}"',
   '正在等「{title}」完成 · 已等 {waited}': 'Waiting for "{title}" · {waited} so far',
   '正在等「{title}」等 {count} 个任务完成': 'Waiting for {count} tasks, including "{title}"',

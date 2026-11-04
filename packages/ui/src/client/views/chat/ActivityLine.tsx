@@ -51,15 +51,10 @@ function oneEach(replies: readonly Responding[]): readonly Responding[] {
   return [...best.values()]
 }
 
-function names(bots: readonly (Bot | undefined)[]): string {
-  const shown = bots.map((bot) => bot?.name ?? 'bot')
-  return shown.length <= 2 ? shown.join(t('和')) : t('{first}等 {count} 个', { first: shown.slice(0, 2).join(t('、')), count: shown.length })
-}
-
 /**
  * 回答过程：对话最底下一个灰气泡，只有一行字，跟着变——调工具时是这一步在做什么，想的时候是思考的最后一句，
- * 开始写回复时是“输入中”；看着卡住时后面跟一句提醒，要停用输入框的停止按钮。几个 bot 同时在回答也只有一行，
- * 写“A 和 B 正在处理”，气泡里是它们的小头像。主对话里没有 bot 在回答、交出去的任务还在做时，是“正在等「任务名」完成 · 已等 N 分钟”，
+ * 开始写回复时是“输入中”；看着卡住时后面跟一句提醒，要停用输入框的停止按钮。几个 bot 同时在回答时各有一个气泡、
+ * 各写各的，都在对话最底下。主对话里没有 bot 在回答、交出去的任务还在做时，是“正在等「任务名」完成 · 已等 N 分钟”，
  * 气泡里是干活的 bot 的小头像。回答完这一行就没了，回复下面不挂别的。
  */
 export function ActivityLine(props: {
@@ -74,27 +69,20 @@ export function ActivityLine(props: {
   const now = useNow(1000)
   const speaking = oneEach(props.replies.filter((reply) => reply.botId !== ''))
   const routing = props.replies.find((reply) => reply.botId === '')
-  if (speaking.length === 1) {
-    const reply = speaking[0] as Responding
-    const bot = props.bots.get(reply.botId)
-    const line = lineOf(reply, now)
+  if (speaking.length > 0) {
     return (
-      <Frame bot={bot} named={props.named} onOpenBot={() => props.onOpenBot(reply.botId)}>
-        <Dots />
-        <span className="pod-activity-text">{line.text}</span>
-        {line.warn === null ? null : <span className="pod-activity-warn">{line.warn}</span>}
-      </Frame>
-    )
-  }
-  if (speaking.length > 1) {
-    const bots = speaking.map((reply) => props.bots.get(reply.botId))
-    const warn = speaking.map((reply) => lineOf(reply, now).warn).find((value) => value !== null) ?? null
-    return (
-      <Frame bot={undefined} named={false} onOpenBot={() => undefined}>
-        <Minis bots={bots} />
-        <span className="pod-activity-text">{t('{names}正在处理', { names: names(bots) })}</span>
-        {warn === null ? null : <span className="pod-activity-warn">{warn}</span>}
-      </Frame>
+      <>
+        {speaking.map((reply) => {
+          const line = lineOf(reply, now)
+          return (
+            <Frame key={reply.botId} bot={props.bots.get(reply.botId)} named={props.named} onOpenBot={() => props.onOpenBot(reply.botId)}>
+              <Dots />
+              <span className="pod-activity-text">{line.text}</span>
+              {line.warn === null ? null : <span className="pod-activity-warn">{line.warn}</span>}
+            </Frame>
+          )
+        })}
+      </>
     )
   }
   if (routing !== undefined) {
