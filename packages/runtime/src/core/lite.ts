@@ -102,9 +102,9 @@ export class LiteLlm {
     for await (const chunk of stream) {
       if (chunk.type === 'text-delta' && typeof chunk.text === 'string') text += chunk.text
       else if (chunk.type === 'usage' && typeof chunk.usage === 'object' && chunk.usage !== null) {
-        const raw = chunk.usage as { inputTokens?: number; outputTokens?: number; cacheReadTokens?: number }
+        const raw = chunk.usage as { inputTokens?: number; outputTokens?: number; cacheReadTokens?: number; cacheWriteTokens?: number }
         usage = {
-          inputTokens: raw.inputTokens ?? 0,
+          inputTokens: (raw.inputTokens ?? 0) + (raw.cacheWriteTokens ?? 0),
           outputTokens: raw.outputTokens ?? 0,
           cacheReadTokens: raw.cacheReadTokens ?? 0,
         }

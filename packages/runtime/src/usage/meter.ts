@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { costOf, isDeepSeekPeak, type PodSession } from 'pod-domain'
+import { costOf, isDeepSeekPeak, promptTokens, type PodSession } from 'pod-domain'
 import { insertUsage, usageByBotSince, usageForRoot, usageSince, type UsageTotals } from 'pod-store'
 import type { UsageReport } from '../agents/observer.ts'
 import type { SessionRegistry } from '../agents/registry.ts'
@@ -45,7 +45,7 @@ export class UsageMeter {
       outputTokens: usage.outputTokens,
       cacheTokens: usage.cacheReadTokens,
       cost: cost ?? 0,
-      contextTokens: usage.inputTokens,
+      contextTokens: promptTokens(usage),
     })
   }
 

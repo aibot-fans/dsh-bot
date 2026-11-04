@@ -17,10 +17,11 @@ export interface PodSession {
   /** 工作目录，相对 Pod 工作区。 */
   readonly folder: string
   readonly status: SessionStatus
+  /** 没命中缓存的输入（累计）；命中缓存的记在 cacheTokens。 */
   readonly inputTokens: number
   readonly outputTokens: number
   readonly cacheTokens: number
-  /** 最近一次请求的输入 token，约等于当前上下文长度，换段用它判断。 */
+  /** 最近一次请求的全部输入（没命中的加命中缓存的），就是当前上下文长度，换段用它判断。 */
   readonly contextTokens: number
   readonly cost: number
   readonly steps: number

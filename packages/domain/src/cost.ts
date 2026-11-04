@@ -1,12 +1,20 @@
 /**
  * 用量和花费。token 数以模型接口返回的实际用量为准；只有认识的模型才算钱，
  * 其余只显示 token 数。价格单位：美元 / 100 万 tokens。
+ * 口径照 dsh：inputTokens 只是没命中缓存的输入，命中缓存的另记在 cacheReadTokens，两样加起来才是这次请求的全部输入。
  */
 
 export interface Usage {
+  /** 没命中缓存的输入。 */
   readonly inputTokens: number
   readonly outputTokens: number
+  /** 命中缓存的输入，不含在 inputTokens 里。 */
   readonly cacheReadTokens: number
+}
+
+/** 一次请求的全部输入：没命中的加命中缓存的，也就是当时的上下文长度。 */
+export function promptTokens(usage: Pick<Usage, 'inputTokens' | 'cacheReadTokens'>): number {
+  return usage.inputTokens + usage.cacheReadTokens
 }
 
 export const ZERO_USAGE: Usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 }
@@ -54,9 +62,7 @@ export function costOf(provider: string, model: string, usage: Usage, peak: bool
   const row = PRICES.find((candidate) => candidate.match.test(model)) ?? PRICES[0]
   if (row === undefined) return undefined
   const price = peak ? row.peak : row.offPeak
-  const cached = Math.min(usage.cacheReadTokens, usage.inputTokens)
-  const missed = usage.inputTokens - cached
-  return (cached * price.cacheHit + missed * price.miss + usage.outputTokens * price.output) / 1_000_000
+  return (usage.cacheReadTokens * price.cacheHit + usage.inputTokens * price.miss + usage.outputTokens * price.output) / 1_000_000
 }
 
 export function formatCost(cost: number): string {

@@ -50,7 +50,7 @@ function totals(row: { readonly tokens: number | null; readonly cost: number | n
 export function usageForRoot(db: DatabaseSync, rootId: string): UsageTotals {
   const row = db
     .prepare(
-      `SELECT SUM(u.input_tokens + u.output_tokens) AS tokens, SUM(COALESCE(u.cost, 0)) AS cost
+      `SELECT SUM(u.input_tokens + u.cache_tokens + u.output_tokens) AS tokens, SUM(COALESCE(u.cost, 0)) AS cost
        FROM usage u JOIN tasks t ON t.id = u.task_id WHERE t.root_id = ?`,
     )
     .get(rootId) as { readonly tokens: number | null; readonly cost: number | null } | undefined
@@ -59,14 +59,14 @@ export function usageForRoot(db: DatabaseSync, rootId: string): UsageTotals {
 
 export function usageForTask(db: DatabaseSync, taskId: string): UsageTotals {
   const row = db
-    .prepare('SELECT SUM(input_tokens + output_tokens) AS tokens, SUM(COALESCE(cost, 0)) AS cost FROM usage WHERE task_id = ?')
+    .prepare('SELECT SUM(input_tokens + cache_tokens + output_tokens) AS tokens, SUM(COALESCE(cost, 0)) AS cost FROM usage WHERE task_id = ?')
     .get(taskId) as { readonly tokens: number | null; readonly cost: number | null } | undefined
   return totals(row)
 }
 
 export function usageSince(db: DatabaseSync, since: number): UsageTotals {
   const row = db
-    .prepare('SELECT SUM(input_tokens + output_tokens) AS tokens, SUM(COALESCE(cost, 0)) AS cost FROM usage WHERE created_at >= ?')
+    .prepare('SELECT SUM(input_tokens + cache_tokens + output_tokens) AS tokens, SUM(COALESCE(cost, 0)) AS cost FROM usage WHERE created_at >= ?')
     .get(since) as { readonly tokens: number | null; readonly cost: number | null } | undefined
   return totals(row)
 }
@@ -74,7 +74,7 @@ export function usageSince(db: DatabaseSync, since: number): UsageTotals {
 export function usageByBotSince(db: DatabaseSync, since: number): ReadonlyMap<string, UsageTotals> {
   const rows = db
     .prepare(
-      'SELECT bot_id, SUM(input_tokens + output_tokens) AS tokens, SUM(COALESCE(cost, 0)) AS cost FROM usage WHERE created_at >= ? AND bot_id IS NOT NULL GROUP BY bot_id',
+      'SELECT bot_id, SUM(input_tokens + cache_tokens + output_tokens) AS tokens, SUM(COALESCE(cost, 0)) AS cost FROM usage WHERE created_at >= ? AND bot_id IS NOT NULL GROUP BY bot_id',
     )
     .all(since) as unknown as readonly { readonly bot_id: string; readonly tokens: number; readonly cost: number }[]
   return new Map(rows.map((row) => [row.bot_id, { tokens: Number(row.tokens), cost: Number(row.cost) }]))

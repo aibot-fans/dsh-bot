@@ -94,11 +94,12 @@ export function usageReport(db: DatabaseSync, range: UsageRange, now: number, ti
   let cached = 0
   let saved = 0
   for (const row of rows) {
-    const rowTokens = row.inputTokens + row.outputTokens
+    // 记下的 input 只是没命中缓存的那部分，全部输入要加上命中的。
+    const rowTokens = row.inputTokens + row.cacheTokens + row.outputTokens
     cost += row.cost
     tokens += rowTokens
-    input += row.inputTokens
-    cached += Math.min(row.cacheTokens, row.inputTokens)
+    input += row.inputTokens + row.cacheTokens
+    cached += row.cacheTokens
     if (!row.peak) {
       const atPeak = costOf(row.provider, row.model, { inputTokens: row.inputTokens, outputTokens: row.outputTokens, cacheReadTokens: row.cacheTokens }, true)
       if (atPeak !== undefined) saved += Math.max(0, atPeak - row.cost)

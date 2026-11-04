@@ -754,6 +754,17 @@ function simulatedFailure(options) {
   return undefined
 }
 
+/**
+ * 照 dsh 的口径报用量：前面已经发过的算命中缓存（cacheReadTokens），只有最后一条算没命中（inputTokens），两样加起来是全部输入。
+ * 对话里有“超长”的，全部输入按 30 万算（看换段用）。
+ */
+function usageOf(options, input, outputTokens) {
+  const messages = Array.isArray(options.messages) ? options.messages : []
+  const total = JSON.stringify(messages).includes('超长') ? 300000 : Math.ceil(input / 4)
+  const fresh = Math.min(total, Math.ceil(JSON.stringify(messages.slice(-1)).length / 4))
+  return { inputTokens: fresh, outputTokens, cacheReadTokens: total - fresh }
+}
+
 async function* stream(options) {
   const failure = simulatedFailure(options)
   if (failure !== undefined) {
@@ -787,7 +798,7 @@ async function* stream(options) {
     yield { type: 'block-start', index, blockType: 'tool-call' }
     yield { type: 'tool-call-delta', index, id, name: decision.tool, argumentsDelta: args }
     yield { type: 'block-end', index, block: { type: 'tool-call', id, name: decision.tool, arguments: args } }
-    yield { type: 'usage', usage: { inputTokens: Math.ceil(input / 4), outputTokens: Math.ceil(args.length / 4), cacheReadTokens: 0 } }
+    yield { type: 'usage', usage: usageOf(options, input, Math.ceil(args.length / 4)) }
     yield { type: 'finish', reason: { kind: 'tool-calls' } }
     return
   }
@@ -799,8 +810,7 @@ async function* stream(options) {
     await sleep(25, options.signal)
   }
   yield { type: 'block-end', index, block: { type: 'text', text } }
-  const huge = JSON.stringify(options.messages ?? []).includes('超长')
-  yield { type: 'usage', usage: { inputTokens: huge ? 300000 : Math.ceil(input / 4), outputTokens: Math.ceil(text.length / 2), cacheReadTokens: 0 } }
+  yield { type: 'usage', usage: usageOf(options, input, Math.ceil(text.length / 2)) }
   yield { type: 'finish', reason: { kind: 'stop' } }
 }
 

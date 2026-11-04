@@ -328,7 +328,8 @@ export class SessionObserver {
     const usage = record(data.usage)
     if (Object.keys(usage).length > 0) {
       this.hooks.onUsage(session, {
-        inputTokens: num(usage.inputTokens),
+        // dsh 的 inputTokens 不含缓存；写进缓存的按没命中算（DeepSeek 不单独收钱）。
+        inputTokens: num(usage.inputTokens) + num(usage.cacheWriteTokens),
         outputTokens: num(usage.outputTokens),
         cacheReadTokens: num(usage.cacheReadTokens),
         provider: typeof source.provider === 'string' ? source.provider : '',

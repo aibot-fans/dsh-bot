@@ -739,6 +739,26 @@ const MIGRATIONS: readonly string[] = [
   `
   ALTER TABLE tasks ADD COLUMN conversation_id TEXT;
   `,
+  // v19：用量改对口径。dsh 报的 input_tokens 本来就不含命中缓存的，以前当成了全部输入：花费少算，会话的上下文长度只记了没命中的那一点，
+  // 到了换段长度也不换。按当时的价格表（pod-domain 的 cost.ts）重算每次的花费，会话的花费跟着汇总；
+  // 会话的上下文长度改成最近一次请求的全部输入，超过换段长度的下一轮就换段。
+  `
+  UPDATE usage SET cost = (usage.cache_tokens * p.hit + usage.input_tokens * p.miss + usage.output_tokens * p.out) / 1000000.0
+  FROM (
+    SELECT 0 AS pro, 0 AS peak, 0.003 AS hit, 0.15 AS miss, 0.6 AS out
+    UNION ALL SELECT 0, 1, 0.006, 0.3, 1.2
+    UNION ALL SELECT 1, 0, 0.022, 0.66, 1.98
+    UNION ALL SELECT 1, 1, 0.044, 1.32, 3.96
+  ) AS p
+  WHERE usage.cost IS NOT NULL AND p.peak = usage.peak
+    AND p.pro = (usage.model NOT LIKE '%flash%' AND usage.model NOT LIKE '%chat%' AND usage.model NOT LIKE '%v3%'
+      AND (usage.model LIKE '%pro%' OR usage.model LIKE '%reasoner%' OR usage.model LIKE '%r1%'));
+
+  UPDATE sessions SET
+    cost = (SELECT SUM(COALESCE(u.cost, 0)) FROM usage u WHERE u.session_id = sessions.id),
+    context_tokens = (SELECT u.input_tokens + u.cache_tokens FROM usage u WHERE u.session_id = sessions.id ORDER BY u.id DESC LIMIT 1)
+  WHERE EXISTS (SELECT 1 FROM usage u WHERE u.session_id = sessions.id);
+  `,
 ]
 
 function readVersion(db: DatabaseSync): number {
