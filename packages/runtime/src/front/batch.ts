@@ -30,6 +30,8 @@ export interface BatchInput {
   readonly rooms: readonly BatchRoom[]
   /** 在忙的任务，每个一行。 */
   readonly tasks: readonly string[]
+  /** 现有的群（见 groupsText）：Super-agent 才有，这段前台还没看过这一版时才带。 */
+  readonly groups?: string
   readonly speaker: (author: string) => string
   /** 被回复的那条（给一句它说了什么）。 */
   readonly quoted: (id: string) => RoomMessage | undefined
@@ -88,7 +90,25 @@ export function batchText(input: BatchInput): string {
       .filter((part): part is string => part !== undefined)
       .join('\n'),
   )
-  return [head, tasks, ...groups].join('\n\n')
+  return [head, tasks, ...(input.groups === undefined ? [] : [input.groups]), ...groups].join('\n\n')
+}
+
+/** 现有的一个群：群名和管什么在 room 上。 */
+export interface GroupLine {
+  readonly room: Room
+  readonly leader: string
+  /** 成员的名字（Super-agent 不列，它总在群里）。 */
+  readonly members: readonly string[]
+}
+
+/** Super-agent 交活先找对口的群：每个群一行，群名、管什么、组长、成员。 */
+export function groupsText(groups: readonly GroupLine[]): string {
+  if (groups.length === 0) return '现有的群：还没有。'
+  const lines = groups.map(({ room, leader, members }) => {
+    const about = room.topic === '' ? '没写管什么' : `管：${room.topic}`
+    return `- 「${room.title}」（${room.id}）${about}；组长：${leader === '' ? '还没有' : leader}；成员：${members.join('、') || '还没有'}`
+  })
+  return `现有的群（交给别的 bot 的活先找对口的群；群有变化时这里会再列一遍）：\n${lines.join('\n')}`
 }
 
 /** 给前台看的说话人：你叫“用户”，dsh-bot 自己的话标出来，其余用名字。 */

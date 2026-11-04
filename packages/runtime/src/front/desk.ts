@@ -14,7 +14,7 @@ import { Later, type Effects } from '../effects/queue.ts'
 import type { Engine } from '../engine/index.ts'
 import { ModelRetries, RETRY_DELAYS_MS } from '../tasks/retries.ts'
 import { FrontActivity } from './activity.ts'
-import { batchText, speakerOf, type BatchItem, type BatchRoom } from './batch.ts'
+import { batchText, groupsText, speakerOf, type BatchItem, type BatchRoom } from './batch.ts'
 import { FrontWakes, type TaskWake } from './wakes.ts'
 
 /** 一个聊天室第一次进前台（或换了一段）时带多少条最近的消息；之后只带前台没看过的，最多这么多。 */
@@ -36,6 +36,8 @@ export interface FrontDeskDeps {
   readonly room: (roomId: string) => Room | undefined
   /** 群的组长：没点名的话先给它。 */
   readonly leaderOf: (room: Room) => Bot | undefined
+  /** 现有的普通群：Super-agent 交活先找对口的群。 */
+  readonly groups: () => readonly Room[]
   readonly preparing: (key: string, state: PreparingState | null) => void
   /** dsh-bot 在聊天室里说一句（前台出错没处理成时）。 */
   readonly notice: (roomId: string, body: string, data: Readonly<Record<string, unknown>>) => void
@@ -73,6 +75,8 @@ export class FrontDesk {
   private readonly titles = new Map<string, string>()
   /** 每段前台会话在各聊天室看到了哪条（seq）。 */
   private readonly seen = new Map<string, Map<string, number>>()
+  /** 每段 Super-agent 前台会话最近看到的群列表：群有变化（建群、改名、管什么、组长、成员）才再带一遍。 */
+  private readonly groupsSeen = new Map<string, string>()
   private readonly flights = new Map<string, Flight>()
   /** 追问过的消息：再没有去向就记成漏掉。 */
   private readonly nudged = new Map<string, ReadonlySet<string>>()
@@ -238,9 +242,12 @@ export class FrontDesk {
     })
     const rooms = this.group(session, items.map((item) => ({ message: item.message, note: item.route.note })))
     const roomIds = new Set(rooms.map((group) => group.room.id))
+    const groups = bot.role === 'lead' ? this.groupList() : undefined
+    const showGroups = groups !== undefined && this.groupsSeen.get(session.id) !== groups
     const text = batchText({
       rooms,
       tasks: this.activity.openTasks(bot, roomIds),
+      ...(showGroups ? { groups } : {}),
       speaker: (author) => speakerOf(author, (id) => this.deps.bots.get(id)?.name),
       quoted: (id) => getMessage(this.deps.db, id),
     })
@@ -261,6 +268,7 @@ export class FrontDesk {
       return created
     })
     this.markSeen(session, rooms)
+    if (showGroups) this.groupsSeen.set(session.id, groups)
     const flight = this.flights.get(botId)
     const sameSession = flight?.sessionId === session.id
     this.flights.set(botId, {
@@ -303,6 +311,21 @@ export class FrontDesk {
       })
       return [{ room, members, leader: leader?.name ?? '', leading, recent, items: list }]
     })
+  }
+
+  /** 现有的群，按建群先后排（不按最近说话排，免得群里一说话列表就变）。 */
+  private groupList(): string {
+    const groups = [...this.deps.groups()].sort((left, right) => left.createdAt - right.createdAt)
+    return groupsText(
+      groups.map((room) => ({
+        room,
+        leader: this.deps.leaderOf(room)?.name ?? '',
+        members: listRoomMembers(this.deps.db, room.id).flatMap((member) => {
+          const bot = this.deps.bots.activeBot(member.botId)
+          return bot === undefined || bot.role === 'lead' ? [] : [bot.name]
+        }),
+      })),
+    )
   }
 
   private markSeen(session: PodSession, rooms: readonly BatchRoom[]): void {
