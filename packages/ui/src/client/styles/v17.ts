@@ -6,4 +6,7 @@ export const V17_CSS = `
 .pod-task-chip-wrap.pod-task-chip-inline { display: inline-flex; flex-direction: row; max-width: 100%; margin: 0 2px; vertical-align: bottom; }
 .pod-task-chip-inline .pod-task-chip { gap: 4px; padding: 0 8px 0 6px; font-size: inherit; line-height: 1.6; }
 .pod-task-chip-inline .pod-task-chip .pod-task-chip-title { font-weight: 500; }
+.pod-state-attention { background: var(--pod-warn); }
+.pod-task-fact-attention { color: var(--pod-warn); }
+.pod-task-fact-failed { color: var(--pod-danger); }
 `

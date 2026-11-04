@@ -118,7 +118,7 @@ export function TaskFacts(props: { readonly taskId: string; readonly title: stri
         </div>
         <div className="pod-kv">
           <span>{t('状态')}</span>
-          <span className={`pod-task-fact pod-task-fact-${bucket}`}>
+          <span className={`pod-task-fact pod-task-fact-${snapshot.stage === 'failed' ? 'failed' : bucket}`}>
             <TaskStateIcon snapshot={snapshot} />
             {bucketLabel(snapshot, bucket)}
           </span>

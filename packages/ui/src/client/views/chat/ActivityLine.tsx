@@ -1,5 +1,6 @@
 import { progressHealth, spoken, t, type Bot, type TaskSnapshot } from 'pod-domain'
 import { Avatar, nameColor, useNow } from '../../components/common.tsx'
+import { duration } from '../../components/duration.ts'
 import type { LiveStatus, LiveStream } from '../../state/app.ts'
 import { BubbleTail } from './BubbleTail.tsx'
 
@@ -58,7 +59,7 @@ function names(bots: readonly (Bot | undefined)[]): string {
 /**
  * 回答过程：对话最底下一个灰气泡，只有一行字，跟着变——调工具时是这一步在做什么，想的时候是思考的最后一句，
  * 开始写回复时是“输入中”；看着卡住时后面跟一句提醒，要停用输入框的停止按钮。几个 bot 同时在回答也只有一行，
- * 写“A 和 B 正在处理”，气泡里是它们的小头像。主对话里没有 bot 在回答、交出去的任务还在做时，是“「任务名」进行中”，
+ * 写“A 和 B 正在处理”，气泡里是它们的小头像。主对话里没有 bot 在回答、交出去的任务还在做时，是“正在等「任务名」完成 · 已等 N 分钟”，
  * 气泡里是干活的 bot 的小头像。回答完这一行就没了，回复下面不挂别的。
  */
 export function ActivityLine(props: {
@@ -107,7 +108,17 @@ export function ActivityLine(props: {
   const first = props.working[0]
   if (first === undefined) return null
   const owners = [...new Set(props.working.map((snapshot) => snapshot.task.ownerBotId).filter((id): id is string => id !== null))].map((id) => props.bots.get(id))
-  const text = props.working.length === 1 ? t('「{title}」进行中', { title: first.task.title }) : t('「{title}」等 {count} 个任务进行中', { title: first.task.title, count: props.working.length })
+  // 等了多久：从最早的那个这次开工（交出去、接着做）算起，不到一分钟不写。
+  const age = now - Math.min(...props.working.map((snapshot) => snapshot.run?.queuedAt ?? snapshot.task.createdAt))
+  const values = { title: first.task.title, count: props.working.length, waited: duration(age) }
+  const text =
+    props.working.length === 1
+      ? age < 60_000
+        ? t('正在等「{title}」完成', values)
+        : t('正在等「{title}」完成 · 已等 {waited}', values)
+      : age < 60_000
+        ? t('正在等「{title}」等 {count} 个任务完成', values)
+        : t('正在等「{title}」等 {count} 个任务完成 · 已等 {waited}', values)
   return (
     <Frame bot={undefined} named={false} onOpenBot={() => undefined}>
       {owners.length === 0 ? <Dots /> : <Minis bots={owners} />}

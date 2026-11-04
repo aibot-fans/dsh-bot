@@ -126,7 +126,7 @@ export function Timeline(props: TimelineProps) {
   const showBot = useOpenBot()
   const focus = nav.focus?.roomId === room.id ? nav.focus : null
   const { data: snapshots } = useResource(app.cache, 'tasks', () => api.tasks())
-  // 从这个对话交出去、在别的 bot 自己的对话里做着的任务：没有 bot 在回答时，最底下那一行写“「任务名」进行中”。
+  // 从这个对话交出去、在别的 bot 自己的对话里做着的任务：没有 bot 在回答时，最底下那一行写“正在等「任务名」完成”。
   const working = (snapshots ?? []).filter(
     (snapshot) =>
       snapshot.task.roomId === room.id && snapshot.task.parentId === null && !snapshot.standing && snapshot.conversationId !== null && snapshot.conversationId !== room.id && isMoving(snapshot),
