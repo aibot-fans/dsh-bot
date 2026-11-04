@@ -26,6 +26,7 @@ import { routeIn } from './tasks/routed.ts'
 import { TaskReporting } from './tasks/report.ts'
 import { Subtasks } from './tasks/subtasks.ts'
 import { TaskReplies } from './tasks/replies.ts'
+import { StatusLines } from './tasks/status-lines.ts'
 import { Replies } from './chat/replies.ts'
 import { TaskTurns } from './tasks/turns.ts'
 import { Dispatcher } from './effects/delivery.ts'
@@ -143,6 +144,7 @@ export class PodRuntime {
   readonly replies: Replies
   /** 任务对外说的话：结果、等你、答复。 */
   readonly taskReplies: TaskReplies
+  private readonly statusLines: StatusLines
   /** 前台：每个 bot 一个，跨聊天室，交给它的消息成批送进去。 */
   readonly front: FrontDesk
   /** 系统问题里模型故障的来源，和系统问题上的“重试”。 */
@@ -350,6 +352,7 @@ export class PodRuntime {
       },
       wake: (task, input) => this.front.wake(task, input),
     })
+    this.statusLines = new StatusLines({ db, rooms: this.rooms })
     this.engine = new Engine({
       db,
       now,
@@ -360,9 +363,9 @@ export class PodRuntime {
         this.brief.ended(task)
         // 任务结束：它的触发器一起关掉；等它结束或就绪的触发器看看该不该叫醒。
         this.triggers.closeFor(task.id)
-        setImmediate(() => this.triggers.taskStaged(task.id))
+        setImmediate(() => this.staged(task.id))
       },
-      restaged: (task) => setImmediate(() => this.triggers.taskStaged(task.id)),
+      restaged: (task) => setImmediate(() => this.staged(task.id)),
     })
     this.tasks = new TaskService({
       db,
@@ -1147,6 +1150,13 @@ export class PodRuntime {
   /** 评分卡给分配打分的数据：一次验收通过率。 */
   scorecardStats(botId: string): Partial<BotStats> {
     return this.evolutionKit.feedback.stats(botId)
+  }
+
+  /** 任务的阶段变了：等它结束或就绪的触发器看看该不该叫醒，派活的地方照实写一行状态。 */
+  private staged(taskId: string): void {
+    this.triggers.taskStaged(taskId)
+    const task = this.engine.tickets.get(taskId)
+    if (task !== undefined) this.statusLines.staged(task)
   }
 
   /** 任务完成或失败：发通知，记下产物（之后看你有没有改），根任务排进复盘。 */

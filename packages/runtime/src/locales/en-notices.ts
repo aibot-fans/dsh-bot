@@ -290,4 +290,11 @@ export const RUNTIME_EN_NOTICES: Readonly<Record<string, string>> = {
   '前台没来得及说，dsh-bot 已经原样发了': 'The front desk did not get to it, so dsh-bot posted it as is',
   '{owner}问：{question}': '{owner} asks: {question}',
   '「{title}」没做成：{reason}': '"{title}" didn\'t get done: {reason}',
+  '「{title}」做完了': '"{title}" is done',
+  '「{title}」在等你': '"{title}" is waiting for you',
+  '「{title}」没做成': '"{title}" didn\'t get done',
+  '「{title}」停了': '"{title}" stopped',
+  '「{title}」暂停了': '"{title}" is paused',
+  '「{title}」接着做了': '"{title}" is back in progress',
+  '「{title}」不用做了': '"{title}" needs no work',
 }

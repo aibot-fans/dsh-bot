@@ -171,7 +171,9 @@ function stepsFor(item, context) {
   const state = /(先等等|接着做|现在跑一次) (task_[0-9a-z]+)/.exec(body)
   if (state !== null) {
     const action = { 先等等: 'pause', 接着做: 'resume', 现在跑一次: 'run' }[state[1]]
-    return [dispatch(id, { action, task: state[2] }), (result) => ({ tool: 'reply', args: { to: id, task: state[2], text: `（测试模型）${result.split('\n')[0].replace(/^msg_[0-9a-z、]+：/, '')}` } })]
+    // 停、暂停、接着做由 dsh-bot 写一行状态，不再回话；例程现在跑一次回一句。
+    const said = (result) => ({ tool: 'reply', args: { to: id, task: state[2], text: `（测试模型）${result.split('\n')[0].replace(/^msg_[0-9a-z、]+：/, '')}` } })
+    return action === 'run' ? [dispatch(id, { action, task: state[2] }), said] : [dispatch(id, { action, task: state[2] })]
   }
   if (/^(谢谢|多谢|好的谢谢)/.test(body.trim())) return [dispatch(id, { action: 'ignore', reason: '道谢，不用处理' })]
   const asked = /@ ?一下\s*([^\s，。,、：:]+)/.exec(body)?.[1]
