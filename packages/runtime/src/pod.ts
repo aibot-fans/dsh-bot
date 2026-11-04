@@ -824,9 +824,11 @@ export class PodRuntime {
       },
     })
     // 写操作审批有三种：浏览器里的点击、X 写操作（data.channel 是 x）批准后各自执行；用电脑（computer）批准后记下授权，答复照常转回任务。
+    // bot 自己用汇报问的（不在标签页里）没有要替它执行的，答复照常转回任务。
     this.waits.setResolver('write', (wait, answer) => {
       if (wait.data.channel === 'x') return this.x.writes.resolve(wait, answer)
       if (wait.data.channel === 'computer') return this.computer.grants.resolve(wait, answer)
+      if (typeof wait.data.tabId !== 'string') return false
       return this.browser.approvals.resolveWrite(wait, answer)
     })
     this.evolutionKit = createEvolutionKit({
