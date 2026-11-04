@@ -135,8 +135,6 @@ export const UI_EN_PANELS: Readonly<Record<string, string>> = {
   '关掉这个标签页？': 'Close this tab?',
   '关闭标签页': 'Close tab',
   '你只看不动；{ownerName}要点的位置会在画面上标出来': 'View only. Where {ownerName} is about to click is marked on screen',
-  '停止这个标签页？{ownerName}要重新打开才能继续用。': 'Stop this tab? {ownerName} will need to reopen it to continue.',
-  '停止这个标签页': 'Stop this tab',
   '「{title}」的浏览器': 'Browser for “{title}”',
   '{name}的浏览器': "{name}'s browser",
   '打开新网页': 'Open new page',

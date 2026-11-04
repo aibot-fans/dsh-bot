@@ -5,6 +5,7 @@ import { errorText, mediaUrl } from '../../api/http.ts'
 import { Badge, Button, Empty } from '../../components/common.tsx'
 import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
+import { closeQuestion } from '../browser/BrowserBar.tsx'
 
 /** 打开网址：输网址或搜索词（没写 https:// 的会补上，搜索词用必应搜），回车或点“打开”。autoFocus：一出来就能打字。 */
 export function OpenUrl(props: { readonly roomId?: string; readonly onOpened: (tab: TabInfo) => void; readonly autoFocus?: boolean }) {
@@ -45,10 +46,21 @@ export function OpenUrl(props: { readonly roomId?: string; readonly onOpened: (t
   )
 }
 
-/** 标签页列表：缩略图、谁在操作、标题；点开放大看，AI 在用的可以直接接管。 */
+/** 标签页列表：缩略图、谁在操作、标题；点开放大看，AI 在用的可以直接接管，用不着的直接关掉。 */
 export function TabList(props: { readonly tabs: readonly TabView[]; readonly onOpen: (tab: TabView) => void }) {
+  const app = useApp()
+  const [problem, setProblem] = useState<string | undefined>(undefined)
+  const close = (tab: TabView): void => {
+    if (!window.confirm(closeQuestion(tab))) return
+    setProblem(undefined)
+    api
+      .closeTab(tab.id)
+      .then(() => app.cache.invalidate('browser'))
+      .catch((reason: unknown) => setProblem(errorText(reason)))
+  }
   return (
     <div className="pod-stack">
+      {problem === undefined ? null : <p className="pod-form-error">{problem}</p>}
       {props.tabs.map((tab) => (
         <article key={tab.id} className="pod-computer">
           <button type="button" className="pod-computer-shot" onClick={() => props.onOpen(tab)} aria-label={t('放大看')}>
@@ -73,6 +85,9 @@ export function TabList(props: { readonly tabs: readonly TabView[]; readonly onO
             )}
             <Button small onClick={() => props.onOpen(tab)}>
               {t('放大看')}
+            </Button>
+            <Button small kind="quiet" icon="close" onClick={() => close(tab)}>
+              {t('关闭')}
             </Button>
           </div>
         </article>

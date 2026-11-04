@@ -41,5 +41,6 @@ export const UI_EN_V5: Readonly<Record<string, string>> = {
   '现在是{name}在用电脑': '{name} is using the computer right now',
   '同一时间只有一个任务能用电脑，几分钟没动静会自动让出来。': 'Only one task can use the computer at a time; it is released after a few idle minutes.',
   '群里的 bot': 'Bots in this group',
+  '关掉这个标签页？{ownerName}要重新打开才能继续用。': 'Close this tab? {ownerName} will have to open it again to keep using it.',
   '停着的': 'Stopped or paused',
 }

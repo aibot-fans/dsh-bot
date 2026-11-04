@@ -175,12 +175,16 @@ export function TabControl(props: { readonly tab: TabView; readonly onError: (me
   )
 }
 
-/** 工具栏的“更多”：复制选中的文字、截图、动作记录，以及停止或关掉这个标签页。关掉以后 onClosed 换到别的网页。 */
+/** 关标签页前问的那句：bot 开的（包括你接管着的）关了它要重新打开才能接着用。 */
+export function closeQuestion(tab: TabView): string {
+  return tab.owner.kind === 'bot' ? t('关掉这个标签页？{ownerName}要重新打开才能继续用。', { ownerName: tab.ownerName }) : t('关掉这个标签页？')
+}
+
+/** 工具栏的“更多”：复制选中的文字、截图、动作记录，以及关掉这个标签页（谁开的、谁在操作都能关）。关掉以后 onClosed 换到别的网页。 */
 export function BrowserMore(props: { readonly tab: TabView; readonly onLog: () => void; readonly onError: (message: string) => void; readonly onClosed: () => void }) {
   const { tab } = props
   const run = useTabRun(props.onError)
   const menu = useMenu('end')
-  const controlled = tab.controller === 'owner'
   const pick = (action: () => void): void => {
     menu.close()
     action()
@@ -197,16 +201,8 @@ export function BrowserMore(props: { readonly tab: TabView; readonly onLog: () =
         <MenuItem icon="copy" label={t('复制页面里选中的文字')} onClick={() => pick(() => void api.tabSelection(tab.id).then(copyText).catch((reason: unknown) => props.onError(errorText(reason))))} />
         <MenuItem icon="image" label={t('截图')} onClick={() => pick(() => window.open(mediaUrl('/browser/screenshot', { tabId: tab.id }), '_blank', 'noopener'))} />
         {tab.actions.length === 0 ? null : <MenuItem icon="history" label={t('动作记录（{length}）', { length: tab.actions.length })} onClick={() => pick(props.onLog)} />}
-        {controlled && tab.owner.kind === 'bot' ? null : (
-          <>
-            <MenuDivider />
-            {controlled ? (
-              <MenuItem icon="close" danger label={t('关闭标签页')} onClick={() => pick(() => close(t('关掉这个标签页？')))} />
-            ) : (
-              <MenuItem icon="stop" danger label={t('停止这个标签页')} onClick={() => pick(() => close(t('停止这个标签页？{ownerName}要重新打开才能继续用。', { ownerName: tab.ownerName })))} />
-            )}
-          </>
-        )}
+        <MenuDivider />
+        <MenuItem icon="close" danger label={t('关闭标签页')} onClick={() => pick(() => close(closeQuestion(tab)))} />
       </MenuPanel>
     </>
   )
