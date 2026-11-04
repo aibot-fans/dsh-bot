@@ -35,7 +35,6 @@ export const UI_EN_V4: Readonly<Record<string, string>> = {
   '正在处理': 'working',
   '这段对话的任务': 'Task in this chat',
   '进展': 'Progress',
-  '干活的 bot 报的进展会列在这里': 'Progress the bot reports shows up here',
   '今天 {time}': 'Today {time}',
   '{name} 单聊': 'Chat with {name}',
   '跳到这句话': 'Jump to this message',

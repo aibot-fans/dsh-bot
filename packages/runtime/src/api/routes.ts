@@ -14,15 +14,12 @@ import {
   type SearchKind,
   type TaskStatus,
 } from 'pod-domain'
-import { getMessage, listAudit, progressOfTree, taskResultMessage, updateHandoverNote } from 'pod-store'
+import { getMessage, listAudit, taskResultMessage, updateHandoverNote } from 'pod-store'
 import type { PodRuntime } from '../pod.ts'
 import { roomActivity, taskActivity, type ActivityDeps } from '../tasks/activity.ts'
 import type { ControlAction } from '../tasks/service.ts'
 import { get, post, type RouteSpec } from './router.ts'
 import { taskOfMessage } from './views.ts'
-
-/** 任务对话的「进展」最多列几条。 */
-const PROGRESS_LIMIT = 12
 
 function activityDeps(pod: PodRuntime): ActivityDeps {
   return { db: pod.db, room: (id) => pod.rooms.get(id), task: (id) => pod.tasks.get(id), snapshot: (id) => pod.tasks.snapshot(id), botName: (id) => pod.bots.get(id)?.name }
@@ -123,11 +120,6 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
       const id = readId(query, 'id')
       const snapshot = id === undefined ? undefined : pod.tasks.snapshot(id)
       return snapshot === undefined ? fail('not-found', t('找不到这个任务')) : ok(snapshot)
-    }),
-    get('/task/progress', (query) => {
-      const id = readId(query, 'id')
-      const task = id === undefined ? undefined : pod.tasks.get(id)
-      return task === undefined ? fail('not-found', t('找不到这个任务')) : ok(progressOfTree(pod.db, task.rootId, PROGRESS_LIMIT))
     }),
     // 动态：群、单聊详情里成员下面那一栏；任务详情里也是它。
     get('/room/activity', (query) => {

@@ -243,8 +243,6 @@ export const api = {
 
   tasks: (status?: string) => apiGet<readonly TaskSnapshot[]>('/tasks', { status }),
   taskSnapshot: (id: string) => apiGet<TaskSnapshot>('/task/snapshot', { id }),
-  /** 任务连同子任务报过的进展，最近的在前。 */
-  taskProgress: (id: string) => apiGet<readonly TaskReport[]>('/task/progress', { id }),
   /** 没有自己对话的任务放结果的那条消息；一条有关的消息都没有是 null。 */
   /** 任务详情里的动态：有任务对话的按交代和接着说分组。 */
   taskActivity: (id: string) => apiGet<readonly ActivityJob[]>('/task/activity', { id }),

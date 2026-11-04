@@ -7,6 +7,7 @@ import { Icon } from '../../components/Icon.tsx'
 import { LineDiff } from '../../components/LineDiff.tsx'
 import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
+import { RoomActivityBox } from './Activity.tsx'
 import { TaskFacts } from './TaskFacts.tsx'
 
 const PROFILE_HINTS: Readonly<Record<ToolProfile, string>> = {
@@ -62,8 +63,11 @@ function modelKey(model: ModelChoice | null): string {
 }
 
 /** Bot 详情的“详情”页：现在的全部设定，都能直接改；记忆、技能、成长记录和历史版本从这里点进去。 */
-/** taskId：开着的是和它的任务单聊时，最上面放这段对话的任务。 */
-export function BotDetails(props: { readonly bot: Bot; readonly taskId?: string }) {
+/**
+ * taskId：开着的是和它的任务单聊时，最上面放这段对话的任务。成员的单聊里不挂任务卡，干过的活记在最上面的动态里：
+ * chatId 是开着的那段单聊，不在单聊里打开的看它的第一段单聊。Super-agent 的主对话有任务卡，不放动态。
+ */
+export function BotDetails(props: { readonly bot: Bot; readonly taskId?: string; readonly chatId?: string | undefined }) {
   const app = useApp()
   const { bot } = props
   const [problem, setProblem] = useState<string | undefined>(undefined)
@@ -110,6 +114,7 @@ export function BotDetails(props: { readonly bot: Bot; readonly taskId?: string 
   // 和它的每一段单聊：提醒和删除聊天记录对所有段一起生效。
   const threads = botThreads(bot.id, rooms ?? [])
   const direct = threads[0]
+  const chat = props.chatId ?? threads.find((room) => room.taskId === null)?.id
   const eachThread = (work: (roomId: string) => Promise<unknown>): void => {
     Promise.all(threads.map((room) => work(room.id)))
       .then(() => app.cache.invalidate('rooms'))
@@ -121,6 +126,9 @@ export function BotDetails(props: { readonly bot: Bot; readonly taskId?: string 
   return (
     <div className="pod-stack">
       {props.taskId === undefined ? null : <TaskFacts taskId={props.taskId} title={t('这段对话的任务')} />}
+      {props.taskId !== undefined || lead || chat === undefined ? null : (
+        <RoomActivityBox roomId={chat} back={{ kind: 'bot', botId: bot.id, tab: 'details' }} hint={t('在单聊里交代它的事')} empty={t('在单聊里交代{name}一件事，干到哪会记在这里。', { name: bot.name })} />
+      )}
       {problem === undefined ? null : <p className="pod-form-error">{problem}</p>}
       <Section
         title={t('角色卡')}

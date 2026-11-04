@@ -1,8 +1,7 @@
 import { useMemo, type ReactNode } from 'react'
-import { TASK_STATUS_LABELS, acceptanceProgress, formatCost, t, type Bot, type RoomSummary, type Task, type TaskSnapshot, type TaskStatus } from 'pod-domain'
+import { TASK_STATUS_LABELS, acceptanceProgress, formatCost, t, type Bot, type Task, type TaskSnapshot, type TaskStatus } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { Avatar, Badge, Empty, RelativeTime } from '../../components/common.tsx'
-import { openTaskConversation } from '../../components/TaskEntry.tsx'
 import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 
@@ -72,24 +71,6 @@ function TaskTiles(props: { readonly match: (snapshot: TaskSnapshot) => boolean;
       {finished.length === 0 ? null : <div className="pod-section-title">{t('已结束')}</div>}
       {finished.map(tile)}
     </div>
-  )
-}
-
-/** 群详情的「任务」页：在这个群里开的任务和群自己的任务；在群里干的点一下在右边看详情（能回到这一页），有自己对话的打开那段对话。 */
-export function GroupTasks(props: { readonly room: RoomSummary; readonly bots: readonly Bot[] }) {
-  const app = useApp()
-  const { room } = props
-  const open = (snapshot: TaskSnapshot): void => {
-    if ((snapshot.conversationId ?? room.id) === room.id) app.showTask(snapshot.task.id, { kind: 'group', roomId: room.id, tab: 'tasks' })
-    else openTaskConversation(app, snapshot)
-  }
-  return (
-    <TaskTiles
-      match={(snapshot) => snapshot.task.roomId === room.id || (room.taskId !== null && snapshot.task.id === room.taskId)}
-      bots={props.bots}
-      empty={<Empty title={t('这个群还没有任务')}>{t('在群里交代一件事，组长会接，或者交给对口的成员。')}</Empty>}
-      onOpen={open}
-    />
   )
 }
 

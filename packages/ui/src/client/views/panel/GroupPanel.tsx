@@ -12,9 +12,9 @@ import { useApp, type GroupTab } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 import { ScopedPages } from '../pages/ScopedPages.tsx'
 import { Automations } from '../settings/Routines.tsx'
+import { RoomActivityBox } from './Activity.tsx'
 import { GroupBrowser } from './BrowserTabs.tsx'
 import { ComputerTab } from './ComputerTab.tsx'
-import { GroupTasks } from './GroupTasks.tsx'
 import { Library } from './Library.tsx'
 import { TaskFacts } from './TaskFacts.tsx'
 
@@ -23,7 +23,6 @@ const TABS: readonly (readonly [GroupTab, string])[] = [
   ['pages', '页面'],
   ['library', '资料库'],
   ['automations', '自动化'],
-  ['tasks', '任务'],
   ['browser', '浏览器'],
   ['computer', '电脑'],
 ]
@@ -33,7 +32,6 @@ const TAB_HINTS: Readonly<Record<Exclude<GroupTab, 'details'>, string>> = {
   pages: '群里做的报告、看板、跟踪表、幻灯片这些页面：点开查看，在页面里接着让 bot 改。',
   library: '群里产出的文档、截图和网页存档。',
   automations: '到点自动跑、结果发到这个群的事，比如每天的简报、盯一个网页。',
-  tasks: '在这个群里交代的一件件事：点一个看交代、进展和结果。',
   browser: '群里的 bot 打开的网页，和你在这里开的网页：可以看实时画面，也可以接管。',
   computer: '群里的 bot 在不在用这台 Mac 上的应用：在用时能看画面、接管。',
 }
@@ -219,7 +217,7 @@ function Members(props: { readonly room: RoomSummary; readonly members: readonly
 
 /**
  * 群聊详情：从右侧滑出，顶上左边是群图标、右边是群名和成员；
- * 分详情（任务群最上面是任务和进展，再是成员和组长、群约定、群记忆、提醒、删除）、页面、资料库、自动化、任务、浏览器六页。
+ * 分详情（任务群最上面是任务和它的动态，再是成员和组长；普通群成员下面是动态；然后群约定、群记忆、提醒、删除）、页面、资料库、自动化、浏览器、电脑六页。
  */
 export function GroupPanel(props: { readonly roomId: string; readonly tab: GroupTab }) {
   const app = useApp()
@@ -284,6 +282,14 @@ export function GroupPanel(props: { readonly roomId: string; readonly tab: Group
             <div className="pod-stack">
               {room.taskId === null ? null : <TaskFacts taskId={room.taskId} title={t('任务')} />}
               <Members room={room} members={members} bots={active} leaderId={room.leaderId ?? snapshot?.task.ownerBotId ?? null} onLeader={(leadBotId) => update({ leadBotId })} />
+              {room.taskId === null ? (
+                <RoomActivityBox
+                  roomId={room.id}
+                  back={{ kind: 'group', roomId: room.id, tab: 'details' }}
+                  hint={t('在这个群里交代的事')}
+                  empty={t('在群里交代一件事，组长会接，或者交给对口的成员；干到哪会记在这里。')}
+                />
+              ) : null}
               <section className="pod-box">
                 <div className="pod-box-head">
                   <strong>{t('群约定')}</strong>
@@ -318,7 +324,6 @@ export function GroupPanel(props: { readonly roomId: string; readonly tab: Group
           {props.tab === 'pages' ? <ScopedPages match={(page) => page.roomId === room.id} empty={t('在群里说“把这周的数据做成看板”，做好的页面都在这里。')} /> : null}
           {props.tab === 'library' ? <Library roomId={room.id} /> : null}
           {props.tab === 'automations' ? <Automations match={(routine) => routine.roomId === room.id} defaults={{ roomId: room.id }} empty={t('结果发到这个群的自动化会出现在这里。')} /> : null}
-          {props.tab === 'tasks' ? <GroupTasks room={room} bots={bots ?? []} /> : null}
           {props.tab === 'browser' ? <GroupBrowser room={room} /> : null}
           {props.tab === 'computer' ? <ComputerTab mine={(user) => room.memberIds.includes(user.botId)} name={t('群里的 bot')} /> : null}
         </div>

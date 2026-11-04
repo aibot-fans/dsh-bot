@@ -8,6 +8,7 @@ import { TaskStateIcon, bucketLabel, bucketOf } from '../../components/TaskEntry
 import { useSnapshot } from '../../components/taskParts.tsx'
 import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
+import { TaskActivityBox } from './Activity.tsx'
 
 /** 开始时间：今天的写「今天 11:21」，别的天带上月日。 */
 function startedText(time: number, now: number): string {
@@ -41,35 +42,9 @@ function Source(props: { readonly room: RoomSummary | undefined; readonly name: 
   )
 }
 
-/** 任务连同子任务报过的进展，旧的在上面；还没报过写一句。 */
-function TaskProgress(props: { readonly rootId: string }) {
-  const app = useApp()
-  const { data: reports } = useResource(app.cache, `progress:${props.rootId}`, () => api.taskProgress(props.rootId))
-  const items = [...(reports ?? [])].reverse()
-  return (
-    <section className="pod-box">
-      <div className="pod-box-head">
-        <strong>{t('进展')}</strong>
-      </div>
-      {items.length === 0 ? (
-        <p className="pod-task-progress-empty">{reports === undefined ? t('正在读取…') : t('干活的 bot 报的进展会列在这里')}</p>
-      ) : (
-        <ul className="pod-task-progress">
-          {items.map((report) => (
-            <li key={report.id}>
-              <span className="pod-task-progress-text">{report.summary}</span>
-              <time className="pod-task-progress-time">{clock(report.createdAt)}</time>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  )
-}
-
 /**
  * 任务对话右边「详情」最上面：这段对话的任务（状态、来源、在哪干活，没结束的写开始时间、能暂停和停止，暂停着的能继续，结束了写用时），
- * 下面是「进展」。单聊放在干活的 bot 的详情里，群聊放在群详情里。
+ * 下面是「动态」（有任务对话的按交代和每次接着说分组）。单聊放在干活的 bot 的详情里，群聊放在群详情里。
  */
 export function TaskFacts(props: { readonly taskId: string; readonly title: string }) {
   const app = useApp()
@@ -144,7 +119,7 @@ export function TaskFacts(props: { readonly taskId: string; readonly title: stri
         )}
         {problem === undefined ? null : <p className="pod-form-error">{problem}</p>}
       </section>
-      <TaskProgress rootId={task.rootId} />
+      <TaskActivityBox taskId={task.id} rootId={task.rootId} back={null} />
     </>
   )
 }

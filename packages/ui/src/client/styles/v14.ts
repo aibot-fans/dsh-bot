@@ -1,6 +1,6 @@
 /**
  * 全屏的任务对话：顶上的任务名和下面一行小字、详情收起后留着的任务状态，
- * 右边「详情」最上面的任务和进展。
+ * 右边「详情」最上面的任务。
  */
 export const V14_CSS = `
 .pod-convo-titles { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; line-height: 1.3; text-align: left; }
@@ -27,11 +27,4 @@ export const V14_CSS = `
 .pod-task-quote { appearance: none; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; max-width: 100%; padding: 0 0 0 10px; border: 0; border-left: 2px solid var(--pod-line); background: none; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 13px; line-height: 1.55; text-align: left; word-break: break-word; cursor: pointer; }
 .pod-task-quote:hover { color: var(--dsw-alias-label-primary); }
 .pod-task-quote:focus-visible { outline: 2px solid var(--pod-info); outline-offset: 2px; }
-
-.pod-task-progress { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 6px 14px 12px; list-style: none; }
-.pod-task-progress li { display: grid; grid-template-columns: 6px minmax(0, 1fr) auto; align-items: baseline; gap: 10px; font-size: 13.5px; line-height: 1.5; }
-.pod-task-progress li::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: color-mix(in srgb, var(--dsw-alias-label-primary) 25%, transparent); transform: translateY(-2px); }
-.pod-task-progress-text { min-width: 0; word-break: break-word; }
-.pod-task-progress-time { color: var(--dsw-alias-label-tertiary); font-size: 12px; font-variant-numeric: tabular-nums; }
-.pod-task-progress-empty { margin: 0; padding: 4px 14px 12px; color: var(--dsw-alias-label-tertiary); font-size: 13px; }
 `

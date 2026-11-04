@@ -64,14 +64,6 @@ export function getReport(db: DatabaseSync, id: string): TaskReport | undefined 
   return row === undefined ? undefined : toReport(row)
 }
 
-/** 一个任务连同子任务报过的进展，最近的在前：任务对话右边「详情」里的「进展」。 */
-export function progressOfTree(db: DatabaseSync, rootId: string, limit: number): readonly TaskReport[] {
-  const rows = db
-    .prepare("SELECT r.* FROM task_reports r JOIN tasks t ON t.id = r.task_id WHERE t.root_id = ? AND r.status = 'progress' ORDER BY r.created_at DESC, r.rowid DESC LIMIT ?")
-    .all(rootId, limit) as unknown as readonly ReportRow[]
-  return rows.map(toReport)
-}
-
 /** 最后一次汇报（进展也算）。 */
 export function latestReport(db: DatabaseSync, taskId: string): TaskReport | undefined {
   const row = db.prepare('SELECT * FROM task_reports WHERE task_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1').get(taskId) as ReportRow | undefined

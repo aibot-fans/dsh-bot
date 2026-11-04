@@ -13,7 +13,7 @@ import { Automations } from '../settings/Routines.tsx'
 import { BotDetails } from './BotDetails.tsx'
 import { TabList } from './BrowserTabs.tsx'
 import { ComputerTab } from './ComputerTab.tsx'
-import { BotTasks } from './GroupTasks.tsx'
+import { BotTasks } from './BotTasks.tsx'
 import { Library } from './Library.tsx'
 import { MemberCard } from './MemberCard.tsx'
 
@@ -234,7 +234,7 @@ const TAB_HINTS: Readonly<Record<Exclude<BotTab, 'details'>, string>> = {
 
 /**
  * Bot 详情：从右侧滑出，分详情、页面、资料库、自动化、任务、浏览器、电脑七页，和群聊详情一样；在群里点进来时是成员卡片。
- * 在和它的任务单聊里，「详情」最上面是这段对话的任务和进展。
+ * 在和它的任务单聊里，「详情」最上面是这段对话的任务和动态；成员的普通单聊里是这段单聊的动态。
  * 从成员卡片点“完整资料”进来时（back 是群的 id），左上角能返回成员卡片，换页也保留返回。
  */
 export function BotPanel(props: { readonly botId: string; readonly tab: BotTab; readonly from?: string; readonly back?: string }) {
@@ -243,9 +243,11 @@ export function BotPanel(props: { readonly botId: string; readonly tab: BotTab; 
   const { data: bots } = useResource(app.cache, 'bots', () => api.bots())
   const { data: rooms } = useResource(app.cache, 'rooms', () => api.rooms())
   const bot = bots?.find((item) => item.id === props.botId)
-  // 开着的是和它的任务单聊：「详情」最上面放这段对话的任务。
+  // 开着的是和它的任务单聊：「详情」最上面放这段对话的任务；是和它的普通单聊：放这段单聊的动态。
   const here = rooms?.find((room) => room.id === nav.roomId)
-  const taskId = here !== undefined && here.kind === 'direct' && here.botId === props.botId ? (here.taskId ?? undefined) : undefined
+  const mine = here !== undefined && here.kind === 'direct' && here.botId === props.botId ? here : undefined
+  const taskId = mine?.taskId ?? undefined
+  const chatId = mine !== undefined && mine.taskId === null ? mine.id : undefined
   const back = props.back
   if (props.from !== undefined) return <MemberCard botId={props.botId} roomId={props.from} />
   return (
@@ -272,7 +274,7 @@ export function BotPanel(props: { readonly botId: string; readonly tab: BotTab; 
             ))}
           </div>
           {props.tab === 'details' ? null : <p className="pod-tab-hint">{t(TAB_HINTS[props.tab])}</p>}
-          {props.tab === 'details' ? <BotDetails key={bot.id} bot={bot} taskId={taskId} /> : null}
+          {props.tab === 'details' ? <BotDetails key={bot.id} bot={bot} taskId={taskId} chatId={chatId} /> : null}
           {props.tab === 'pages' ? <ScopedPages match={(page) => page.botId === bot.id} empty={t('跟{name}说“把结果做成看板”或“做一页报告”，做好的页面都在这里。', { name: bot.name })} /> : null}
           {props.tab === 'library' ? <Library botId={bot.id} /> : null}
           {props.tab === 'automations' ? <Automations match={(routine) => routine.botId === bot.id} defaults={{ botId: bot.id }} empty={t('也可以跟{name}说“每天 9 点帮我……”', { name: bot.name })} /> : null}

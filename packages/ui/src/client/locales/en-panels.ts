@@ -171,7 +171,6 @@ export const UI_EN_PANELS: Readonly<Record<string, string>> = {
   '成员': 'Members',
   '点成员看它是谁、单聊或移出': 'Click a member to see who it is, chat directly, or remove it',
   '主管': 'Lead',
-  '这个群还没有任务': 'This group has no tasks yet',
   '在群里交代一件事，Super-agent 会安排。': 'Ask for something in the group and Super-agent will organize it.',
   '进行中': 'In progress',
   '已结束': 'Finished',

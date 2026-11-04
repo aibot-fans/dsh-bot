@@ -5,7 +5,7 @@ import { PodEvents } from '../api/events.ts'
 import { ResourceCache } from './resource.ts'
 
 export type BotTab = 'details' | 'pages' | 'library' | 'automations' | 'tasks' | 'browser' | 'computer'
-export type GroupTab = 'details' | 'pages' | 'library' | 'automations' | 'tasks' | 'browser' | 'computer'
+export type GroupTab = 'details' | 'pages' | 'library' | 'automations' | 'browser' | 'computer'
 export type SettingsTab = 'general' | 'usage' | 'automations' | 'work' | 'notes' | 'models' | 'browser' | 'computer' | 'archive' | 'advanced'
 
 /**
@@ -450,10 +450,13 @@ export class AppState {
         return
       case 'room':
         cache.invalidate(`members:${event.roomId}`)
+        cache.invalidate(`room-activity:${event.roomId}`)
         cache.invalidate('rooms')
         return
       case 'message':
         cache.invalidate(`messages:${event.roomId}`)
+        cache.invalidate(`room-activity:${event.roomId}`)
+        cache.invalidate((key) => key.startsWith('task-activity:'))
         cache.invalidate(`pins:${event.roomId}`)
         cache.invalidate(`ratings:${event.roomId}`)
         cache.invalidate((key) => key.startsWith('page-thread:'))
@@ -470,7 +473,8 @@ export class AppState {
         const root = this.rootOf(event.rootId)
         cache.invalidate(`snapshot:${root}`)
         cache.invalidate(`snapshot:${event.taskId}`)
-        cache.invalidate(`progress:${root}`)
+        cache.invalidate(`task-activity:${root}`)
+        cache.invalidate((key) => key.startsWith('room-activity:'))
         cache.invalidate('tasks')
         cache.invalidate('rooms')
         return

@@ -1,4 +1,4 @@
-import { END_REASON_LABELS, TICKET_STAGE_LABELS, stageGroup, t, type Bot, type TaskSnapshot } from 'pod-domain'
+import { END_REASON_LABELS, TICKET_STAGE_LABELS, stageGroup, t, type ActivityState, type Bot, type TaskSnapshot } from 'pod-domain'
 import { api } from '../api/endpoints.ts'
 import { useApp, type AppState } from '../state/app.ts'
 import { useResource } from '../state/resource.ts'
@@ -36,26 +36,40 @@ export function isMoving(snapshot: TaskSnapshot): boolean {
   return snapshot.stage === 'idle' && snapshot.children.some((child) => child.endedAt === null)
 }
 
-/** 任务的状态图标：转圈是进行中，两道竖线是暂停着，红点是等你，红叉是没做成，圈住的勾是完成（你停掉的、无需处理的是灰勾）。 */
+/** 状态图标：转圈是在动，空心圈是在等（到点、新消息），两道竖线是暂停着，红点是等你，红叉是没做成，圈住的勾是完成（停掉的、无需处理的是灰勾）。 */
+export function StateIcon(props: { readonly state: ActivityState }) {
+  switch (props.state) {
+    case 'paused':
+      return <span className="pod-state-icon pod-state-paused" aria-hidden />
+    case 'failed':
+      return (
+        <span className="pod-state-icon pod-state-failed" aria-hidden>
+          <Icon name="close" size={8} />
+        </span>
+      )
+    case 'attention':
+      return <span className="pod-state-icon pod-state-attention" aria-hidden />
+    case 'done':
+    case 'ended':
+      return (
+        <span className={`pod-state-icon pod-state-${props.state}`} aria-hidden>
+          <Icon name="check" size={9} />
+        </span>
+      )
+    case 'moving':
+      return <span className="pod-spinner pod-state-icon" aria-hidden />
+    case 'still':
+      return <span className="pod-state-icon pod-state-still" aria-hidden />
+  }
+}
+
+/** 任务的状态图标，照 bucketOf 分：暂停着、没做成、等你、完成（做完了、结束了），其余看是不是真的在动。 */
 export function TaskStateIcon(props: { readonly snapshot: TaskSnapshot }) {
   const bucket = bucketOf(props.snapshot)
-  if (props.snapshot.stage === 'paused') return <span className="pod-state-icon pod-state-paused" aria-hidden />
-  if (bucket === 'attention' && props.snapshot.stage === 'failed') {
-    return (
-      <span className="pod-state-icon pod-state-failed" aria-hidden>
-        <Icon name="close" size={8} />
-      </span>
-    )
-  }
-  if (bucket === 'attention') return <span className="pod-state-icon pod-state-attention" aria-hidden />
-  if (bucket === 'done' || bucket === 'ended') {
-    return (
-      <span className={`pod-state-icon pod-state-${bucket}`} aria-hidden>
-        <Icon name="check" size={9} />
-      </span>
-    )
-  }
-  return isMoving(props.snapshot) ? <span className="pod-spinner pod-state-icon" aria-hidden /> : <span className="pod-state-icon pod-state-still" aria-hidden />
+  if (props.snapshot.stage === 'paused') return <StateIcon state="paused" />
+  if (bucket === 'attention') return <StateIcon state={props.snapshot.stage === 'failed' ? 'failed' : 'attention'} />
+  if (bucket === 'done' || bucket === 'ended') return <StateIcon state={bucket} />
+  return <StateIcon state={isMoving(props.snapshot) ? 'moving' : 'still'} />
 }
 
 function useGroupMembers(roomId: string): readonly Bot[] {
