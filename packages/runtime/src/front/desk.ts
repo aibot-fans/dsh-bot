@@ -20,6 +20,8 @@ import { FrontWakes, type TaskWake } from './wakes.ts'
 /** 一个聊天室第一次进前台（或换了一段）时带多少条最近的消息；之后只带前台没看过的，最多这么多。 */
 const RECENT_FIRST = 8
 const RECENT_MORE = 5
+/** 组长看到的成员分工最多这么多字。 */
+const MEMBER_DUTY_LIMIT = 60
 
 export interface FrontDeskDeps {
   readonly db: DatabaseSync
@@ -285,9 +287,16 @@ export class FrontDesk {
       const ids = new Set(list.map((item) => item.message.id))
       const recent = listMessages(this.deps.db, roomId, { before: first, limit: seen?.has(roomId) === true ? RECENT_MORE : RECENT_FIRST })
         .filter((message) => message.seq > since && !ids.has(message.id) && message.author !== POD && (message.kind === 'text' || message.kind === 'task-card'))
-      const members = room.kind === 'direct' ? [] : listRoomMembers(this.deps.db, roomId).flatMap((member) => this.deps.bots.get(member.botId)?.name ?? [])
       const leader = this.deps.leaderOf(room)
-      return [{ room, members, leader: leader?.name ?? '', leading: leader !== undefined && leader.id === session.botId, recent, items: list }]
+      const leading = leader !== undefined && leader.id === session.botId
+      const members = room.kind === 'direct' ? [] : listRoomMembers(this.deps.db, roomId).flatMap((member) => {
+        const bot = this.deps.bots.get(member.botId)
+        if (bot === undefined) return []
+        // 组长按分工派活：别的成员名字后面带上它管什么。
+        const duty = leading && bot.id !== session.botId && bot.role !== 'lead' ? truncate(oneLine(bot.card.duties || bot.title), MEMBER_DUTY_LIMIT) : ''
+        return [duty === '' ? bot.name : `${bot.name}（${duty}）`]
+      })
+      return [{ room, members, leader: leader?.name ?? '', leading, recent, items: list }]
     })
   }
 
