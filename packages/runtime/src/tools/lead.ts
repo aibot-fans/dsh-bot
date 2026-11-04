@@ -168,7 +168,7 @@ export function orgTools(pod: PodRuntime, session: PodSession): readonly ToolDef
       if (leader !== '' && (chosen === undefined || chosen.archivedAt !== null)) return failure(`找不到 bot「${leader}」：组长要是群里的一个 bot`)
       const memberIds = [...resolved.map((entry) => entry.bot?.id ?? ''), ...(chosen === undefined ? [] : [chosen.id])]
       const before = new Set(listRooms(pod.db, { archived: false }).map((room) => room.id))
-      const created = pod.rooms.createGroup({ name, memberIds, ...(chosen === undefined ? {} : { leaderId: chosen.id }) }, session.botId)
+      const created = pod.rooms.groups.create({ name, memberIds, ...(chosen === undefined ? {} : { leaderId: chosen.id }) }, session.botId)
       if (!created.ok) return failure(created.error.message)
       const room = created.value
       const head = pod.rooms.leaderOf(room)

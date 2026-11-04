@@ -173,7 +173,7 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
   /** 交进的群（团队）：按群名或 id 找普通群；只有 Super-agent 能交。 */
   const teamRoom = (name: string, here: Room): Room | string => {
     if (me()?.role !== 'lead') return '只有 Super-agent 能把事交进群；你在群里开的活本来就在群里干'
-    const groups = pod.rooms.groups()
+    const groups = pod.rooms.groups.list()
     const found = groups.find((group) => group.id === name || group.title === name) ?? groups.find((group) => group.title.includes(name) || name.includes(group.title))
     if (found === undefined) return `找不到群「${name}」。现有的群：${groups.map((group) => group.title).join('、') || '还没有'}`
     return found.id === here.id ? '这条消息就在这个群里，不用写 group，开给群里的成员就在这里干' : found

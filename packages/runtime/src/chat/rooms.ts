@@ -6,7 +6,6 @@ import {
   POD,
   ROOM_TITLE_MAX,
   MESSAGE_MAX,
-  autoGroupName,
   botCallsSinceOwner,
   botFolder,
   charLength,
@@ -22,7 +21,6 @@ import {
   readInt,
   readObject,
   readString,
-  readStringArray,
   roomFolder,
   t,
   truncate,
@@ -53,7 +51,6 @@ import {
   listRooms,
   markRoomRead,
   pinnedMessages,
-  removeRoomMember,
   transaction,
   updateMessage,
   updateRoom,
@@ -66,6 +63,7 @@ import type { BotService } from '../bots/service.ts'
 import type { Auditor } from '../core/audit.ts'
 import type { PodBus } from '../core/bus.ts'
 import { resolveMembers, stripMentions } from './group.ts'
+import { GroupService } from './groups.ts'
 
 const PAGE = 50
 
@@ -126,9 +124,12 @@ export class RoomService {
   /** 每个 bot 在每个群里最近一次是谁叫起来的：用户（OWNER）或 @ 了它的 bot。用来拦住“被 @ 了又 @ 回去”。 */
   private readonly triggers = new Map<string, string>()
   private readonly deps: RoomServiceDeps
+  /** 群：建群、加人移人和组长。 */
+  readonly groups: GroupService
 
   constructor(deps: RoomServiceDeps) {
     this.deps = deps
+    this.groups = new GroupService({ db: deps.db, bus: deps.bus, bots: deps.bots, registry: deps.registry, audit: deps.audit, now: deps.now, stopSession: deps.stopSession, rooms: this })
   }
 
   private get db(): DatabaseSync {
@@ -271,39 +272,6 @@ export class RoomService {
   }
 
   /**
-   * 拉群：建一个不挂任务的群聊，定一个组长（没点名的话先给它；没写就是排在最前的成员），群里留一行“没点名的话 X 先接”。
-   * 同名的群还在就直接用它：把没进群的成员补进去，写了组长就换成它。主管总在群里，但不当组长，只在被点名时说话。
-   */
-  createGroup(input: { readonly name: string; readonly memberIds: readonly string[]; readonly leaderId?: string; readonly max?: number }, actor: string): PodResult<Room> {
-    const name = truncate(input.name.replace(/\s+/g, ' ').trim(), input.max ?? ROOM_TITLE_MAX)
-    if (name === '') return fail('invalid-input', t('群要有名字'))
-    const lead = this.deps.bots.lead()
-    const members = [...new Set([lead.id, ...input.memberIds])].filter((id) => this.deps.bots.activeBot(id) !== undefined)
-    const now = this.deps.now()
-    const existing = listRooms(this.db, { archived: false }).find((room) => room.kind === 'task' && room.taskId === null && room.title === name)
-    if (existing !== undefined) {
-      for (const botId of members) addRoomMember(this.db, existing.id, botId, now)
-      this.deps.bus.emit({ type: 'room', roomId: existing.id })
-      if (input.leaderId === undefined || input.leaderId === this.leaderOf(existing)?.id) return ok(this.get(existing.id) ?? existing)
-      return this.setLeader(existing.id, input.leaderId, actor)
-    }
-    if (members.length < 2) return fail('invalid-input', t('至少拉一个 bot 进群'))
-    const leaderId = input.leaderId ?? members.find((id) => id !== lead.id)
-    const leader = leaderId === undefined || !members.includes(leaderId) ? undefined : this.deps.bots.activeBot(leaderId)
-    if (leader === undefined) return fail('invalid-input', t('组长要是群里的成员'))
-    if (leader.role === 'lead') return fail('invalid-input', t('{name}在群里只在被点名时说话，不当组长', { name: leader.name }))
-    const room = transaction(this.db, () => {
-      const created = insertRoom(this.db, { id: newId('room'), kind: 'task', title: name, leadBotId: leader.id, now })
-      for (const botId of members) addRoomMember(this.db, created.id, botId, now)
-      return created
-    })
-    this.deps.audit.record('room.group', actor, room.id, { name, members, leader: leader.id })
-    this.leaderNotice(room.id, t('{name} 是组长：没点名的话{name}先接', { name: leader.name }), leader.id)
-    this.deps.bus.emit({ type: 'rooms' })
-    return ok(room)
-  }
-
-  /**
    * 群的组长：没点名的话先给它。普通群是建群时定的（定的那个不在群里了，就是排在最前的成员），
    * 任务群是负责的 bot，正式团队是团队组长；单聊没有。
    */
@@ -312,77 +280,6 @@ export class RoomService {
     const members = this.memberBots(room)
     const chosen = room.leadBotId === null ? undefined : members.find((bot) => bot.id === room.leadBotId)
     return chosen ?? this.deps.leaderFor(room) ?? members.find((bot) => bot.role !== 'lead')
-  }
-
-  /** 换组长：要是群里 Super-agent 以外的成员；群里留一行“没点名的话 X 先接”。任务群、正式团队不另设组长。 */
-  setLeader(roomId: string, botId: string, actor: string): PodResult<Room> {
-    const room = this.get(roomId)
-    if (room === undefined || room.archivedAt !== null || room.kind === 'direct') return fail('not-found', t('找不到这个群聊'))
-    if (room.taskId !== null || room.teamId !== null) return fail('invalid-input', t('任务群由负责的 bot 先接，正式团队由团队组长先接，不另设组长'))
-    const bot = this.memberBots(room).find((member) => member.id === botId)
-    if (bot === undefined) return fail('invalid-input', t('组长要是群里的成员'))
-    if (bot.role === 'lead') return fail('invalid-input', t('{name}在群里只在被点名时说话，不当组长', { name: bot.name }))
-    if (room.leadBotId === bot.id) return ok(room)
-    const updated = updateRoom(this.db, room.id, { leadBotId: bot.id }) ?? room
-    this.deps.audit.record('room.leader', actor, room.id, { botId: bot.id })
-    this.leaderNotice(room.id, t('组长换成了{name}：没点名的话{name}先接', { name: bot.name }), bot.id)
-    this.deps.bus.emit({ type: 'room', roomId: room.id })
-    return ok(updated)
-  }
-
-  /** 页面上的新建群聊：{ name, memberIds, leaderId? }；没起名字时按成员起一个，没写组长就是第一个成员。 */
-  createGroupFromPage(input: unknown): PodResult<Room> {
-    const memberIds = readStringArray(input, 'memberIds') ?? []
-    const leaderId = readId(input, 'leaderId')
-    const named = readString(input, 'name').trim()
-    const names = memberIds.flatMap((id) => {
-      const bot = this.deps.bots.activeBot(id)
-      return bot === undefined || bot.role === 'lead' ? [] : [bot.name]
-    })
-    return this.createGroup({ name: named === '' ? autoGroupName(names) : named, memberIds, ...(leaderId === undefined ? {} : { leaderId }) }, OWNER)
-  }
-
-  private groupAndBot(input: unknown): PodResult<{ readonly room: Room; readonly bot: Bot }> {
-    const roomId = readId(input, 'roomId')
-    const botId = readId(input, 'botId')
-    const room = roomId === undefined ? undefined : this.get(roomId)
-    if (room === undefined || room.archivedAt !== null) return fail('not-found', t('找不到这个群聊'))
-    if (room.kind === 'direct') return fail('invalid-input', t('单聊不能加减成员'))
-    const bot = botId === undefined ? undefined : this.deps.bots.activeBot(botId)
-    if (bot === undefined) return fail('not-found', t('找不到这个 bot'))
-    return ok({ room, bot })
-  }
-
-  /** 群聊加人。 */
-  addMemberFromPage(input: unknown): PodResult<null> {
-    const found = this.groupAndBot(input)
-    if (!found.ok) return found
-    this.addMember(found.value.room.id, found.value.bot.id)
-    this.deps.audit.record('room.member.add', OWNER, found.value.room.id, { botId: found.value.bot.id })
-    this.milestone(found.value.room.id, t('{name} 进群了', { name: found.value.bot.name }), { botId: found.value.bot.id })
-    return ok(null)
-  }
-
-  /** 群聊移出成员：它在这个群里的聊天会话一起结束。主管不能移出。 */
-  removeMemberFromPage(input: unknown): PodResult<null> {
-    const found = this.groupAndBot(input)
-    if (!found.ok) return found
-    const { room, bot } = found.value
-    if (bot.role === 'lead') return fail('lead-protected', t('{name}要留在群里：点它的名，就能叫它拉人、建 bot、换组长', { name: bot.name }))
-    removeRoomMember(this.db, room.id, bot.id)
-    // 移走的是组长：换成排在最前的成员。
-    const next = room.leadBotId === bot.id ? this.memberBots(room).find((member) => member.role !== 'lead') : undefined
-    if (room.leadBotId === bot.id) updateRoom(this.db, room.id, { leadBotId: next?.id ?? null })
-    const session = this.deps.registry.activeForRoom(room.id, bot.id)
-    if (session !== undefined) {
-      this.deps.stopSession(session.id)
-      this.deps.registry.retire(session.id)
-    }
-    this.deps.audit.record('room.member.remove', OWNER, room.id, { botId: bot.id })
-    this.milestone(room.id, t('{name} 移出了群聊', { name: bot.name }), { botId: bot.id })
-    if (next !== undefined) this.leaderNotice(room.id, t('组长换成了{name}：没点名的话{name}先接', { name: next.name }), next.id)
-    this.deps.bus.emit({ type: 'room', roomId: room.id })
-    return ok(null)
   }
 
   private chatsIn(roomId: string): readonly PodSession[] {
@@ -535,11 +432,6 @@ export class RoomService {
     this.post(roomId, { author: POD, kind: 'milestone', body, data })
   }
 
-  /** 群里一行“没点名的话 X 先接”：用提示而不是里程碑，群里看得见（里程碑只在任务页里）。 */
-  private leaderNotice(roomId: string, body: string, botId: string): void {
-    this.post(roomId, { author: POD, kind: 'notice', body, data: { botId, leader: true } })
-  }
-
   /** 你在房间里说话：先打码再存；在有任务跟进的话题里就直通任务，否则交给前台。 */
   async send(input: unknown): Promise<PodResult<RoomMessage>> {
     const roomId = readId(input, 'roomId')
@@ -604,11 +496,6 @@ export class RoomService {
     const room = this.get(message.roomId)
     if (room !== undefined && room.archivedAt === null) this.toFronts(room, message, note)
     return Promise.resolve()
-  }
-
-  /** 普通群（你或 Super-agent 拉的、不挂任务的群聊），最近说过话的在前。 */
-  groups(): readonly Room[] {
-    return listRooms(this.db, { archived: false }).filter((room) => room.kind !== 'direct' && room.taskId === null && room.teamId === null)
   }
 
   /** 群里现在的成员（在用的 bot）。 */
@@ -771,7 +658,7 @@ export class RoomService {
     // 群详情里换组长：照换组长的规矩，群里留一行。
     const leader = readId(raw, 'leadBotId')
     if (leader !== undefined) {
-      const set = this.setLeader(roomId, leader, OWNER)
+      const set = this.groups.setLeader(roomId, leader, OWNER)
       if (!set.ok) return set
     }
     const title = readString(raw, 'title')

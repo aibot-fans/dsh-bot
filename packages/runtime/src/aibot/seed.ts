@@ -168,7 +168,7 @@ export function seedX(db: DatabaseSync, bots: BotService, rooms: RoomService): X
   const record = readState<SeedRecord | null>(db, SEED_KEY, null)
   if (record?.done === true) return { bot: upgradeCard(bots, bots.activeBot(record.botId)), room: rooms.get(record.roomId) }
   const bot = bots.active().find((item) => item.name === X_BOT.name || item.name === X_BOT_EN.name) ?? bots.createFromDraft(xBotDraft(), { source: 'seed', actor: POD })
-  const created = rooms.createGroup({ name: xRoomTitle(), memberIds: [bot.id] }, POD)
+  const created = rooms.groups.create({ name: xRoomTitle(), memberIds: [bot.id] }, POD)
   const room = created.ok ? created.value : undefined
   // 第一次启动时页面多半还没报过 dsh 的语言，这条提示可能先用了中文；记下它，语言换了由 localizeX 跟着换。
   const notice = room === undefined ? undefined : rooms.post(room.id, { author: POD, kind: 'notice', body: welcome(currentLanguage(), bot.name) })
@@ -189,7 +189,7 @@ export function xRoom(db: DatabaseSync, bots: BotService, rooms: RoomService): R
   const current = record === null ? undefined : rooms.get(record.roomId)
   if (current !== undefined && current.archivedAt === null) return current
   const bot = record === null ? undefined : bots.activeBot(record.botId)
-  const created = rooms.createGroup({ name: xRoomTitle(), memberIds: bot === undefined ? [] : [bot.id] }, POD)
+  const created = rooms.groups.create({ name: xRoomTitle(), memberIds: bot === undefined ? [] : [bot.id] }, POD)
   if (!created.ok) return undefined
   writeState(db, SEED_KEY, { done: true, botId: record?.botId ?? '', roomId: created.value.id })
   return created.value

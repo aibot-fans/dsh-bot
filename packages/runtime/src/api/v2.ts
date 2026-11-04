@@ -49,9 +49,9 @@ export function v2Routes(pod: PodRuntime): readonly RouteSpec[] {
       const folders = task.parentId === null ? pod.tasks.tree(task.rootId).map((item) => item.folder) : [task.folder]
       return ok(await listLibrary(pod.workspaceRoot, folders))
     }),
-    post('/room/create-group', (body) => pod.rooms.createGroupFromPage(body)),
-    post('/room/member/add', (body) => pod.rooms.addMemberFromPage(body)),
-    post('/room/member/remove', (body) => pod.rooms.removeMemberFromPage(body)),
+    post('/room/create-group', (body) => pod.rooms.groups.createFromPage(body)),
+    post('/room/member/add', (body) => pod.rooms.groups.addFromPage(body)),
+    post('/room/member/remove', (body) => pod.rooms.groups.removeFromPage(body)),
     post('/room/stop', (body) => pod.rooms.stop(body)),
     post('/room/new-conversation', (body) => pod.rooms.newConversation(body)),
     post('/room/delete-conversation', (body) => pod.rooms.deleteConversation(body)),
