@@ -22,7 +22,11 @@ function footOf(snapshot: TaskSnapshot, bots: ReadonlyMap<string, Bot>, now: num
   if (bucket === 'ended') return { tone: 'quiet', text: bucketLabel(snapshot, bucket) }
   if (bucket === 'attention') {
     const question = snapshot.question
-    if (question !== null) return { tone: 'ask', text: t('{label}：{text}', { label: t(WAIT_KIND_LABELS[question.kind]), text: question.title }) }
+    if (question !== null) {
+      // 要批准的写操作和别的批准一样写“等你批准”。
+      const label = WAIT_KIND_LABELS[question.kind === 'write' ? 'approval' : question.kind]
+      return { tone: 'ask', text: t('{label}：{text}', { label: t(label), text: question.title }) }
+    }
     const label = stage === 'failed' ? t('没做成') : bucketLabel(snapshot, bucket)
     return { tone: 'ask', text: task.note === '' ? label : t('{label}：{text}', { label, text: task.note }) }
   }

@@ -249,7 +249,10 @@ export const api = {
   stopAll: () => apiPost<{ readonly stopped: number }>('/tasks/stop-all'),
 
   waits: () => apiGet<readonly Wait[]>('/waits'),
-  answerWait: (waitId: string, answer: string) => apiPost<Wait>('/wait/answer', { waitId, answer }),
+  /** 一件等你处理的事，处理过的也取得到（卡片上要画出选了哪个）。 */
+  wait: (id: string) => apiGet<Wait>('/wait', { id }),
+  /** 答复；在对话里的问题卡片上答的带上卡片在哪段对话、哪条消息上，回答也作为你的一句话留在那里。 */
+  answerWait: (waitId: string, answer: string, card?: { readonly roomId: string; readonly messageId: string }) => apiPost<Wait>('/wait/answer', { waitId, answer, ...card }),
   dismissWait: (waitId: string) => apiPost<Wait>('/wait/dismiss', { waitId }),
 
   activity: (id: string) => apiGet<TaskActivity | null>('/session/activity', { id }),

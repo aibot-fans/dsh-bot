@@ -4,8 +4,6 @@
  */
 export const UI_EN_EXTRA: Readonly<Record<string, string>> = {
   '已完成': 'Done',
-  '登录好之后写一句“已登录”就行；不需要写密码': 'After signing in, just write “Signed in”. No password needed',
-  '你的答复': 'Your reply',
   '认识 dsh-bot': 'Meet dsh-bot',
   '建一个团队': 'Create a team',
   '先登录常用网站': 'Sign in to sites',

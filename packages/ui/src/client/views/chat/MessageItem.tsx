@@ -161,7 +161,7 @@ export function MessageItem(props: MessageProps) {
       </MessageFrame>
     )
   }
-  // 等你：发问的 bot 说的那句话，后面带按钮；X 上的事件是一张卡片。这两种不套灰气泡。
+  // 等你：发问的 bot 问的事画成卡片（问题、批准、登录）；X 上的事件是一张卡片。这两种不套灰气泡。
   const card = message.kind === 'wait' ? <WaitCard message={message} /> : xEvent === undefined ? undefined : <XEventCard view={xEvent} />
   return (
     <MessageFrame {...props} owner={false} className={rowClass('pod-msg pod-msg-bot', props)}>
@@ -176,6 +176,12 @@ export function MessageItem(props: MessageProps) {
         <Markdown text={message.body} mentions={calledMentions(message, props.mentions, false)} />
         {attachment === undefined ? null : <Attachment attachment={attachment} />}
       </BotBubble>
+      {/* Super-agent 转告任务在问的事：那件事的卡片（问题、批准、登录）挂在这句下面，在这里点就是答复。 */}
+      {message.kind !== 'wait' && typeof message.data.waitId === 'string' ? (
+        <div className="pod-msg-under">
+          <WaitCard message={message} />
+        </div>
+      ) : null}
       {pinned}
       {/* 以前在这句话后面点过的“收下”“重试”这些，留一行小字。 */}
       {decided === undefined ? null : <div className="pod-ask-done">{decided}</div>}

@@ -4,7 +4,6 @@ export const UI_EN_V4: Readonly<Record<string, string>> = {
   '先不': 'Not now',
   '去接管': 'Take over',
   '登好了': 'Signed in',
-  '回一句': 'Reply',
   '已处理': 'Handled',
   '你批准了': 'You approved',
   '你没批准': 'You declined',
@@ -57,4 +56,8 @@ export const UI_EN_V4: Readonly<Record<string, string>> = {
   '做完了，还没点开看': 'Done, not opened yet',
   '更新于 {time}': 'Updated {time}',
   '{label}：{text}': '{label}: {text}',
+  '推荐': 'Recommended',
+  '其他，自己写…': 'Other, write your own…',
+  '写下你的回答…': 'Write your answer…',
+  '任务停了，这件事先放着': 'The task is stopped, so this can wait',
 }

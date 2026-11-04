@@ -38,7 +38,6 @@ export const UI_EN_TASKS: Readonly<Record<string, string>> = {
   '把消息交给前台': 'Handing messages to the front desk',
   '任务文件夹里还没有文件。': 'No files in the task folder yet.',
   '在跑 {count} 个任务': '{count} tasks running',
-  '答复': 'Answer',
   '新任务': 'new task',
   '你的新消息': 'your new message',
   '触发器': 'trigger',
