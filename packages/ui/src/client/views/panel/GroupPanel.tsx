@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ROOM_TITLE_MAX, t, type Bot, type NotifyLevel, type RoomSummary } from 'pod-domain'
+import { GROUP_TOPIC_MAX, ROOM_TITLE_MAX, t, type Bot, type NotifyLevel, type RoomSummary } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { Avatar, Button, Empty, Modal, Segmented } from '../../components/common.tsx'
@@ -82,6 +82,49 @@ function Conventions(props: { readonly roomId: string }) {
       {core === undefined || core.text === '' ? <span className="pod-muted-inline">{t('还没有约定')}</span> : <p className="pod-persona-text">{core.text}</p>}
       <div>
         <Button small kind="quiet" icon="edit" onClick={() => setDraft(core?.text ?? '')}>
+          {t('编辑')}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/** 管什么：一句话写这个群管哪些事，Super-agent 交活时按它找对口的群。 */
+function Topic(props: { readonly room: RoomSummary; readonly onSave: (topic: string, done: () => void) => void }) {
+  const [draft, setDraft] = useState<string | undefined>(undefined)
+  if (draft !== undefined) {
+    const save = (): void => props.onSave(draft.trim(), () => setDraft(undefined))
+    return (
+      <div className="pod-stack pod-box-pad">
+        <input
+          className="pod-input"
+          autoFocus
+          value={draft}
+          maxLength={GROUP_TOPIC_MAX}
+          aria-label={t('管什么')}
+          placeholder={t('例如：服务器的巡检、排障、部署')}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.nativeEvent.isComposing) save()
+            if (event.key === 'Escape') setDraft(undefined)
+          }}
+        />
+        <div className="pod-row">
+          <Button small kind="primary" onClick={save}>
+            {t('保存')}
+          </Button>
+          <Button small kind="quiet" onClick={() => setDraft(undefined)}>
+            {t('取消')}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+  return (
+    <div className="pod-box-pad pod-stack-tight">
+      {props.room.topic === '' ? <span className="pod-muted-inline">{t('还没写：Super-agent 交活时只能看群名和成员')}</span> : <p className="pod-persona-text">{props.room.topic}</p>}
+      <div>
+        <Button small kind="quiet" icon="edit" onClick={() => setDraft(props.room.topic)}>
           {t('编辑')}
         </Button>
       </div>
@@ -217,7 +260,7 @@ function Members(props: { readonly room: RoomSummary; readonly members: readonly
 
 /**
  * 群聊详情：从右侧滑出，顶上左边是群图标、右边是群名和成员；
- * 分详情（任务群最上面是任务和它的动态，再是成员和组长；普通群成员下面是动态；然后群约定、群记忆、提醒、删除）、页面、资料库、自动化、浏览器、电脑六页。
+ * 分详情（任务群最上面是任务和它的动态，再是成员和组长；普通群最上面是管什么，成员下面是动态；然后群约定、群记忆、提醒、删除）、页面、资料库、自动化、浏览器、电脑六页。
  */
 export function GroupPanel(props: { readonly roomId: string; readonly tab: GroupTab }) {
   const app = useApp()
@@ -281,6 +324,15 @@ export function GroupPanel(props: { readonly roomId: string; readonly tab: Group
           {props.tab === 'details' ? (
             <div className="pod-stack">
               {room.taskId === null ? null : <TaskFacts taskId={room.taskId} title={t('任务')} />}
+              {room.taskId === null && room.teamId === null ? (
+                <section className="pod-box">
+                  <div className="pod-box-head">
+                    <strong>{t('管什么')}</strong>
+                    <span className="pod-muted-inline">{t('Super-agent 交活时按它找对口的群')}</span>
+                  </div>
+                  <Topic room={room} onSave={(topic, done) => update({ topic }, done)} />
+                </section>
+              ) : null}
               <Members room={room} members={members} bots={active} leaderId={room.leaderId ?? snapshot?.task.ownerBotId ?? null} onLeader={(leadBotId) => update({ leadBotId })} />
               {room.taskId === null ? (
                 <RoomActivityBox

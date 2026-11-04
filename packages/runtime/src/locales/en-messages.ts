@@ -210,6 +210,8 @@ export const RUNTIME_EN_MESSAGES: Readonly<Record<string, string>> = {
   '找不到这个群聊': 'Group chat not found',
   '单聊不能加减成员': "You can't add or remove members in a direct chat",
   '{name} 进群了': '{name} joined the group',
+  '管什么要写成一句话': 'Describe what the group handles in one line',
+  '任务群和正式团队不写管什么': 'Task groups and standing teams do not have a description of what they handle',
   '{name}要留在群里：点它的名，就能叫它拉人、建 bot、换组长': '{name} stays in the group: @ it to add members, create bots, or change the lead',
   '{name} 移出了群聊': '{name} was removed from the group',
   '组长要是群里的成员': 'The lead must be a member of the group',

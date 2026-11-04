@@ -21,6 +21,7 @@ import {
   readInt,
   readObject,
   readString,
+  readText,
   roomFolder,
   t,
   truncate,
@@ -674,6 +675,13 @@ export class RoomService {
     const leader = readId(raw, 'leadBotId')
     if (leader !== undefined) {
       const set = this.groups.setLeader(roomId, leader, OWNER)
+      if (!set.ok) return set
+    }
+    // 群详情里改群管什么。
+    const topic = readText(raw, 'topic')
+    if (topic === null) return fail('invalid-input', t('管什么要写成一句话'))
+    if (topic !== undefined) {
+      const set = this.groups.setTopic(roomId, topic, OWNER)
       if (!set.ok) return set
     }
     const title = readString(raw, 'title')

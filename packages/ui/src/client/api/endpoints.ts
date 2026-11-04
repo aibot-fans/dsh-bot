@@ -317,7 +317,7 @@ export const api = {
   /** 用量；给了 roomId 或 botId 时只算那个对话或那个 bot 的。 */
   usage: (range: UsageRange, scope: { readonly roomId?: string; readonly botId?: string } = {}) => apiGet<UsageReport>('/usage', { range, ...scope }),
   library: (target: { readonly botId?: string; readonly roomId?: string }) => apiGet<readonly LibraryItem[]>('/library', target),
-  createGroup: (name: string, memberIds: readonly string[], leaderId?: string) => apiPost<Room>('/room/create-group', { name, memberIds, ...(leaderId === undefined ? {} : { leaderId }) }),
+  createGroup: (name: string, memberIds: readonly string[], leaderId?: string, topic = '') => apiPost<Room>('/room/create-group', { name, memberIds, ...(leaderId === undefined ? {} : { leaderId }), ...(topic === '' ? {} : { topic }) }),
   addMember: (roomId: string, botId: string) => apiPost<null>('/room/member/add', { roomId, botId }),
   removeMember: (roomId: string, botId: string) => apiPost<null>('/room/member/remove', { roomId, botId }),
   stopReply: (roomId: string) => apiPost<{ readonly stopped: number }>('/room/stop', { roomId }),

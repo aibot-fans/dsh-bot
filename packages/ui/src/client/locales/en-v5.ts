@@ -62,4 +62,9 @@ export const UI_EN_V5: Readonly<Record<string, string>> = {
   '在群里交代一件事，组长会接，或者交给对口的成员；干到哪会记在这里。': 'Ask for something in the group. The leader takes it or hands it to the right member, and how far it has got is recorded here.',
   '在单聊里交代它的事': 'What you asked it for in this chat',
   '在单聊里交代{name}一件事，干到哪会记在这里。': 'Ask {name} for something in this chat, and how far it has got is recorded here.',
+  '管什么': 'Handles',
+  'Super-agent 交活时按它找对口的群': 'Super-agent uses this to pick the right group for new work',
+  '还没写：Super-agent 交活时只能看群名和成员': 'Not written yet: Super-agent can only go by the group name and members',
+  '例如：服务器的巡检、排障、部署': 'For example: server checks, troubleshooting and deployments',
+  '一句话，可以不填：Super-agent 交活时按它找对口的群': 'One line, optional: Super-agent uses it to pick the right group for new work',
 }

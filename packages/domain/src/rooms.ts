@@ -18,7 +18,7 @@ export interface Room {
   readonly taskId: string | null
   /** 群的组长：群里没点名的话先给它。建群时定、群详情里能换；任务群（负责的 bot）、正式团队（团队组长）和单聊是 null。 */
   readonly leadBotId: string | null
-  /** 同一个 bot 可以按话题开多个单聊。 */
+  /** 单聊：同一个 bot 可以按话题开多个单聊。普通群：这个群管什么，Super-agent 交活时按它找对口的群。 */
   readonly topic: string
   readonly pinned: boolean
   /** 无痕单聊：不提取记忆。 */
@@ -84,6 +84,9 @@ export interface RoomSummary extends Room {
 }
 
 export const ROOM_TITLE_MAX = 40
+
+/** 群“管什么”最多几个字：一句话。 */
+export const GROUP_TOPIC_MAX = 80
 
 /** 群名建议不超过几个字：侧栏里一眼能看完。只是建议，起好的名字不截断，侧栏里放不下时悬停看全名。 */
 export const GROUP_NAME_MAX = 12

@@ -1,5 +1,5 @@
 import { useState, type KeyboardEvent } from 'react'
-import { BOT_NAME_MAX, CARD_FIELD_MAX, MEMBER_ICONS, autoGroupName, botPresets, groupNameMax, iconAvatar, inputLimit, pickBotIcon, quickPersona, t, takenIcons, type Bot, type BotIconKind, type BotPreset } from 'pod-domain'
+import { BOT_NAME_MAX, CARD_FIELD_MAX, GROUP_TOPIC_MAX, MEMBER_ICONS, autoGroupName, botPresets, groupNameMax, iconAvatar, inputLimit, pickBotIcon, quickPersona, t, takenIcons, type Bot, type BotIconKind, type BotPreset } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { IconChoices } from '../../components/BotIcon.tsx'
@@ -158,6 +158,7 @@ export function NewGroup(props: { readonly bots: readonly Bot[]; readonly onClos
   const app = useApp()
   const [picked, setPicked] = useState<readonly string[]>([])
   const [name, setName] = useState('')
+  const [topic, setTopic] = useState('')
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | undefined>(undefined)
   const candidates = props.bots.filter((bot) => bot.role !== 'lead')
@@ -169,7 +170,7 @@ export function NewGroup(props: { readonly bots: readonly Bot[]; readonly onClos
     setBusy(true)
     setProblem(undefined)
     api
-      .createGroup(name.trim(), picked, picked[0])
+      .createGroup(name.trim(), picked, picked[0], topic.trim())
       .then((room) => {
         app.cache.invalidate('rooms')
         app.openRoom(room.id)
@@ -216,6 +217,9 @@ export function NewGroup(props: { readonly bots: readonly Bot[]; readonly onClos
         </div>
         <Field label={t('群名')} hint={t('可以不填；最好不超过 {GROUP_NAME_MAX} 个字', { GROUP_NAME_MAX: groupNameMax() })}>
           <input className="pod-input" value={name} maxLength={40} placeholder={picked.length === 0 ? t('不填就按成员起名') : autoGroupName(names)} onChange={(event) => setName(event.target.value)} onKeyDown={onEnter(create)} />
+        </Field>
+        <Field label={t('管什么')} hint={t('一句话，可以不填：Super-agent 交活时按它找对口的群')}>
+          <input className="pod-input" value={topic} maxLength={GROUP_TOPIC_MAX} placeholder={t('例如：服务器的巡检、排障、部署')} onChange={(event) => setTopic(event.target.value)} onKeyDown={onEnter(create)} />
         </Field>
         {problem === undefined ? null : <p className="pod-form-error">{problem}</p>}
         <div className="pod-form-actions">

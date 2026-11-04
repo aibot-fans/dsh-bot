@@ -148,19 +148,20 @@ export function orgTools(pod: PodRuntime, session: PodSession): readonly ToolDef
     description: [
       '拉群、建团队：把几个 bot 拉进一个群聊。群里没点名的话由组长先接（它自己答、自己干，或者交给对口的成员），点了谁的名就是谁接；你在群里只在被点名时说话。',
       `群名用简短的主题词（最好不超过 ${groupNameMax()} 个字），例如“博客小组”；已经有同名的群就直接用那个群，不重复建：members 里新的拉进去，写了 leader 就换它当组长（换组长也这样用）。`,
-      '组长按分工挑一个干活的 bot：群里的事多半从它那块开始、它能统筹先后；不能是你。',
-      '用户说“拉个群”“把写手和程序员叫到一起”“组个团队”时用它；只为一件事要几个人配合，开任务交给一个负责的 bot，它会开子任务、建任务群。',
+      '组长按分工挑一个干活的 bot：群里的事多半从它那块开始、它能统筹先后；不能是你。about 写这个群管什么，一句话：你交活时按它找对口的群。',
+      '用户说“拉个群”“把写手和程序员叫到一起”“组个团队”，或者要给已有的群加人、换组长、改管什么时用它；只为一件事要几个人配合，开任务交给一个负责的 bot，它会开子任务、建任务群。',
     ].join(''),
     properties: {
       name: str(`群名，最好不超过 ${groupNameMax()} 个字`),
       members: strList('拉谁进群：bot 的名字或 id；你会自动在群里'),
       leader: str('组长：群里一个干活 bot 的名字或 id，没点名的话它先接；不写就是 members 的第一个'),
+      about: str('这个群管什么，一句话（比如“服务器的巡检、排障、部署”）；用已有的群时写了就换成新写的'),
       intro: str('开场白：这个群是干什么的、谁管哪块，作为新群的第一条消息（用已有的群时不发）'),
       to: str('用户在哪条消息里要的（消息 id）：进群的入口放在那条所在的聊天室'),
     },
     required: ['name', 'members'],
-    parse: (args) => ({ name: text(args, 'name'), members: texts(args, 'members'), leader: text(args, 'leader'), intro: text(args, 'intro'), to: text(args, 'to') }),
-    run: ({ name, members, leader, intro, to }) => {
+    parse: (args) => ({ name: text(args, 'name'), members: texts(args, 'members'), leader: text(args, 'leader'), about: text(args, 'about'), intro: text(args, 'intro'), to: text(args, 'to') }),
+    run: ({ name, members, leader, about, intro, to }) => {
       const resolved = members.map((item) => ({ item, bot: pod.bots.resolve(item) }))
       const missing = resolved.filter((entry) => entry.bot === undefined || entry.bot.archivedAt !== null).map((entry) => entry.item)
       if (missing.length > 0) return failure(`找不到这些 bot：${missing.join('、')}。先用 find_bots 查，或用 create_bot 新建`)
@@ -168,7 +169,7 @@ export function orgTools(pod: PodRuntime, session: PodSession): readonly ToolDef
       if (leader !== '' && (chosen === undefined || chosen.archivedAt !== null)) return failure(`找不到 bot「${leader}」：组长要是群里的一个 bot`)
       const memberIds = [...resolved.map((entry) => entry.bot?.id ?? ''), ...(chosen === undefined ? [] : [chosen.id])]
       const before = new Set(listRooms(pod.db, { archived: false }).map((room) => room.id))
-      const created = pod.rooms.groups.create({ name, memberIds, ...(chosen === undefined ? {} : { leaderId: chosen.id }) }, session.botId)
+      const created = pod.rooms.groups.create({ name, memberIds, topic: about, ...(chosen === undefined ? {} : { leaderId: chosen.id }) }, session.botId)
       if (!created.ok) return failure(created.error.message)
       const room = created.value
       const head = pod.rooms.leaderOf(room)
