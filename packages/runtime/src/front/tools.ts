@@ -32,7 +32,7 @@ interface Item {
   readonly members: readonly string[]
   /** open：交进哪个群（团队），组长接；还没有这个群就新建。 */
   readonly group: string
-  /** open：新建群时这个群管什么。 */
+  /** open：新建群、或交进还没写管什么的群时，这个群管什么。 */
   readonly about: string
   readonly note: string
   readonly task: string
@@ -59,7 +59,7 @@ const ITEM_SCHEMA: JsonSchema = {
     group: str(
       'open：交进哪个群，只有 Super-agent 能写，主对话里交给别的 bot 的活都要写。写现有的群名就交进那个群，组长接（bot 写了就是它接，不在群里会被拉进来）；写一个还没有的群名就新建这个群，bot 当组长。活在群里干，做完你在这里交结论',
     ),
-    about: str('open：新建群时写这个群管什么，一句话（比如“服务器的巡检、排障、部署”），以后同类的活按它交进这个群'),
+    about: str('open：新建群时写这个群管什么，一句话（比如“服务器的巡检、排障、部署”），以后同类的活按它交进这个群；交进还没写管什么的群时也写上'),
     task: str('forward、stop、pause、resume、run：任务 id'),
     reason: str('ignore：一句原因'),
     urgent: bool('open：用户说了急'),
@@ -233,6 +233,8 @@ export function frontTools(pod: PodRuntime, session: PodSession): readonly ToolD
     const members = namedMembers(item.members, owner)
     if (typeof members === 'string') return members
     const joined = pod.rooms.groups.join(found.id, [owner.id, ...members.map((member) => member.id)], session.botId)
+    // 以前建的群没写管什么：这次写的 about 补上，以后交活照它找。
+    if (found.topic === '' && item.about !== '') pod.rooms.groups.setTopic(found.id, item.about, session.botId)
     return { room: found, owner, created: false, joined }
   }
 
