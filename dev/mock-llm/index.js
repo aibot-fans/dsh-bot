@@ -4,7 +4,7 @@
  * 用来在没有模型账号的隔离环境里跑通主管委派、任务会话、等你处理和交付。
  */
 
-import { demoDecision } from './demo.js'
+import { demoDecision, demoFront } from './demo.js'
 import { newPage, pageDecision, wantedKind } from './pages.js'
 import { progressDecision, routineDecision, turnCalls } from './progress.js'
 import { batchBody, frontDecision, frontOwnText } from './front.js'
@@ -396,7 +396,8 @@ function decide(options) {
       .filter((block) => block && block.type === 'tool-call').length
     // 现有的群只在有变化时随批送来：取最近送来的那一段。
     const groups = messages.filter(isUser).map((message) => textOf(message.content)).filter((text) => text.includes('现有的群')).at(-1) ?? ''
-    return frontDecision({ system, userText, tools, calls: made, result: lastToolText(messages), batch: batchAt < 0 ? '' : textOf(messages[batchAt].content), roster: rosterNames(system), groups })
+    const front = { system, userText, tools, calls: made, result: lastToolText(messages), batch: batchAt < 0 ? '' : textOf(messages[batchAt].content), roster: rosterNames(system), groups }
+    return demoFront(front) ?? frontDecision(front)
   }
 
   const lastTool = messages.filter((message) => message.role === 'tool').at(-1)
@@ -794,6 +795,8 @@ async function* stream(options) {
     yield { type: 'block-end', index, block: { type: 'reasoning', text: decision.think } }
     index += 1
   }
+  // 演示剧本想完再停一会儿（hold）：对话最底下的回答过程一直写着想的这一句。
+  if (decision.hold > 0) await sleep(decision.hold, options.signal)
   if (decision.tool !== undefined) {
     const id = `call_${Math.random().toString(16).slice(2, 10)}`
     const args = JSON.stringify(decision.args)

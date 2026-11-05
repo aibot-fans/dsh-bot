@@ -56,11 +56,11 @@ pnpm dev:web
 
 启动后终端会打印带 `?token=` 的地址，用它打开页面。设 `POD_DEBUG=1` 可以在终端里看到 dsh-bot 的警告。
 
-README 的截图用的是演示剧本（`dev/mock-llm/demo.js`）：先建好「数据研究员」「增长分析师」和「设计师」（设计师预设）三个 bot，再跟主管说“帮我做第三季度的增长复盘”。主管会组一个临时小组，两个成员同时整理数据和做留存分析，设计师接着做看板，主管验收后交付；每一步停几秒，任务卡上看得到进度。数字都是编的示例数据。
+README 的截图用的是演示剧本（`dev/mock-llm/demo.js`）：先建好「数据研究员」「增长分析师」和「设计师」（设计师预设）三个 bot，再在主对话里跟 Super-agent 说“帮我做第三季度的增长复盘：核心数据和新用户留存，再出一页看板，周五例会要用。”（剧本认的是“增长复盘”这几个字）。Super-agent 按主题建「增长复盘」群，写上管什么，增长分析师当组长；组长开两个子任务，数据研究员整理核心数据、自己做留存分析，两块同时做，都交了再让设计师做看板。结果都发在群里，组长验收后合成回答，Super-agent 回主对话说结论。每一步先想一句再停几秒，对话最底下的回答过程写着这一句。数字都是编的示例数据。
 
-英文截图：先在设置的「通用」里把语言改成 English（或者用英文的浏览器打开，语言保持“跟随 dsh”），剧本就换成英文版。三个 bot 叫 Data Researcher、Growth Analyst 和 Designer（设计师预设的英文版），跟主管说 “Put together our Q3 growth review: core metrics and new-user retention, plus a one-page dashboard for Friday’s meeting.”。英文截图放在 `docs/images/en/`，文件名和 `docs/images/` 里对应的中文截图一样，`README.en.md` 用的是这些。
+英文截图：先在设置的「通用」里把语言改成 English（或者用英文的浏览器打开，语言保持“跟随 dsh”），剧本就换成英文版。三个 bot 叫 Data Researcher、Growth Analyst 和 Designer（设计师预设的英文版），跟 Super-agent 说 “Put together our Q3 growth review: core metrics and new-user retention, plus a one-page dashboard for Friday’s meeting.”（剧本认的是 growth review）。英文截图放在 `docs/images/en/`，文件名和 `docs/images/` 里对应的中文截图一样，`README.en.md` 用的是这些。
 
-浏览器那张用 `dev/mock-llm/demo-browser.js`：建一个「行政助理」bot（研究档案，人设以“角色：行政助理”开头），跟它说订会议室。它在示例 OA 上打开预订页、一项一项填好，点“提交预订”时 dsh-bot 转成审批，等你批准。英文版的助理叫 Office Assistant，人设以“Role: office assistant”开头，跟它说订 meeting room，示例 OA 用 `--en` 起英文版。示例 OA 用保留给文档的域名 `oa.example.com`，截图前先在本机起预订页：
+浏览器那张用 `dev/mock-llm/demo-browser.js`：建一个「行政助理」bot（研究档案，人设以“角色：行政助理”开头），在和它的单聊里说订会议室。它开个任务自己去订：在示例 OA 上打开预订页、一项一项填好，点“提交预订”时 dsh-bot 转成审批，等你批准。英文版的助理叫 Office Assistant，人设以“Role: office assistant”开头，跟它说订 meeting room，示例 OA 用 `--en` 起英文版。示例 OA 用保留给文档的域名 `oa.example.com`，截图前先在本机起预订页：
 
 ```bash
 node dev/demo-oa.mjs
@@ -116,7 +116,7 @@ dsh-bot 以 `ctx.pod` 提供服务：
 
 - `ctx.pod.bots`：读取 bot；`ctx.pod.teams`：读取团队。
 - `ctx.pod.rooms.post(roomId, { author, kind, body, data })`：往房间里发消息。
-- `ctx.pod.createTask({ bot, title, brief, acceptance?, deliverable? })`：以主管的名义把一件事交给某个 bot；用 `pod/task-updated` 事件跟踪（每次任务变化都会发）。
+- `ctx.pod.createTask({ bot, title, brief, acceptance?, deliverable? })`：以 Super-agent 的名义把一件事交给某个 bot；用 `pod/task-updated` 事件跟踪（每次任务变化都会发）。
 - `ctx.pod.registerTool({ applies, create })`：给 bot 会话加工具，只出现在 bot 会话里。
 - `ctx.pod.registerTemplate(template)`：注册团队模板，出现在“按模板新建”里。
 

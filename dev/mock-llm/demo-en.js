@@ -25,48 +25,6 @@ const FUNNEL = [
 const ASSUMPTION = 'Q3 runs from July 1 to September 30, measured the same way as Q2'
 const NOT_YET = 'September sign-ups are not 30 days old yet, so their month-1 retention is not in'
 
-const PLAN = {
-  goal: 'Q3 growth review',
-  group_name: 'Q3 growth review',
-  level: 'L2',
-  deliverables: ['shared/Q3 growth review.md', 'Dashboard “Q3 growth review”'],
-  assumptions: [{ id: 'a1', text: ASSUMPTION, affects: ['s1', 's2'] }],
-  reasons: ['Core metrics and retention don’t depend on each other, so two people work in parallel; the dashboard needs both, so it comes last'],
-  conventions: ['User counts in K', 'Weeks written W27 to W39', 'Every number names its source table'],
-  subtasks: [
-    {
-      id: 's1',
-      title: 'Core metrics',
-      brief: 'Compile the core metrics for the Q3 growth review: new users, active users, paying users and revenue, week by week, compared with Q2.',
-      kind: 'Analysis',
-      deliverable: 'Q3 core metrics.md',
-      acceptance: ['New, active and paying users plus revenue are all there', 'Listed week by week from W27 to W39', 'Each one compared with Q2'],
-      owner: 'Data Researcher',
-    },
-    {
-      id: 's2',
-      title: 'Retention analysis',
-      brief: 'Analyze new-user retention for the Q3 growth review: day-1, week-1 and month-1 retention by sign-up month. Find the step where most users drop off and suggest two fixes we can ship right away.',
-      kind: 'Analysis',
-      deliverable: 'Retention analysis.md',
-      acceptance: ['Day-1, week-1 and month-1 retention compared with Q2', 'Finds the step with the biggest drop-off', 'Suggests two fixes we can ship right away'],
-      owner: 'Growth Analyst',
-    },
-    {
-      id: 's3',
-      title: 'Review dashboard',
-      brief: 'Turn the core metrics and retention findings of the Q3 growth review into a one-page dashboard with the takeaways on top, for screen sharing at Friday’s meeting.',
-      kind: 'Design',
-      deliverable: 'Dashboard “Q3 growth review”',
-      acceptance: ['All four core metrics on one page', 'Shows the weekly active trend, channels and retention', 'Takeaways on top'],
-      dependsOn: ['s1', 's2'],
-      owner: 'Designer',
-    },
-  ],
-  integration: { owner: 'Lead', method: 'Merge both results by the task conventions; the dashboard uses the merged numbers' },
-  review: { owner: 'Lead', sampling: 'Check every number against its source table' },
-}
-
 function table(head, rows) {
   return [`| ${head.join(' | ')} |`, `|${head.map(() => '---').join('|')}|`, ...rows.map((row) => `| ${row.join(' | ')} |`)].join('\n')
 }
@@ -124,49 +82,8 @@ const RETENTION_MD = [
   '',
 ].join('\n')
 
-const SUMMARY_LINES = [
-  '- New users: 486K, up 18% from Q2; revenue: $6.12M, up 23%',
-  '- Week-1 retention for new users is 41%, 4 points above Q2; the biggest drop-off is “Created first project”, where 38% leave',
-  '- Social feed ads cost the most per new user ($32.6), up 19% from July to September; trim that budget first',
-  '- The dashboard “Q3 growth review” is ready; open it from the page card',
-]
-
-const SUBTASKS = {
-  'Core metrics': {
-    start: 'Compiling new, active and paying users and revenue for July to September',
-    file: CORE_FILE,
-    body: CORE_MD,
-    checked: 'All four metrics listed week by week and checked against Q2',
-    result: {
-      summary: [
-        '- New users: 486K, up 18% from Q2',
-        '- Weekly active users grew from 612K to 745K',
-        '- Paying users: 39K, paid conversion 5.2% (slightly down); revenue $6.12M, up 23%',
-        '- Social feed ads cost the most per new user: $32.6',
-      ].join('\n'),
-      assumptions: [ASSUMPTION],
-      unverified: [],
-    },
-  },
-  'Retention analysis': {
-    start: 'Grouping new users by sign-up month to compute retention',
-    file: RETENTION_FILE,
-    body: RETENTION_MD,
-    checked: 'Retention computed for all three months; found the biggest drop-off',
-    result: {
-      summary: [
-        '- Week-1 retention 41%, 4 points above Q2; month-1 retention 22%',
-        '- The biggest drop-off is “Created first project”: 38% leave at this step after onboarding',
-        '- Two fixes: offer templates during onboarding; remind people with no project by day 2',
-      ].join('\n'),
-      assumptions: [ASSUMPTION],
-      unverified: [NOT_YET],
-    },
-  },
-}
-
 const DASHBOARD = {
-  title: 'Q3 growth review',
+  title: 'Q3 growth dashboard',
   kind: 'dashboard',
   // 留空时 dsh-bot 记成第一版，页面卡片上不显示。
   note: '',
@@ -218,36 +135,135 @@ const DASHBOARD = {
   ],
 }
 
-const SUMMARY_DASHBOARD = [
-  '- Made a one-page dashboard “Q3 growth review”: takeaways, four core metrics, weekly active trend, channel mix and acquisition cost, retention table and next steps',
-  '- Laid out at 16:9 for screen sharing and PDF export',
+const CORE = {
+  title: 'Core metrics',
+  bot: 'Data Researcher',
+  brief: 'Compile Q3’s core metrics: new, active and paying users plus revenue, week by week from W27 to W39, compared with Q2, naming the source table for every number.',
+  acceptance: ['New, active and paying users plus revenue are all there', 'Listed week by week from W27 to W39', 'Each one compared with Q2'],
+}
+
+const RETENTION = {
+  title: 'Retention analysis',
+  bot: 'self',
+  brief: 'Compute day-1, week-1 and month-1 retention for Q3’s new users by sign-up month, find the step where most users drop off, and suggest two fixes we can ship right away.',
+  acceptance: ['Day-1, week-1 and month-1 retention compared with Q2', 'Finds the step with the biggest drop-off', 'Suggests two fixes we can ship right away'],
+}
+
+const BOARD = {
+  title: 'Review dashboard',
+  bot: 'Designer',
+  brief: 'Turn the core metrics and retention results posted in the group into a one-page dashboard with the takeaways on top, for screen sharing at Friday’s meeting.',
+  acceptance: ['All four core metrics fit on one page', 'Shows the weekly active trend, channels and retention', 'Takeaways on top'],
+}
+
+const ANSWER = [
+  'The Q3 growth review (July 1 to September 30) is done, measured the same way as Q2:',
+  '',
+  '- 486K new users, up 18% from Q2; weekly active users grew from 612K to 745K; revenue $6.12M, up 23%',
+  '- 39K paying users, up 15%, though paid conversion slipped from 5.6% to 5.2%',
+  '- Week-1 retention for new users is 41%, up 4 points; the biggest drop-off is “Created first project”, where 38% leave after onboarding',
+  '- Social feed ads are the most expensive channel at $32.6 per user, up 19% from July to September',
+  '',
+  'Three things to do first: offer 3 templates on the last onboarding step; remind anyone with no project by day 2; cut the social feed ad budget by 20% and watch acquisition cost for two weeks.',
+  '',
+  `The dashboard is above and ready to share on screen on Friday. ${NOT_YET}.`,
 ].join('\n')
 
 export const DEMO_EN = {
-  /** 用户消息、任务说明和组长的消息里有它，才按演示剧本走。 */
+  /** 你在主对话里说的话、任务的交代和叫醒 Super-agent 的消息里有它，才按演示剧本走。 */
   matches: (text) => /growth review/i.test(text),
-  plan: PLAN,
-  subtasks: SUBTASKS,
-  dashboard: {
-    title: 'Review dashboard',
-    start: 'Reading both upstream results and picking the numbers for the dashboard',
-    page: DASHBOARD,
-    done: 'Dashboard done, with the takeaways on top',
-    result: { summary: SUMMARY_DASHBOARD, assumptions: ['All numbers come from the core metrics and retention results'], unverified: [] },
+  /** Super-agent：没有对口的群，按主题建「Growth reviews」群交进去，组长交了回答再回主对话说结论。 */
+  front: {
+    think: 'Growth data work, and no group covers it yet: new “Growth reviews” group.',
+    dispatch: {
+      title: 'Q3 growth review',
+      group: 'Growth reviews',
+      bot: 'Growth Analyst',
+      members: ['Data Researcher', 'Designer'],
+      about: 'Growth data reviews: core metrics, new-user retention and acquisition channels',
+      brief: 'My understanding: a Q3 growth review (July 1 to September 30) compared with Q2. It needs the core metrics and new-user retention, then a one-page dashboard to share on screen at Friday’s meeting. Lead with the takeaways and name the source of every number.',
+    },
+    opened: 'I created the “Growth reviews” group. Growth Analyst leads it, with Data Researcher and Designer helping. I’ll tell you here when it’s done.',
+    concluding: 'The lead has delivered. Pick the key numbers for the user.',
+    concluded: [
+      'The Q3 growth review is done:',
+      '',
+      '- 486K new users, up 18% from Q2; revenue $6.12M, up 23%',
+      '- Week-1 retention for new users is 41%, up 4 points; the biggest drop-off is “Created first project”, where 38% leave',
+      '- Social feed ads now cost $32.6 per new user, so trim that budget first',
+      '',
+      'The dashboard and the full analysis are in the “Growth reviews” group.',
+    ].join('\n'),
   },
-  merged: {
-    file: 'shared/Q3 growth review.md',
-    body: ['# Q3 growth review', '', 'Sample data.', '', '## Key points', '', ...SUMMARY_LINES.slice(0, 3), '', '---', '', CORE_MD.replace(/^# .*\n/, '## Core metrics\n'), RETENTION_MD.replace(/^# .*\n/, '## New-user retention\n')].join('\n'),
+  /** 组长（Growth Analyst）：核心数据和留存同时做，两块都过了再让 Designer 做看板，最后合成回答。 */
+  leader: {
+    think: 'Core metrics and retention can run in parallel; the dashboard comes last.',
+    subtasks: [CORE, RETENTION],
+    dashboard: BOARD,
+    waiting: 'Core metrics and retention analysis are assigned; waiting for both',
+    waitingDashboard: 'Dashboard assigned to Designer; waiting for it',
+    reviewing: (title) => `“${title}” is in. Checking it against the sources.`,
+    handoff: 'Both parts passed. Designer can build the dashboard now.',
+    merging: 'All three parts are in. Putting the answer together.',
+    answer: ANSWER,
   },
-  summary: SUMMARY_LINES.join('\n'),
-  assumption: ASSUMPTION,
-  notYet: NOT_YET,
+  /** 成员各做一块：每一步先想一句，做成了记一条进展，最后交一段回答（发在群里）。 */
+  work: [
+    {
+      brief: CORE.brief,
+      steps: [
+        { think: 'Pulling weekly sign-ups, actives, payers and revenue for Q3.', done: 'Pulled new, active and paying users plus revenue for W27 to W39' },
+        { think: 'Comparing all four with Q2 and naming the sources.', done: 'All four compared with Q2' },
+      ],
+      file: CORE_FILE,
+      body: CORE_MD,
+      finishing: 'Done. Handing it to the lead.',
+      answer: [
+        'Q3 core metrics are ready (W27 to W39, measured the same way as Q2):',
+        '',
+        '- 486K new users, up 18% from Q2',
+        '- Weekly active users grew from 612K to 745K, up 22%',
+        '- 39K paying users, up 15%; paid conversion 5.2%, down 0.4 points',
+        '- Revenue $6.12M, up 23%',
+        '- Social feed ads are the most expensive channel at $32.6, up 19% from July to September',
+        '',
+        `Week-by-week numbers and source tables are in “${CORE_FILE}”.`,
+      ].join('\n'),
+    },
+    {
+      brief: RETENTION.brief,
+      steps: [
+        { think: 'Splitting Q3 sign-ups by month to get retention.', done: 'Retention computed for the July to September cohorts' },
+        { think: 'Finding the step after sign-up where most people leave.', done: 'Found the biggest drop-off: creating the first project' },
+      ],
+      file: RETENTION_FILE,
+      body: RETENTION_MD,
+      finishing: 'Retention is done.',
+      answer: [
+        'New-user retention is ready (by sign-up month):',
+        '',
+        '- Week-1 retention 41%, 4 points above Q2; month-1 retention 22%',
+        '- The biggest drop-off is “Created first project”: 38% leave at this step after onboarding',
+        '- Two fixes we can ship right away: offer 3 templates on the last onboarding step; remind anyone with no project by day 2',
+        '',
+        `${NOT_YET}.`,
+      ].join('\n'),
+    },
+    {
+      brief: BOARD.brief,
+      steps: [
+        { think: 'Reading both results in the group and picking the numbers.', done: 'Picked the numbers and layout for the dashboard' },
+        { think: 'Takeaways on top, then metric cards, trends, channels and retention.', done: 'Dashboard done, with the takeaways on top' },
+      ],
+      page: DASHBOARD,
+      finishing: 'Dashboard done. Handing it to the lead.',
+      answer: 'The “Q3 growth dashboard” is ready: takeaways on top, then the four core metrics, the weekly active trend, where new users come from and acquisition cost by channel, the retention table and next steps. It’s laid out at 16:9, so it works for screen sharing and PDF export.',
+    },
+  ],
   texts: {
-    submitted: 'Submitted.',
+    said: '(front desk) Done.',
     ok: 'OK.',
     reviewed: 'Numbers match the source tables',
-    failed: (message) => `Couldn’t set up the team: ${message}`,
-    kickoff:
-      'Split into three parts with an ad-hoc squad: Data Researcher compiles the core metrics while Growth Analyst digs into retention, in parallel; Designer builds the dashboard once both are in. I’m the team lead: I’ll review each part, then merge and deliver. Follow along in the “Q3 growth review” group.',
+    submitted: 'Submitted.',
   },
 }
