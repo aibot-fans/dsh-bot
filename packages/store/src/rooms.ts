@@ -171,6 +171,12 @@ export function updateRoom(db: DatabaseSync, id: string, patch: RoomPatch): Room
   return getRoom(db, id)
 }
 
+/** 正式团队的团队记录群转成普通群：不再挂团队，群名、管什么和组长换成 patch 里的。 */
+export function teamRoomToGroup(db: DatabaseSync, id: string, patch: RoomPatch): Room | undefined {
+  db.prepare("UPDATE rooms SET kind = 'task', team_id = NULL WHERE id = ? AND kind = 'team'").run(id)
+  return updateRoom(db, id, patch)
+}
+
 export function markRoomRead(db: DatabaseSync, id: string, seq: number): void {
   db.prepare('UPDATE rooms SET read_seq = MAX(read_seq, MIN(?, last_seq)) WHERE id = ?').run(seq, id)
 }

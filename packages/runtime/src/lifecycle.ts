@@ -58,7 +58,8 @@ export function startRuntime(pod: PodRuntime): () => void {
     return next()
   })
   pod.rooms.ensureLeadRoom()
-  // 以前建的群补组长：没点名的话先给它，群里留一行。
+  // 以前的正式团队转成普通群；以前建的群补组长：没点名的话先给它，群里留一行。
+  pod.adoptTeams()
   pod.rooms.groups.assignLeaders()
   const stopAibot = pod.aibot.start()
   pod.seeds.sync()

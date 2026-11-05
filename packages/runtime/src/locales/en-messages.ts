@@ -221,6 +221,8 @@ export const RUNTIME_EN_MESSAGES: Readonly<Record<string, string>> = {
   '{name}在群里只在被点名时说话，不当组长': '{name} only speaks in groups when @-mentioned, so it can’t be the lead',
   '{name} 是组长：没点名的话{name}先接': '{name} is the lead: messages that don’t @ anyone go to {name} first',
   '组长换成了{name}：没点名的话{name}先接': 'The lead is now {name}: messages that don’t @ anyone go to {name} first',
+  '这个群由正式团队「{name}」转来：成员照团队，管什么照团队说明写上了，{lead}交活时按管什么找到这里': 'This group comes from the standing team “{name}”: same members, and the team description is now what it handles, which {lead} uses to route work here',
+  '{name}（团队）': '{name} (team)',
   '任务群由负责的 bot 先接，正式团队由团队组长先接，不另设组长': 'Task groups go to the responsible bot and teams go to the team lead first, so they don’t get a separate lead',
   '消息不能为空': 'The message is empty',
   '一条消息最多 {MESSAGE_MAX} 个字': 'A message can be at most {MESSAGE_MAX} characters',

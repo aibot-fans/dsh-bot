@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { GROUP_TOPIC_MAX, OWNER, POD, ROOM_TITLE_MAX, autoGroupName, fail, newId, ok, oneLine, readId, readString, readStringArray, t, truncate, type Bot, type PodResult, type Room } from 'pod-domain'
-import { addRoomMember, insertRoom, listMessages, listRooms, removeRoomMember, textCountsByAuthor, transaction, updateRoom } from 'pod-store'
+import { GROUP_TOPIC_MAX, OWNER, POD, ROOM_TITLE_MAX, autoGroupName, fail, newId, ok, oneLine, readId, readString, readStringArray, t, truncate, type Bot, type PodResult, type Room, type Team } from 'pod-domain'
+import { addRoomMember, insertRoom, listMessages, listRooms, removeRoomMember, teamRoomToGroup, textCountsByAuthor, transaction, updateRoom, updateTeam } from 'pod-store'
 import type { SessionRegistry } from '../agents/registry.ts'
 import type { BotService } from '../bots/service.ts'
 import type { Auditor } from '../core/audit.ts'
@@ -183,13 +183,66 @@ export class GroupService {
   assignLeaders(): void {
     const missing = this.list().filter((room) => room.leadBotId === null)
     for (const room of missing) {
-      const leader = pickLeader(room, this.deps.rooms.memberBots(room).filter((bot) => bot.role !== 'lead'), textCountsByAuthor(this.db, room.id))
+      const leader = pickLeader(room.title, this.deps.rooms.memberBots(room).filter((bot) => bot.role !== 'lead'), textCountsByAuthor(this.db, room.id))
       if (leader === undefined) continue
       updateRoom(this.db, room.id, { leadBotId: leader.id })
       this.deps.audit.record('room.leader', POD, room.id, { botId: leader.id })
       this.announce(room.id, leader, false)
     }
     if (missing.length > 0) this.deps.bus.emit({ type: 'rooms' })
+  }
+
+  /**
+   * 以前的正式团队转成普通群（新版只认群，Super-agent 交活时才找得到它们）：有团队记录群的就地转，以前的记录都还在；没有的按团队建一个群。
+   * 群名是团队名（和现有的群重名就加“（团队）”），管什么照团队说明，团队成员都进群；组长是团队组长，组长是 Super-agent 或已经不在了就按补组长的办法挑。
+   * 群里留一行说明。启动时跑，转过的、记录群你归档了的不再动；团队本身留着，团队记忆和技能照旧跟着成员。返回转了几个。
+   */
+  adoptTeams(teams: readonly Team[], warn: (message: string, error: unknown) => void): number {
+    let adopted = 0
+    for (const team of teams) {
+      if (team.temporary) continue
+      const record = team.roomId === null ? undefined : this.deps.rooms.get(team.roomId)
+      if (record !== undefined && (record.kind !== 'team' || record.archivedAt !== null)) continue
+      try {
+        if (this.adoptTeam(team, record)) adopted += 1
+      } catch (error) {
+        warn(`正式团队「${team.name}」转成群失败`, error)
+      }
+    }
+    if (adopted > 0) this.deps.bus.emit({ type: 'rooms' })
+    return adopted
+  }
+
+  private adoptTeam(team: Team, record: Room | undefined): boolean {
+    const lead = this.deps.bots.lead()
+    const members = [...new Set([lead.id, team.leaderBotId, ...team.memberIds])].flatMap((id) => this.deps.bots.activeBot(id) ?? [])
+    const workers = members.filter((bot) => bot.role !== 'lead')
+    // 没有记录群、成员也都不在了：建不成群。
+    if (record === undefined && workers.length === 0) return false
+    const name = this.freeName(team.name)
+    const topic = topicText(team.description)
+    const leader = workers.find((bot) => bot.id === team.leaderBotId) ?? pickLeader(name, workers, record === undefined ? new Map() : textCountsByAuthor(this.db, record.id))
+    const now = this.deps.now()
+    const room = transaction(this.db, () => {
+      const group =
+        record === undefined
+          ? insertRoom(this.db, { id: newId('room'), kind: 'task', title: name, leadBotId: leader?.id ?? null, topic, now })
+          : (teamRoomToGroup(this.db, record.id, { title: name, topic, leadBotId: leader?.id ?? null }) ?? record)
+      for (const bot of members) addRoomMember(this.db, group.id, bot.id, now)
+      if (record === undefined) updateTeam(this.db, team.id, { roomId: group.id }, now)
+      return group
+    })
+    this.deps.audit.record('room.team', POD, room.id, { teamId: team.id, name, leader: leader?.id ?? null, topic })
+    this.deps.rooms.post(room.id, { author: POD, kind: 'notice', body: t('这个群由正式团队「{name}」转来：成员照团队，管什么照团队说明写上了，{lead}交活时按管什么找到这里', { name: team.name, lead: lead.name }), data: { teamId: team.id } })
+    if (leader !== undefined) this.announce(room.id, leader, false)
+    this.deps.bus.emit({ type: 'room', roomId: room.id })
+    return true
+  }
+
+  /** 正式团队转来的群起名：团队名，和现有的群重名就加“（团队）”。 */
+  private freeName(name: string): string {
+    const plain = truncate(name, ROOM_TITLE_MAX)
+    return this.list().some((room) => room.title === plain) ? truncate(t('{name}（团队）', { name }), ROOM_TITLE_MAX) : plain
   }
 
   /**
@@ -213,8 +266,8 @@ function topicText(text: string): string {
 }
 
 /** 以前的群挑组长：名字对得上群名的成员，其次群里说话最多的，再其次最早进群的（members 按进群先后排）。 */
-function pickLeader(room: Room, members: readonly Bot[], spoken: ReadonlyMap<string, number>): Bot | undefined {
-  const named = members.find((bot) => room.title.includes(bot.name) || bot.name.includes(room.title))
+function pickLeader(title: string, members: readonly Bot[], spoken: ReadonlyMap<string, number>): Bot | undefined {
+  const named = members.find((bot) => title.includes(bot.name) || bot.name.includes(title))
   // 排序是稳定的：说话一样多的还按进群先后。
   return named ?? [...members].sort((left, right) => (spoken.get(right.id) ?? 0) - (spoken.get(left.id) ?? 0))[0]
 }

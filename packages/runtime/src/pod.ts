@@ -1265,6 +1265,12 @@ export class PodRuntime {
     if (moved > 0) this.ctx.logger.info(`旧例程换成了 ${String(moved)} 个常开任务`)
   }
 
+  /** 以前的正式团队转成普通群。 */
+  adoptTeams(): void {
+    const adopted = this.rooms.groups.adoptTeams(this.teams.list(), (message, error) => this.ctx.logger.warn(message, error))
+    if (adopted > 0) this.ctx.logger.info(`正式团队转成了 ${String(adopted)} 个群`)
+  }
+
   private briefData(): BriefData {
     const now = this.now()
     const day = 86_400_000
