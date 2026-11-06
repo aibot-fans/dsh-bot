@@ -209,10 +209,10 @@ function stepsFor(item, context) {
   }
   if (speaker !== '用户') return [reply(item, `（测试模型）我是${self}，收到${speaker}的话：${body.slice(0, 80)}`)]
   const reading = /读一下 (\S+)(?: part=(\w+))?(?: page=(\d+))?(?: size=(\d+))?/.exec(body)
-  if (reading !== null && tools.has('read')) {
+  if (reading !== null && tools.has('read_id')) {
     const [, target, part, page, size] = reading
     return [
-      () => ({ tool: 'read', args: { id: target, ...(part === undefined ? {} : { part }), ...(page === undefined ? {} : { page: Number(page) }), ...(size === undefined ? {} : { size: Number(size) }) } }),
+      () => ({ tool: 'read_id', args: { id: target, ...(part === undefined ? {} : { part }), ...(page === undefined ? {} : { page: Number(page) }), ...(size === undefined ? {} : { size: Number(size) }) } }),
       (result) => ({ tool: 'reply', args: { to: id, text: `读到了：\n${result.slice(0, 3000)}` } }),
     ]
   }

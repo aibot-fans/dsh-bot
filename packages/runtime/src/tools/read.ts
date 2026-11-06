@@ -112,9 +112,9 @@ function taskOverview(pod: PodRuntime, id: string, paging: Paging): string | und
     snapshot,
     task.brief === '' ? undefined : `说明：\n${task.brief}`,
     quotes.length === 0 ? undefined : `来由（原话）：\n${quotes.join('\n')}`,
-    reports.length === 0 ? undefined : `最近的汇报（新的在前；全文按汇报 id 读，全部用 read ${id} part=reports）：\n${reports.join('\n\n')}`,
-    runs.length === 0 ? undefined : `最近的执行（全部用 read ${id} part=runs）：\n${runs.join('\n')}`,
-    `事件（决策链）用 read ${id} part=events。`,
+    reports.length === 0 ? undefined : `最近的汇报（新的在前；全文按汇报 id 读，全部用 read_id ${id} part=reports）：\n${reports.join('\n\n')}`,
+    runs.length === 0 ? undefined : `最近的执行（全部用 read_id ${id} part=runs）：\n${runs.join('\n')}`,
+    `事件（决策链）用 read_id ${id} part=events。`,
   ]
     .filter((part): part is string => part !== undefined)
     .join('\n\n')
@@ -182,7 +182,7 @@ function readRequest(args: Readonly<Record<string, unknown>>): Request | string 
 /** 读：按 id 读消息、任务（概要、事件、执行、汇报）、执行、汇报、任务事件、等你事项、页面；卡片和开工说明里截断的地方都留着 id。 */
 export function readTool(pod: PodRuntime, session: PodSession): ToolDefinition {
   return podTool({
-    name: 'read',
+    name: 'read_id',
     description: [
       '按 id 读 dsh-bot 里的东西：消息（msg_）、任务（task_，概要含说明、来由、最近的汇报和执行；part 读全部事件、执行或汇报）、执行（run_）、汇报（rep_，全文）、任务事件（#12）、等你事项（wait_）、页面（page_）。',
       `卡片和说明里截断的地方都留着 id，用它读全文；读回来的东西又带 id，顺着往下读。正文一页默认 ${PAGE_CHARS} 字（size 最多 ${PAGE_CHARS_MAX}），列表一页默认 ${PAGE_ITEMS} 条（最多 ${PAGE_ITEMS_MAX}），用 page 往下翻。`,

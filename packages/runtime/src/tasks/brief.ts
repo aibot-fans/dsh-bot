@@ -58,7 +58,7 @@ function bulletList(title: string, items: readonly string[], limit: number): str
 /**
  * 交给任务会话的第一条消息，就是任务对话里的那条交代：用户的原话在最前面，后面是 Super-agent 写的交代，子任务再带上
  * 要做到的几条、前提、约定和上游结果。任务 id、文件夹、汇报办法都在系统提示里，这里不写。整张不超过开工说明的上限：
- * 太长时依次收短上游结果、约定、前提、交代，最后才收短原话；截断处都留着 id，能用 read 读回全文。
+ * 太长时依次收短上游结果、约定、前提、交代，最后才收短原话；截断处都留着 id，能用 read_id 读回全文。
  */
 export function composeBrief(task: Task, context: BriefContext): string {
   const upstream = (limit: number): string => {

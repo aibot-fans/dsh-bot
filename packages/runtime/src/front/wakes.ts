@@ -16,7 +16,7 @@ const FALLBACK_MS = 3 * 60_000
 /** 前台正在写这一件（叫醒的那条已经收进它的历史，这一轮还没结束），最多再等到这时候。 */
 const WRITING_MAX_MS = 10 * 60_000
 
-/** 叫醒里带的完整回答最多多少字；截断处留着汇报的 id，用 read 读全文。 */
+/** 叫醒里带的完整回答最多多少字；截断处留着汇报的 id，用 read_id 读全文。 */
 const ANSWER_LIMIT = 6000
 
 const HEADS: Readonly<Record<WakeKind, string>> = { result: '[任务交结果]', question: '[任务问你]', failed: '[任务没做成]' }

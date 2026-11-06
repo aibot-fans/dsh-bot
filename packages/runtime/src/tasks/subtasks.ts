@@ -303,7 +303,7 @@ export class Subtasks {
     switch (report.status) {
       case 'ready': {
         const files = input.files.length === 0 ? '' : `；文件：${input.files.join('、')}`
-        return `[子任务就绪] ${label}：${summary}\n报告 ${report.id}（用 read 读全文）${files}\n用 review_subtask 验收：通过，或者写清要改什么打回（最多返工 ${MAX_REWORKS} 次）。`
+        return `[子任务就绪] ${label}：${summary}\n报告 ${report.id}（用 read_id 读全文）${files}\n用 review_subtask 验收：通过，或者写清要改什么打回（最多返工 ${MAX_REWORKS} 次）。`
       }
       case 'blocked':
         return input.toOwner

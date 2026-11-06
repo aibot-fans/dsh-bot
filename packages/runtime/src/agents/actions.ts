@@ -60,6 +60,7 @@ const DESCRIBERS: Readonly<Record<string, Describe>> = {
   bash: runCommand,
   pwsh: runCommand,
   read: (args) => t('读取 {short}', { short: short(text(args.path ?? args.file_path)) }),
+  read_id: (args) => t('读取 {short}', { short: short(text(args.id)) }),
   write: (args) => t('写入 {short}', { short: short(text(args.path ?? args.file_path)) }),
   edit: (args) => t('修改 {short}', { short: short(text(args.path ?? args.file_path)) }),
   glob: (args) => t('查找文件 {short}', { short: short(text(args.pattern)) }),

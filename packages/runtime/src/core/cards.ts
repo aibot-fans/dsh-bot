@@ -1,6 +1,6 @@
 /**
  * 送进会话的卡片（消息批、开工说明、直通的消息、汇报）的字数上限。
- * 只管送进会话的东西：截掉的地方留 id，用 read 读回全文；bot 发给你的话不截断。
+ * 只管送进会话的东西：截掉的地方留 id，用 read_id 读回全文；bot 发给你的话不截断。
  */
 export const CARD_LIMITS = {
   /** 消息批、直通的消息、跟进话题里的新消息，每条。 */
@@ -13,7 +13,7 @@ export const CARD_LIMITS = {
 
 /** 截断处留的指针。 */
 export function readPointer(id: string): string {
-  return `（全文：read ${id}）`
+  return `（全文：read_id ${id}）`
 }
 
 /** 超长截断，截断处留 id；没有 id 的只标出后面截掉了。 */

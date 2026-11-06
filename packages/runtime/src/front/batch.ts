@@ -1,7 +1,7 @@
 import { OWNER, POD, oneLine, truncate, type Room, type RoomMessage } from 'pod-domain'
 import { CARD_LIMITS, clipCard } from '../core/cards.ts'
 
-/** 新消息每条最多带多少字；截断的留 id，用 read 读全文。 */
+/** 新消息每条最多带多少字；截断的留 id，用 read_id 读全文。 */
 export const BATCH_MESSAGE_LIMIT = CARD_LIMITS.message
 
 /** 最近几条（上下文）每条最多多少字。 */
