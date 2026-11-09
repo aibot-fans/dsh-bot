@@ -167,14 +167,18 @@ function watchdogDecision(system, messages) {
   return { text: JSON.stringify({ verdict, reason, hint: verdict === 'remind' ? '别再重复同一个命令了，换个做法，先把已有的结果交上来。' : '', events: cited === undefined ? [] : [cited] }) }
 }
 
-/** 后台命令的剧本：放一个要跑一会儿的命令到后台就结束这一轮；跑完被 dsh 叫醒后读输出、提交。 */
+/**
+ * 后台命令的剧本：放一个要跑一会儿的命令到后台就结束这一轮；跑完被 dsh 叫醒后读输出、提交。
+ * dsh 0.2.2 起输出不长时直接写在叫醒通知里（再调 job_output 只剩 no new output），旧版本要调 job_output 去读。
+ */
 function backgroundTask(messages, calls) {
   const since = messages.findLastIndex((message) => message.role === 'assistant')
   const notice = messages.slice(since + 1).find((message) => message.role === 'user' && message.source?.kind === 'tool-jobs')
+  const finish = (output) => ({ tool: 'complete_task', args: { summary: `- 后台命令跑完了：${output.slice(0, 60)}`, files: [], assumptions: ['测试环境'], unverified: [], skipped: [] } })
+  const inline = notice === undefined ? undefined : /\. Output:\n([\s\S]*)$/.exec(textOf(notice.content))?.[1]
+  if (inline !== undefined) return finish(inline)
   if (notice !== undefined) return { tool: 'job_output', args: { job_id: /background job (\S+)/.exec(textOf(notice.content))?.[1] ?? '' } }
-  if (calls.at(-1) === 'job_output') {
-    return { tool: 'complete_task', args: { summary: `- 后台命令跑完了：${lastToolText(messages).slice(0, 60)}`, files: [], assumptions: ['测试环境'], unverified: [], skipped: [] } }
-  }
+  if (calls.at(-1) === 'job_output') return finish(lastToolText(messages))
   if (!calls.includes('bash')) return { tool: 'bash', args: { description: '跑一个要一会儿的命令', command: 'sleep 8; echo 后台命令跑完了', run_in_background: true } }
   return { text: '命令放到后台了，跑完再接着做。' }
 }
