@@ -2,7 +2,7 @@ import type { ComponentType } from 'react'
 
 /**
  * Pod 页面用到的 dsh 浏览器端服务，写成最小的结构类型。
- * 对应 dsh 0.2.1 的 slots（侧栏面板列表和主区 keyed slot）和 dsh-client-ui-layout（ctx.layout）。
+ * 对应 dsh 0.2.1-rc.2 到 0.2.2 的 slots（侧栏面板列表和主区 keyed slot）和 dsh-client-ui-layout（ctx.layout）。
  */
 
 export type Disposer = () => void

@@ -1,7 +1,7 @@
 /**
  * Pod 用到的 dsh 宿主接口，写成最小的结构类型。
  *
- * 对应 dsh 0.2.1 的 dsh-client-connection（ctx.connection）、dsh-api-session-controller
+ * 对应 dsh 0.2.1-rc.2 到 0.2.2 的 dsh-client-connection（ctx.connection）、dsh-api-session-controller
  * （ctx.sessionController）、dsh-workspace（ctx.workspaceRegistry）、dsh-agent（ctx.agents、
  * Agent）、dsh-tools（ctx.tools）、dsh-system-prompt（ctx.systemPrompt）、dsh-llm（ctx.llm）、
  * dsh-skill（ctx.skills）和 dsh-session 的事件。这里只声明 Pod 真正调用的成员；不安装 dsh 的包，
@@ -143,12 +143,19 @@ export interface AgentInbox {
   readonly nextStep: readonly UserMessage[]
 }
 
+/** agent 的模型选择：下一步用哪个模型。dsh 0.2.2 起有，旧版本没有。 */
+export interface AgentModel {
+  /** 下一步要用的模型；会话中途换过模型的，这里已经是换后的。一个都没定时是 undefined。 */
+  current(): ModelSelection | undefined
+}
+
 /** dsh-agent 的 Agent 句柄里 Pod 用到的部分。 */
 export interface LiveAgent {
   readonly session: { readonly id: string }
   readonly status: AgentStatus
   readonly ctx: AgentScope
   readonly inbox?: AgentInbox
+  readonly model?: AgentModel
   followup(message: UserMessage): void
   steer(message: UserMessage): void
   inject(message: UserMessage): void
