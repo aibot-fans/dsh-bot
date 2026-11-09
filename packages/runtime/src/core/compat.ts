@@ -2,8 +2,11 @@ import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type { HostContext } from '../dsh.ts'
 
-/** Pod 写在组合包 engines.dsh 里的兼容范围；这里只用来提示。 */
-export const SUPPORTED_DSH = '>=0.2.1-rc.2 <0.3.0'
+/**
+ * Pod 写在组合包 engines.dsh 里的兼容范围；这里只用来提示。
+ * dsh 比对时连预发布版一起算，上限写成 0.3.0-0 才能把 0.3.0 的 alpha、rc 也挡在外面。
+ */
+export const SUPPORTED_DSH = '>=0.2.1-rc.2 <0.3.0-0'
 
 export interface CompatReport {
   readonly dshVersion: string

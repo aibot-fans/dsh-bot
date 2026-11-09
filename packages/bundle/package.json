@@ -18,7 +18,7 @@
   ],
   "engines": {
     "node": ">=24",
-    "dsh": ">=0.2.1-rc.2 <0.3.0"
+    "dsh": ">=0.2.1-rc.2 <0.3.0-0"
   },
   "dependencies": {
     "pod-runtime": "workspace:*",
