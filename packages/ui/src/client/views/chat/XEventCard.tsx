@@ -1,5 +1,5 @@
 import { X_EVENT_LABELS, t, tc, xEventSummary, type XEventView } from 'pod-domain'
-import { clock } from '../../components/common.tsx'
+import { timeText } from '../../components/time.ts'
 
 function str(value: unknown): string {
   return typeof value === 'string' ? value : ''
@@ -69,7 +69,7 @@ export function XEventCard(props: { readonly view: XEventView }) {
         </div>
       )}
       <footer className="pod-xevent-foot">
-        {view.eventTime === null ? null : <time dateTime={new Date(view.eventTime).toISOString()}>{clock(view.eventTime)}</time>}
+        {view.eventTime === null ? null : <time dateTime={new Date(view.eventTime).toISOString()}>{timeText(view.eventTime)}</time>}
         {link === '' ? null : (
           <a className="pod-link" href={link} target="_blank" rel="noopener noreferrer">
             {t('在 X 上看')}

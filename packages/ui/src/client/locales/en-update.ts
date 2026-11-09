@@ -10,7 +10,6 @@ export const UI_EN_UPDATE: Readonly<Record<string, string>> = {
   '这次没更新成，点开看原因': 'The update didn’t go through; click to see why',
   '新版 {target}': '{target} available',
   'dsh-bot 有新版本 {target}，点开看更新了什么': 'dsh-bot {target} is available; click to see what’s new',
-  '{month}月{date}日 {clock}': '{month}/{date} {clock}',
   '已更新到 {to}': 'Updated to {to}',
   '{to} 装好了，重启后生效': '{to} is installed; restart to apply it',
   '这次没更新成': 'The update didn’t go through',

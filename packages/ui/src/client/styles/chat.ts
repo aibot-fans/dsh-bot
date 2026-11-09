@@ -33,8 +33,9 @@ export const CHAT_CSS = `
 .pod-line { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 2px 0 2px 38px; font-size: 12px; color: var(--dsw-alias-label-tertiary); }
 .pod-line time { flex: none; }
 .pod-line-receipt { color: var(--pod-info); }
-.pod-line-error { align-items: flex-start; color: var(--pod-danger); }
-.pod-line-error .pod-line-text { display: flex; align-items: flex-start; gap: 6px; min-width: 0; }
+.pod-line-error { flex-wrap: wrap; row-gap: 2px; align-items: flex-start; color: var(--pod-danger); }
+.pod-line-error .pod-line-text { display: flex; flex: 1 1 12em; align-items: flex-start; gap: 6px; min-width: 0; }
+.pod-line-error .pod-line-actions { margin-left: auto; }
 .pod-line-error .pod-line-text .pod-icon { flex: none; margin-top: 2px; }
 .pod-line-error .pod-link { font-size: 12px; }
 .pod-line-detail { display: block; margin-top: 2px; color: var(--dsw-alias-label-tertiary); overflow-wrap: anywhere; }

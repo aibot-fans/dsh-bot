@@ -3,13 +3,14 @@ import { BOT_NAME_MAX, ROOM_TITLE_MAX, addSidebarFolder, archiveSidebarItem, inp
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { useClipped } from '../../components/clipped.ts'
-import { Avatar, listTime, nameColor } from '../../components/common.tsx'
+import { Avatar, nameColor } from '../../components/common.tsx'
 import { GroupMark } from '../../components/GroupMark.tsx'
 import { Icon } from '../../components/Icon.tsx'
 import { useLongPress } from '../../components/longPress.ts'
 import { useNarrow } from '../../components/media.ts'
 import { MenuDivider, MenuItem, MenuPanel, useMenu } from '../../components/Menu.tsx'
 import { RenameInput } from '../../components/RenameInput.tsx'
+import { timeText } from '../../components/time.ts'
 import { useApp, useNav } from '../../state/app.ts'
 import type { RowDrag } from './drag.ts'
 import { folderId, type SidebarStore } from './prefs.ts'
@@ -200,7 +201,7 @@ export function SideItem(props: SideItemProps) {
               <span className={`pod-side-row-title${bot === undefined ? '' : ' pod-bot-name'}`} style={nameColor(bot)}>
                 {title}
               </span>
-              {lastAt === null ? null : <time className="pod-side-row-time">{listTime(lastAt, Date.now())}</time>}
+              {lastAt === null ? null : <time className="pod-side-row-time">{timeText(lastAt, { short: true })}</time>}
             </span>
             <span className="pod-side-row-line">
               <span className="pod-side-row-preview">{previewOf(item, props.members)}</span>

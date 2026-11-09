@@ -2,17 +2,19 @@ import { useState } from 'react'
 import { t, type RoomSummary } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
-import { Button, clock, useNow } from '../../components/common.tsx'
-import { spent, stamp } from '../../components/duration.ts'
+import { Button, useNow } from '../../components/common.tsx'
+import { spent } from '../../components/duration.ts'
 import { TaskStateIcon, bucketLabel, bucketOf } from '../../components/TaskEntry.tsx'
 import { useSnapshot } from '../../components/taskParts.tsx'
+import { sameDay, timeText } from '../../components/time.ts'
 import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 import { TaskActivityBox } from './Activity.tsx'
 
-/** 开始时间：今天的写「今天 11:21」，别的天带上月日。 */
+/** 开始时间：今天的写「今天 11:21」，别的天带上日期。 */
 function startedText(time: number, now: number): string {
-  return new Date(time).toDateString() === new Date(now).toDateString() ? t('今天 {time}', { time: clock(time) }) : stamp(time)
+  const text = timeText(time, { now })
+  return sameDay(time, now) ? t('今天 {time}', { time: text }) : text
 }
 
 /** 任务从哪来：派活的那个对话（单聊写「Super-agent 单聊」），下面是你的原话，点一下跳过去。 */

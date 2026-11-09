@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { t, type RoomMessage } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
-import { clock } from '../../components/common.tsx'
 import { Icon } from '../../components/Icon.tsx'
+import { timeText } from '../../components/time.ts'
 import { useApp } from '../../state/app.ts'
 
 interface TurnError {
@@ -77,7 +77,7 @@ export function TurnErrorLine(props: { readonly message: RoomMessage; readonly e
         ) : error.retried ? (
           <span>{t('已重试')}</span>
         ) : null}
-        <time>{clock(message.createdAt)}</time>
+        <time>{timeText(message.createdAt)}</time>
       </span>
     </div>
   )

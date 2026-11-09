@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { t, type ActivityEntry, type ActivityItem, type ActivityJob, type ActivityMark, type Bot } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
-import { Avatar, clock, useNow } from '../../components/common.tsx'
-import { stamp } from '../../components/duration.ts'
+import { Avatar, useNow } from '../../components/common.tsx'
 import { Icon } from '../../components/Icon.tsx'
 import { StateIcon } from '../../components/TaskEntry.tsx'
+import { timeText } from '../../components/time.ts'
 import { useApp, type PanelState } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 
@@ -14,11 +14,6 @@ const OPEN_JOBS = 3
 
 /** 一件活先列最后几行，前面的点开再看。 */
 const SHOWN_ENTRIES = 8
-
-/** 今天的只写几点几分，别的天带上月日。 */
-function whenText(time: number, now: number): string {
-  return new Date(time).toDateString() === new Date(now).toDateString() ? clock(time) : stamp(time)
-}
 
 /** 跳到对话里的一句：先问它在哪段对话、第几条。 */
 function useJump(onProblem: (text: string) => void): (messageId: string) => void {
@@ -47,7 +42,7 @@ function EntryRow(props: { readonly entry: ActivityEntry; readonly now: number; 
     <>
       {icon}
       <span className="pod-act-text">{entry.text}</span>
-      {entry.at === null ? null : <time className="pod-act-time">{whenText(entry.at, props.now)}</time>}
+      {entry.at === null ? null : <time className="pod-act-time">{timeText(entry.at, { now: props.now })}</time>}
     </>
   )
   if (entry.messageId === null) return <div className={`pod-act-e${tone}`}>{body}</div>
@@ -79,7 +74,7 @@ function JobItem(props: { readonly job: ActivityJob; readonly bots: ReadonlyMap<
             {job.title}
           </button>
         )}
-        <time className="pod-act-time">{whenText(job.at, props.now)}</time>
+        <time className="pod-act-time">{timeText(job.at, { now: props.now })}</time>
       </div>
       {people.length === 0 && said === null ? null : (
         <div className="pod-act-who">
@@ -121,7 +116,7 @@ function MarkItem(props: { readonly mark: ActivityMark; readonly now: number }) 
       </span>
       <div className="pod-act-gh">
         <span className="pod-act-title pod-act-muted">{props.mark.text}</span>
-        <time className="pod-act-time">{whenText(props.mark.at, props.now)}</time>
+        <time className="pod-act-time">{timeText(props.mark.at, { now: props.now })}</time>
       </div>
     </li>
   )

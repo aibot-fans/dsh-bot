@@ -3,7 +3,7 @@ import { OWNER, isUploadNote, t, type Bot, type RoomMessage } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { copyText } from '../../components/clipboard.ts'
-import { Avatar, Button, IconButton, Modal, clock } from '../../components/common.tsx'
+import { Avatar, Button, IconButton, Modal } from '../../components/common.tsx'
 import { Icon } from '../../components/Icon.tsx'
 import { useLongPress } from '../../components/longPress.ts'
 import { FoldText } from '../../components/FoldText.tsx'
@@ -15,6 +15,7 @@ import { decidedText } from '../../components/TaskDecision.tsx'
 import { GroupChip, TaskChip } from '../../components/TaskEntry.tsx'
 import { buildTaskLinks, namedIn, taskRefs } from '../../components/taskLinks.tsx'
 import { useSnapshot } from '../../components/taskParts.tsx'
+import { timeText } from '../../components/time.ts'
 import { WaitCard } from '../../components/WaitCard.tsx'
 import { PageCard, PageChip } from '../pages/PageCard.tsx'
 import { useApp } from '../../state/app.ts'
@@ -102,7 +103,7 @@ export function MessageItem(props: MessageProps) {
       if (message.data.segment === true) {
         return (
           <div className="pod-divider" role="separator">
-            <span>{t('新的对话 · {clock}', { clock: clock(message.createdAt) })}</span>
+            <span>{t('新的对话 · {time}', { time: timeText(message.createdAt) })}</span>
           </div>
         )
       }

@@ -4,6 +4,7 @@ import { mediaUrl } from '../api/http.ts'
 import { BotFigure, BotIcon, iconOf, type IconBot } from './BotIcon.tsx'
 import { Icon } from './Icon.tsx'
 import { useNarrow } from './media.ts'
+import { timeText } from './time.ts'
 
 /** 头像：你上传的图片；没有图片时用内置的鲸鱼娘图标（没选时按角色配）。 */
 export function Avatar(props: { readonly bot?: IconBot; readonly size?: number; readonly status?: 'busy' | 'waiting' | 'blocked' | 'idle' }) {
@@ -144,8 +145,7 @@ function relative(time: number, now: number): string {
   if (minutes < 60) return t('{minutes} 分钟前', { minutes })
   const hours = Math.round(minutes / 60)
   if (hours < 24) return t('{hours} 小时前', { hours })
-  const date = new Date(time)
-  return date.toLocaleDateString(intlLocale(), { month: 'short', day: 'numeric' })
+  return timeText(time, { now, short: true })
 }
 
 /** 每 30 秒刷新一次的“几分钟前”。 */
@@ -162,24 +162,6 @@ export function RelativeTime(props: { readonly time: number | null | undefined }
   const now = useNow()
   if (props.time === null || props.time === undefined) return null
   return <time dateTime={new Date(props.time).toISOString()} title={new Date(props.time).toLocaleString(intlLocale())}>{relative(props.time, now)}</time>
-}
-
-
-/** 列表上的时间：今天写几点几分，昨天写“昨天”，一周内写星期几，再早写日期（不是今年的带上年份）。 */
-export function listTime(time: number, now: number): string {
-  const date = new Date(time)
-  const today = new Date(now)
-  const days = Math.round((new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime() - new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()) / 86_400_000)
-  if (days <= 0) return clock(time)
-  if (days === 1) return t('昨天')
-  if (days < 7) return date.toLocaleDateString(intlLocale(), { weekday: 'short' })
-  const day = `${date.getMonth() + 1}/${date.getDate()}`
-  return date.getFullYear() === today.getFullYear() ? day : `${date.getFullYear()}/${day}`
-}
-
-export function clock(time: number): string {
-  const date = new Date(time)
-  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
 export function Empty(props: { readonly title: string; readonly children?: ReactNode }) {

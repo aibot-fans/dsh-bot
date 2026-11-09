@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { MESSAGE_MAX, OWNER, t, type Bot, type Page, type RoomMessage } from 'pod-domain'
 import { errorText } from '../../api/http.ts'
 import { pageApi } from '../../api/pages.ts'
-import { Avatar, Button, clock } from '../../components/common.tsx'
+import { Avatar, Button } from '../../components/common.tsx'
 import { Markdown } from '../../components/Markdown.tsx'
+import { timeText } from '../../components/time.ts'
 import { useApp, useLive } from '../../state/app.ts'
 import { PAGE_DRAFT_PREFIX, readDraft, saveDraftText } from '../../state/drafts.ts'
 import { useResource } from '../../state/resource.ts'
@@ -22,7 +23,7 @@ function ThreadItem(props: { readonly message: RoomMessage; readonly bots: Reado
     return (
       <div className="pod-thread-line">
         <span>{message.kind === 'page' ? t('存成了第 {String} 版{note}', { String: String(message.data.version ?? ''), note }) : message.body}</span>
-        <time>{clock(message.createdAt)}</time>
+        <time>{timeText(message.createdAt)}</time>
       </div>
     )
   }

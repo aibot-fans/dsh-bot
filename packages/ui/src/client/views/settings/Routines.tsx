@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PAGE_KIND_LABELS, WATCH_MAX_INTERVAL, WATCH_MIN_INTERVAL, dailyCron, intlLocale, t, weeklyCron, type Bot, type Page, type Routine, type RoomSummary } from 'pod-domain'
+import { PAGE_KIND_LABELS, WATCH_MAX_INTERVAL, WATCH_MIN_INTERVAL, dailyCron, t, weeklyCron, type Bot, type Page, type Routine, type RoomSummary } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { pageApi } from '../../api/pages.ts'
@@ -7,6 +7,7 @@ import { Avatar, Button, Empty, Field, IconButton, RelativeTime, Segmented, Swit
 import { BotPicker } from '../../components/GroupMark.tsx'
 import { Icon } from '../../components/Icon.tsx'
 import { MenuItem, MenuPanel, useMenu } from '../../components/Menu.tsx'
+import { timeText } from '../../components/time.ts'
 import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 
@@ -14,7 +15,7 @@ export type RoutineView = Routine & { readonly description: string }
 
 function when(time: number | null): string {
   if (time === null) return t('不再运行')
-  return new Date(time).toLocaleString(intlLocale(), { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  return timeText(time)
 }
 
 type Schedule = 'daily' | 'weekly' | 'once' | 'cron'

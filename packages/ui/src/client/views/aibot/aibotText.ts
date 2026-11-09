@@ -1,5 +1,5 @@
 import { beijingClock, intlLocale, t, type AibotStatus } from 'pod-domain'
-import { clock } from '../../components/common.tsx'
+import { timeText } from '../../components/time.ts'
 
 const DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' })
 
@@ -30,5 +30,5 @@ export function resetText(status: AibotStatus, now: number): string {
 
 /** 等着自动重试时补一句什么时候再试。 */
 export function retryText(status: AibotStatus): string {
-  return status.retryAt === null ? '' : t('，{clock} 自动再试', { clock: clock(status.retryAt) })
+  return status.retryAt === null ? '' : t('，{time} 自动再试', { time: timeText(status.retryAt) })
 }

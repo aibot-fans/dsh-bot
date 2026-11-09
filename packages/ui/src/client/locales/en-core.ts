@@ -139,5 +139,5 @@ export const UI_EN_CORE: Readonly<Record<string, string>> = {
   'aibot · {who} · 今日剩余 {remaining} 次': 'aibot · {who} · {remaining} calls left today',
   '每天早上 8 点（北京时间）恢复': 'Resets daily at 8:00 (Beijing time)',
   '{dayWord} {beijingClock} 恢复（北京时间）': 'Resets {dayWord} at {beijingClock} (Beijing time)',
-  '，{clock} 自动再试': ', retrying at {clock}',
+  '，{time} 自动再试': ', retrying at {time}',
 }

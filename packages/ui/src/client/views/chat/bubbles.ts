@@ -1,5 +1,5 @@
 import { OWNER, intlLocale, t, type RoomMessage } from 'pod-domain'
-import { clock } from '../../components/common.tsx'
+import { clock, startOfDay } from '../../components/time.ts'
 
 /** 和上一条隔了这么久，中间才写一次时间。 */
 const STAMP_GAP_MS = 3 * 60_000
@@ -29,11 +29,6 @@ export function bubbleSide(message: RoomMessage, quiet: boolean): BubbleSide | u
   }
 }
 
-export function startOfDay(time: number): number {
-  const date = new Date(time)
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
-}
-
 /** 日子：今天、昨天，再早的写几月几日周几（跨年带年份）。 */
 export function dayLabel(time: number, now: number): string {
   const days = Math.round((startOfDay(now) - startOfDay(time)) / 86_400_000)
@@ -44,17 +39,22 @@ export function dayLabel(time: number, now: number): string {
   return date.toLocaleDateString(intlLocale(), { year, month: 'long', day: 'numeric', weekday: 'short' })
 }
 
-/** 鼠标停在气泡上时显示的具体时间。 */
-export function fullTime(time: number): string {
-  return new Date(time).toLocaleString(intlLocale(), { month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' })
+/** 鼠标停在气泡上时显示的具体时间（不是今年的带上年份）。 */
+export function fullTime(time: number, now = Date.now()): string {
+  const date = new Date(time)
+  const year = date.getFullYear() === new Date(now).getFullYear() ? undefined : 'numeric'
+  return date.toLocaleString(intlLocale(), { year, month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
-/** 居中的时间：一天里第一条写“今天 10:02”，之后隔了一段时间才写一次“10:05”。 */
+/**
+ * 居中的时间：一天里第一条写“今天 10:02”“昨天 10:02”“11月8日周六 10:02”，之后隔了一段时间才再写一次。
+ * 再写时今天的只写“10:05”，别的天照样带上是哪天（“昨天 10:05”），翻到以前的消息不用往上找日子。
+ */
 function stampOf(message: RoomMessage, previous: RoomMessage | undefined, now: number): string | null {
-  if (previous === undefined || startOfDay(previous.createdAt) !== startOfDay(message.createdAt)) {
-    return t('{day} {clock}', { day: dayLabel(message.createdAt, now), clock: clock(message.createdAt) })
-  }
-  return message.createdAt - previous.createdAt >= STAMP_GAP_MS ? clock(message.createdAt) : null
+  const withDay = (): string => t('{day} {clock}', { day: dayLabel(message.createdAt, now), clock: clock(message.createdAt) })
+  if (previous === undefined || startOfDay(previous.createdAt) !== startOfDay(message.createdAt)) return withDay()
+  if (message.createdAt - previous.createdAt < STAMP_GAP_MS) return null
+  return startOfDay(message.createdAt) === startOfDay(now) ? clock(message.createdAt) : withDay()
 }
 
 /**

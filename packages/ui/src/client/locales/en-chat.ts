@@ -136,7 +136,7 @@ export const UI_EN_CHAT: Readonly<Record<string, string>> = {
   '收起': 'Collapse',
   '展开': 'Expand',
   '讨论原文': 'Original discussion',
-  '新的对话 · {clock}': 'New chat · {clock}',
+  '新的对话 · {time}': 'New chat · {time}',
   '来自 dsh 会话视图': 'From the dsh session view',
   '{authorName} 的详情': "{authorName}'s details",
   '开工说明': 'Kickoff note',

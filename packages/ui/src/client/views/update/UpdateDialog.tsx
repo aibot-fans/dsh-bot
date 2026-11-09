@@ -2,17 +2,13 @@ import { useState } from 'react'
 import { PACKAGE_NAME, compareVersions, t, type ReleaseNote, type UpdateJob, type UpdateStatus } from 'pod-domain'
 import { errorText } from '../../api/http.ts'
 import { updateApi } from '../../api/update.ts'
-import { Badge, Button, Modal, RelativeTime, clock } from '../../components/common.tsx'
+import { Badge, Button, Modal, RelativeTime } from '../../components/common.tsx'
 import { Markdown } from '../../components/Markdown.tsx'
+import { timeText } from '../../components/time.ts'
 import { useApp, useNav } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 import { showUpdateOverlay } from './overlay.ts'
 import { HMR_TEXT, MANUAL_TEXT, RESTART_TEXT, SOURCE_STEPS, STEP_TEXT, releaseUrl } from './text.ts'
-
-function when(time: number): string {
-  const date = new Date(time)
-  return t('{month}月{date}日 {clock}', { month: date.getMonth() + 1, date: date.getDate(), clock: clock(time) })
-}
 
 function titleOf(status: UpdateStatus): string {
   const { job } = status
@@ -92,7 +88,7 @@ function UpdateAction(props: { readonly status: UpdateStatus; readonly working: 
   const wait =
     waiting === null ? null : (
       <p className="pod-update-note">
-        {t('{version} 发布还不满 pnpm 要求的时间（默认一天，防止装到刚发布就被投毒的包），{when} 以后能装。', { version: waiting.version, when: when(waiting.installableAt) })}
+        {t('{version} 发布还不满 pnpm 要求的时间（默认一天，防止装到刚发布就被投毒的包），{when} 以后能装。', { version: waiting.version, when: timeText(waiting.installableAt) })}
       </p>
     )
   if (status.install === 'source') {

@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { t, type TabDialog } from 'pod-domain'
 import { api, type BrowserOverlay, type TabView } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
-import { Button, IconButton, clock } from '../../components/common.tsx'
+import { Button, IconButton } from '../../components/common.tsx'
 import { Icon } from '../../components/Icon.tsx'
+import { timeText } from '../../components/time.ts'
 
 /** 下拉框：无头浏览器不画弹出层，Pod 用自己的列表显示选项。 */
 export function SelectOverlay(props: { readonly tabId: string; readonly overlay: Extract<BrowserOverlay, { readonly kind: 'select' }>; readonly onClose: () => void }) {
@@ -128,7 +129,7 @@ export function ActionLog(props: { readonly actions: TabView['actions']; readonl
       <ol className="pod-browser-actions">
         {[...props.actions].reverse().map((action) => (
           <li key={`${action.at}-${action.text}`}>
-            <span className="pod-muted-inline">{clock(action.at)}</span> {action.text}
+            <span className="pod-muted-inline">{timeText(action.at)}</span> {action.text}
           </li>
         ))}
       </ol>

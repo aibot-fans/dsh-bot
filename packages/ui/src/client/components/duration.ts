@@ -10,12 +10,3 @@ export function duration(ms: number): string {
 export function spent(ms: number): string {
   return ms < 60_000 ? t('不到 1 分钟') : duration(ms)
 }
-
-/** 今天的只写钟点，别的天带上月日。 */
-export function stamp(time: number): string {
-  const date = new Date(time)
-  const today = new Date()
-  const sameDay = date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth() && date.getDate() === today.getDate()
-  const clock = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
-  return sameDay ? clock : `${date.getMonth() + 1}/${date.getDate()} ${clock}`
-}

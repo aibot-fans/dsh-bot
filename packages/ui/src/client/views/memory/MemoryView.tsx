@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { MEMORY_TYPES, MEMORY_TYPE_LABELS, t, tc, type MemoryEntry, type MemoryScopeKind, type MemoryType } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
-import { Badge, Button, Empty, RelativeTime, clock } from '../../components/common.tsx'
+import { Badge, Button, Empty, RelativeTime } from '../../components/common.tsx'
+import { timeText } from '../../components/time.ts'
 import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 import { DreamBar, NotesSection } from './Notes.tsx'
@@ -183,7 +184,7 @@ function Changes() {
     <ol className="pod-events">
       {changes.map((change) => (
         <li key={change.id}>
-          <time>{clock(change.createdAt)}</time>
+          <time>{timeText(change.createdAt)}</time>
           {t('{value}：{value2}', { value: tc(ACTION_LABELS[change.action] ?? change.action, '变更'), value2: change.after?.content ?? change.before?.content ?? change.reason })}
           <span className="pod-muted-inline"> · {change.reason}</span>
           {change.revertedAt !== null || change.action === 'core' || change.action === 'revert' || change.action === 'note' ? null : (

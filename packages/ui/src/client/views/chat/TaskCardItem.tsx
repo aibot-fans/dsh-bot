@@ -1,11 +1,12 @@
 import { useMemo } from 'react'
 import { WAIT_KIND_LABELS, t, type Bot, type TaskSnapshot } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
-import { Avatar, listTime, useNow } from '../../components/common.tsx'
+import { Avatar, useNow } from '../../components/common.tsx'
 import { TaskStateIcon, bucketLabel, bucketOf, openTaskConversation } from '../../components/TaskEntry.tsx'
 import { workLine } from '../../components/taskLines.ts'
 import { Undelivered, useSnapshot } from '../../components/taskParts.tsx'
 import { useTaskPeople } from '../../components/TaskPeople.tsx'
+import { timeText } from '../../components/time.ts'
 import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 
@@ -18,7 +19,7 @@ interface Foot {
 function footOf(snapshot: TaskSnapshot, bots: ReadonlyMap<string, Bot>, now: number): Foot {
   const { task, stage } = snapshot
   const bucket = bucketOf(snapshot)
-  if (bucket === 'done') return { tone: 'quiet', text: t('更新于 {time}', { time: listTime(task.updatedAt, now) }) }
+  if (bucket === 'done') return { tone: 'quiet', text: t('更新于 {time}', { time: timeText(task.updatedAt, { now }) }) }
   if (bucket === 'ended') return { tone: 'quiet', text: bucketLabel(snapshot, bucket) }
   if (bucket === 'attention') {
     const question = snapshot.question
