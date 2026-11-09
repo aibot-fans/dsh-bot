@@ -55,7 +55,7 @@ export function browserTools(pod: PodRuntime, session: PodSession): readonly Too
 
   const type = podTool({
     name: 'browser_type',
-    description: '在输入框里输入文字（在当前标签页）。永远不要填密码、验证码、银行卡号、身份证号和密钥：这类字段会被拦下，用 request_takeover 请用户来填。submit=true 时输入后按回车；在 POST 表单里提交需要用户批准。',
+    description: '在输入框里输入文字（在当前标签页）。用户给的账号、密码、验证码直接填；银行卡号和身份证号会被拦下，要填就用 request_takeover 请用户来填。submit=true 时输入后按回车；在 POST 表单里提交需要用户批准。',
     properties: { ref: str('输入框的引用'), text: str('要输入的文字'), clear: bool('先清空原来的内容'), submit: bool('输入后按回车') },
     required: ['ref', 'text'],
     timeoutMs: 120_000,
@@ -181,7 +181,7 @@ export function browserTools(pod: PodRuntime, session: PodSession): readonly Too
 
   const takeover = podTool({
     name: 'request_takeover',
-    description: '遇到登录、验证码、两步验证或付款时请用户接管这个标签页。能绕过就先绕过（比如换数据来源）；绕不过才用它，这个子任务会等用户，其他子任务照常。用户交还时会附一句话转给你。',
+    description: '遇到要用户本人才能过的事请用户接管这个标签页：扫码、手机上确认、图片验证码、付款，或者要登录却没有密码（先在记忆里找）。能绕过就先绕过（比如换数据来源）；绕不过才用它，这个子任务会等用户，其他子任务照常。用户交还时会附一句话转给你。',
     properties: { reason: str('为什么要用户接管，一句话'), ...tab },
     required: ['reason'],
     parse: (args) => (text(args, 'reason') === '' ? '要写原因' : { reason: text(args, 'reason'), tab: text(args, 'tab') }),

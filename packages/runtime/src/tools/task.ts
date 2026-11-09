@@ -26,7 +26,7 @@ export function askOwnerTool(pod: PodRuntime, session: PodSession): ToolDefiniti
   return podTool({
     name: 'ask_owner',
     description: [
-      '只在四种必须用户出面的情况下找用户：login 需要登录/验证码/两步验证；write 要做不可撤回的对外操作；security 被安全规则拦下；ambiguity 会让结果方向完全不同、又没有合理默认值的歧义。',
+      '只在四种必须用户出面的情况下找用户：login 要用户本人才能过的登录或验证（没有密码、扫码、手机上确认）；write 要做不可撤回的对外操作；security 被安全规则拦下；ambiguity 会让结果方向完全不同、又没有合理默认值的歧义。',
       '能绕过的先绕过（比如换数据来源），设 bypassed=true 并写明怎么绕过的，然后继续做其余部分；绕不过才让任务等用户。用户的答复会转回给你。',
     ].join(''),
     properties: {

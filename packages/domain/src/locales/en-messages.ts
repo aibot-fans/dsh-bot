@@ -27,19 +27,15 @@ export const DOMAIN_EN_MESSAGES: Readonly<Record<string, string>> = {
   '按钮「{label}」属于“{word}”一类操作': 'The button “{label}” is a “{word}” kind of action',
   '会提交 POST 表单': 'Submits a POST form',
   '在 POST 表单里按回车会提交表单': 'Pressing Enter in a POST form submits it',
-  '这是密码框：bot 永远不填密码，请用户接管登录': 'This is a password field. Bots never enter passwords; ask the user to take over and sign in',
-  '这是验证码或安全码：bot 不填，请用户接管': 'This is a verification or security code. Bots don’t enter these; ask the user to take over',
   '这是银行卡字段：bot 不填': 'This is a bank card field. Bots don’t fill these in',
   '内容像银行卡号：bot 不填': 'This looks like a card number. Bots don’t enter these',
   '内容像身份证号：bot 不填': 'This looks like an ID number. Bots don’t enter these',
-  '内容像密码或密钥：bot 不填': 'This looks like a password or key. Bots don’t enter these',
   '夹带了你的私有信息“{fragment}{value}”': 'Contains your private information “{fragment}{value}”',
   '网址里夹带了很长的数据': 'The URL carries a long chunk of data',
   '你': 'You',
   '已归档的 bot': 'Archived bot',
   '网址格式不对': 'Invalid URL',
   '不能打开 {protocol} 地址': 'Can’t open {protocol} addresses',
-  '网址里不能带账号密码': 'URLs can’t contain a username or password',
   '默认不能访问本机和局域网地址（防止被网页诱导调用本机服务）；需要的话在设置里把它加进白名单':
     'Local and LAN addresses are blocked by default (so web pages can’t trick bots into calling local services). Add the address to the allowlist in Settings if needed',
   // 定时
@@ -65,7 +61,6 @@ export const DOMAIN_EN_MESSAGES: Readonly<Record<string, string>> = {
   // 记忆
   '内容是空的': 'The content is empty',
   '一条记忆最多 {MEMORY_CONTENT_MAX} 个字，太长就写进文件': 'A memory can be at most {letters} characters; put longer content in a file',
-  '记忆里不能存密钥、密码、令牌这类敏感信息': 'Memories can’t hold secrets like keys, passwords or tokens',
   '记忆里不能存卡号这类数字': 'Memories can’t hold numbers like card numbers',
   '网页里的指令性内容不能写进记忆': 'Instructions from web pages can’t be saved as memories',
   // 页面

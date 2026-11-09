@@ -3,7 +3,7 @@ export const UI_EN_COMPUTER: Readonly<Record<string, string>> = {
   '用电脑': 'Computer use',
   '已装好': 'Installed',
   '没带': 'Not included',
-  '做任务的 bot 能在后台用这台 Mac 上别的应用：看窗口内容、点按钮、填字，不占用你的鼠标键盘。每个任务第一次用某个应用前先问你；浏览器、终端、系统设置和密码类应用不让碰。关掉时收回所有授权': 'Bots working on tasks can use other apps on this Mac in the background: read windows, click buttons and fill in text without taking your mouse or keyboard. Each task asks you before it first uses an app; browsers, terminals, System Settings and password apps are off limits. Turning this off revokes every approval',
+  '做任务的 bot 能在后台用这台 Mac 上别的应用：看窗口内容、点按钮、填字，不占用你的鼠标键盘。每个任务第一次用某个应用前先问你；浏览器、终端、系统设置和脚本类应用不让碰。关掉时收回所有授权': 'Bots working on tasks can use other apps on this Mac in the background: read windows, click buttons and fill in text without taking your mouse or keyboard. Each task asks you before it first uses an app; browsers, terminals, System Settings and script apps are off limits. Turning this off revokes every approval',
   '小助手': 'Helper',
   '读写窗口、推画面靠开源项目 Comma（AGPL-3.0）的 macOS 小助手，只在这台电脑上运行': 'Reading and using windows and streaming them relies on the macOS helper from the open-source project Comma (AGPL-3.0). It runs only on this computer',
   '系统权限': 'System permissions',

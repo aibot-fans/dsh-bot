@@ -11,7 +11,6 @@ import {
   charLength,
   fail,
   isTemporaryRoom,
-  maskSecrets,
   newId,
   ok,
   oneLine,
@@ -442,7 +441,7 @@ export class RoomService {
     this.post(roomId, { author: POD, kind: 'milestone', body, data })
   }
 
-  /** 你在房间里说话：先打码再存；在有任务跟进的话题里就直通任务，否则交给前台。 */
+  /** 你在房间里说话：照原样存（密码、密钥也是，bot 要用）；在有任务跟进的话题里就直通任务，否则交给前台。 */
   async send(input: unknown): Promise<PodResult<RoomMessage>> {
     const roomId = readId(input, 'roomId')
     if (roomId === undefined) return fail('invalid-input', t('缺少房间 id'))
@@ -451,24 +450,23 @@ export class RoomService {
     const raw = readString(input, 'text')
     if (raw === '') return fail('invalid-input', t('消息不能为空'))
     if (charLength(raw) > MESSAGE_MAX) return fail('invalid-input', t('一条消息最多 {MESSAGE_MAX} 个字', { MESSAGE_MAX }))
-    const masked = maskSecrets(raw)
     const replyTo = readId(input, 'replyTo') ?? null
-    const mentioned = room.kind === 'direct' ? [] : this.mentioned(room, masked.text)
+    const mentioned = room.kind === 'direct' ? [] : this.mentioned(room, raw)
     if (this.responder(room) === undefined) return fail('not-found', t('这个房间里没有能回答的 bot'))
     const message = this.post(roomId, {
       author: OWNER,
       kind: 'text',
-      body: masked.text,
+      body: raw,
       replyTo,
       // calls：这条消息真的通知了谁，页面上写“已通知”；群里没 @ 到成员时是空的，提到群外 bot 的 @ 画成淡色。
-      data: { ...(masked.kinds.length === 0 ? {} : { masked: masked.kinds }), ...(room.kind === 'direct' ? {} : { calls: mentioned.map((bot) => bot.id) }) },
+      data: room.kind === 'direct' ? {} : { calls: mentioned.map((bot) => bot.id) },
     })
     if (message === undefined) return fail('not-found', t('找不到这个房间'))
     markRoomRead(this.db, roomId, message.seq)
     this.deps.onOwnerText?.(message)
     // 引用了挂着等你卡片的那句话（问的那句、前台转告的那句）回字：就是答复，答复照常转回给问的任务。
     const quoted = replyTo === null ? undefined : getMessage(this.db, replyTo)
-    if (typeof quoted?.data.waitId === 'string' && this.deps.answerWait?.(quoted.data.waitId, masked.text) === true) return ok(message)
+    if (typeof quoted?.data.waitId === 'string' && this.deps.answerWait?.(quoted.data.waitId, raw) === true) return ok(message)
     // 回复、引用的是有任务跟进的话题（比如任务卡）：直接送进那些任务，不再交给前台。
     if ((this.deps.intake?.(message, mentioned) ?? 0) > 0) return ok(message)
     this.toFronts(room, message, '')
@@ -567,7 +565,7 @@ export class RoomService {
     }
     const text = stripMentions(message, targets, members)
     if (text === '') return fail('invalid-input', t('要写明想对他们说什么'))
-    const body = maskSecrets(`${targets.map((bot) => `@${bot.name}`).join(' ')} ${text}`).text
+    const body = `${targets.map((bot) => `@${bot.name}`).join(' ')} ${text}`
     const posted = this.post(room.id, { author: speaker.id, kind: 'text', body, sessionId: session.id, data: { calls: targets.map((bot) => bot.id) } })
     if (posted === undefined) return fail('not-found', t('找不到这个群聊'))
     for (const bot of targets) this.triggers.set(`${room.id}:${bot.id}`, speaker.id)
@@ -603,11 +601,10 @@ export class RoomService {
    * body 是对话里显示的原话，note 是交给前台时附的说明（前台开任务时一起交给干活的 bot）。
    */
   sendAbout(room: Room, bot: Bot, input: { readonly body: string; readonly note: string; readonly data: Readonly<Record<string, unknown>> }): PodResult<RoomMessage> {
-    const masked = maskSecrets(input.body)
-    const message = this.post(room.id, { author: OWNER, kind: 'text', body: masked.text, data: { ...input.data, ...(masked.kinds.length === 0 ? {} : { masked: masked.kinds }) } })
+    const message = this.post(room.id, { author: OWNER, kind: 'text', body: input.body, data: input.data })
     if (message === undefined) return fail('not-found', t('找不到这个对话'))
     markRoomRead(this.db, room.id, message.seq)
-    this.deps.front(message, [bot], maskSecrets(input.note).text)
+    this.deps.front(message, [bot], input.note)
     return ok(message)
   }
 
@@ -636,7 +633,7 @@ export class RoomService {
   /** bot 在聊天会话里说的话，写进对应房间。 */
   postBotText(session: PodSession, text: string, data?: Readonly<Record<string, unknown>>): RoomMessage | undefined {
     if (session.roomId === null) return undefined
-    return this.post(session.roomId, { author: session.botId, kind: 'text', body: maskSecrets(text).text, sessionId: session.id, ...(data === undefined ? {} : { data }) })
+    return this.post(session.roomId, { author: session.botId, kind: 'text', body: text, sessionId: session.id, ...(data === undefined ? {} : { data }) })
   }
 
   /** 一轮回答跑完：执行过程的摘要记在这一轮最后一段回复上，页面在回复下面显示用时和每一步。 */
@@ -649,7 +646,7 @@ export class RoomService {
   /** 你在 dsh 的会话视图里直接打的字，也补进房间，记录不缺一块。 */
   mirrorOwner(session: PodSession, text: string): void {
     if (session.roomId === null || session.kind !== 'chat') return
-    this.post(session.roomId, { author: OWNER, kind: 'text', body: maskSecrets(text).text, data: { via: 'dsh' } })
+    this.post(session.roomId, { author: OWNER, kind: 'text', body: text, data: { via: 'dsh' } })
   }
 
   markRead(input: unknown): PodResult<null> {

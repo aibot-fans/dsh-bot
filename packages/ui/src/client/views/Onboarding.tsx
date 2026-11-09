@@ -39,7 +39,7 @@ export function Onboarding(props: { readonly settings: PodSettings }) {
           <div className="pod-stack">
             <h2>{t('欢迎使用 dsh-bot')}</h2>
             <p>{t('dsh-bot 是你的一群 bot。你只需要跟 Super-agent 说要做的事：简单的它自己做，复杂的它交给合适的 bot，或者临时组个小组、交给正式团队。')}</p>
-            <p>{t('默认自治：bot 自己判断、直接推进，只在四种情况找你——需要登录或验证码、要做不可撤回的对外操作、被安全规则拦下、遇到没有默认值的歧义。')}</p>
+            <p>{t('默认自治：bot 自己判断、直接推进，只在四种情况找你——要你本人才能过的验证（扫码、手机上确认，或者没给密码的登录）、要做不可撤回的对外操作、被安全规则拦下、遇到没有默认值的歧义。')}</p>
             <p>{t('做的过程都在“任务”里，可以随时暂停、停止，或直接对任务说话。自我优化的改动都记在“进化日志”里，可以一键回滚。')}</p>
             <AibotIntro />
           </div>
@@ -73,7 +73,7 @@ export function Onboarding(props: { readonly settings: PodSettings }) {
         {step === 2 ? (
           <div className="pod-stack">
             <h2>{t('先登录常用网站（可选）')}</h2>
-            <p>{t('所有 bot 共用一个无头浏览器和一份登录状态。在“浏览器”里开个标签页，自己登录一次，之后 bot 都能用。bot 永远不填密码、验证码和银行卡号；提交、发送、删除、购买这类写操作都会先问你。')}</p>
+            <p>{t('所有 bot 共用一个无头浏览器和一份登录状态。在“浏览器”里开个标签页，自己登录一次，之后 bot 都能用；把账号密码告诉 bot，它也能自己登录。银行卡号和身份证号 bot 不填；提交、发送、删除、购买这类写操作都会先问你。')}</p>
             <div>
               <Button small icon="browser" onClick={() => app.openBrowserTab(null)}>
                 {t('打开浏览器视图')}

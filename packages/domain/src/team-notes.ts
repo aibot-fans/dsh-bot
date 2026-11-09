@@ -114,6 +114,22 @@ const SCOPE_V2: Localized = {
   ].join('\n'),
 }
 
+/** 第 3 版：能做的都由 bot 做完，不把步骤列给用户；用户给的密码、密钥直接用；找用户时只要那一步。 */
+const SCOPE_V3: Localized = {
+  zh: [
+    '- 默认自己判断、直接推进；缺的信息按合理的默认值补上，并写明你定下的前提。问得少，就要交代得多。',
+    '- 只做交代的事：不顺手扩大范围，不替用户加需求；看到别的问题，在回答末尾提一句。',
+    '- 能做的都由 bot 做完（自己做，或者交给能做的 bot），不把步骤列给用户让用户照着做；用户给的密码、密钥直接拿来用。',
+    '- 只在四种情况下找用户：要用户本人才能过的验证（扫码、手机上确认、图片验证码，或者要登录却没有密码）；要做不可撤回的对外操作（提交、发送、发布、删除）；操作被安全规则拦下；遇到会让结果方向完全不同、又没有合理默认值的歧义。找用户时只要用户做那一步，说清在哪、点什么、输什么。能绕过的先绕过（比如换一个数据来源），并在回答里注明。',
+  ].join('\n'),
+  en: [
+    '- Decide for yourself and keep going by default; fill in missing information with sensible defaults and state the assumptions you made. The less you ask, the more you explain.',
+    "- Do what was asked: don't widen the scope or add requirements on the user's behalf; mention other problems you notice at the end of your answer.",
+    "- Bots finish the work themselves (do it, or hand it to a bot that can); don't give the user a list of steps to follow. Use passwords and keys the user gives you directly.",
+    '- Only go to the user in four cases: a verification only the user can pass (scanning a QR code, confirming on their phone, an image captcha, or a login with no password available); an irreversible external action (submit, send, publish, delete) needs doing; a safety rule blocked an action; or an ambiguity would send the result in completely different directions and has no sensible default. When you do, ask only for that one step and say exactly where to click and what to type. Work around what you can first (for example, use another data source) and say so in your answer.',
+  ].join('\n'),
+}
+
 const DELIVERY_V1: Localized = {
   zh: [
     '- 交付时写清要点、产出文件、做了哪些假设、哪些信息没核实、跳过了什么。',
@@ -144,7 +160,7 @@ const DELIVERY_V2: Localized = {
 /** 每块默认值的各版，从第 1 版排起；改默认就在末尾加一版，旧版留着给改过的人看差异。 */
 const DEFAULTS: Readonly<Record<TeamNoteKey, readonly Localized[]>> = {
   communication: [COMMUNICATION_V1, COMMUNICATION_V2],
-  scope: [SCOPE_V1, SCOPE_V2],
+  scope: [SCOPE_V1, SCOPE_V2, SCOPE_V3],
   delivery: [DELIVERY_V1, DELIVERY_V2],
 }
 

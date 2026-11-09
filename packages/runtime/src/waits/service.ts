@@ -6,7 +6,6 @@ import {
   WAIT_KIND_LABELS,
   fail,
   isOpenWait,
-  maskSecrets,
   newId,
   ok,
   readId,
@@ -181,8 +180,7 @@ export class WaitService {
     const wait = this.get(id)
     if (wait === undefined) return fail('not-found', t('找不到这件事'))
     if (!isOpenWait(wait) && wait.status !== 'suspended') return fail('conflict', t('这件事已经处理过了'))
-    const raw = readString(input, 'answer')
-    const answer = maskSecrets(raw).text
+    const answer = readString(input, 'answer')
     const resolved = setWaitStatus(this.db, id, 'resolved', answer === '' ? t('已处理') : answer, this.deps.now()) ?? wait
     const handled = this.resolvers.get(resolved.kind)?.(resolved, answer) ?? false
     if (!handled) this.forward(resolved, answer)

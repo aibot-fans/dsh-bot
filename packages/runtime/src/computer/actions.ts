@@ -160,10 +160,6 @@ const BLOCKED: readonly (readonly [Kind, readonly string[]])[] = [
     'system',
     [
       'com.apple.systempreferences',
-      'com.apple.keychainaccess',
-      'com.apple.passwords',
-      'com.1password.1password',
-      'com.bitwarden.desktop',
       'com.apple.scripteditor2',
       'com.apple.automator',
       'fun.onebot.dsh-bot.computer-use',
@@ -171,12 +167,6 @@ const BLOCKED: readonly (readonly [Kind, readonly string[]])[] = [
       'system preferences',
       '系统设置',
       '系统偏好设置',
-      'keychain access',
-      '钥匙串访问',
-      'passwords',
-      '密码',
-      '1password',
-      'bitwarden',
       'script editor',
       '脚本编辑器',
       'automator',
@@ -189,7 +179,7 @@ const BLOCKED: readonly (readonly [Kind, readonly string[]])[] = [
 const REASONS: Readonly<Record<Kind, string>> = {
   browser: '网页用 browser_ 工具（dsh-bot 自己的浏览器，写操作有审批），不在用户的浏览器里点',
   terminal: '命令行用 shell 工具，不通过终端窗口打字',
-  system: '系统设置、钥匙串、密码管理和脚本类应用不让 bot 碰，需要时请用户自己操作',
+  system: '系统设置和脚本类应用不让 bot 碰，需要时请用户自己操作',
 }
 
 export function normalizeApp(app: string): string {

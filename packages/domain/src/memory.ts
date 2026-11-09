@@ -4,7 +4,6 @@
  */
 
 import { t } from './i18n.ts'
-import { containsSecret } from './secrets.ts'
 import { estimateTokens, textUnits } from './text.ts'
 
 /** 你的档案、bot 个人、团队、房间、任务记录。 */
@@ -101,14 +100,13 @@ export function isInstructionLike(text: string): boolean {
 export type AdmitResult = { readonly ok: true; readonly content: string } | { readonly ok: false; readonly reason: string }
 
 /**
- * 一条候选记忆能不能写：不存密钥、密码、验证码、银行卡号这类东西；
- * 来自网页的指令性内容不进记忆。
+ * 一条候选记忆能不能写：不存银行卡号这类长数字；来自网页的指令性内容不进记忆。
+ * 用户给的密码、密钥照存，bot 以后要用。
  */
 export function admitMemory(content: string, source: MemorySource): AdmitResult {
   const trimmed = content.replace(/\s+/g, ' ').trim()
   if (trimmed === '') return { ok: false, reason: t('内容是空的') }
   if (textUnits(trimmed) > MEMORY_CONTENT_MAX) return { ok: false, reason: t('一条记忆最多 {MEMORY_CONTENT_MAX} 个字，太长就写进文件', { MEMORY_CONTENT_MAX, letters: MEMORY_CONTENT_MAX * 2 }) }
-  if (containsSecret(trimmed)) return { ok: false, reason: t('记忆里不能存密钥、密码、令牌这类敏感信息') }
   if (/\b\d{13,19}\b/.test(trimmed.replace(/[\s-]/g, ''))) return { ok: false, reason: t('记忆里不能存卡号这类数字') }
   if (source === 'web' && isInstructionLike(trimmed)) return { ok: false, reason: t('网页里的指令性内容不能写进记忆') }
   return { ok: true, content: trimmed }

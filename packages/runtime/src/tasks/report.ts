@@ -292,7 +292,7 @@ export function reportTool(pod: PodRuntime, session: PodSession): ToolDefinition
       options: strList('问题的选项（2–6 个，能给就给），用户点一下就是答复；有推荐的放第一个，recommended 写 true'),
       option_notes: strList('每个选项下面的一句说明（选了会怎样、代价），和 options 一一对应'),
       recommended: bool('第一个选项是你推荐的'),
-      question_kind: oneOf('问题的种类：login 需要登录或验证；write 要批准不可撤回的对外操作；security 被安全规则拦下；ambiguity 要用户拿主意', [...ASK_KINDS]),
+      question_kind: oneOf('问题的种类：login 要用户本人才能过的登录或验证（没有密码、扫码、手机上确认）；write 要批准不可撤回的对外操作；security 被安全规则拦下；ambiguity 要用户拿主意', [...ASK_KINDS]),
       about_message: str('问题针对哪条消息（消息 id，可选）'),
       reply_message: str('这次汇报回的是哪条消息（消息 id，可选）'),
       checks: intList('组长写了验收项的子任务：ready 或 progress 时勾上的编号，从 1 开始；ready 不写就当作都过了'),

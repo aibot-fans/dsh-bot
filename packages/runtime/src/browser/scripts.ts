@@ -4,7 +4,7 @@
  * 同一个元素在同一个文档里引用不变，页面跳转后失效。
  */
 
-import { SECRET_AUTOCOMPLETE, SECRET_FIELD_PATTERNS } from 'pod-domain'
+import { CARD_AUTOCOMPLETE, CARD_FIELD_PATTERNS, SECRET_AUTOCOMPLETE, SECRET_FIELD_PATTERNS } from 'pod-domain'
 
 const STATE = String.raw`var state = window.__pod || (window.__pod = { refs: new Map(), of: new WeakMap(), next: 1 });
 function refOf(el) { var r = state.of.get(el); if (!r) { r = 'e' + state.next++; state.of.set(el, r); } state.refs.set(r, el); return r; }
@@ -29,13 +29,22 @@ function labelOf(el) {
   return el.getAttribute('title') || el.getAttribute('placeholder') || el.getAttribute('alt') || '';
 }`
 
-/** 认密码、验证码、银行卡这类字段（规则和 bot 不填的字段一样）：快照和审批卡里只说填没填，不给值，免得进模型和数据库。 */
+/** 认密码、验证码、银行卡这类字段：审批卡里只说填没填；快照里只有银行卡不给值，密码、验证码 bot 要能核对自己填的。 */
 const SECRET = String.raw`var SECRET_FIELDS = [${SECRET_FIELD_PATTERNS.map((pattern) => `/${pattern.source}/${pattern.flags}`).join(', ')}];
+var CARD_FIELDS = [${CARD_FIELD_PATTERNS.map((pattern) => `/${pattern.source}/${pattern.flags}`).join(', ')}];
+function fieldText(el) {
+  return [el.getAttribute('name'), el.id, el.getAttribute('placeholder'), el.getAttribute('aria-label'), el.labels && el.labels.length ? labelText(el.labels[0]) : ''].filter(Boolean).join(' ');
+}
 function secretField(el) {
   if (el.type === 'password') return true;
   if (/${SECRET_AUTOCOMPLETE.source}/.test(String(el.getAttribute('autocomplete') || '').toLowerCase())) return true;
-  var field = [el.getAttribute('name'), el.id, el.getAttribute('placeholder'), el.getAttribute('aria-label'), el.labels && el.labels.length ? labelText(el.labels[0]) : ''].filter(Boolean).join(' ');
+  var field = fieldText(el);
   return SECRET_FIELDS.some(function (pattern) { return pattern.test(field); });
+}
+function cardField(el) {
+  if (/${CARD_AUTOCOMPLETE.source}/.test(String(el.getAttribute('autocomplete') || '').toLowerCase())) return true;
+  var field = fieldText(el);
+  return CARD_FIELDS.some(function (pattern) { return pattern.test(field); });
 }`
 
 /** 页面快照：标题、可操作元素（带引用）和正文，按字数分页。 */
@@ -68,7 +77,7 @@ function describe(el) {
   if (tag === 'INPUT' || tag === 'TEXTAREA') {
     var type = tag === 'TEXTAREA' ? 'textarea' : el.type;
     if (type === 'checkbox' || type === 'radio') line += el.checked ? ' (已选)' : ' (未选)';
-    else if (secretField(el)) line += el.value ? ' (已填)' : ' (空)';
+    else if (cardField(el)) line += el.value ? ' (已填)' : ' (空)';
     else if (type !== 'submit' && type !== 'button' && type !== 'image' && type !== 'file') line += ' 值="' + clean(el.value, 60) + '"';
   }
   if (tag === 'SELECT') {

@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { maskSecrets, newId, t, type Room, type RoomMessage } from 'pod-domain'
+import { newId, t, type Room, type RoomMessage } from 'pod-domain'
 import { getMessage, listMessages, type EffectRow } from 'pod-store'
 import type { Auditor } from '../core/audit.ts'
 import { FAILURES_BEFORE_PROBLEM, Later, type Effects } from '../effects/queue.ts'
@@ -80,7 +80,7 @@ export class Replies {
   send(input: ReplyInput): string {
     const id = newId('msg')
     const group = `${input.taskId ?? input.author}:${input.roomId}`
-    this.deps.effects.enqueue('reply', id, { ...input, body: maskSecrets(input.body).text, group })
+    this.deps.effects.enqueue('reply', id, { ...input, group })
     return id
   }
 

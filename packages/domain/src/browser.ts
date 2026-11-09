@@ -109,33 +109,32 @@ export function classifyEnter(element: ElementInfo | undefined): ActionClass {
   return { write: true, reason: t('在 POST 表单里按回车会提交表单') }
 }
 
-const OTP_FIELD = /验证码|校验码|动态码|动态密码|短信码|口令|\b(otp|2fa|mfa|totp|captcha|verification|verify code|security code|one[- ]time|passcode|cvv|cvc|cvn)\b/i
-const CARD_FIELD = /卡号|银行卡|信用卡|\b(card ?number|cc-?number|credit card)\b/i
+const OTP_FIELD = /验证码|校验码|动态码|动态密码|短信码|口令|\b(otp|2fa|mfa|totp|captcha|verification|verify code|security code|one[- ]time|passcode)\b/i
+const CARD_FIELD = /卡号|银行卡|信用卡|\b(card ?number|cc-?number|credit card|cvv|cvc|cvn)\b/i
 const PASSWORD_FIELD = /密码|\bpass(word|wd)?\b/i
 
-/** 页面快照和审批卡里只说填没填、不给值的字段：和 bot 不填的字段同一套规则（快照脚本在页面里按这些正则认）。 */
+/** 审批卡里只说填没填、不给值的字段：密码、验证码、银行卡（脚本在页面里按这些正则认）。 */
 export const SECRET_FIELD_PATTERNS: readonly RegExp[] = [PASSWORD_FIELD, OTP_FIELD, CARD_FIELD]
 export const SECRET_AUTOCOMPLETE = /current-password|new-password|one-time-code|cc-/
 
+/** 页面快照里只说填没填的字段：银行卡。密码、验证码照常给值。 */
+export const CARD_FIELD_PATTERNS: readonly RegExp[] = [CARD_FIELD]
+export const CARD_AUTOCOMPLETE = /cc-/
+
 export interface FillBlock {
-  readonly kind: 'password' | 'otp' | 'card-number' | 'id-number' | 'secret'
+  readonly kind: 'card-number' | 'id-number'
   readonly reason: string
 }
 
-/** 填写检查：密码、验证码、银行卡号、身份证号、密钥一律不由 bot 填，交给你。 */
+/** 填写检查：银行卡号、身份证号不由 bot 填，交给你；密码、验证码、密钥照填。 */
 export function checkFill(element: ElementInfo | undefined, value: string): FillBlock | undefined {
   if (element !== undefined) {
     const field = `${element.fieldName} ${element.name} ${element.autocomplete}`
-    if (element.type === 'password' || /current-password|new-password/.test(element.autocomplete) || PASSWORD_FIELD.test(element.fieldName)) {
-      return { kind: 'password', reason: t('这是密码框：bot 永远不填密码，请用户接管登录') }
-    }
-    if (/one-time-code/.test(element.autocomplete) || OTP_FIELD.test(field)) return { kind: 'otp', reason: t('这是验证码或安全码：bot 不填，请用户接管') }
     if (/cc-number|cc-csc/.test(element.autocomplete) || CARD_FIELD.test(field)) return { kind: 'card-number', reason: t('这是银行卡字段：bot 不填') }
   }
   const sensitive = classifySensitiveFill(value)
   if (sensitive === 'card-number') return { kind: 'card-number', reason: t('内容像银行卡号：bot 不填') }
   if (sensitive === 'id-number') return { kind: 'id-number', reason: t('内容像身份证号：bot 不填') }
-  if (sensitive !== undefined) return { kind: 'secret', reason: t('内容像密码或密钥：bot 不填') }
   return undefined
 }
 

@@ -77,7 +77,6 @@ export function checkUrl(raw: string, allowedHosts: readonly string[] = []): Url
     return { ok: false, reason: t('网址格式不对') }
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return { ok: false, reason: t('不能打开 {protocol} 地址', { protocol: url.protocol }) }
-  if (url.username !== '' || url.password !== '') return { ok: false, reason: t('网址里不能带账号密码') }
   const hostPort = url.port === '' ? url.hostname : `${url.hostname}:${url.port}`
   if (isPrivateHost(url.hostname) && !allowedHosts.includes(hostPort) && !allowedHosts.includes(url.hostname)) {
     return { ok: false, reason: t('默认不能访问本机和局域网地址（防止被网页诱导调用本机服务）；需要的话在设置里把它加进白名单') }

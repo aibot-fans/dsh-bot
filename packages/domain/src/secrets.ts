@@ -1,7 +1,7 @@
 /**
  * 密钥打码和填写检查。
- * 打码：用户贴进聊天的密钥不进记忆、日志和搜索索引，统一换成占位符。
- * 填写检查：bot 往网页里填的内容不能是银行卡号、身份证号、密钥这类东西。
+ * 打码：审计日志和出错信息里的密钥换成占位符；对话和记忆照原样存，bot 要用。
+ * 填写检查：bot 往网页里填的内容不能是银行卡号、身份证号。
  */
 
 export type SecretKind = 'api-key' | 'jwt' | 'private-key' | 'password' | 'bearer'
@@ -83,15 +83,12 @@ function isChineseIdNumber(value: string): boolean {
   return ID_CHECK[sum % 11] === value[17]?.toUpperCase()
 }
 
-export type SensitiveFill = 'card-number' | 'id-number' | SecretKind
+export type SensitiveFill = 'card-number' | 'id-number'
 
-/**
- * 判断一段要填进网页的内容是否属于绝不能由 bot 填写的类别。
- * 密码和验证码要结合输入框类型判断，由浏览器那一侧检查；这里只看值本身。
- */
+/** 判断一段要填进网页的内容是不是银行卡号、身份证号：这两样不由 bot 填。 */
 export function classifySensitiveFill(value: string): SensitiveFill | undefined {
   const compact = value.replace(/[\s-]/g, '')
   if (/^\d{13,19}$/.test(compact) && passesLuhn(compact)) return 'card-number'
   if (isChineseIdNumber(compact)) return 'id-number'
-  return maskSecrets(value).kinds[0]
+  return undefined
 }

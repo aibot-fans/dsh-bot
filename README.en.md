@@ -71,7 +71,7 @@ Bots can use the web like a person: open pages, read them, click, fill in forms,
 
 - While a bot is using the browser, a browser button appears in the chat's top bar. Open it to watch the live screen on the right; the “…” menu has the action log and closes tabs. Click “Take over” to drive it yourself, then hand it back to the bot. For sites that need a login, take over and sign in yourself.
 - Write actions such as submit, send, delete, buy and confirm need your approval. The approval card shows a screenshot of the page, the URL and what was filled in, plus a pre-check that judges whether this step is what you asked for, so page content can't lead a bot astray. Once you approve, dsh-bot first confirms the page hasn't changed, then carries out the action exactly as shown.
-- Bots never fill in passwords, verification codes or card numbers. If you enter them while you've taken over, bots only see that the field is filled, both on the page and on approval cards.
+- Bots fill in the usernames, passwords and verification codes you give them. They never enter card or ID numbers, and on the page they only see that a card field is filled.
 - Local and LAN addresses are blocked by default; add the ones you really need to the allowlist in Settings → Browser. Concurrency and request rate are limited per site to avoid tripping anti-bot checks.
 - Triggers that watch web pages, and exporting pages to PDF and long images, use it too.
 
@@ -81,7 +81,7 @@ Bots can use the web like a person: open pages, read them, click, fill in forms,
 
 Once you turn it on in Settings → Computer use, bots working on tasks can use other apps on this Mac in the background: read windows, click buttons and type, without taking over your mouse and keyboard.
 
-- Each task asks you before it uses an app for the first time; browsers, terminals, System Settings and password apps are off-limits. Turning it off revokes every permission.
+- Each task asks you before it uses an app for the first time; browsers, terminals, System Settings and script apps are off-limits. Turning it off revokes every permission.
 - While a bot is using the computer, a computer button appears in the chat's top bar. Open it to see the app windows the bot is using; you can take over and hand back at any time.
 - The helper needs the Accessibility and Screen Recording permissions in System Settings; the settings page has a button to grant them and a check. macOS 14 or later only.
 
@@ -112,7 +112,7 @@ Bots can turn reports, dashboards, trackers, slides, posters, prototypes and arc
 - **Long conversations**: when the context reaches the rollover length (Settings → Model), the conversation continues in a new segment, bridged by a handover note; tasks also check before starting work.
 - **Automations and notifications**: Settings → Automations lists the daily brief and every bot's and group's automations, where you can turn them on and off, filter and create new ones. Runs missed while dsh web was closed catch up once the next time it opens; with DeepSeek models, runs can move to off-peak hours; watching a web page makes no model call when nothing changed. There's also a notification center, browser notifications and quiet hours.
 - **Self-improvement**: thumbs up and down, your corrections, the lead's reviews and edits to handed-in files all count as feedback. Task retrospectives turn into experience and skills, personas and reasoning levels are tuned from feedback, changes that make things worse are rolled back automatically, and a weekly “This week's changes” card sums it up. Undo a bad adjustment in the growth log, or go back to any earlier setup in version history. Only skills that include scripts need your approval.
-- **Safety**: only you can give instructions; a bot gets only the permissions every applicable rule allows; a task that has read web pages is treated as tainted, and all its write actions need approval; per-site rules and a default blocklist; local and LAN addresses blocked by default; checks on data leaving your machine; secrets masked; terminal and browser write actions disabled while dsh web is open to the network; one click to stop all tasks; an append-only audit log.
+- **Safety**: only you can give instructions; a bot gets only the permissions every applicable rule allows; a task that has read web pages is treated as tainted, and all its write actions need approval; per-site rules and a default blocklist; local and LAN addresses blocked by default; checks on data leaving your machine; secrets masked in the audit log; terminal and browser write actions disabled while dsh web is open to the network; one click to stop all tasks; an append-only audit log.
 - **Dark mode**: both the app and pages have dark versions.
 - **English and Chinese**: Settings → General → Language. It follows dsh's display language by default. In English, the interface, system messages, default bots and bot replies are all in English.
 

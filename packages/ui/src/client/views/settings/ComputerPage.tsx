@@ -94,7 +94,7 @@ export function ComputerPage(props: { readonly settings: PodSettings; readonly u
   return (
     <div className="pod-settings-body">
       {missing && permissions !== null ? <PermissionFix permissions={permissions} busy={busy !== undefined} onFlow={() => act('permissions', computerApi.permissions)} onProblem={setProblem} /> : null}
-      <Row label={t('用电脑')} hint={t('做任务的 bot 能在后台用这台 Mac 上别的应用：看窗口内容、点按钮、填字，不占用你的鼠标键盘。每个任务第一次用某个应用前先问你；浏览器、终端、系统设置和密码类应用不让碰。关掉时收回所有授权')}>
+      <Row label={t('用电脑')} hint={t('做任务的 bot 能在后台用这台 Mac 上别的应用：看窗口内容、点按钮、填字，不占用你的鼠标键盘。每个任务第一次用某个应用前先问你；浏览器、终端、系统设置和脚本类应用不让碰。关掉时收回所有授权')}>
         <Switch checked={settings.computerUse} label={t('用电脑')} onChange={(computerUse) => update({ computerUse })} />
       </Row>
       <Row
