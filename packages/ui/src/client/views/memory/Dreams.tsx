@@ -3,6 +3,7 @@ import { dreamChanges, t, type DreamDetail, type DreamOp, type DreamQuestion, ty
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { Badge, Button, Empty, money, tokens } from '../../components/common.tsx'
+import { timeText } from '../../components/time.ts'
 import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 import { OpRow } from './DreamOps.tsx'
@@ -32,12 +33,6 @@ const STATUS_TONES: Readonly<Record<MemoryDream['status'], 'warn' | 'info' | 'ok
 /** 一个范围的改动超过这么多处就先收起来，只列前几处。 */
 const FOLD_OVER = 12
 const FOLD_SHOW = 6
-
-function stamp(time: number): string {
-  const date = new Date(time)
-  const two = (value: number): string => String(value).padStart(2, '0')
-  return `${two(date.getMonth() + 1)}-${two(date.getDate())} ${two(date.getHours())}:${two(date.getMinutes())}`
-}
 
 /** 一晚整理了什么，一句话。 */
 export function dreamSummary(dream: MemoryDream): string {
@@ -263,7 +258,7 @@ export function DreamsPanel(props: { readonly dreamId?: string }) {
           {list.map((dream) => (
             <li key={dream.id} className="pod-dream">
               <button type="button" className="pod-dream-head" onClick={() => setPicked(open === dream.id ? null : dream.id)} aria-expanded={open === dream.id}>
-                <time>{stamp(dream.startedAt)}</time>
+                <time>{timeText(dream.startedAt)}</time>
                 <Badge tone={STATUS_TONES[dream.status]}>{t(STATUS_LABELS[dream.status])}</Badge>
                 <span className="pod-dream-summary">{dreamSummary(dream)}</span>
                 <span className="pod-muted-inline">{dream.trigger === 'manual' ? t('你叫的') : t('夜里自动')}</span>
