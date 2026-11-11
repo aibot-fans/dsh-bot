@@ -3,6 +3,7 @@ import { noteLines, t, type MemoryEntry, type MemoryNote, type MemoryScopeKind }
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { Badge, Button, RelativeTime } from '../../components/common.tsx'
+import { timeText } from '../../components/time.ts'
 import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 import { Evidence } from './DreamOps.tsx'
@@ -12,12 +13,6 @@ export interface NoteScope {
   readonly key: string
   readonly kind: MemoryScopeKind
   readonly id: string
-}
-
-function shortDate(time: number): string {
-  const date = new Date(time)
-  const two = (value: number): string => String(value).padStart(2, '0')
-  return `${two(date.getMonth() + 1)}-${two(date.getDate())}`
 }
 
 /**
@@ -81,7 +76,7 @@ function NoteCard(props: { readonly note: MemoryNote; readonly merged: ReadonlyM
                   <div className="pod-row">
                     <span className="pod-note-line">{line}</span>
                     {source?.doubt === undefined ? null : <Badge tone="warn">{t('拿不准')}</Badge>}
-                    <span className="pod-muted-inline pod-note-date">{shortDate(source?.at ?? note.updatedAt)}</span>
+                    <span className="pod-muted-inline pod-note-date">{timeText(source?.at ?? note.updatedAt, { short: true })}</span>
                     {traced ? (
                       <button type="button" className="pod-link pod-note-trace" onClick={() => setShown(shown === line ? undefined : line)}>
                         {t('出处')}
@@ -94,7 +89,7 @@ function NoteCard(props: { readonly note: MemoryNote; readonly merged: ReadonlyM
                         <ul className="pod-dream-evidence">
                           {source.doubt === undefined ? null : <li>{t('拿不准：{why}', { why: source.doubt })}</li>}
                           {source.replaces === undefined ? null : <li>{t('替了原来的：{old}', { old: source.replaces })}</li>}
-                          {source.checkedAt === undefined ? null : <li>{t('最近核对：{date}', { date: shortDate(source.checkedAt) })}</li>}
+                          {source.checkedAt === undefined ? null : <li>{t('最近核对：{date}', { date: timeText(source.checkedAt, { short: true }) })}</li>}
                         </ul>
                       )}
                       {entries.length === 0 ? null : (
