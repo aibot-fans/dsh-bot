@@ -160,12 +160,12 @@ export class DreamService {
   }
 
   /**
-   * 把最近 30 天的对话和任务重新读一遍：清掉“读到哪了”的水位，下一次整理从头读。
-   * 换了更强的模型想重来，或者哪一次模型没读好时用。已经整理出来的笔记和条目不动。
+   * 从头再来一遍：清掉“读到哪了”“整理到哪了”的水位，下一次整理把最近 30 天的对话和任务重新读一遍，
+   * 没整理进笔记的条目也全部重看。换了更强的模型想重来，或者哪一次模型没读好时用。已经整理出来的笔记和并进去的条目不动。
    */
   reread(): PodResult<number> {
     if (this.current !== undefined || openDream(this.db) !== undefined) return fail('conflict', t('正在整理，等这一次做完'))
-    const cleared = ['memory.dream.read.', 'memory.dream.tasks', 'memory.dream.runs.', 'memory.dream.sample.', UNREAD_KEY].reduce((sum, prefix) => sum + clearState(this.db, prefix), 0)
+    const cleared = ['memory.dream.read.', 'memory.dream.tasks', 'memory.dream.runs.', 'memory.dream.sample.', 'memory.dream.seen.', SORTED_KEY, UNREAD_KEY].reduce((sum, prefix) => sum + clearState(this.db, prefix), 0)
     this.deps.memory.touch()
     return ok(cleared)
   }

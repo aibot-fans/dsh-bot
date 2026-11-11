@@ -230,15 +230,15 @@ export function DreamsPanel(props: { readonly dreamId?: string }) {
           disabled={working}
           title={t('换了模型想重来，或者哪一次没读好时用')}
           onClick={() => {
-            if (!window.confirm(t('下一次整理时，把最近 30 天的对话和任务重新读一遍？已经整理出来的笔记不动。'))) return
+            if (!window.confirm(t('下一次整理时，把最近 30 天的对话和任务重新读一遍，没整理进笔记的条目也全部重看？已经整理出来的笔记不动。'))) return
             setError(undefined)
             api
               .rereadDreams()
-              .then(() => setNote(t('好了，下一次整理会从头读最近 30 天的记录。')))
+              .then(() => setNote(t('好了，下一次整理会从头来一遍。')))
               .catch((reason: unknown) => setError(errorText(reason)))
           }}
         >
-          {t('重读最近 30 天')}
+          {t('从头重新整理')}
         </Button>
         {note === undefined ? null : <span className="pod-muted-inline">{note}</span>}
         {error === undefined ? null : <span className="pod-form-error">{error}</span>}
