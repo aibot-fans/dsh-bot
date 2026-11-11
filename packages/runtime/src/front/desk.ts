@@ -12,6 +12,7 @@ import { failureKind, failureReason } from '../chat/turn-errors.ts'
 import type { Dispatcher } from '../effects/delivery.ts'
 import { Later, type Effects } from '../effects/queue.ts'
 import type { Engine } from '../engine/index.ts'
+import type { MemoryHints, MemoryService } from '../memory/service.ts'
 import { ModelRetries, RETRY_DELAYS_MS } from '../tasks/retries.ts'
 import { FrontActivity } from './activity.ts'
 import { batchText, groupsText, speakerOf, type BatchItem, type BatchRoom } from './batch.ts'
@@ -38,6 +39,8 @@ export interface FrontDeskDeps {
   readonly leaderOf: (room: Room) => Bot | undefined
   /** 现有的普通群：Super-agent 交活先找对口的群。 */
   readonly groups: () => readonly Room[]
+  /** 记忆：群里定的事（前台跨聊天室，不在它的人设里）和这批话相关的几条。 */
+  readonly memory: Pick<MemoryService, 'hintsFor' | 'roomNote' | 'used'>
   readonly preparing: (key: string, state: PreparingState | null) => void
   /** dsh-bot 在聊天室里说一句（前台出错没处理成时）。 */
   readonly notice: (roomId: string, body: string, data: Readonly<Record<string, unknown>>) => void
@@ -77,6 +80,8 @@ export class FrontDesk {
   private readonly seen = new Map<string, Map<string, number>>()
   /** 每段 Super-agent 前台会话最近看到的群列表：群有变化（建群、改名、管什么、组长、成员）才再带一遍。 */
   private readonly groupsSeen = new Map<string, string>()
+  /** 每段前台会话在各个群看到的那一版“群里定的事”：变了才再带一遍。 */
+  private readonly notesSeen = new Map<string, ReadonlyMap<string, string>>()
   private readonly flights = new Map<string, Flight>()
   /** 追问过的消息：再没有去向就记成漏掉。 */
   private readonly nudged = new Map<string, ReadonlySet<string>>()
@@ -240,8 +245,15 @@ export class FrontDesk {
       const message = getMessage(this.deps.db, route.messageId)
       return message === undefined || message.deletedAt !== null ? [] : [{ route, message }]
     })
-    const rooms = this.group(session, items.map((item) => ({ message: item.message, note: item.route.note })))
-    const roomIds = new Set(rooms.map((group) => group.room.id))
+    const grouped = this.group(session, items.map((item) => ({ message: item.message, note: item.route.note })))
+    const roomIds = new Set(grouped.map((group) => group.room.id))
+    const notes = this.roomNotes(session, grouped)
+    const rooms = grouped.map((group) => {
+      const note = notes.get(group.room.id)
+      return note === undefined ? group : { ...group, memory: note.text }
+    })
+    const noteIds = [...notes.values()].flatMap((note) => note.ids)
+    const hints = await this.hints(session, items.map((item) => item.message.body).join('\n'), [...roomIds], noteIds)
     const groups = bot.role === 'lead' ? this.groupList() : undefined
     const showGroups = groups !== undefined && this.groupsSeen.get(session.id) !== groups
     const text = batchText({
@@ -250,6 +262,7 @@ export class FrontDesk {
       ...(showGroups ? { groups } : {}),
       speaker: (author) => speakerOf(author, (id) => this.deps.bots.get(id)?.name),
       quoted: (id) => getMessage(this.deps.db, id),
+      ...(hints === undefined ? {} : { hints: hints.text }),
     })
     const fresh = session.steps === 0 && session.segment > 1 ? '[新的一段] 上一段前台对话太长或空闲太久，换成了新的一段；更早的事按 id 读，或者用 search_history 查。\n\n' : ''
     const fromOwner = items.some((item) => item.message.author === OWNER)
@@ -269,6 +282,8 @@ export class FrontDesk {
     })
     this.markSeen(session, rooms)
     if (showGroups) this.groupsSeen.set(session.id, groups)
+    this.notesSeen.set(session.id, new Map([...(this.notesSeen.get(session.id) ?? []), ...[...notes].map(([roomId, note]) => [roomId, note.text] as const)]))
+    this.deps.memory.used(session.id, [...noteIds, ...(hints?.ids ?? [])])
     const flight = this.flights.get(botId)
     const sameSession = flight?.sessionId === session.id
     this.flights.set(botId, {
@@ -311,6 +326,28 @@ export class FrontDesk {
       })
       return [{ room, members, leader: leader?.name ?? '', leading, recent, items: list }]
     })
+  }
+
+  /** 这批里各个群定的事：这段前台还没看过这一版的才带（单聊里定的事记在 bot 名下，已经在人设里）。 */
+  private roomNotes(session: PodSession, rooms: readonly BatchRoom[]): ReadonlyMap<string, MemoryHints> {
+    const seen = this.notesSeen.get(session.id)
+    const notes = new Map<string, MemoryHints>()
+    for (const { room } of rooms) {
+      if (room.kind === 'direct') continue
+      const note = this.deps.memory.roomNote(session, room.id)
+      if (note !== undefined && seen?.get(room.id) !== note.text) notes.set(room.id, note)
+    }
+    return notes
+  }
+
+  /** 和这批话相关的几条记忆；查不成不挡着送消息。 */
+  private async hints(session: PodSession, text: string, rooms: readonly string[], exclude: readonly string[]): Promise<MemoryHints | undefined> {
+    try {
+      return await this.deps.memory.hintsFor(session, text, { rooms, exclude })
+    } catch (error) {
+      this.deps.warn(t('查相关记忆没成'), error)
+      return undefined
+    }
   }
 
   /** 现有的群，按建群先后排（不按最近说话排，免得群里一说话列表就变）。 */

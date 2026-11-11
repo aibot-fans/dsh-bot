@@ -7,7 +7,7 @@
 import { demoDecision, demoFront } from './demo.js'
 import { newPage, pageDecision, wantedKind } from './pages.js'
 import { progressDecision, routineDecision, turnCalls } from './progress.js'
-import { batchBody, frontDecision, frontOwnText } from './front.js'
+import { batchBody, frontDecision, frontOwnText, memoryEcho } from './front.js'
 
 export const name = 'pod-dev-mock-llm'
 
@@ -458,6 +458,13 @@ function decide(options) {
     }
     if (last?.role === 'tool' && calls.at(-1) === 'reply' && tools.has('report')) return { tool: 'report', args: { status: 'waiting', summary: '答复了用户的问题，接着等' } }
     if (last?.role === 'tool' && calls.at(-1) === 'report') return { text: '已经汇报了。' }
+    // 记忆测试：写着“记到群里”的先往所在的群记一条，再把系统提示里的记忆和交代后面附的相关记忆照样交出来。
+    if (brief.includes('记忆测试') && tools.has('report')) {
+      if (brief.includes('记到群里') && !calls.includes('remember')) return { tool: 'remember', args: { scope: 'room', type: 'convention', content: '这个群的周报每周五下午交，用英文写' } }
+      const first = textOf(messages.find((message) => message.role === 'user')?.content)
+      const noted = calls.includes('remember') ? `remember 的结果：${lastToolText(messages).slice(0, 120)}\n\n` : ''
+      return { tool: 'report', args: { status: 'ready', summary: `${noted}${memoryEcho(system, first)}` } }
+    }
     // 写着“定时叫醒”的：先给自己挂 1 分钟后的叫醒，报 waiting；到点醒来（开始新的一次执行）照常交结果。
     if (brief.includes('定时叫醒') && tools.has('wake_me') && !userText.includes('开始新的一次执行')) {
       if (!calls.includes('wake_me')) return { tool: 'wake_me', args: { in_minutes: 1, note: '看看服务起来没有' } }
@@ -545,7 +552,7 @@ function decide(options) {
   }
 
   if (userText.includes('你记得什么')) {
-    const start = system.indexOf('以下是你知道的资料')
+    const start = system.indexOf('以下是每次开工都带的记忆')
     return { text: start < 0 ? '系统提示里没有记忆块。' : system.slice(start, start + 200) }
   }
 

@@ -1,9 +1,11 @@
 /**
- * 记忆：bot 知道的事实、偏好、约定和经验，分作用域存储。
- * 核心记忆每个作用域一小块，每段会话开始时放进提示词；记忆条目数量不限，用到时再取。
+ * 记忆：bot 知道的事实、偏好、约定和经验，按“关于什么”分开放：关于你、群、bot。
+ * 每个范围里有两层：要点（一小块，每段会话开始时放进提示词，夜里整理时重写）和条目（数量不限，白天只追加，用到时再取）。
+ * 还没整理出要点的范围，先把最近的条目放进提示词。
  */
 
 import { t } from './i18n.ts'
+import { containsSecret } from './secrets.ts'
 import { estimateTokens, textUnits } from './text.ts'
 
 /** 你的档案、bot 个人、团队、房间、任务记录。 */
@@ -73,12 +75,30 @@ export const CORE_LIMITS: Readonly<Record<MemoryScopeKind, number>> = {
 }
 
 export const CORE_LABELS: Readonly<Record<MemoryScopeKind, string>> = {
-  owner: '用户的档案',
+  owner: '关于用户',
   bot: '你自己的经验',
   team: '团队约定',
-  room: '房间要点',
+  room: '这个群里定的事',
   task: '任务记录',
 }
+
+/**
+ * 每段会话开头带的那一块，各范围的条目最多放多少字（中文一个字算一个，两个英文字母算一个）。
+ * 要点另算（见 CORE_LIMITS）；任务记录不带。
+ */
+export const ALWAYS_LIMITS: Readonly<Record<MemoryScopeKind, number>> = {
+  owner: 800,
+  bot: 500,
+  team: 400,
+  room: 500,
+  task: 0,
+}
+
+/** 整理出要点以后，之后新记的条目另带这么多字（当天记的当天就用得上）。 */
+export const FRESH_LIMIT = 300
+
+/** 送消息、送交代时顺带附的相关记忆最多几条。 */
+export const HINT_LIMIT = 5
 
 export const MEMORY_CONTENT_MAX = 600
 
@@ -112,7 +132,23 @@ export function admitMemory(content: string, source: MemorySource): AdmitResult 
   return { ok: true, content: trimmed }
 }
 
-/** 字符二元组的 Jaccard 相似度，用来发现重复或要替代的旧条目。 */
+const CREDENTIAL_WORDS = /密码|口令|密钥|私钥|令牌|password|passwd|passphrase|api[\s_-]?key|secret|token|private key/i
+
+/**
+ * 账号、密码、密钥这类条目：照样存着、recall 查得到，但不放进每段会话开头带的那一块，也不顺带附在消息后面；
+ * 夜里整理时原样保留，不改写、不并进笔记。
+ */
+export function isCredentialMemory(content: string): boolean {
+  return CREDENTIAL_WORDS.test(content) || containsSecret(content)
+}
+
+/** 两条记忆是不是同一句话（不算空白和大小写）：一样的不重复写。 */
+export function sameMemory(left: string, right: string): boolean {
+  const plain = (text: string): string => text.replace(/\s+/g, '').toLowerCase()
+  return plain(left) === plain(right)
+}
+
+/** 字符二元组的 Jaccard 相似度，夜里整理时用来找说的是同一件事的条目。 */
 export function similarity(left: string, right: string): number {
   const grams = (text: string): ReadonlySet<string> => {
     const chars = [...text.replace(/\s+/g, '').toLowerCase()]

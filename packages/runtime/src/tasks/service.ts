@@ -342,6 +342,19 @@ export class TaskService {
     return this.deps.rooms.leaderOf(room)?.id === task.ownerBotId ? room : undefined
   }
 
+  /**
+   * 任务在哪个群里干：根任务自己的任务群，或者它的对话所在的群（交进群的、群里开的）；子任务跟着根任务。
+   * 单聊里开的、一个 bot 自己干的没有。群的记忆按它带进任务会话。
+   */
+  groupOf(taskId: string): Room | undefined {
+    const rootId = this.rootOf(taskId)
+    const root = rootId === undefined ? undefined : this.get(rootId)
+    if (root === undefined) return undefined
+    const roomId = taskRoomOf(this.db, root.id)?.id ?? taskConversationOf(this.db, root.id)?.id ?? root.roomId
+    const room = roomId === null ? undefined : this.deps.rooms.get(roomId)
+    return room === undefined || room.kind === 'direct' || room.archivedAt !== null ? undefined : room
+  }
+
   /** 任务会话所属的任务。 */
   taskOf(session: PodSession): Task | undefined {
     return session.taskId === null ? undefined : this.get(session.taskId)

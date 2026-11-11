@@ -168,6 +168,21 @@ function dispatch(id, fields) {
   return () => ({ tool: 'dispatch', args: { items: [{ messages: [id], ...fields }] } })
 }
 
+/** 记忆测试用：系统提示里的记忆块，加上这条消息里附的相关记忆和群里定的事。 */
+export function memoryEcho(system, message) {
+  const start = system.indexOf('以下是每次开工都带的记忆')
+  const end = start < 0 ? -1 : system.indexOf('\n\n工作区根目录', start)
+  const hint = message.indexOf('[相关记忆')
+  const note = message.indexOf('这个群里定的事')
+  return [
+    start < 0 ? '系统提示里没有记忆块。' : system.slice(start, end < 0 ? start + 1200 : end),
+    hint < 0 ? '这次没有附相关记忆。' : message.slice(hint, hint + 500),
+    note < 0 ? '' : message.slice(note, message.indexOf('\n最近：', note) < 0 ? note + 400 : message.indexOf('\n最近：', note)),
+  ]
+    .filter((part) => part !== '')
+    .join('\n\n')
+}
+
 function reply(item, text) {
   return () => ({ tool: 'reply', args: { to: item.id, text } })
 }
@@ -177,6 +192,8 @@ function stepsFor(item, context) {
   const { body, id, room, speaker } = item
   const { tools, self, member, batch, nudged } = context
   if (body.includes('测试漏掉')) return []
+  // 记忆测试：把系统提示里每次都带的记忆、这批附的相关记忆和群里定的事照样回出来。
+  if (body.includes('你记得什么')) return [reply(item, memoryEcho(context.system, batch))]
   if (body.includes('测试追问') && !nudged) return []
   const relay = /转达给任务 (task_[0-9a-z]+)/.exec(body)?.[1]
   if (relay !== undefined) {
@@ -294,7 +311,7 @@ export function frontDecision(context) {
   // 追问里有、但最近一批里找不到的（比如更早一批的），按追问里的 id 直接答。
   const missing = wanted === undefined ? [] : [...wanted].filter((id) => !items.some((item) => item.id === id)).map((id) => ({ id, speaker: '用户', body: '测试追问', room: { kind: '单聊', id: '' } }))
   if (WAKE_HEADS.some((head) => userText.startsWith(head))) return wakeDecision(userText, context.calls)
-  const shared = { tools, self, member, batch, nudged, roster: context.roster, groups: context.groups ?? '' }
+  const shared = { tools, self, member, batch, nudged, system, roster: context.roster, groups: context.groups ?? '' }
   const steps = [...items, ...missing].flatMap((item) => stepsFor(item, shared))
   if (!nudged && !retry && !userText.startsWith(BATCH_HEAD)) return { text: '（前台）收到。' }
   const next = steps[context.calls]

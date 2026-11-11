@@ -9,6 +9,7 @@ import type { Engine } from '../engine/index.ts'
 import { isTicket } from '../engine/index.ts'
 import { runsWhilePaused } from '../engine/runs.ts'
 import { CARD_LIMITS, clipCard } from '../core/cards.ts'
+import type { MemoryHints, MemoryService } from '../memory/service.ts'
 import { composeBrief, runBrief } from '../tasks/brief.ts'
 import type { Dispatcher } from './delivery.ts'
 import { Later, type Effects } from './queue.ts'
@@ -33,6 +34,19 @@ export interface LauncherDeps {
   readonly oversized: (session: PodSession) => boolean
   /** 换一段新的任务会话，带回交接笔记。 */
   readonly rotate: (task: Task, bot: Bot, old: PodSession) => Promise<Rotation>
+  /** 和这次交代相关的几条记忆，附在开工说明后面。 */
+  readonly memory: Pick<MemoryService, 'hintsFor' | 'used'>
+  readonly warn: (message: string, error?: unknown) => void
+}
+
+/** 这次开工带进来的话（你在任务对话里说的、转来的后续）。 */
+function runWords(run: TaskRun): readonly string[] {
+  const raw = Array.isArray(run.detail.messages) ? run.detail.messages : []
+  return raw.flatMap((item): string[] => {
+    if (typeof item === 'string') return [item]
+    const text = typeof item === 'object' && item !== null ? (item as { readonly text?: unknown }).text : undefined
+    return typeof text === 'string' ? [text] : []
+  })
 }
 
 function errorText(error: unknown): string {
@@ -108,20 +122,38 @@ export class Launcher {
       }
       throw error
     }
-    transaction(db, () => {
+    const hints = await this.hints(session, task, run, fresh)
+    const sent = transaction(db, () => {
       const started = engine.runs.start(run.id, session.id)
-      if (started === undefined) return
+      if (started === undefined) return false
       const current = engine.tickets.get(task.id) ?? task
       const delivery = this.deps.dispatcher.enqueue({
         sessionId: session.id,
         mode: 'followup',
         priority: run.reason === 'message' ? PRIORITY.owner : current.urgent ? PRIORITY.urgent : PRIORITY.task,
-        text: preface === '' ? this.briefFor(current, started, fresh) : `${preface}\n\n${this.briefFor(current, started, fresh)}`,
+        text: [preface, this.briefFor(current, started, fresh), hints?.text ?? ''].filter((part) => part !== '').join('\n\n'),
         source: run.reason === 'new' ? relaySource(current.requesterSession ?? 'pod') : noticeSource(t('任务开始新的一次执行')),
       })
       // 这次执行带进去的消息，读没读过改看开工说明这次投递。
       engine.topics.rebind(run.id, delivery.id)
+      return true
     })
+    if (sent && hints !== undefined) this.deps.memory.used(session.id, hints.ids)
+  }
+
+  /**
+   * 开工说明后面附的相关记忆：新任务（和换了一段新会话的）按标题、原话和交代找，接着说的按那几句话找；
+   * 到点、重试、恢复这些不附。查不成不挡着开工。
+   */
+  private async hints(session: PodSession, task: Task, run: TaskRun, fresh: boolean): Promise<MemoryHints | undefined> {
+    const words = run.reason === 'new' || fresh ? [task.title, ...(task.origin?.quotes ?? []).map((quote) => quote.text), task.brief] : run.reason === 'message' ? runWords(run) : []
+    if (words.length === 0) return undefined
+    try {
+      return await this.deps.memory.hintsFor(session, words.join('\n'))
+    } catch (error) {
+      this.deps.warn(t('查相关记忆没成'), error)
+      return undefined
+    }
   }
 
   private open(task: Task, bot: Bot): Promise<PodSession> {

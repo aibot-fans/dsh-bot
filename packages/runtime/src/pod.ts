@@ -283,6 +283,9 @@ export class PodRuntime {
       teamsOf: (botId) => teamsOfBot(db, botId),
       roomsOf: (botId) => this.roomsOfBot(botId),
       rootOf: (taskId) => this.tasks.rootOf(taskId),
+      groupOf: (taskId) => this.tasks.groupOf(taskId)?.id,
+      roomTitle: (roomId) => this.rooms.get(roomId)?.title,
+      timezone: () => this.settings.get().timezone,
     })
     this.rooms = new RoomService({
       db,
@@ -452,6 +455,8 @@ export class PodRuntime {
         pendingFor(db, session.id).length === 0 &&
         this.observer.backgroundJobs(session.id) === 0,
       rotate: (task, bot, old) => this.segments.rotateTask(task, bot, old),
+      memory: this.memory,
+      warn: (message, error) => ctx.logger.warn(message, error),
     })
     this.intake = new Intake({
       db,
@@ -681,6 +686,7 @@ export class PodRuntime {
       room: (roomId) => this.rooms.get(roomId),
       leaderOf: (room) => this.rooms.leaderOf(room),
       groups: () => this.rooms.groups.list(),
+      memory: this.memory,
       preparing: (key, state) => this.setPreparing(key, state),
       notice: (roomId, body, data) => {
         this.rooms.post(roomId, { author: POD, kind: 'notice', body, data })
@@ -1219,17 +1225,13 @@ export class PodRuntime {
     }
   }
 
-  /** 任务复盘：做法和教训写进执行者的个人记忆，任务的结果写进任务记录。 */
+  /**
+   * 任务复盘：做法和教训写进执行者自己的经验。任务的结果不再另记一条（每次到点都记一行，攒下来全是流水账，
+   * 别的任务也读不到）：结果在汇报里，夜里整理时对着汇报提炼。
+   */
   learnFromTask(session: PodSession, task: Task, lessons: string): void {
     this.tasks.event(task, 'lesson', session.botId, { lessons })
     this.memory.add({ scopeKind: 'bot', scopeId: session.botId, type: 'experience', content: lessons, source: 'task', sourceRef: task.id }, session.botId, t('任务「{title}」的复盘', { title: task.title }))
-    if (task.result !== null) {
-      this.memory.add(
-        { scopeKind: 'task', scopeId: task.rootId, type: 'project', content: t('任务「{title}」：{summary}', { title: task.title, summary: task.result.summary.split('\n')[0] ?? '' }), source: 'task', sourceRef: task.id },
-        'pod',
-        t('任务记录'),
-      )
-    }
   }
 
   /** 读网页正文：有本机 Chrome 时用共用浏览器（能按选择器取、能读要登录的页面），否则直接请求网页。 */
