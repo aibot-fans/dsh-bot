@@ -2,62 +2,51 @@ import { stageGroup } from './engine/stage.ts'
 import type { TaskSnapshot } from './tasks.ts'
 
 /**
- * 动态：一段对话里干过的活，放在详情里成员下面（群、成员单聊），任务详情里也是它。
- * 一件活一组：标题、谁在干、你怎么说的；下面是干活的 bot 记的进展，最后一行是结果或者停在哪。
- * 任务对话里按交代和每次接着说分组；群里还有建群、谁进群出群这几行。
+ * 动态：照 Comma 的做法，只记干活的 bot 做成的一步（里程碑），每一步归在它跟着的那一句下面。
+ * 一组的开头一行：群里是建群、你说的一句、Super-agent 或组长转来的一件、到点跑的一轮；任务里是创建任务、之后每次接着说、每一轮。
+ * 下面是这一组里做成的几步（bot 记的进展、交的结果），点了跳到它之后交的结果；还在干的那一组最后多一行“正在处理…”。
+ * 一步都没有的组不列（建群、创建任务那一行除外）。
  */
 
-/** 一件活的状态：在动（转圈）、等着（到点、新消息、成员交上来）、等你、没做成、暂停着、做完了、结束了（停掉的、无需处理的）。 */
-export type ActivityState = 'moving' | 'still' | 'attention' | 'failed' | 'paused' | 'done' | 'ended'
+/** 一组开头的那一行：group 建了群；task 创建了任务；said 一句话（你说的、转来的）；run 到点跑的一轮。 */
+export type ActivityRequestKind = 'group' | 'task' | 'said' | 'run'
 
-/** 一件活里的一行：做成的一步、交给成员的一件、成员交上来的，或者最后一行（结果、停在哪）。 */
-export interface ActivityEntry {
-  /** 什么时候；在做的那一行是 null。 */
-  readonly at: number | null
+export interface ActivityRequest {
+  readonly kind: ActivityRequestKind
+  /** said 是那句话的第一行；别的由页面写。 */
   readonly text: string
-  /** step 做成的一步；handoff 交给成员；end 最后一行。 */
-  readonly kind: 'step' | 'handoff' | 'end'
-  /** 最后一行和成员那件结束时画的状态；做成的一步是 null（画勾）。 */
-  readonly state: ActivityState | null
-  /** 谁记的（不是这件活负责的 bot 时名字写在前面）。 */
-  readonly botId: string | null
-  /** 点了跳到的消息：这一步之后交的结果、等你的卡片、没做成的原因；没有是 null。 */
+  readonly at: number
+}
+
+/** 做成的一步。 */
+export interface ActivityStep {
+  /** 一行字；不是这件事负责的 bot 记的，前面带着名字。 */
+  readonly title: string
+  readonly at: number
+  /** 点了跳到的消息：这一步之后交的结果、回答，没有就是这一步之前对话里最后一句；都没有是 null。 */
   readonly messageId: string | null
 }
 
-/** 一件活：群里、单聊里交代的一件事；任务对话里是交代和每次接着说。 */
-export interface ActivityJob {
-  readonly kind: 'job'
+export interface ActivityGroup {
+  /** 稳定的标识：开头那句消息的 id、那一轮执行的 id；建群、创建任务是群、任务的 id。 */
   readonly key: string
-  readonly taskId: string
-  readonly title: string
-  readonly state: ActivityState
-  readonly at: number
-  /** 负责的 bot 在前，后面是交给过的成员。 */
-  readonly botIds: readonly string[]
-  /** 你怎么说的（交代这件事的原话、接着说的话）；不是你交代的是 null。 */
-  readonly said: string | null
-  /** 点“你说”跳到的消息（在这段对话里的）。 */
-  readonly saidMessageId: string | null
-  readonly entries: readonly ActivityEntry[]
+  readonly request: ActivityRequest
+  readonly steps: readonly ActivityStep[]
+  /** 这一组的事还在干：最后多一行“正在处理…”。 */
+  readonly live: boolean
 }
 
-/** 一行里程碑：建群、谁进群、谁出群。 */
-export interface ActivityMark {
-  readonly kind: 'mark'
-  readonly key: string
-  readonly at: number
-  readonly text: string
-  readonly mark: 'created' | 'member'
+/** 一段对话（群、单聊、任务对话）或一件任务的动态，先的在前。 */
+export interface Activity {
+  readonly groups: readonly ActivityGroup[]
 }
 
-export type ActivityItem = ActivityJob | ActivityMark
-
-/** 一段对话的动态，先的在前。 */
-export interface RoomActivity {
+export interface RoomActivity extends Activity {
   readonly roomId: string
-  readonly items: readonly ActivityItem[]
 }
+
+/** 一件活现在的状态：在动（转圈）、等着（到点、新消息、成员交上来）、等你、没做成、暂停着、做完了、结束了（停掉的、无需处理的）。 */
+export type ActivityState = 'moving' | 'still' | 'attention' | 'failed' | 'paused' | 'done' | 'ended'
 
 /** 一件活现在的状态，和任务的状态图标一个规矩。 */
 export function activityState(snapshot: TaskSnapshot): ActivityState {

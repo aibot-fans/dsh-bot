@@ -39,12 +39,14 @@ export interface TimeTextOptions {
   readonly now?: number
   /** 侧栏这类窄的地方：不是今天的只写日期。 */
   readonly short?: boolean
+  /** 带不带日期，默认不是今天的才带；动态这类一行行往下排的，和上一行不是同一天才带。 */
+  readonly date?: boolean
 }
 
 /** 显示一个时刻：今天的写「14:05」，别的天写「11月8日 14:05」「2025年11月8日 14:05」；short 时不是今天的只写日期。 */
 export function timeText(time: number, options: TimeTextOptions = {}): string {
   const now = options.now ?? Date.now()
-  if (sameDay(time, now)) return clock(time)
+  if (!(options.date ?? !sameDay(time, now))) return clock(time)
   const date = dateOf(time, now)
   return options.short === true ? date : t('{date} {time}', { date, time: clock(time) })
 }

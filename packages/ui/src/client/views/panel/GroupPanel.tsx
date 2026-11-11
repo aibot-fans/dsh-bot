@@ -335,12 +335,7 @@ export function GroupPanel(props: { readonly roomId: string; readonly tab: Group
               ) : null}
               <Members room={room} members={members} bots={active} leaderId={room.leaderId ?? snapshot?.task.ownerBotId ?? null} onLeader={(leadBotId) => update({ leadBotId })} />
               {room.taskId === null ? (
-                <RoomActivityBox
-                  roomId={room.id}
-                  back={{ kind: 'group', roomId: room.id, tab: 'details' }}
-                  hint={t('在这个群里交代的事')}
-                  empty={t('在群里交代一件事，组长会接，或者交给对口的成员；干到哪会记在这里。')}
-                />
+                <RoomActivityBox roomId={room.id} empty={t('在群里交代一件事，组长会接，或者交给对口的成员；干到哪会记在这里。')} />
               ) : null}
               <section className="pod-box">
                 <div className="pod-box-head">

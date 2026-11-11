@@ -129,8 +129,8 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
     }),
     get('/task/activity', (query) => {
       const id = readId(query, 'id')
-      const jobs = id === undefined ? undefined : taskActivity(activityDeps(pod), id)
-      return jobs === undefined ? fail('not-found', t('找不到这个任务')) : ok(jobs)
+      const activity = id === undefined ? undefined : taskActivity(activityDeps(pod), id)
+      return activity === undefined ? fail('not-found', t('找不到这个任务')) : ok(activity)
     }),
     // 没有自己对话的任务放结果的那条消息：点这种任务时跳过去。
     get('/task/message', (query) => {

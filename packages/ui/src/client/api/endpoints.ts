@@ -1,5 +1,5 @@
 import type {
-  ActivityJob,
+  Activity,
   Bot,
   CoreMemory,
   DreamDetail,
@@ -241,14 +241,14 @@ export const api = {
   updateRoom: (roomId: string, patch: unknown) => apiPost<Room>('/room/update', { roomId, patch }),
   pinMessage: (messageId: string, pinned: boolean) => apiPost<RoomMessage>('/message/pin', { messageId, pinned }),
   pinnedMessages: (roomId: string) => apiGet<readonly RoomMessage[]>('/room/pins', { roomId }),
-  /** 群、单聊的动态：建群、进群出群、一件活一组，先的在前。 */
+  /** 群、单聊的动态：建群，之后每句交代、每一轮一组，组里是做成的几步，先的在前。 */
   roomActivity: (id: string) => apiGet<RoomActivity>('/room/activity', { id }),
 
   tasks: (status?: string) => apiGet<readonly TaskSnapshot[]>('/tasks', { status }),
   taskSnapshot: (id: string) => apiGet<TaskSnapshot>('/task/snapshot', { id }),
+  /** 任务详情里的动态：创建了任务，之后每次接着说、每一轮一组。 */
+  taskActivity: (id: string) => apiGet<Activity>('/task/activity', { id }),
   /** 没有自己对话的任务放结果的那条消息；一条有关的消息都没有是 null。 */
-  /** 任务详情里的动态：有任务对话的按交代和接着说分组。 */
-  taskActivity: (id: string) => apiGet<readonly ActivityJob[]>('/task/activity', { id }),
   taskMessage: (id: string) => apiGet<RoomMessage | null>('/task/message', { id }),
   controlTask: (taskId: string, action: 'pause' | 'resume' | 'stop' | 'cancel' | 'retry' | 'accept') => apiPost('/task/control', { taskId, action }),
   redeliverTask: (taskId: string) => apiPost('/task/redeliver', { taskId }),

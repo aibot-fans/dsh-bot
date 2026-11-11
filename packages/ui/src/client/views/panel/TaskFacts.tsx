@@ -121,7 +121,7 @@ export function TaskFacts(props: { readonly taskId: string; readonly title: stri
         )}
         {problem === undefined ? null : <p className="pod-form-error">{problem}</p>}
       </section>
-      <TaskActivityBox taskId={task.id} rootId={task.rootId} back={null} />
+      <TaskActivityBox taskId={task.id} rootId={task.rootId} />
     </>
   )
 }

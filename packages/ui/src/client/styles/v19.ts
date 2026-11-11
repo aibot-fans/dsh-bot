@@ -1,45 +1,29 @@
 /**
- * 动态：群详情成员下面、成员单聊的 bot 详情和任务详情里，一段对话里干过的活。
- * 左边一列是图标，一件活一组用一根细线连到下一组；标题加粗、能点开任务详情，下面一行是谁在干和你怎么说的，
- * 再下面是记的进展（打勾）、交给成员的（箭头），最后一行是结果或者停在哪；连着对话里一句的点了跳过去。
+ * 动态，照 Comma 的样子：12px 字、18px 行高，左边一列 16px 图标。
+ * 一组开头那行一根细线连到下一组开头，组里做成的几步缩进一列，自己一根细线连着；线从图标底下起、到下一个图标上面止，两头各空 1px。
+ * 一行的内边距伸到列外面，图标和上面对齐，悬停的灰底比字宽一点；一行写“做了什么 时刻”，时刻颜色更浅。
  * 详情的标签那一行能横着滑，内容一长会被挤没，固定住它的高度。
  */
 export const V19_CSS = `
 .pod-panel-tabs { flex: none; }
-.pod-act-body { padding: 4px 12px 10px 12px; }
-.pod-act { margin: 0; padding: 0; list-style: none; font-size: 13px; line-height: 1.45; }
-.pod-act-g { position: relative; padding: 4px 0 8px 24px; }
-.pod-act-g::before { content: ''; position: absolute; left: 8px; top: 24px; bottom: -4px; width: 1px; background: var(--pod-line); }
-.pod-act-g:last-child::before { display: none; }
-.pod-act-gi { position: absolute; left: 1px; top: 6px; display: flex; align-items: center; justify-content: center; width: 15px; height: 15px; background: var(--dsw-alias-bg-layer-1, #fff); }
-.pod-act-gh { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.pod-act-title { appearance: none; min-width: 0; padding: 0; border: 0; background: none; color: var(--dsw-alias-label-primary); font: inherit; font-weight: 600; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.pod-act-open { cursor: pointer; }
-.pod-act-open:hover { color: var(--pod-working); }
-.pod-act-muted { font-weight: 400; color: var(--dsw-alias-label-secondary); }
-.pod-act-time { flex: none; margin-left: auto; color: var(--dsw-alias-label-tertiary); font-size: 11.5px; font-variant-numeric: tabular-nums; }
-.pod-act-who { display: flex; align-items: center; gap: 6px; min-width: 0; margin: 1px 0 4px; color: var(--dsw-alias-label-secondary); font-size: 12px; white-space: nowrap; }
-.pod-act-person { flex: none; display: inline-flex; align-items: center; gap: 4px; }
-.pod-act-said { appearance: none; min-width: 0; margin-left: 2px; padding: 0; border: 0; background: none; color: var(--dsw-alias-label-tertiary); font: inherit; text-align: left; overflow: hidden; text-overflow: ellipsis; }
-button.pod-act-said { cursor: pointer; }
-button.pod-act-said:hover { color: var(--dsw-alias-label-secondary); }
-.pod-act-e { appearance: none; display: flex; align-items: center; gap: 7px; width: 100%; padding: 2px 0; border: 0; background: none; color: var(--dsw-alias-label-primary); font: inherit; text-align: left; }
-.pod-act-e > .pod-state-icon, .pod-act-check, .pod-act-handoff { flex: none; }
-.pod-act-text { flex: 1 1 auto; min-width: 0; word-break: break-word; }
-.pod-act-link { cursor: pointer; }
-.pod-act-link:hover .pod-act-text { text-decoration: underline; text-underline-offset: 2px; }
-.pod-act-end .pod-act-text { color: var(--dsw-alias-label-secondary); }
-.pod-act-link.pod-act-end .pod-act-text { color: var(--pod-working); }
-.pod-act-live .pod-act-text { color: var(--pod-working); }
-.pod-act-bad .pod-act-text { color: var(--pod-danger); }
-.pod-act-check, .pod-act-handoff, .pod-act-mark { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; color: var(--dsw-alias-label-tertiary); }
-.pod-act-check { color: var(--pod-ok); }
-.pod-act-check .pod-icon { stroke-width: 2.6; }
-.pod-act-mark { color: var(--dsw-alias-label-tertiary); }
-.pod-act-dots { display: inline-flex; gap: 2px; }
-.pod-act-dots i { width: 3px; height: 3px; border-radius: 50%; background: var(--dsw-alias-label-tertiary); }
-.pod-act-more { appearance: none; margin: 0 0 2px; padding: 0; border: 0; background: none; color: var(--dsw-alias-label-tertiary); font: inherit; font-size: 12px; cursor: pointer; }
-.pod-act-more:hover { color: var(--dsw-alias-label-secondary); }
+.pod-act-body { padding: 2px 12px 10px 12px; }
+.pod-act, .pod-act-steps { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.pod-act-group, .pod-act-item { position: relative; }
+.pod-act-steps { padding-left: 24px; }
+.pod-act-group:not(:last-child)::before, .pod-act-item:not(:last-child)::after { content: ''; position: absolute; top: 22px; bottom: -4px; left: 7.5px; border-left: 1px solid var(--pod-line); pointer-events: none; }
+.pod-act-row { appearance: none; display: flex; align-items: flex-start; gap: 8px; width: fit-content; max-width: calc(100% + 8px); margin: 0 0 0 -8px; padding: 4px 8px; border: 0; border-radius: 8px; background: none; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; line-height: 18px; text-align: left; outline: none; }
+button.pod-act-row { cursor: pointer; }
+button.pod-act-row:hover, button.pod-act-row:active { background: var(--pod-btn-ghost-hover); }
+button.pod-act-row:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--dsw-alias-label-tertiary) 45%, transparent); }
+.pod-act-icon { flex: none; display: flex; align-items: center; justify-content: center; width: 16px; height: 18px; color: color-mix(in srgb, var(--dsw-alias-label-tertiary) 80%, transparent); }
+.pod-act-icon svg { display: block; width: 16px; height: 16px; }
+.pod-act-icon[data-done="true"] { color: var(--pod-ok); }
+.pod-act-spin { transform-origin: 8px 8px; animation: pod-spin 1s linear infinite; }
+.pod-act-text { min-width: 0; overflow-wrap: anywhere; }
+.pod-act-text[data-kind="request"] { display: flex; align-items: baseline; min-width: 0; }
+.pod-act-text[data-kind="request"] .pod-act-title { overflow: hidden; color: var(--dsw-alias-label-primary); text-overflow: ellipsis; white-space: nowrap; }
+.pod-act-item[data-live="true"] .pod-act-text, [data-fold="true"] > .pod-act-row .pod-act-text { color: var(--dsw-alias-label-tertiary); }
+.pod-act-time { flex: none; margin-left: 6px; color: color-mix(in srgb, var(--dsw-alias-label-tertiary) 80%, transparent); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pod-act-empty { margin: 0; padding: 2px 2px 4px; color: var(--dsw-alias-label-tertiary); font-size: 13px; }
-.pod-act button:focus-visible { outline: 2px solid var(--pod-info); outline-offset: 2px; border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) { .pod-act-spin { animation: none; } }
 `

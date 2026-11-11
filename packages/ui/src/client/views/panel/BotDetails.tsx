@@ -127,7 +127,7 @@ export function BotDetails(props: { readonly bot: Bot; readonly taskId?: string;
     <div className="pod-stack">
       {props.taskId === undefined ? null : <TaskFacts taskId={props.taskId} title={t('这段对话的任务')} />}
       {props.taskId !== undefined || lead || chat === undefined ? null : (
-        <RoomActivityBox roomId={chat} back={{ kind: 'bot', botId: bot.id, tab: 'details' }} hint={t('在单聊里交代它的事')} empty={t('在单聊里交代{name}一件事，干到哪会记在这里。', { name: bot.name })} />
+        <RoomActivityBox roomId={chat} empty={t('在单聊里交代{name}一件事，干到哪会记在这里。', { name: bot.name })} />
       )}
       {problem === undefined ? null : <p className="pod-form-error">{problem}</p>}
       <Section
