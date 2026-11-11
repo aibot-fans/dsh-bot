@@ -759,6 +759,64 @@ const MIGRATIONS: readonly string[] = [
     context_tokens = (SELECT u.input_tokens + u.cache_tokens FROM usage u WHERE u.session_id = sessions.id ORDER BY u.id DESC LIMIT 1)
   WHERE EXISTS (SELECT 1 FROM usage u WHERE u.session_id = sessions.id);
   `,
+  // v20：记忆的夜间整理。主题笔记（一个主题一页，整理时写，每段会话开头带它的目录）；条目记下并进了哪页笔记；
+  // 每一晚的整理和它的每一处改动：先给你看或直接生效，改之前的样子都留着，能整晚撤销。
+  `
+  CREATE TABLE memory_notes (
+    id TEXT PRIMARY KEY,
+    scope_kind TEXT NOT NULL,
+    scope_id TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    body TEXT NOT NULL DEFAULT '',
+    links TEXT NOT NULL DEFAULT '[]',
+    sources TEXT NOT NULL DEFAULT '[]',
+    status TEXT NOT NULL DEFAULT 'active',
+    user_edited INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX memory_notes_by_scope ON memory_notes (scope_kind, scope_id, status);
+
+  ALTER TABLE memories ADD COLUMN note_id TEXT;
+
+  CREATE TABLE memory_dreams (
+    id TEXT PRIMARY KEY,
+    trigger TEXT NOT NULL,
+    status TEXT NOT NULL,
+    scopes TEXT NOT NULL DEFAULT '[]',
+    stats TEXT NOT NULL DEFAULT '{}',
+    questions TEXT NOT NULL DEFAULT '[]',
+    rejected TEXT NOT NULL DEFAULT '[]',
+    work TEXT NOT NULL DEFAULT '{}',
+    model TEXT NOT NULL DEFAULT '',
+    error TEXT NOT NULL DEFAULT '',
+    held TEXT NOT NULL DEFAULT '',
+    started_at INTEGER NOT NULL,
+    finished_at INTEGER,
+    applied_at INTEGER,
+    reverted_at INTEGER
+  );
+  CREATE INDEX memory_dreams_by_time ON memory_dreams (started_at DESC);
+
+  CREATE TABLE memory_dream_ops (
+    dream_id TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    scope_kind TEXT NOT NULL,
+    scope_id TEXT NOT NULL DEFAULT '',
+    ref TEXT NOT NULL DEFAULT '',
+    before TEXT NOT NULL DEFAULT '{}',
+    after TEXT NOT NULL DEFAULT '{}',
+    reason TEXT NOT NULL DEFAULT '',
+    evidence TEXT NOT NULL DEFAULT '[]',
+    held INTEGER NOT NULL DEFAULT 0,
+    applied_at INTEGER,
+    reverted_at INTEGER,
+    skipped TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (dream_id, seq)
+  );
+  `,
 ]
 
 function readVersion(db: DatabaseSync): number {

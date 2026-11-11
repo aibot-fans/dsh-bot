@@ -16,6 +16,8 @@ export interface LiteRequest {
   readonly signal?: AbortSignal
   /** 不填就用设置里的轻量模型。 */
   readonly model?: ModelSelection
+  /** 要认真想的活（整理记忆）：不降到最低的推理档位，用模型默认的。 */
+  readonly thorough?: boolean
 }
 
 export interface LiteResult {
@@ -82,7 +84,7 @@ export class LiteLlm {
       request.signal,
       (controls, model) => {
         const lowest = model.reasoning?.efforts[0]?.id
-        return lowest === undefined ? controls : { ...controls, reasoningEffort: lowest }
+        return lowest === undefined || request.thorough === true ? controls : { ...controls, reasoningEffort: lowest }
       },
     )
     const message: UserMessage = Object.freeze({

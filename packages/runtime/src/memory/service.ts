@@ -5,6 +5,10 @@ import {
   FRESH_LIMIT,
   HINT_LIMIT,
   MEMORY_TYPES,
+  NOTE_BODY_MAX,
+  NOTE_DESCRIPTION_MAX,
+  NOTE_INDEX_MAX,
+  NOTE_TITLE_MAX,
   PRIORITY,
   admitMemory,
   fail,
@@ -12,6 +16,7 @@ import {
   keywords,
   localDate,
   newId,
+  noteIndexLine,
   ok,
   readBool,
   readId,
@@ -23,6 +28,7 @@ import {
   truncate,
   type CoreMemory,
   type MemoryEntry,
+  type MemoryNote,
   type MemoryScopeKind,
   type MemorySource,
   type MemoryStatus,
@@ -36,10 +42,14 @@ import {
   getMemories,
   getMemory,
   getMemoryLog,
+  getNote,
+  getNotes,
   insertMemory,
   listMemories,
   listMemoryLog,
+  listNotes,
   markMemoryLogReverted,
+  putNote,
   setCore,
   touchMemories,
   updateMemory,
@@ -106,14 +116,23 @@ export interface MemoryHints {
   readonly ids: readonly string[]
 }
 
+/** recall 查到的：先是笔记（一个主题一页），再是还没整理进笔记的条目。 */
+export interface Recalled {
+  readonly notes: readonly MemoryNote[]
+  readonly entries: readonly MemoryEntry[]
+}
+
 /**
- * 记忆：每个范围有要点（一小块，夜里整理时重写）和条目（数量不限，用到再取）。
- * 白天只追加：新旧说法不一样时都留着，谁对由夜里的整理对着原话判断；你亲手改过的不会被自动改写。每次改动记进变更日志，可以撤销。
- * 每段会话开头带三块：关于你、它自己的经验、所在的群；送消息和交代时再附几条相关的。
+ * 记忆：每个范围有要点（一小块）、主题笔记（一个主题一页）和条目（白天随手记的一句话，数量不限）。
+ * 白天只追加：新旧说法不一样时都留着，谁对由夜里的整理对着原话判断；笔记和要点只有夜里的整理写，你亲手改过的不会被自动改写。
+ * 条目的每次改动记进变更日志，可以撤销。
+ * 每段会话开头带三块：关于你、它自己的经验、所在的群，每块是要点、笔记目录和整理之后新记的条目；送消息和交代时再附几条相关的。
  */
 export class MemoryService {
   /** 每段会话已经附过的记忆，同一段里不重复附。 */
   private readonly shown = new Map<string, Set<string>>()
+  /** 人设已经组好的会话：它开头带了哪些条目已经记在 shown 里。 */
+  private readonly composed = new Set<string>()
   private readonly deps: MemoryServiceDeps
 
   constructor(deps: MemoryServiceDeps) {
@@ -126,6 +145,18 @@ export class MemoryService {
 
   private changed(): void {
     this.deps.bus.emit({ type: 'memory' })
+  }
+
+  /** 夜里的整理改了记忆、换了状态：通知页面重新拉。 */
+  touch(): void {
+    this.changed()
+  }
+
+  /** 夜里的整理落库或撤销以后：动到的条目和笔记更新索引，通知页面。 */
+  reindex(entries: readonly MemoryEntry[], notes: readonly MemoryNote[]): void {
+    for (const entry of entries) this.deps.search.indexMemory(entry)
+    for (const note of notes) this.deps.search.indexNote(note)
+    this.changed()
   }
 
   core(scopeKind: MemoryScopeKind, scopeId: string): CoreMemory {
@@ -247,7 +278,13 @@ export class MemoryService {
     let result: MemoryEntry | undefined
     if (entry.action === 'add') result = updateMemory(this.db, entry.memoryId, { status: 'deleted' }, now)
     else if (entry.before !== null) {
-      result = updateMemory(this.db, entry.memoryId, { content: entry.before.content, type: entry.before.type, status: entry.before.status, pinned: entry.before.pinned, private: entry.before.private }, now)
+      const { before } = entry
+      result = updateMemory(
+        this.db,
+        entry.memoryId,
+        { content: before.content, type: before.type, status: before.status, pinned: before.pinned, private: before.private, scopeKind: before.scopeKind, scopeId: before.scopeId, noteId: before.noteId ?? null },
+        now,
+      )
     }
     if (result === undefined) return fail('conflict', t('这条变更撤销不了'))
     markMemoryLogReverted(this.db, logId, now)
@@ -279,20 +316,91 @@ export class MemoryService {
         const root = session.taskId === null ? undefined : this.deps.rootOf(session.taskId)
         return root === entry.scopeId
       }
+      case 'org':
+        return lead
     }
   }
 
-  /** recall：按关键词查这条会话能看到的记忆，命中的记一次使用。 */
-  async recall(session: PodSession, query: string, limit = 8): Promise<readonly MemoryEntry[]> {
+  /** 这条会话能不能看到这页笔记：和同一个范围的条目一样（笔记没有私密的）。 */
+  canSeeNote(session: PodSession, note: MemoryNote): boolean {
+    if (note.status === 'deleted') return false
+    const lead = this.deps.isLead(session.botId)
+    switch (note.scopeKind) {
+      case 'owner':
+        return true
+      case 'bot':
+        return note.scopeId === session.botId
+      case 'team':
+        return lead || this.deps.teamsOf(session.botId).includes(note.scopeId)
+      case 'room':
+        return lead || this.deps.roomsOf(session.botId).includes(note.scopeId)
+      case 'org':
+        return lead
+      case 'task':
+        return lead
+    }
+  }
+
+  /** recall：按关键词查这条会话能看到的记忆，先是笔记（最多 3 页），再是条目；命中的条目记一次使用。 */
+  async recall(session: PodSession, query: string, limit = 8): Promise<Recalled> {
     const hits = await this.deps.search.search(query, { kinds: ['memory'], limit: 60 })
-    const entries = getMemories(this.db, hits.map((hit) => hit.ref.slice('memory:'.length)))
-    const order = new Map(hits.map((hit, index) => [hit.ref.slice('memory:'.length), index]))
-    const visible = entries
+    const order = new Map(hits.map((hit, index) => [hit.ref, index]))
+    const rank = (ref: string): number => order.get(ref) ?? 0
+    const notes = getNotes(this.db, hits.filter((hit) => hit.ref.startsWith('note:')).map((hit) => hit.ref.slice('note:'.length)))
+      .filter((note) => note.status === 'active' && this.canSeeNote(session, note))
+      .sort((left, right) => rank(`note:${left.id}`) - rank(`note:${right.id}`))
+      .slice(0, 3)
+    const entries = getMemories(this.db, hits.filter((hit) => hit.ref.startsWith('memory:')).map((hit) => hit.ref.slice('memory:'.length)))
       .filter((entry) => (entry.status === 'active' || entry.status === 'archived') && this.canSee(session, entry))
-      .sort((left, right) => (order.get(left.id) ?? 0) - (order.get(right.id) ?? 0))
+      .sort((left, right) => rank(`memory:${left.id}`) - rank(`memory:${right.id}`))
       .slice(0, limit)
-    this.used(session.id, visible.map((entry) => entry.id))
-    return visible
+    this.used(session.id, entries.map((entry) => entry.id))
+    return { notes, entries }
+  }
+
+  // ---------- 主题笔记 ----------
+
+  notes(scopeKind: MemoryScopeKind, scopeId: string): readonly MemoryNote[] {
+    return listNotes(this.db, { scopeKind, scopeId, statuses: ['active', 'archived'] })
+  }
+
+  note(id: string): MemoryNote | undefined {
+    return getNote(this.db, id)
+  }
+
+  /** 笔记落库以后：进索引、通知页面。夜里的整理和页面上的修改都走这里。 */
+  noteChanged(note: MemoryNote): void {
+    this.deps.search.indexNote(note)
+    this.changed()
+  }
+
+  /** 页面上改一页笔记：{ id, patch: { title, description, body, status } }。改过的标成你亲手改过，夜里的整理不再改写它。 */
+  updateNoteFromPage(input: unknown): PodResult<MemoryNote> {
+    const id = readId(input, 'id')
+    const current = id === undefined ? undefined : this.note(id)
+    if (current === undefined || current.status === 'deleted') return fail('not-found', t('找不到这页笔记'))
+    const raw = readObject(input, 'patch')
+    const status = readString(raw, 'status')
+    const title = readString(raw, 'title').trim()
+    const body = typeof (raw as { readonly body?: unknown }).body === 'string' ? ((raw as { readonly body: string }).body).trim() : undefined
+    const description = typeof (raw as { readonly description?: unknown }).description === 'string' ? ((raw as { readonly description: string }).description).trim() : undefined
+    if (title !== '' && textUnits(title) > NOTE_TITLE_MAX) return fail('invalid-input', t('标题最多 {max} 个字', { max: NOTE_TITLE_MAX }))
+    if (description !== undefined && textUnits(description) > NOTE_DESCRIPTION_MAX) return fail('invalid-input', t('一句说明最多 {max} 个字', { max: NOTE_DESCRIPTION_MAX }))
+    if (body !== undefined && textUnits(body) > NOTE_BODY_MAX) return fail('invalid-input', t('一页笔记最多 {max} 个字，太长就拆成两页', { max: NOTE_BODY_MAX }))
+    const text = body !== undefined || description !== undefined || title !== ''
+    const next: MemoryNote = {
+      ...current,
+      ...(title === '' ? {} : { title }),
+      ...(description === undefined ? {} : { description }),
+      ...(body === undefined ? {} : { body }),
+      ...(status === 'active' || status === 'archived' ? { status } : {}),
+      userEdited: current.userEdited || text,
+      updatedAt: this.deps.now(),
+    }
+    putNote(this.db, next)
+    appendMemoryLog(this.db, { memoryId: `note:${next.id}`, action: 'note', before: null, after: null, actor: 'owner', reason: t('你改了笔记「{title}」', { title: next.title }), now: this.deps.now() })
+    this.noteChanged(next)
+    return ok(next)
   }
 
   /** 这几条真的给这段会话看了（进了提示词、附在消息后面、recall 取出来）：记一次使用，这一段里不再重复附。 */
@@ -313,15 +421,17 @@ export class MemoryService {
   }
 
   /**
-   * 一个范围每次都带的那一块：要点（夜里整理写的）和置顶的条目；还没有要点时带最近的条目，有要点时带整理之后新记的。
-   * 条目按新旧排、带日期：新旧说法不一样时以新的为准。密码这类条目不放这里，要用时 recall 查。
+   * 一个范围每次都带的那一块：要点（夜里整理写的）、笔记目录（一页一行）和置顶的条目；还没有要点时带最近的条目，有要点时带整理之后新记的。
+   * 条目按新旧排、带日期：新旧说法不一样时以新的为准。密码这类条目不放这里，只说有几条，要用时 recall 查。
    */
   private always(session: PodSession, scopeKind: MemoryScopeKind, scopeId: string): AlwaysBlock {
     const core = this.core(scopeKind, scopeId)
     const lead = this.deps.isLead(session.botId)
-    const entries = listMemories(this.db, { scopeKind, scopeId, statuses: ['active'], limit: 1000 }).filter(
-      (entry) => !isCredentialMemory(entry.content) && (scopeKind !== 'owner' || !entry.private || lead),
-    )
+    const visible = listMemories(this.db, { scopeKind, scopeId, statuses: ['active'], limit: 1000 }).filter((entry) => scopeKind !== 'owner' || !entry.private || lead)
+    const entries = visible.filter((entry) => !isCredentialMemory(entry.content))
+    const secrets = visible.length - entries.length
+    const notes = listNotes(this.db, { scopeKind, scopeId })
+    const index = notes.slice(0, NOTE_INDEX_MAX).map(noteIndexLine)
     const pinned = entries.filter((entry) => entry.pinned)
     const others = entries.filter((entry) => !entry.pinned && (core.text === '' || entry.createdAt > core.updatedAt)).sort((left, right) => right.createdAt - left.createdAt)
     const limit = core.text === '' ? ALWAYS_LIMITS[scopeKind] : FRESH_LIMIT
@@ -337,30 +447,46 @@ export class MemoryService {
     const left = others.length - picked.length
     const parts = [
       core.text,
+      index.length === 0 ? '' : `笔记目录（一页一个主题；要看哪页，用 recall 查它的标题）：\n${index.join('\n')}${notes.length > index.length ? `\n（还有 ${notes.length - index.length} 页没列出来）` : ''}`,
       pinned.map(line).join('\n'),
-      picked.length === 0 ? '' : `${core.text === '' ? '' : '整理之后新记的：\n'}${picked.map(line).join('\n')}`,
+      picked.length === 0 ? '' : `${core.text === '' && index.length === 0 ? '' : '整理之后新记的：\n'}${picked.map(line).join('\n')}`,
       left === 0 ? '' : `（还有 ${left} 条没放在这里，用 recall 查）`,
+      secrets === 0 ? '' : `（另有 ${secrets} 条账号、密码这类的记在这里，没有列出来，要用时用 recall 查）`,
     ]
     return { text: parts.filter((part) => part !== '').join('\n'), ids: [...pinned, ...picked].map((entry) => entry.id) }
+  }
+
+  /** 这段会话开头带哪几个范围：关于你、bot 自己、旧的正式团队、所在的群；Super-agent 另带组织目录。 */
+  private scopesOf(session: PodSession): readonly { readonly scopeKind: MemoryScopeKind; readonly scopeId: string; readonly label: string }[] {
+    const group = this.groupOf(session)
+    return [
+      { scopeKind: 'owner' as const, scopeId: '', label: CORE_LABELS.owner },
+      ...(this.deps.isLead(session.botId) ? [{ scopeKind: 'org' as const, scopeId: '', label: CORE_LABELS.org }] : []),
+      { scopeKind: 'bot' as const, scopeId: session.botId, label: CORE_LABELS.bot },
+      ...this.deps.teamsOf(session.botId).map((teamId) => ({ scopeKind: 'team' as const, scopeId: teamId, label: CORE_LABELS.team })),
+      ...(group === undefined ? [] : [{ scopeKind: 'room' as const, scopeId: group, label: t('群「{title}」里定的事', { title: this.deps.roomTitle(group) ?? group }) }]),
+    ]
   }
 
   /** 人设里的记忆：关于你、bot 自己的经验、所在的群（旧的正式团队还带团队约定）。放进去的条目记一次使用。 */
   coreBlocks(session: PodSession): readonly { readonly label: string; readonly text: string }[] {
     const blocks: { readonly label: string; readonly text: string }[] = []
     const ids: string[] = []
-    const add = (scopeKind: MemoryScopeKind, scopeId: string, label = CORE_LABELS[scopeKind]): void => {
-      const block = this.always(session, scopeKind, scopeId)
-      if (block.text === '') return
-      blocks.push({ label, text: block.text })
+    for (const scope of this.scopesOf(session)) {
+      const block = this.always(session, scope.scopeKind, scope.scopeId)
+      if (block.text === '') continue
+      blocks.push({ label: scope.label, text: block.text })
       ids.push(...block.ids)
     }
-    add('owner', '')
-    add('bot', session.botId)
-    for (const teamId of this.deps.teamsOf(session.botId)) add('team', teamId)
-    const group = this.groupOf(session)
-    if (group !== undefined) add('room', group, t('群「{title}」里定的事', { title: this.deps.roomTitle(group) ?? group }))
     this.used(session.id, ids)
+    this.composed.add(session.id)
     return blocks
+  }
+
+  /** 人设还没组好的会话，开头那一块到时候会带上哪些条目：附相关记忆时先把它们排除，免得一句话带两遍。 */
+  private upcoming(session: PodSession): readonly string[] {
+    if (this.composed.has(session.id)) return []
+    return this.scopesOf(session).flatMap((scope) => this.always(session, scope.scopeKind, scope.scopeId).ids)
   }
 
   /**
@@ -381,7 +507,7 @@ export class MemoryService {
   async hintsFor(session: PodSession, text: string, options: { readonly rooms?: readonly string[]; readonly exclude?: readonly string[] } = {}): Promise<MemoryHints | undefined> {
     const words = keywords(text, HINT_WORDS)
     if (words.length === 0) return undefined
-    const shown = new Set([...(this.shown.get(session.id) ?? []), ...(options.exclude ?? [])])
+    const shown = new Set([...(this.shown.get(session.id) ?? []), ...(options.exclude ?? []), ...this.upcoming(session)])
     const group = this.groupOf(session)
     const here = new Set([...(group === undefined ? [] : [group]), ...(options.rooms ?? [])])
     const teams = new Set(this.deps.teamsOf(session.botId))
@@ -412,7 +538,8 @@ export class MemoryService {
     }
   }
 
-  forgetShown(sessionId: string): void {
-    this.shown.delete(sessionId)
+  /** agent 释放了：下次冷恢复会重新组人设，开头那一块到时候重新算。附过的相关记忆还在这段会话的历史里，不用忘。 */
+  detached(sessionId: string): void {
+    this.composed.delete(sessionId)
   }
 }

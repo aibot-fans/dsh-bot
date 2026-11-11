@@ -4,6 +4,7 @@ import { LEAD_BOT_ID, LEAD_PERSONA, OWNER, POD, POD_VERSION, PRIORITY, botFolder
 import { afterCommit, deliveryByMessageId, getMessage, inTransaction, onAfterCommitError, pendingFor, pinnedMessages, raiseProblem, resolveProblem, runningTasksByRoom, taskCardMessage, taskConversationOf, teamsOfBot } from 'pod-store'
 import { SegmentManager } from './agents/segments.ts'
 import { AibotService } from './aibot/service.ts'
+import { DreamService } from './memory/dream/service.ts'
 import { MemoryExtractor } from './memory/extract.ts'
 import { MemoryService } from './memory/service.ts'
 import { SearchIndex } from './search/index.ts'
@@ -166,6 +167,7 @@ export class PodRuntime {
   readonly search: SearchService
   readonly memory: MemoryService
   readonly extractor: MemoryExtractor
+  readonly dreams: DreamService
   readonly segments: SegmentManager
   readonly notifications: NotificationService
   readonly routines: RoutineService
@@ -650,6 +652,24 @@ export class PodRuntime {
       equip: (session, agent) => equipSession(this, this.extras, session, agent),
       warn,
       onAttach: () => void this.dispatcher.pump(),
+      onDetach: (sessionId) => this.memory.detached(sessionId),
+    })
+    this.dreams = new DreamService({
+      db,
+      lite: this.lite,
+      memory: this.memory,
+      now,
+      timezone: () => this.settings.get().timezone,
+      model: () => this.models.dream(),
+      botName: (id) => this.bots.get(id)?.name,
+      roomTitle: (id) => this.rooms.get(id)?.title,
+      leadOf: (roomId) => {
+        const room = this.rooms.get(roomId)
+        return room === undefined ? undefined : this.rooms.leaderOf(room)?.id
+      },
+      busy: () => this.busyNow(),
+      enabled: () => this.settings.get().memoryDream,
+      warn,
     })
     this.extractor = new MemoryExtractor({
       db,
@@ -1283,6 +1303,13 @@ export class PodRuntime {
       waits: this.waits.open(),
       cost: { today: this.meter.since(now - day).cost, yesterday: this.meter.since(now - 2 * day).cost - this.meter.since(now - day).cost },
     }
+  }
+
+  /** 现在忙不忙：有任务在跑，或者你十分钟内说过话。夜里的整理挑空的时候做。 */
+  private busyNow(): boolean {
+    if (this.registry.active().some((session) => session.taskId !== null && this.dispatcher.isRunning(session.id))) return true
+    const row = this.db.prepare("SELECT MAX(created_at) AS at FROM messages WHERE author = 'owner'").get() as { readonly at: number | null } | undefined
+    return row !== undefined && row.at !== null && this.now() - row.at < 10 * 60_000
   }
 
   /** bot 能看到的房间：它是成员的房间（主管看全部）。 */

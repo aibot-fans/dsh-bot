@@ -8,8 +8,8 @@ import { t } from './i18n.ts'
 import { containsSecret } from './secrets.ts'
 import { estimateTokens, textUnits } from './text.ts'
 
-/** 你的档案、bot 个人、团队、房间、任务记录。 */
-export type MemoryScopeKind = 'owner' | 'bot' | 'team' | 'room' | 'task'
+/** 你的档案、bot 个人、团队、房间、任务记录、组织目录（哪个群管什么、哪类事交给谁，只给 Super-agent）。 */
+export type MemoryScopeKind = 'owner' | 'bot' | 'team' | 'room' | 'task' | 'org'
 
 export type MemoryType = 'fact' | 'preference' | 'convention' | 'decision' | 'experience' | 'person' | 'project' | 'todo'
 
@@ -29,8 +29,11 @@ export const MEMORY_TYPE_LABELS: Readonly<Record<MemoryType, string>> = {
 /** 来源：你说的、bot 推断的、网页上的、其他 bot 说的、任务复盘。 */
 export type MemorySource = 'owner' | 'bot' | 'web' | 'other-bot' | 'extracted' | 'task'
 
-/** active 在用；pending 待确认（bot 推断的）；superseded 已被替代；archived 不再自动召回但能搜到；deleted 删了。 */
-export type MemoryStatus = 'active' | 'pending' | 'superseded' | 'archived' | 'deleted'
+/**
+ * active 在用；pending 待确认（bot 推断的）；superseded 已被替代；archived 不再自动召回但能搜到；
+ * merged 夜里整理时并进了一页笔记（内容在笔记里，条目留着当出处）；deleted 删了。
+ */
+export type MemoryStatus = 'active' | 'pending' | 'superseded' | 'archived' | 'merged' | 'deleted'
 
 export interface MemoryEntry {
   readonly id: string
@@ -55,6 +58,8 @@ export interface MemoryEntry {
   readonly updatedAt: number
   readonly lastUsedAt: number | null
   readonly useCount: number
+  /** 并进了哪页笔记（status 是 merged 时）。 */
+  readonly noteId: string | null
 }
 
 export interface CoreMemory {
@@ -72,6 +77,7 @@ export const CORE_LIMITS: Readonly<Record<MemoryScopeKind, number>> = {
   team: 1500,
   room: 800,
   task: 800,
+  org: 1200,
 }
 
 export const CORE_LABELS: Readonly<Record<MemoryScopeKind, string>> = {
@@ -80,6 +86,7 @@ export const CORE_LABELS: Readonly<Record<MemoryScopeKind, string>> = {
   team: '团队约定',
   room: '这个群里定的事',
   task: '任务记录',
+  org: '组织目录',
 }
 
 /**
@@ -92,6 +99,7 @@ export const ALWAYS_LIMITS: Readonly<Record<MemoryScopeKind, number>> = {
   team: 400,
   room: 500,
   task: 0,
+  org: 400,
 }
 
 /** 整理出要点以后，之后新记的条目另带这么多字（当天记的当天就用得上）。 */

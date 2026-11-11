@@ -8,6 +8,7 @@ import {
   t,
   type Bot,
   type MemoryEntry,
+  type MemoryNote,
   type PodSession,
   type Room,
   type RoomMessage,
@@ -16,7 +17,7 @@ import {
   type SearchHit,
   type Task,
 } from 'pod-domain'
-import { listMemories, listMessages, listRooms, listRootTasks, listTaskTree } from 'pod-store'
+import { listMemories, listMessages, listNotes, listRooms, listRootTasks, listTaskTree } from 'pod-store'
 import type { SearchIndex } from './index.ts'
 
 /** 会被索引的文件：工作区里的 Markdown、纯文本、CSV、JSON 等。 */
@@ -123,9 +124,31 @@ export class SearchService {
     }
   }
 
+  /** 删了的、并进笔记的条目不留在索引里：并进去的内容查笔记。 */
   indexMemory(entry: MemoryEntry): void {
-    if (entry.status === 'deleted') this.deps.index.remove([`memory:${entry.id}`])
+    if (entry.status === 'deleted' || entry.status === 'merged') this.deps.index.remove([`memory:${entry.id}`])
     else this.deps.index.upsert([this.memoryDoc(entry)])
+  }
+
+  noteDoc(note: MemoryNote): SearchDoc {
+    return {
+      ref: `note:${note.id}`,
+      kind: 'memory',
+      title: `${note.title} ${note.description}`,
+      body: note.body,
+      roomId: note.scopeKind === 'room' ? note.scopeId : null,
+      botId: note.scopeKind === 'bot' ? note.scopeId : null,
+      teamId: note.scopeKind === 'team' ? note.scopeId : null,
+      taskId: null,
+      time: note.updatedAt,
+      boost: 0.3,
+    }
+  }
+
+  /** 主题笔记：一个主题一页，比单条的条目靠前。归档、删掉的不留在索引里。 */
+  indexNote(note: MemoryNote): void {
+    if (note.status === 'active') this.deps.index.upsert([this.noteDoc(note)])
+    else this.deps.index.remove([`note:${note.id}`])
   }
 
   /** 网页存档：读过的网页正文，可搜，也是研究结论的出处。 */
@@ -224,6 +247,8 @@ export class SearchService {
     }
     const memories = listMemories(db, { statuses: ['active', 'pending', 'archived', 'superseded'], limit: 100_000 }).map((entry) => this.memoryDoc(entry))
     this.deps.index.upsert(memories)
-    return count + memories.length
+    const notes = listNotes(db).map((note) => this.noteDoc(note))
+    this.deps.index.upsert(notes)
+    return count + memories.length + notes.length
   }
 }

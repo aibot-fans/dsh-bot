@@ -78,7 +78,7 @@ export function baseRoutes(pod: PodRuntime): readonly RouteSpec[] {
   ]
 }
 
-const SCOPES: readonly MemoryScopeKind[] = ['owner', 'bot', 'team', 'room', 'task']
+const SCOPES: readonly MemoryScopeKind[] = ['owner', 'bot', 'team', 'room', 'task', 'org']
 
 const STATUSES: readonly TaskStatus[] = ['queued', 'running', 'waiting', 'review', 'done', 'failed', 'paused', 'stopped', 'cancelled']
 
@@ -230,6 +230,35 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
       const logId = readInt(body, 'logId')
       return logId === undefined ? fail('invalid-input', t('缺少变更编号')) : pod.memory.revert(logId)
     }),
+    // 主题笔记：一个范围的笔记，和并进每页的条目（每句话的出处）。
+    get('/memory/notes', (query) => {
+      const scope = readString(query, 'scope') as MemoryScopeKind
+      if (!SCOPES.includes(scope)) return fail('invalid-input', t('作用域不对'))
+      const scopeId = readString(query, 'scopeId')
+      return ok({ notes: pod.memory.notes(scope, scopeId), merged: pod.memory.list({ scopeKind: scope, scopeId, statuses: ['merged'] }), guide: pod.dreams.guide(scope, scopeId) })
+    }),
+    post('/memory/note/update', (body) => pod.memory.updateNoteFromPage(body)),
+    post('/memory/guide', (body) => {
+      const scope = readString(body, 'scope') as MemoryScopeKind
+      return SCOPES.includes(scope) ? ok(pod.dreams.setGuide(scope, readString(body, 'scopeId'), readString(body, 'text'))) : fail('invalid-input', t('作用域不对'))
+    }),
+    // 夜里的整理：每一晚一条记录，先给你看或直接生效，能整晚撤销。
+    get('/memory/dreams', () => ok(pod.dreams.list())),
+    get('/memory/dream', (query) => {
+      const detail = pod.dreams.detail(readString(query, 'id'))
+      return detail === undefined ? fail('not-found', t('找不到这次整理')) : ok(detail)
+    }),
+    post('/memory/dream/start', (body) => {
+      const scope = readString(body, 'scope') as MemoryScopeKind
+      return pod.dreams.start('manual', SCOPES.includes(scope) ? [{ kind: scope, id: readString(body, 'scopeId') }] : [])
+    }),
+    post('/memory/dream/apply', (body) => {
+      const skip = (body as { readonly skip?: unknown }).skip
+      return pod.dreams.apply(readString(body, 'id'), Array.isArray(skip) ? skip.filter((seq): seq is number => typeof seq === 'number') : [])
+    }),
+    post('/memory/dream/discard', (body) => pod.dreams.discard(readString(body, 'id'))),
+    post('/memory/dream/revert', (body) => pod.dreams.revert(readString(body, 'id'))),
+    post('/memory/dream/answer', (body) => pod.dreams.answer(readString(body, 'id'), readString(body, 'questionId'), readString(body, 'label'))),
 
     // ---------- 搜索和交接笔记 ----------
     get('/search', async (query) => {

@@ -5,6 +5,7 @@ import { errorText } from '../../api/http.ts'
 import { Badge, Button, Empty, RelativeTime, clock } from '../../components/common.tsx'
 import { useApp } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
+import { DreamBar, NotesSection } from './Notes.tsx'
 
 const SOURCE_LABELS: Readonly<Record<string, string>> = {
   owner: '你说的',
@@ -19,8 +20,13 @@ const ACTION_LABELS: Readonly<Record<string, string>> = {
   add: '新增',
   update: '修改',
   supersede: '被替代',
-  core: '改核心记忆',
+  core: '改要点',
   revert: '撤销',
+  merge: '并进笔记',
+  archive: '归档',
+  confirm: '确认',
+  move: '挪到别处',
+  note: '改笔记',
 }
 
 interface ScopeOption {
@@ -39,8 +45,8 @@ function CoreEditor(props: { readonly scope: ScopeOption }) {
   const text = draft ?? core?.text ?? ''
   return (
     <section className="pod-settings-section">
-      <h2>{t('核心记忆')}</h2>
-      <p className="pod-muted">{t('每段会话开始时放进提示词。{value}', { value: core?.userEdited === true ? t('你改过，夜间整理不会改写它。') : '' })}</p>
+      <h2>{t('要点')}</h2>
+      <p className="pod-muted">{t('最要紧的几句，每段会话开头都带着；夜里整理时重写。{value}', { value: core?.userEdited === true ? t('你改过，整理时不会再改写它。') : '' })}</p>
       <textarea className="pod-textarea" rows={5} value={text} onChange={(event) => setDraft(event.target.value)} placeholder={t('例如：用户是产品经理，喜欢先看结论再看细节')} />
       <div className="pod-row">
         <Button
@@ -180,7 +186,7 @@ function Changes() {
           <time>{clock(change.createdAt)}</time>
           {t('{value}：{value2}', { value: tc(ACTION_LABELS[change.action] ?? change.action, '变更'), value2: change.after?.content ?? change.before?.content ?? change.reason })}
           <span className="pod-muted-inline"> · {change.reason}</span>
-          {change.revertedAt !== null || change.action === 'core' || change.action === 'revert' ? null : (
+          {change.revertedAt !== null || change.action === 'core' || change.action === 'revert' || change.action === 'note' ? null : (
             <button type="button" className="pod-link" onClick={() => void api.revertMemory(change.id).then(reload)}>
               {' '}
               {t('撤销')}
@@ -198,7 +204,10 @@ export interface MemoryScope {
   readonly label: string
 }
 
-/** 一个作用域的记忆：核心记忆、添加、待确认和已有条目。bot 详情、群聊详情和设置里的“你的档案”都用它。 */
+/**
+ * 一个范围的记忆，从上到下：上次整理了什么、要点、主题笔记，最后是还没整理进笔记的条目（待确认的在前）。
+ * bot 详情、群聊详情和设置里的“你的档案”都用它。
+ */
 export function MemoryPanel(props: { readonly scope: MemoryScope }) {
   const app = useApp()
   const scope: ScopeOption = { key: `${props.scope.kind}:${props.scope.id}`, ...props.scope }
@@ -208,8 +217,11 @@ export function MemoryPanel(props: { readonly scope: MemoryScope }) {
   const others = (entries ?? []).filter((entry) => entry.status !== 'pending')
   return (
     <div className="pod-stack">
-      <p className="pod-muted">{t('记忆管“知道什么”。核心记忆每段会话开始时放进提示词；条目数量不限，用到时再取。网页来源的条目单独标记。')}</p>
+      <p className="pod-muted">{t('记忆管“知道什么”。白天 bot 随手记成一条条的；夜里整理时并成主题笔记、重写要点。每段会话开头带要点和笔记目录，别的用到时再查。')}</p>
+      <DreamBar scope={scope} />
       <CoreEditor key={scope.key} scope={scope} />
+      <NotesSection scope={scope} />
+      <div className="pod-section-title">{t('还没整理进笔记的（{count} 条）', { count: others.filter((entry) => entry.status === 'active').length })}</div>
       <AddEntry scope={scope} onAdded={reload} />
       {pending.length === 0 ? null : (
         <section className="pod-stack">
@@ -222,7 +234,7 @@ export function MemoryPanel(props: { readonly scope: MemoryScope }) {
         </section>
       )}
       {others.length === 0 && pending.length === 0 ? (
-        <Empty title={t('还没有记忆')}>{t('对 bot 说“记住……”，或者在上面直接添加。')}</Empty>
+        <Empty title={t('没有零散的条目')}>{t('对 bot 说“记住……”，或者在上面直接添加。')}</Empty>
       ) : (
         <ul className="pod-memories">
           {others.map((entry) => (

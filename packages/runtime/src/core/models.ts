@@ -37,6 +37,12 @@ export class ModelResolver {
     return settings.liteModel ?? settings.defaultModel ?? (await this.dshDefault())
   }
 
+  /** 夜里整理记忆的模型：设置里单独指定的 → Pod 全局默认 → dsh 默认。不走轻量模型：整理要认真想。 */
+  async dream(): Promise<ModelSelection> {
+    const settings = this.deps.settings()
+    return settings.dreamModel ?? settings.defaultModel ?? (await this.dshDefault())
+  }
+
   async session(bot: Bot): Promise<ModelSelection | null> {
     const chosen = await this.modelFor(bot.model)
     if (bot.model !== null) return chosen

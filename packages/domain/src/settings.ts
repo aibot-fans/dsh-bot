@@ -49,6 +49,8 @@ export interface PodSettings {
   readonly defaultModel: ModelChoice | null
   /** 轻量调用（摘要、提取、交接笔记）用的模型；null 表示用默认模型。 */
   readonly liteModel: ModelChoice | null
+  /** 夜里整理记忆用的模型；null 表示用默认模型（不是轻量模型：整理要认真想）。 */
+  readonly dreamModel: ModelChoice | null
   /** 任务通道并发数：超出的排队，不拒绝任务。 */
   readonly taskConcurrency: number
   /** 聊天通道保留的并发数，任务再多你说话也不用排队。 */
@@ -65,6 +67,8 @@ export interface PodSettings {
   readonly softContextTokens: number
   /** 自动从对话里提取记忆。 */
   readonly memoryExtraction: boolean
+  /** 每晚自动整理记忆：核对条目、并成笔记、重写要点。关掉以后只在你点“现在整理”时做。 */
+  readonly memoryDream: boolean
   /** dsh web 标签页开着时发浏览器系统通知（需要你在浏览器里允许）。 */
   readonly browserNotifications: boolean
   /** 首次引导是否已完成。 */
@@ -99,6 +103,7 @@ export const DEFAULT_SETTINGS: PodSettings = {
   autonomy: 'hands-off',
   defaultModel: null,
   liteModel: null,
+  dreamModel: null,
   taskConcurrency: 4,
   chatConcurrency: 2,
   browserTabs: 10,
@@ -108,6 +113,7 @@ export const DEFAULT_SETTINGS: PodSettings = {
   offPeak: true,
   softContextTokens: 128_000,
   memoryExtraction: true,
+  memoryDream: true,
   browserNotifications: false,
   onboarded: false,
   siteRules: DEFAULT_SITE_RULES,
@@ -219,7 +225,7 @@ function allowedHostsChange(raw: unknown): Change {
   return { ok: true, value: { allowedHosts: [...new Set(hosts)] } }
 }
 
-const BOOLEAN_KEYS = ['preventSleep', 'offPeak', 'memoryExtraction', 'browserNotifications', 'onboarded', 'aibotEnabled', 'checkUpdates', 'paused', 'computerUse'] as const
+const BOOLEAN_KEYS = ['preventSleep', 'offPeak', 'memoryExtraction', 'memoryDream', 'browserNotifications', 'onboarded', 'aibotEnabled', 'checkUpdates', 'paused', 'computerUse'] as const
 
 function oneChange(key: string, raw: unknown, current: PodSettings): Change {
   switch (key) {
@@ -230,7 +236,8 @@ function oneChange(key: string, raw: unknown, current: PodSettings): Change {
         ? { ok: true, value: { autonomy: raw } }
         : { ok: false, message: t('授权档位只能是放手或谨慎') }
     case 'defaultModel':
-    case 'liteModel': {
+    case 'liteModel':
+    case 'dreamModel': {
       const parsed = parseModelChoice(raw)
       if (!parsed.ok) return { ok: false, message: parsed.message }
       return { ok: true, value: { [key]: parsed.value ?? null } }

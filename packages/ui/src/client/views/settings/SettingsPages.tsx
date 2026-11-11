@@ -118,6 +118,9 @@ export function ModelsPage(props: { readonly settings: PodSettings; readonly upd
       <Row label={t('轻量调用')} hint={t('摘要、提取记忆、交接笔记、写操作复核用，选便宜的就行')}>
         <ModelSelect value={settings.liteModel} catalog={catalog} follow={t('跟随默认模型')} label={t('轻量调用的模型')} onChange={(liteModel) => update({ liteModel })} />
       </Row>
+      <Row label={t('整理记忆')} hint={t('夜里核对记忆、并成笔记用；要认真想，可以单独选一个更强的')}>
+        <ModelSelect value={settings.dreamModel} catalog={catalog} follow={t('跟随默认模型')} label={t('整理记忆的模型')} onChange={(dreamModel) => update({ dreamModel })} />
+      </Row>
       <Row label={t('闲时运行')} hint={t('用 DeepSeek 模型时，不急的自动化、夜间整理和复盘放到闲时跑，更便宜')}>
         <Switch checked={settings.offPeak} label={t('闲时运行')} onChange={(offPeak) => update({ offPeak })} />
       </Row>

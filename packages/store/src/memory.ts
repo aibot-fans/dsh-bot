@@ -50,6 +50,7 @@ interface MemoryRow {
   readonly updated_at: number
   readonly last_used_at: number | null
   readonly use_count: number
+  readonly note_id: string | null
 }
 
 function toEntry(row: MemoryRow): MemoryEntry {
@@ -72,6 +73,7 @@ function toEntry(row: MemoryRow): MemoryEntry {
     updatedAt: row.updated_at,
     lastUsedAt: row.last_used_at,
     useCount: row.use_count,
+    noteId: row.note_id,
   }
 }
 
@@ -113,7 +115,7 @@ export function getMemories(db: DatabaseSync, ids: readonly string[]): readonly 
   return rows.map(toEntry)
 }
 
-export type NewMemory = Omit<MemoryEntry, 'createdAt' | 'updatedAt' | 'lastUsedAt' | 'useCount'> & { readonly now: number }
+export type NewMemory = Omit<MemoryEntry, 'createdAt' | 'updatedAt' | 'lastUsedAt' | 'useCount' | 'noteId'> & { readonly now: number }
 
 export function insertMemory(db: DatabaseSync, entry: NewMemory): MemoryEntry {
   db.prepare(
@@ -152,6 +154,11 @@ export interface MemoryPatch {
   readonly validUntil?: number | null
   readonly userEdited?: boolean
   readonly confidence?: number
+  /** 夜里整理时挪到别的范围。 */
+  readonly scopeKind?: MemoryScopeKind
+  readonly scopeId?: string
+  /** 并进了哪页笔记。 */
+  readonly noteId?: string | null
 }
 
 export function updateMemory(db: DatabaseSync, id: string, patch: MemoryPatch, now: number): MemoryEntry | undefined {
@@ -159,8 +166,9 @@ export function updateMemory(db: DatabaseSync, id: string, patch: MemoryPatch, n
   if (current === undefined) return undefined
   const next = { ...current, ...patch }
   db.prepare(
-    'UPDATE memories SET content = ?, type = ?, status = ?, pinned = ?, private = ?, valid_until = ?, user_edited = ?, confidence = ?, updated_at = ? WHERE id = ?',
-  ).run(next.content, next.type, next.status, next.pinned ? 1 : 0, next.private ? 1 : 0, next.validUntil, next.userEdited ? 1 : 0, next.confidence, now, id)
+    `UPDATE memories SET content = ?, type = ?, status = ?, pinned = ?, private = ?, valid_until = ?, user_edited = ?, confidence = ?,
+       scope_kind = ?, scope_id = ?, note_id = ?, updated_at = ? WHERE id = ?`,
+  ).run(next.content, next.type, next.status, next.pinned ? 1 : 0, next.private ? 1 : 0, next.validUntil, next.userEdited ? 1 : 0, next.confidence, next.scopeKind, next.scopeId, next.noteId, now, id)
   return getMemory(db, id)
 }
 

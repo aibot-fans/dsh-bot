@@ -4,7 +4,7 @@ import { useApp } from '../../state/app.ts'
 import { MemoryChanges } from '../memory/MemoryView.tsx'
 import { Row, type Update } from './Row.tsx'
 
-/** 工作方式：bot 怎么干活。暂停、放手程度、同时做几件事，再是记忆：自动记住要点、你的档案和记忆变更日志。 */
+/** 工作方式：bot 怎么干活。暂停、放手程度、同时做几件事，再是记忆：自动记住要点、每晚整理、你的档案和记忆变更日志。 */
 export function WorkPage(props: { readonly settings: PodSettings; readonly update: Update }) {
   const app = useApp()
   const { settings, update } = props
@@ -32,6 +32,12 @@ export function WorkPage(props: { readonly settings: PodSettings; readonly updat
       </Row>
       <Row label={t('自动记住要点')} hint={t('从对话里提取值得记的事，存进对应 bot 的记忆；无痕对话不提取')}>
         <Switch checked={settings.memoryExtraction} label={t('自动记住要点')} onChange={(memoryExtraction) => update({ memoryExtraction })} />
+      </Row>
+      <Row label={t('每晚整理记忆')} hint={t('夜里空下来的时候核对记忆：重复的并成笔记，过时的换掉，重写每次都带的要点。头 3 次的结果先给你看')}>
+        <Switch checked={settings.memoryDream} label={t('每晚整理记忆')} onChange={(memoryDream) => update({ memoryDream })} />
+        <Button small onClick={() => app.openDrawer({ kind: 'dreams' })}>
+          {t('整理记录')}
+        </Button>
       </Row>
       <Row label={t('你的档案')} hint={t('Super-agent 记下的关于你的事：偏好、习惯、约定')}>
         <Button small onClick={() => app.openDrawer({ kind: 'memory', scope: 'owner', scopeId: '', label: t('你的档案') })}>

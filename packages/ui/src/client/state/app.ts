@@ -37,6 +37,8 @@ export interface PageNav {
 /** 盖在面板上的抽屉：记忆、技能、成长记录、历史版本、新建 bot、新建群聊。 */
 export type DrawerState =
   | { readonly kind: 'memory'; readonly scope: MemoryScopeKind; readonly scopeId: string; readonly label: string }
+  /** 整理记录：一晚一行；dreamId 是直接打开的那一次。 */
+  | { readonly kind: 'dreams'; readonly dreamId?: string }
   | { readonly kind: 'skills'; readonly botId: string }
   | { readonly kind: 'growth'; readonly botId: string }
   | { readonly kind: 'versions'; readonly botId: string }

@@ -5,6 +5,7 @@ import { Drawer } from '../../components/common.tsx'
 import { useApp, useNav } from '../../state/app.ts'
 import { useResource } from '../../state/resource.ts'
 import { EvolutionPanel, ScorecardStrip, SkillsPanel } from '../bots/GrowthPanels.tsx'
+import { DreamsPanel } from '../memory/Dreams.tsx'
 import { MemoryPanel } from '../memory/MemoryView.tsx'
 import { NewBotFlow, NewGroup } from './NewItems.tsx'
 import { Versions } from './Versions.tsx'
@@ -41,6 +42,11 @@ export function Drawers() {
       {drawer?.kind === 'memory' ? (
         <Drawer title={drawer.label} onClose={close} wide>
           <MemoryPanel scope={{ kind: drawer.scope, id: drawer.scopeId, label: drawer.label }} />
+        </Drawer>
+      ) : null}
+      {drawer?.kind === 'dreams' ? (
+        <Drawer title={t('记忆的整理记录')} onClose={close} wide>
+          <DreamsPanel key={drawer.dreamId ?? ''} {...(drawer.dreamId === undefined ? {} : { dreamId: drawer.dreamId })} />
         </Drawer>
       ) : null}
       {drawer?.kind === 'skills' ? (
