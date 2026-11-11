@@ -119,6 +119,8 @@ export function Timeline(props: TimelineProps) {
   const scroller = useRef<HTMLDivElement>(null)
   const inner = useRef<HTMLDivElement>(null)
   const nearBottom = useRef(true)
+  // 正在跳到一条旧消息：这几秒里卡片、图片读出来变高，也不再贴回底部。
+  const focusing = useRef(false)
   const loadingNewer = useRef(false)
   const live = useLive(room.id)
   const app = useApp()
@@ -155,17 +157,36 @@ export function Timeline(props: TimelineProps) {
 
   useEffect(() => {
     if (focus === null) return
-    // 从搜索结果跳过来：加载目标消息前后的内容，滚到它并高亮。
+    // 从搜索结果、置顶条、“需要你”跳过来：加载目标消息前后的内容，滚到它并高亮。
+    // 本来就在这段对话的底部时，前面插进一批旧消息会触发滚动、把“贴着底部”又算回去，跳的这几秒里不再贴底。
     nearBottom.current = false
+    focusing.current = true
     api
       .messagesAround(room.id, focus.seq)
       .then((page) => {
         setMessages((current) => merge(current, page.messages))
         setLoaded(true)
-        requestAnimationFrame(() => document.getElementById(`pod-msg-${focus.messageId}`)?.scrollIntoView({ block: 'center' }))
-        setTimeout(() => app.navigate({ focus: null }), 4000)
+        requestAnimationFrame(() => {
+          nearBottom.current = false
+          const element = document.getElementById(`pod-msg-${focus.messageId}`)
+          const view = scroller.current
+          if (element === null || view === null) return
+          // 带着等你卡片的滚到卡片（从“需要你”点过来就是为了处理它），卡片比屏幕还长就让下面的按钮露出来；
+          // 别的消息放在中间，比屏幕还长就从头看。
+          const card = element.querySelector('.pod-acard')
+          const target = card ?? element
+          const tall = target.getBoundingClientRect().height > view.clientHeight * 0.9
+          target.scrollIntoView({ block: tall ? (card === null ? 'start' : 'end') : 'center' })
+        })
+        setTimeout(() => {
+          focusing.current = false
+          app.navigate({ focus: null })
+        }, 4000)
       })
-      .catch((reason: unknown) => setError(errorText(reason)))
+      .catch((reason: unknown) => {
+        focusing.current = false
+        setError(errorText(reason))
+      })
   }, [room.id, focus?.messageId])
 
   useEffect(() => {
@@ -210,7 +231,7 @@ export function Timeline(props: TimelineProps) {
   const last = messages.at(-1)
   useLayoutEffect(() => {
     const element = scroller.current
-    if (element !== null && nearBottom.current) element.scrollTop = element.scrollHeight
+    if (element !== null && nearBottom.current && !focusing.current) element.scrollTop = element.scrollHeight
   }, [messages.length, last?.id, last?.version, live.streams.length, live.statuses.length, working.length])
 
   // 任务卡片、图片这些读出来才变高：本来贴着底部的，变高以后还贴着底部。
@@ -219,7 +240,7 @@ export function Timeline(props: TimelineProps) {
     const content = inner.current
     if (element === null || content === null) return
     const observer = new ResizeObserver(() => {
-      if (nearBottom.current) element.scrollTop = element.scrollHeight
+      if (nearBottom.current && !focusing.current) element.scrollTop = element.scrollHeight
     })
     observer.observe(content)
     return () => observer.disconnect()
