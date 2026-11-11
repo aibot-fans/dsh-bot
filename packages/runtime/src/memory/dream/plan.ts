@@ -27,7 +27,7 @@ import { consolidatePrompt, parsePlan, type RawLine, type RawNote } from './cons
 import type { Finding } from './types.ts'
 
 /** 一轮给模型看多少条没整理的条目；多的下一轮接着整理。 */
-export const ROUND_ENTRIES = 60
+export const ROUND_ENTRIES = 40
 /** 一轮最多带多少条发现。 */
 const ROUND_FINDINGS = 40
 /** 一轮最多往要点里加几句；要点一共最多几句、每句多少字。 */
@@ -138,6 +138,8 @@ export class ScopePlanner {
   private coreTouched = false
   private rounds = 0
   private batch: readonly string[] = []
+  private readonly shown = new Set<string>()
+  private shownBatch: readonly string[] = []
 
   constructor(input: PlannerInput) {
     this.input = input
@@ -197,9 +199,20 @@ export class ScopePlanner {
     return this.entries.filter((entry) => this.offered.has(entry.id)).reduce((latest, entry) => Math.max(latest, entry.updatedAt), this.input.since)
   }
 
-  /** 还有没有要整理的：没看过的条目，或者第一轮还没用上的发现。 */
+  private waiting(): readonly Finding[] {
+    return [...this.findings.values()].filter((finding) => !this.shown.has(finding.id))
+  }
+
+  /** 还有没有要整理的：没看过的条目，或者还没给模型看过的发现。 */
   hasWork(): boolean {
-    return this.remaining().length > 0 || (this.rounds === 0 && this.findings.size > 0)
+    return this.remaining().length > 0 || this.waiting().length > 0
+  }
+
+  /** 这一轮没成（模型的回答读不出来，或者模型服务出错）：给它看的条目和发现不算看过，下次整理再拿出来。 */
+  giveBack(why: string): void {
+    for (const id of this.batch) this.offered.delete(id)
+    for (const id of this.shownBatch) this.shown.delete(id)
+    this.refuse(this.input.scope.label, why)
   }
 
   /** 这一轮给模型的输入；没有要整理的返回 undefined。 */
@@ -208,7 +221,9 @@ export class ScopePlanner {
     const batch = this.remaining().slice(0, ROUND_ENTRIES)
     for (const entry of batch) this.offered.add(entry.id)
     this.batch = batch.map((entry) => entry.id)
-    const findings = this.rounds === 0 ? [...this.findings.values()].slice(0, ROUND_FINDINGS) : []
+    const findings = this.waiting().slice(0, ROUND_FINDINGS)
+    for (const finding of findings) this.shown.add(finding.id)
+    this.shownBatch = findings.map((finding) => finding.id)
     this.rounds += 1
     return consolidatePrompt({
       label: this.input.scope.label,
@@ -272,7 +287,7 @@ export class ScopePlanner {
   /** 核对一句话：出处要认得、和出处对得上；返回过了的那一句，或者 undefined（原因记进没过的清单）。 */
   private line(raw: RawLine, max: number, allowNotes: boolean): Line | undefined {
     if (textUnits(raw.text) > max) return void this.refuse(raw.text, t('一句话太长'))
-    if (isCredentialMemory(raw.text)) return void this.refuse(raw.text, t('账号、密码这类的不进笔记和要点'))
+    if (isCredentialMemory(raw.text)) return void this.refuse(t('一条账号、密码类的内容（不显示）'), t('账号、密码这类的不进笔记和要点'))
     const entries: MemoryEntry[] = []
     const findings: Finding[] = []
     const pages: NoteState[] = []
@@ -327,9 +342,7 @@ export class ScopePlanner {
   absorb(value: unknown): boolean {
     const plan = parsePlan(value)
     if (plan === undefined) {
-      // 这一轮没读成：给模型看的那几条不算看过，下次整理再拿出来。
-      for (const id of this.batch) this.offered.delete(id)
-      this.refuse(this.input.scope.label, t('模型交回的不是能读的结果，这一轮没有用，这些条目下次再整理'))
+      this.giveBack(t('模型交回的不是能读的结果，这一轮没有用，这些条目下次再整理'))
       return false
     }
     for (const item of plan.replaced) {

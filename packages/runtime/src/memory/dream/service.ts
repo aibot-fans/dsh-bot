@@ -63,10 +63,15 @@ import { EMPTY_WORK, NOTHING_SPENT, WORK_VERSION, addSpent, settledMarks, type D
 /** 一晚最多读多少段对话、多少件事；多的下一晚接着读。 */
 const MAX_CHATS = 30
 const MAX_TASKS = 12
-/** 一个范围一晚最多整合几轮（一轮 60 条）。 */
-const MAX_ROUNDS = 4
-/** 一次模型调用最多等多久。 */
-const CALL_TIMEOUT_MS = 240_000
+/** 一个范围一晚最多整合几轮（一轮 40 条条目、40 条发现）。 */
+const MAX_ROUNDS = 6
+/** 一次模型调用最多等多久：要认真想的那一步（整合）多等一会儿。 */
+const CALL_TIMEOUT_MS = 180_000
+const THOROUGH_TIMEOUT_MS = 480_000
+/** 回放时模型服务连着出错几次就先停下，空了接着做。 */
+const TROUBLE_LIMIT = 3
+/** 上一次没做成、读过的记录还留着：这么久以内再整理就接着用，不重读。 */
+const REUSE_MS = 24 * 3_600_000
 /** 回放时给模型看多少条已有的记忆。 */
 const KNOWN_MAX = 80
 /** 夜里几点以后才自动整理（本地时间）。 */
@@ -189,8 +194,12 @@ export class DreamService {
       return ok(open)
     }
     if (this.waiting() !== undefined) return fail('conflict', t('上一次整理的结果还没看，先看那一次'))
+    // 上一次没做成（比如中途出错），读过的记录和找到的发现还留着：一天之内再整理就接着用，不用重读一遍。
+    const last = listDreams(this.db, 1)[0]
+    const prior = last !== undefined && last.status === 'failed' && only.length === 0 && this.deps.now() - last.startedAt < REUSE_MS ? readDreamWork<DreamWork>(this.db, last.id, EMPTY_WORK) : undefined
+    const reuse = prior !== undefined && prior.version === WORK_VERSION && prior.only.length === 0 && prior.done.length > 0
     const dream = insertDream(this.db, { id: newId('dream'), trigger, status: 'running', model: '', startedAt: this.deps.now() })
-    writeDreamWork(this.db, dream.id, { ...EMPTY_WORK, only })
+    writeDreamWork(this.db, dream.id, reuse ? prior : { ...EMPTY_WORK, only })
     this.kick(dream.id)
     return ok(dream)
   }
@@ -252,18 +261,26 @@ export class DreamService {
    * 问模型一次，取回答里的 JSON。不另设输出上限（会先思考的模型，思考也算在输出里，设小了正文会被截断）。
    * thorough 是要认真想的那一步（整合）：先用模型默认的思考档位；回答读不出来，就换最低的档位再问一遍。
    * 回放和分拣交回的是一个数组：被截断时把已经写完整的那几个对象捞出来用；整合交回的是一整版，截断了不用，免得只落一半。
-   * 两遍都读不出来返回 undefined。
+   * 两遍都读不出来返回 undefined；error 不是空串说明最后一遍是模型服务出的错（超时、限流、断网），不是回答读不出来。
+   * 一次调用出错不让整次整理失败：由调用的一方决定这一份、这个范围先放一放。
    */
-  private async ask(purpose: string, system: string, prompt: string, model: ModelSelection, thorough: boolean): Promise<{ readonly value: unknown; readonly spent: Spent }> {
+  private async ask(purpose: string, system: string, prompt: string, model: ModelSelection, thorough: boolean): Promise<{ readonly value: unknown; readonly spent: Spent; readonly error: string }> {
     let spent = NOTHING_SPENT
+    let error = ''
     for (const careful of [thorough, false]) {
-      const result = await this.deps.lite.complete({ purpose, system, prompt, model, maxTokens: 'model', thorough: careful, signal: AbortSignal.timeout(CALL_TIMEOUT_MS) })
-      const cost = costOf(result.provider, result.model, result.usage, isDeepSeekPeak(this.deps.now())) ?? 0
-      spent = addSpent(spent, { inputTokens: result.usage.inputTokens + result.usage.cacheReadTokens, outputTokens: result.usage.outputTokens, cost })
-      const value = extractJson(result.text) ?? (thorough ? undefined : salvageObjects(result.text))
-      if (value !== undefined) return { value, spent }
+      try {
+        const result = await this.deps.lite.complete({ purpose, system, prompt, model, maxTokens: 'model', thorough: careful, signal: AbortSignal.timeout(careful ? THOROUGH_TIMEOUT_MS : CALL_TIMEOUT_MS) })
+        const cost = costOf(result.provider, result.model, result.usage, isDeepSeekPeak(this.deps.now())) ?? 0
+        spent = addSpent(spent, { inputTokens: result.usage.inputTokens + result.usage.cacheReadTokens, outputTokens: result.usage.outputTokens, cost })
+        const value = extractJson(result.text) ?? (thorough ? undefined : salvageObjects(result.text))
+        if (value !== undefined) return { value, spent, error: '' }
+        error = ''
+      } catch (reason) {
+        error = reason instanceof Error ? reason.message : String(reason)
+        this.deps.warn(`整理记忆时一次模型调用没成（${purpose}）：${error}`)
+      }
     }
-    return { value: undefined, spent }
+    return { value: undefined, spent, error }
   }
 
   /** 回放时给模型看的已有记忆：关于你的，加上这份记录所在的群、这个 bot 名下的。 */
@@ -321,6 +338,8 @@ export class DreamService {
     if (work.done.length === 0 && work.marks.length === 0) work = { ...work, marks: picked.skipped }
 
     // 第二步：逐份回放，只交发现。自动的那一次碰上有任务在跑就先停，空了接着做。
+    let troubles = 0
+    const errored: DreamRecord[] = []
     for (const record of picked.records) {
       if (work.done.includes(record.id)) continue
       if (dream.trigger === 'nightly' && this.deps.busy()) {
@@ -330,6 +349,19 @@ export class DreamService {
       }
       const { known, notes } = this.known(record)
       const answer = await this.ask('memory-dream-replay', REPLAY_SYSTEM, replayPrompt(record, known, notes), model, false)
+      if (answer.error !== '') {
+        // 模型服务出错：这份先不算。连着几份都这样多半是服务有问题，先停下，空了接着做。
+        troubles += 1
+        errored.push(record)
+        work = { ...work, spent: addSpent(work.spent, answer.spent) }
+        if (troubles >= TROUBLE_LIMIT) {
+          writeDreamWork(this.db, id, work)
+          updateDream(this.db, id, { status: 'paused', error: truncate(answer.error, 200) })
+          return
+        }
+        continue
+      }
+      troubles = 0
       const raw = parseFindings(answer.value)
       if (raw === undefined) {
         // 没读成：不算读过，水位不往前推，下次整理再读；连着几次都读不成才放过它。
@@ -360,6 +392,18 @@ export class DreamService {
       writeDreamWork(this.db, id, work)
     }
 
+    // 模型服务出错没读成的那几份：这一次不算读过，水位不推过它们，下次整理再读（不算它们读不成）。
+    if (errored.length > 0) {
+      work = {
+        ...work,
+        rejected: [...work.rejected, ...errored.map((record) => ({ what: record.title, why: t('读这份记录时模型服务出错，下次整理再读') }))],
+        failed: [...work.failed, ...errored.flatMap((record) => record.marks)],
+        done: [...work.done, ...errored.map((record) => record.id)],
+        missed: work.missed + errored.length,
+      }
+      writeDreamWork(this.db, id, work)
+    }
+
     // 第三、四步：每个范围整合一次，逐条核对，定下改动。
     const ops: NewDreamOp[] = []
     const questions: DreamQuestion[] = []
@@ -384,8 +428,9 @@ export class DreamService {
         ops.push(...sortedOps.map((body, index) => ({ ...body, dreamId: id, seq: ops.length + index + 1 })))
         for (const op of sortedOps) leaving.add(op.ref)
         if (sortedOps.length > 0) scopes.push({ kind: 'bot', id: lead, label: this.label('bot', lead), size: this.usable('bot', lead).length, touched: sortedOps.length })
-        // 分拣的回答读不出来：这几条不算分过，下次再分。
+        // 分拣的回答读不出来、模型服务出错：这几条不算分过，下次再分。
         if (Array.isArray(answer.value)) marks.push({ key: SORTED_KEY, value: mine.at(-1)?.updatedAt ?? sorted })
+        else rejected.push({ what: this.label('bot', lead), why: answer.error === '' ? t('分拣时模型交回的不是能读的结果，下次再分') : t('分拣时模型服务出错，下次再分') })
       }
     }
     for (const scope of this.scopes(work)) {
@@ -407,7 +452,11 @@ export class DreamService {
         if (prompt === undefined) break
         const answer = await this.ask('memory-dream-consolidate', CONSOLIDATE_SYSTEM, prompt, model, true)
         spent = addSpent(spent, answer.spent)
-        // 这个范围的回答读不出来：不再往下问，没看成的条目下次整理再拿出来。
+        // 这个范围这一轮没成（模型服务出错，或者回答读不出来）：不再往下问，没看成的条目下次整理再拿出来，别的范围照常整理。
+        if (answer.error !== '') {
+          planner.giveBack(t('整合时模型服务出错（{error}），这些条目下次再整理', { error: truncate(answer.error, 60) }))
+          break
+        }
         if (!planner.absorb(answer.value)) break
       }
       const result = planner.result(id, ops.length + 1)
@@ -449,7 +498,8 @@ export class DreamService {
         scopes,
         stats,
         questions,
-        rejected: rejected.slice(0, REJECTED_KEEP),
+        // 清单里不留账号密码类的内容（旧进度里可能带着）。
+        rejected: rejected.slice(0, REJECTED_KEEP).map((item) => (isCredentialMemory(item.what) ? { ...item, what: t('一条账号、密码类的内容（不显示）') } : item)),
         held,
         finishedAt: this.deps.now(),
       })

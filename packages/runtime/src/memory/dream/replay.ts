@@ -130,7 +130,8 @@ export function settleFindings(
       rejected.push({ what, why })
     }
     if (isCredentialMemory(item.content) || isCredentialMemory(item.quote)) {
-      refuse(t('账号、密码这类的整理时不动'))
+      // 清单里不留它的内容：密码不该多存一份在整理记录里。
+      rejected.push({ what: t('一条账号、密码类的内容（不显示）'), why: t('账号、密码这类的整理时不动') })
       continue
     }
     if (textUnits(item.content) > MEMORY_CONTENT_MAX) {

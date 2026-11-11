@@ -769,6 +769,8 @@ function simulatedFailure(options) {
   const messages = Array.isArray(options.messages) ? options.messages : []
   const raw = textOf(lastOf(messages, 'user')?.content)
   const own = frontOwnText(raw) ?? ownText(raw)
+  // 记忆整理的调用里带着“模拟整理出错”：演模型服务超时，看这个范围是不是只是先放一放。
+  if (systemOf(options, messages).includes('“记忆整理”') && textOf(messages.find((message) => message.role === 'user')?.content).includes('模拟整理出错')) return providerError('Request timed out', 'TIMEOUT', 408)
   if (own.includes('模拟模型出错')) return providerError('Incorrect API key provided: sk-test-********abcd', 'AUTH', 401)
   if (own.includes('模拟限流')) return providerError('Rate limit reached for requests', 'RATE_LIMIT', 429)
   // 任务说明里写“一直限流”“一直认证失败”：这个任务的每一轮都报这个错，看得到 dsh-bot 隔一会儿重试或者直接暂停。
