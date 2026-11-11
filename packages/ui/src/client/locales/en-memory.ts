@@ -1,10 +1,10 @@
 /** 记忆页、主题笔记和整理记录的英文译文，键是代码里的中文原文。 */
 export const UI_EN_MEMORY: Readonly<Record<string, string>> = {
   '要点': 'Key points',
-  '最要紧的几句，每段会话开头都带着；夜里整理时重写。{value}': 'The few lines that matter most. Every session starts with them, and the nightly tidy-up rewrites them. {value}',
+  '最要紧的几句，每段会话开头都带着；夜里整理时更新。{value}': 'The few lines that matter most. Every session starts with them, and the nightly tidy-up keeps them up to date. {value}',
   '你改过，整理时不会再改写它。': "You edited this, so the tidy-up won't rewrite it.",
-  '记忆管“知道什么”。白天 bot 随手记成一条条的；夜里整理时并成主题笔记、重写要点。每段会话开头带要点和笔记目录，别的用到时再查。':
-    'Memory is about what bots know. During the day bots jot things down as single entries; the nightly tidy-up merges them into topic notes and rewrites the key points. Every session starts with the key points and the list of notes; the rest is looked up when needed.',
+  '记忆管“知道什么”。白天 bot 随手记成一条条的；夜里整理时并成主题笔记、更新要点。每段会话开头带要点和笔记目录，别的用到时再查。':
+    'Memory is about what bots know. During the day bots jot things down as single entries; the nightly tidy-up merges them into topic notes and updates the key points. Every session starts with the key points and the list of notes; the rest is looked up when needed.',
   '还没整理进笔记的（{count} 条）': 'Not yet in a note ({count})',
   '没有零散的条目': 'No loose entries',
   '你改过': 'Edited by you',
@@ -42,8 +42,8 @@ export const UI_EN_MEMORY: Readonly<Record<string, string>> = {
   '整晚撤销': 'Undo the whole night',
   '用了 {input} 输入、{output} 输出': 'Used {input} input and {output} output tokens',
   '，约 {cost}': ', about {cost}',
-  '每晚空下来的时候，dsh-bot 拿当天的对话核对记忆：说同一件事的条目并成一页笔记，过时的说法换掉，再重写每段会话开头带的要点。每句话都留着出处，每一处改动都留着改之前的样子，能整晚撤销。':
-    "Every night, when things are quiet, dsh-bot checks memory against the day's conversations: entries about the same thing are merged into a note, outdated statements are replaced, and the key points at the start of every session are rewritten. Every line keeps its source, and every change keeps what was there before, so a whole night can be undone.",
+  '每晚空下来的时候，dsh-bot 拿当天的对话核对记忆：说同一件事的条目并成一页笔记，过时的说法换掉，再更新每段会话开头带的要点。每句话都留着出处，每一处改动都留着改之前的样子，能整晚撤销。':
+    "Every night, when things are quiet, dsh-bot checks memory against the day's conversations: entries about the same thing are merged into a note, outdated statements are replaced, and the key points at the start of every session are updated. Every line keeps its source, and every change keeps what was there before, so a whole night can be undone.",
   '还没有整理过': 'No tidy-ups yet',
   '点上面的“现在整理”，或者等今晚自动做。头 3 次的结果先给你看，点了才生效。': 'Click “Tidy up now” above, or wait for tonight. The first 3 results are shown to you first and only apply when you click.',
   '你叫的': 'Started by you',
@@ -55,7 +55,7 @@ export const UI_EN_MEMORY: Readonly<Record<string, string>> = {
   '已撤销': 'Undone',
   '没做：{why}': 'Skipped: {why}',
   '每晚整理记忆': 'Tidy memory every night',
-  '夜里空下来的时候核对记忆：重复的并成笔记，过时的换掉，重写每次都带的要点。头 3 次的结果先给你看': 'When things are quiet at night, check memory: merge duplicates into notes, replace what is outdated, and rewrite the key points. The first 3 results are shown to you first',
+  '夜里空下来的时候核对记忆：重复的并成笔记，过时的换掉，更新每次都带的要点。头 3 次的结果先给你看': 'When things are quiet at night, check memory: merge duplicates into notes, replace what is outdated, and update the key points. The first 3 results are shown to you first',
   '整理记忆': 'Memory tidy-up',
   '夜里核对记忆、并成笔记用；要认真想，可以单独选一个更强的': 'Used at night to check memory and merge it into notes. It needs careful thinking, so you can pick a stronger model here',
   '整理记忆的模型': 'Model for the memory tidy-up',

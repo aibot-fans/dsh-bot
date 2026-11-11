@@ -56,7 +56,8 @@ export const RUNTIME_EN_MEMORY: Readonly<Record<string, string>> = {
   '一次性的细节': 'A one-off detail',
   '从记录里看出来的，不是你亲口说的，等你确认': "Inferred from the record, not said by you; waiting for you to confirm",
   '记录里有，白天没记': "It's in the record but wasn't saved during the day",
-  '重写要点': 'Key points rewritten',
+  '更新要点': 'Key points updated',
+  '要点满了，这句没加进去；可以在页面上自己调': "The key points are full, so this line wasn't added; adjust them on the page yourself",
   '任务每轮的结果在汇报里，不用再留一份': 'Each run’s result is already in its report; no second copy needed',
   '任务里记的，归到{place}': 'Saved during a task; moved to {place}',
   '旧团队的约定，并进{place}': 'An agreement from an old team; merged into {place}',
@@ -103,5 +104,6 @@ export const RUNTIME_EN_MEMORY: Readonly<Record<string, string>> = {
   '；组长 {leader}': '; lead: {leader}',
   '；被组长打回 {back} 次': '; sent back by the lead {back} {back:time|times}',
   '群（近 30 天）：': 'Groups (last 30 days):',
+  '交活时留意的：': 'Keep in mind when handing out work:',
   'bot（近 30 天）：': 'Bots (last 30 days):',
 }
