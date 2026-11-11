@@ -5,6 +5,7 @@ import {
   isInstructionLike,
   isRecord,
   quoteIn,
+  t,
   textUnits,
   truncate,
   type DreamRejection,
@@ -71,8 +72,9 @@ export function parseFindings(value: unknown): readonly RawFinding[] | undefined
         type: (MEMORY_TYPES as readonly string[]).includes(String(item.type)) ? (item.type as MemoryType) : 'fact',
         content,
         quote: typeof item.quote === 'string' ? item.quote.trim() : '',
-        at: typeof item.at === 'string' ? item.at.trim() : '',
-        target: typeof item.target === 'string' ? item.target.trim() : '',
+        // 编号可能带着方括号、圆括号写回来。
+        at: typeof item.at === 'string' ? item.at.replace(/[^a-zA-Z0-9]/g, '') : '',
+        target: typeof item.target === 'string' ? item.target.replace(/[^a-zA-Z0-9]/g, '') : '',
       } satisfies RawFinding,
     ]
   })
@@ -93,20 +95,20 @@ function placeOf(deps: SettleDeps, record: DreamRecord, line: RecordLine, about:
   const byOwner = line.by === 'owner'
   if (about === 'owner') {
     if (byOwner) return { scopeKind: 'owner', scopeId: '', pending: false }
-    if (record.tainted) return '读过网页的会话里，不是你说的话不记成关于你的事'
-    if (line.by !== 'bot') return '关于你的事只认你的原话'
+    if (record.tainted) return t('读过网页的会话里，不是你说的话不记成关于你的事')
+    if (line.by !== 'bot') return t('关于你的事只认你的原话')
     return { scopeKind: 'owner', scopeId: '', pending: true }
   }
   if (about === 'group') {
     if (record.roomId !== null) {
       if (byOwner || (line.by === 'bot' && (!record.tainted || line.botId === deps.leadOf(record.roomId)))) return { scopeKind: 'room', scopeId: record.roomId, pending: false }
-      return '群里的约定要有你的话，或者群里 bot 的话当出处'
+      return t('群里的约定要有你的话，或者群里 bot 的话当出处')
     }
-    return record.botId === null ? '这件事不在哪个群里，也不知道归哪个 bot' : { scopeKind: 'bot', scopeId: record.botId, pending: false }
+    return record.botId === null ? t('这件事不在哪个群里，也不知道归哪个 bot') : { scopeKind: 'bot', scopeId: record.botId, pending: false }
   }
   const botId = line.botId ?? record.botId
   if (botId !== null) return { scopeKind: 'bot', scopeId: botId, pending: false }
-  return record.roomId === null ? '不知道是哪个 bot 的经验' : { scopeKind: 'room', scopeId: record.roomId, pending: false }
+  return record.roomId === null ? t('不知道是哪个 bot 的经验') : { scopeKind: 'room', scopeId: record.roomId, pending: false }
 }
 
 /**
@@ -128,21 +130,21 @@ export function settleFindings(
       rejected.push({ what, why })
     }
     if (isCredentialMemory(item.content) || isCredentialMemory(item.quote)) {
-      refuse('账号、密码这类的整理时不动')
+      refuse(t('账号、密码这类的整理时不动'))
       continue
     }
     if (textUnits(item.content) > MEMORY_CONTENT_MAX) {
-      refuse('一句话太长')
+      refuse(t('一句话太长'))
       continue
     }
     const line = record.lines.find((candidate) => candidate.at === item.at && quoteIn(item.quote, candidate.text)) ?? record.lines.find((candidate) => quoteIn(item.quote, candidate.text))
     if (line === undefined) {
-      refuse('出处里的原话在记录里找不到')
+      refuse(t('出处里的原话在记录里找不到'))
       continue
     }
     const lead = record.roomId !== null && line.by === 'bot' && line.botId === deps.leadOf(record.roomId)
     if (line.by !== 'owner' && !lead && (isInstructionLike(item.quote) || isInstructionLike(item.content))) {
-      refuse('不是你说的指令性的话，不当成规矩记')
+      refuse(t('不是你说的指令性的话，不当成规矩记'))
       continue
     }
     const place = placeOf(deps, record, line, item.about)

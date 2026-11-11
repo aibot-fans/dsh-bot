@@ -13,10 +13,10 @@ export const CONSOLIDATE_SYSTEM = [
   '4. 标着“原样”的条目是用户亲手写的：要用就一个字不改地用。',
   '5. 两种说法不能都对时：有明确先后的（日期新的、标着“纠正”的发现），留新的，把旧的写进 replaced；分不清谁对，两条都不要并，写进 questions 问用户，不要猜。',
   '6. 一次性的细节、早就过期的状态写进 dropped，不并进笔记。拿不准有没有用的不要动它：不写它就是不动。',
-  '7. points 是要点：这个范围里最要紧、每次都该知道的几句，最多 8 句，每句不超过 60 个字，同样写 from（条目、发现或笔记的编号）。没有特别要紧的就少写或不写。',
+  '7. points 是要加进要点的句子：这个范围里最要紧、每次都该知道的事，一次最多加 8 句，每句不超过 60 个字，同样写 from（条目、发现或笔记的编号）。现在的要点里已经有的不用再写；没有特别要紧的就不写。现在的要点里过时的那句写进 drop_points（text 照抄原句，why 写原因）。',
   '8. 笔记里原来的句子过时了、被新的说法替了，写进那页的 remove（text 照抄原句，why 写原因）。',
   '只输出一个 JSON 对象：',
-  '{"notes":[{"id":"n1 或 new","title":"","description":"","lines":[{"text":"","from":["e1","f2"]}],"remove":[{"text":"","why":""}]}],"replaced":[{"old":"e3","by":"e5","why":""}],"dropped":[{"id":"e7","why":""}],"points":[{"text":"","from":["e1"]}],"questions":[{"text":"","about":["e2","e9"]}]}',
+  '{"notes":[{"id":"n1 或 new","title":"","description":"","lines":[{"text":"","from":["e1","f2"]}],"remove":[{"text":"","why":""}]}],"replaced":[{"old":"e3","by":"e5","why":""}],"dropped":[{"id":"e7","why":""}],"points":[{"text":"","from":["e1"]}],"drop_points":[{"text":"","why":""}],"questions":[{"text":"","about":["e2","e9"]}]}',
   '没有要做的那一项给空数组。',
 ].join('\n')
 
@@ -110,6 +110,7 @@ export interface RawPlan {
   readonly replaced: readonly { readonly old: string; readonly by: string; readonly why: string }[]
   readonly dropped: readonly { readonly id: string; readonly why: string }[]
   readonly points: readonly RawLine[]
+  readonly dropPoints: readonly { readonly text: string; readonly why: string }[]
   readonly questions: readonly { readonly text: string; readonly about: readonly string[] }[]
 }
 
@@ -121,9 +122,10 @@ function list(value: unknown): readonly Readonly<Record<string, unknown>>[] {
   return Array.isArray(value) ? value.filter(isRecord) : []
 }
 
+/** 编号的清单：模型可能写成数组，也可能写成“e1, e2”“(e1)、(f2)”这样的一串，都拆成一个个编号。 */
 function names(value: unknown): readonly string[] {
-  if (typeof value === 'string') return [value.trim()]
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string').map((item) => item.trim()) : []
+  const parts = typeof value === 'string' ? [value] : Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+  return parts.flatMap((part) => part.match(/[a-zA-Z]+\d+/g) ?? [])
 }
 
 function rawLines(value: unknown): readonly RawLine[] {
@@ -137,7 +139,7 @@ export function parsePlan(value: unknown): RawPlan | undefined {
   if (!isRecord(value)) return undefined
   return {
     notes: list(value.notes).map((item) => ({
-      id: text(item.id),
+      id: text(item.id).replace(/[^a-zA-Z0-9]/g, ''),
       title: text(item.title),
       description: text(item.description),
       lines: rawLines(item.lines),
@@ -146,12 +148,15 @@ export function parsePlan(value: unknown): RawPlan | undefined {
         .filter((line) => line.text !== ''),
     })),
     replaced: list(value.replaced)
-      .map((item) => ({ old: text(item.old), by: text(item.by), why: text(item.why) }))
+      .map((item) => ({ old: names(item.old)[0] ?? '', by: names(item.by)[0] ?? '', why: text(item.why) }))
       .filter((item) => item.old !== ''),
     dropped: list(value.dropped)
-      .map((item) => ({ id: text(item.id), why: text(item.why) }))
+      .map((item) => ({ id: names(item.id)[0] ?? '', why: text(item.why) }))
       .filter((item) => item.id !== ''),
     points: rawLines(value.points),
+    dropPoints: list(value.drop_points)
+      .map((line) => ({ text: text(line.text).replace(/^[-*]\s+/, ''), why: text(line.why) }))
+      .filter((line) => line.text !== ''),
     questions: list(value.questions)
       .map((item) => ({ text: text(item.text), about: names(item.about) }))
       .filter((item) => item.text !== ''),

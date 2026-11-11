@@ -1,9 +1,10 @@
 /**
- * 记忆的夜间整理：事后拿原始记录核对白天记下的条目，并成主题笔记，重写每段会话开头带的要点。
+ * 记忆的夜间整理：事后拿原始记录核对白天记下的条目，并成主题笔记，更新每段会话开头带的要点。
  * 模型只交“发现”和“新的一版”，代码逐条查出处、定好每一处改动，先给你看或直接生效；每一晚的改动都留着，能整晚撤销。
  * 这里是页面和宿主共用的类型，和几条不依赖库的规则。
  */
 
+import { t } from './i18n.ts'
 import type { MemoryEntry, MemoryScopeKind, MemoryStatus, MemoryType } from './memory.ts'
 
 /** 一句话的出处：原话在哪、是谁说的。 */
@@ -134,7 +135,7 @@ export interface MemoryDream {
 
 /**
  * 一处改动的种类：写一页笔记（新开或加减几句，同时把条目并进去）、归档一页笔记、
- * 旧说法被新的替掉、条目归档、条目挪到别的范围、新记一条、待确认的转成生效、重写要点。
+ * 旧说法被新的替掉、条目归档、条目挪到别的范围、新记一条、待确认的转成生效、更新要点。
  */
 export type DreamOpKind = 'note-upsert' | 'note-archive' | 'entry-supersede' | 'entry-archive' | 'entry-move' | 'entry-add' | 'entry-confirm' | 'core-set'
 
@@ -196,9 +197,22 @@ export const DREAM_HOLD_MIN = 8
 
 /** 这一晚要不要先给你看，和原因。 */
 export function dreamHold(applied: number, scopes: readonly DreamScope[]): string {
-  if (applied < DREAM_PREVIEW_NIGHTS) return `头 ${DREAM_PREVIEW_NIGHTS} 次整理先给你看，点了才生效`
+  if (applied < DREAM_PREVIEW_NIGHTS) return t('头 {nights} 次整理先给你看，点了才生效', { nights: DREAM_PREVIEW_NIGHTS })
   const big = scopes.find((scope) => scope.touched >= DREAM_HOLD_MIN && scope.touched > scope.size * DREAM_HOLD_RATIO)
-  return big === undefined ? '' : `「${big.label}」这一次要动 ${big.touched} 处，超过三成，先给你看`
+  return big === undefined ? '' : t('「{label}」这一次要动 {touched} 处，超过三成，先给你看', { label: big.label, touched: big.touched })
+}
+
+/** 一晚改了什么，一句话；没有要改的返回空串。 */
+export function dreamChanges(stats: DreamStats): string {
+  return [
+    stats.notes > 0 ? t('写了 {notes} 页笔记', { notes: stats.notes }) : '',
+    stats.merged > 0 ? t('并进 {merged} 条', { merged: stats.merged }) : '',
+    stats.changed > 0 ? t('替掉、归档、挪走 {changed} 条', { changed: stats.changed }) : '',
+    stats.added > 0 ? t('新记 {added} 条', { added: stats.added }) : '',
+    stats.questions > 0 ? t('有 {questions} 件想跟你确认', { questions: stats.questions }) : '',
+  ]
+    .filter((part) => part !== '')
+    .join(t('，'))
 }
 
 function plain(text: string): string {

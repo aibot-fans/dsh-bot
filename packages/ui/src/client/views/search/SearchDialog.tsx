@@ -84,6 +84,7 @@ export function SearchDialog() {
     } else if (hit.kind === 'memory') {
       close()
       if (hit.botId !== null) app.openDrawer({ kind: 'memory', scope: 'bot', scopeId: hit.botId, label: t('记忆') })
+      else if (hit.roomId !== null) app.openDrawer({ kind: 'memory', scope: 'room', scopeId: hit.roomId, label: t('记忆') })
       else app.openDrawer({ kind: 'memory', scope: 'owner', scopeId: '', label: t('你的档案') })
     } else if (hit.taskId !== null) {
       openTask(hit.taskId)

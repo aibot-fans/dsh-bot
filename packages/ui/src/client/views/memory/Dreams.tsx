@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { t, type DreamDetail, type DreamOp, type DreamQuestion, type MemoryDream } from 'pod-domain'
+import { dreamChanges, t, type DreamDetail, type DreamOp, type DreamQuestion, type MemoryDream } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { Badge, Button, Empty, money, tokens } from '../../components/common.tsx'
@@ -42,14 +42,8 @@ export function dreamSummary(dream: MemoryDream): string {
   if (dream.status === 'paused') return t('有任务在跑，先停着，空了接着做')
   if (dream.status === 'failed') return t('没做成：{error}', { error: dream.error })
   if (dream.status === 'empty') return t('读了 {records} 份记录，没有要改的', { records: stats.records })
-  const parts = [
-    stats.notes > 0 ? t('写了 {notes} 页笔记', { notes: stats.notes }) : '',
-    stats.merged > 0 ? t('并进 {merged} 条', { merged: stats.merged }) : '',
-    stats.changed > 0 ? t('替掉、归档 {changed} 条', { changed: stats.changed }) : '',
-    stats.added > 0 ? t('新记 {added} 条', { added: stats.added }) : '',
-    stats.questions > 0 ? t('有 {questions} 件想跟你确认', { questions: stats.questions }) : '',
-  ].filter((part) => part !== '')
-  return t('读了 {records} 份记录；{changes}', { records: stats.records, changes: parts.length === 0 ? t('没有要改的') : parts.join(t('，')) })
+  const changes = dreamChanges(stats)
+  return t('读了 {records} 份记录；{changes}', { records: stats.records, changes: changes === '' ? t('没有要改的') : changes })
 }
 
 function Question(props: { readonly dreamId: string; readonly question: DreamQuestion; readonly onDone: () => void; readonly onError: (message: string) => void }) {
@@ -212,7 +206,7 @@ export function DreamsPanel(props: { readonly dreamId?: string }) {
   return (
     <div className="pod-stack">
       <p className="pod-muted">
-        {t('每晚空下来的时候，dsh-bot 拿当天的对话核对记忆：说同一件事的条目并成一页笔记，过时的说法换掉，再重写每段会话开头带的要点。每句话都留着出处，每一处改动都留着改之前的样子，能整晚撤销。')}
+        {t('每晚空下来的时候，dsh-bot 拿当天的对话核对记忆：说同一件事的条目并成一页笔记，过时的说法换掉，再更新每段会话开头带的要点。每句话都留着出处，每一处改动都留着改之前的样子，能整晚撤销。')}
       </p>
       <div className="pod-row pod-wrap">
         <Button

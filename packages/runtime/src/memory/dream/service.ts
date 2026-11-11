@@ -55,6 +55,7 @@ import { ScopePlanner, type ScopeRef } from './plan.ts'
 import { chatRecords } from './records.ts'
 import { rehomeOps } from './rehome.ts'
 import { REPLAY_SYSTEM, parseFindings, replayPrompt, settleFindings, type Known } from './replay.ts'
+import { SORT_MAX, SORT_SYSTEM, sortOps, sortPrompt } from './sort.ts'
 import { taskRecords } from './task-records.ts'
 import { EMPTY_WORK, addSpent, type DreamRecord, type DreamWork, type Mark, type Spent } from './types.ts'
 
@@ -72,8 +73,11 @@ const NIGHT_HOUR = 2
 /** 没过核对的最多留多少条给你看。 */
 const REJECTED_KEEP = 80
 
-/** 整理哪几种范围：关于你、bot、群。任务和旧团队不再是家，里面的条目先搬走。 */
-const SCOPE_KINDS: readonly MemoryScopeKind[] = ['owner', 'bot', 'room']
+/** 整理哪几种范围：关于你、bot、群、组织目录。任务和旧团队不再是家，里面的条目先搬走。 */
+const SCOPE_KINDS: readonly MemoryScopeKind[] = ['owner', 'bot', 'room', 'org']
+
+/** Super-agent 名下的条目分拣到了什么时候。 */
+const SORTED_KEY = 'memory.dream.sorted'
 
 export interface DreamDeps {
   readonly db: DatabaseSync
@@ -92,6 +96,11 @@ export interface DreamDeps {
   readonly groupOf: (taskId: string) => string | undefined
   readonly ownerOf: (taskId: string) => string | undefined
   readonly teamRoom: (teamId: string) => string | undefined
+  /** Super-agent 是哪个 bot；现有的群（名字、管什么）。它名下的条目整理时分拣到该在的家。 */
+  readonly leadBot: () => string | undefined
+  readonly groups: () => readonly { readonly id: string; readonly title: string; readonly about: string }[]
+  /** 一次整理收尾了（等你看、生效了、没有要改的、没做成）：你叫的那一次在对话里说一声。 */
+  readonly finished: (dream: MemoryDream) => void
   /** 有任务在跑，或者你刚说过话：这时候不开始，自动的那一次做完手上这一份就先停。 */
   readonly busy: () => boolean
   readonly enabled: () => boolean
@@ -155,7 +164,13 @@ export class DreamService {
    */
   start(trigger: DreamTrigger, only: readonly { readonly kind: MemoryScopeKind; readonly id: string }[] = []): PodResult<MemoryDream> {
     if (!this.deps.lite.available) return fail('session-unavailable', t('这个 dsh 没有提供模型调用，整理不了'))
-    if (this.current !== undefined || openDream(this.db) !== undefined) return fail('conflict', t('正在整理，等这一次做完'))
+    if (this.current !== undefined) return fail('conflict', t('正在整理，等这一次做完'))
+    // 上次做到一半停下的（有任务在跑先停着，或者中途重启了）：接着做那一次，不另开。
+    const open = openDream(this.db)
+    if (open !== undefined) {
+      this.kick(open.id)
+      return ok(open)
+    }
     if (this.waiting() !== undefined) return fail('conflict', t('上一次整理的结果还没看，先看那一次'))
     const dream = insertDream(this.db, { id: newId('dream'), trigger, status: 'running', model: '', startedAt: this.deps.now() })
     writeDreamWork(this.db, dream.id, { ...EMPTY_WORK, only })
@@ -173,6 +188,8 @@ export class DreamService {
       .finally(() => {
         this.current = undefined
         this.deps.memory.touch()
+        const dream = getDream(this.db, id)
+        if (dream !== undefined && dream.status !== 'running' && dream.status !== 'paused') this.deps.finished(dream)
       })
   }
 
@@ -281,7 +298,7 @@ export class DreamService {
       const { known, notes } = this.known(record)
       const answer = await this.ask('memory-dream-replay', REPLAY_SYSTEM, replayPrompt(record, known, notes), model, 3000)
       const raw = parseFindings(answer.value)
-      const settled = raw === undefined ? { findings: [], rejected: [{ what: record.title, why: '回放这份记录时模型交回的不是能读的结果' }] } : settleFindings({ leadOf: this.deps.leadOf }, record, raw, known, work.findings.length)
+      const settled = raw === undefined ? { findings: [], rejected: [{ what: record.title, why: t('回放这份记录时模型交回的不是能读的结果') }] } : settleFindings({ leadOf: this.deps.leadOf }, record, raw, known, work.findings.length)
       work = {
         ...work,
         done: [...work.done, record.id],
@@ -300,10 +317,25 @@ export class DreamService {
     const scopes: DreamScope[] = []
     const marks: Mark[] = [...work.marks]
     let spent = work.spent
+    const leaving = new Set<string>()
     if (work.only.length === 0) {
       const moved = rehomeOps({ db: this.db, groupOf: this.deps.groupOf, ownerOf: this.deps.ownerOf, teamRoom: this.deps.teamRoom, label: (kind, scopeId) => this.label(kind, scopeId) })
       ops.push(...moved.ops.map((body, index) => ({ ...body, dreamId: id, seq: index + 1 })))
       scopes.push(...moved.scopes)
+      // Super-agent 名下新记的条目先分拣：关于你的、某个群的、组织目录的各归各家，剩下的才当它自己的经验整理。
+      const lead = this.deps.leadBot()
+      const sorted = readState<number>(this.db, SORTED_KEY, 0)
+      const mine = lead === undefined ? [] : [...this.usable('bot', lead)].filter((entry) => !entry.userEdited && !entry.pinned && entry.updatedAt > sorted).sort((left, right) => left.updatedAt - right.updatedAt).slice(0, SORT_MAX)
+      if (lead !== undefined && mine.length > 0) {
+        const groups = this.deps.groups().map((group, index) => ({ ...group, alias: `g${index + 1}` }))
+        const answer = await this.ask('memory-dream-sort', SORT_SYSTEM, sortPrompt(groups, mine), model, 3000)
+        spent = addSpent(spent, answer.spent)
+        const sortedOps = sortOps(answer.value, groups, mine, (kind, scopeId) => this.label(kind, scopeId))
+        ops.push(...sortedOps.map((body, index) => ({ ...body, dreamId: id, seq: ops.length + index + 1 })))
+        for (const op of sortedOps) leaving.add(op.ref)
+        if (sortedOps.length > 0) scopes.push({ kind: 'bot', id: lead, label: this.label('bot', lead), size: this.usable('bot', lead).length, touched: sortedOps.length })
+        marks.push({ key: SORTED_KEY, value: mine.at(-1)?.updatedAt ?? sorted })
+      }
     }
     for (const scope of this.scopes(work)) {
       const manual = work.only.some((item) => item.kind === scope.kind && item.id === scope.id)
@@ -311,7 +343,7 @@ export class DreamService {
         scope,
         core: getCore(this.db, scope.kind, scope.id),
         notes: listNotes(this.db, { scopeKind: scope.kind, scopeId: scope.id }),
-        entries: this.usable(scope.kind, scope.id),
+        entries: this.usable(scope.kind, scope.id).filter((entry) => !leaving.has(entry.id)),
         since: manual ? 0 : readState<number>(this.db, seenKey(scope), 0),
         pending: this.usable(scope.kind, scope.id, ['pending']),
         findings: work.findings.filter((finding) => finding.scopeKind === scope.kind && finding.scopeId === scope.id),
@@ -330,7 +362,9 @@ export class DreamService {
       ops.push(...result.ops)
       questions.push(...result.questions)
       rejected.push(...result.rejected)
-      if (result.ops.length + result.questions.length > 0) scopes.push(result.scope)
+      const listed = scopes.findIndex((item) => item.kind === scope.kind && item.id === scope.id)
+      if (listed >= 0) scopes[listed] = { ...result.scope, touched: result.scope.touched + (scopes[listed]?.touched ?? 0) }
+      else if (result.ops.length + result.questions.length > 0) scopes.push(result.scope)
       marks.push({ key: seenKey(scope), value: planner.seen() })
     }
 

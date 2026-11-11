@@ -46,7 +46,7 @@ function CoreEditor(props: { readonly scope: ScopeOption }) {
   return (
     <section className="pod-settings-section">
       <h2>{t('要点')}</h2>
-      <p className="pod-muted">{t('最要紧的几句，每段会话开头都带着；夜里整理时重写。{value}', { value: core?.userEdited === true ? t('你改过，整理时不会再改写它。') : '' })}</p>
+      <p className="pod-muted">{t('最要紧的几句，每段会话开头都带着；夜里整理时更新。{value}', { value: core?.userEdited === true ? t('你改过，整理时不会再改写它。') : '' })}</p>
       <textarea className="pod-textarea" rows={5} value={text} onChange={(event) => setDraft(event.target.value)} placeholder={t('例如：用户是产品经理，喜欢先看结论再看细节')} />
       <div className="pod-row">
         <Button
@@ -217,7 +217,7 @@ export function MemoryPanel(props: { readonly scope: MemoryScope }) {
   const others = (entries ?? []).filter((entry) => entry.status !== 'pending')
   return (
     <div className="pod-stack">
-      <p className="pod-muted">{t('记忆管“知道什么”。白天 bot 随手记成一条条的；夜里整理时并成主题笔记、重写要点。每段会话开头带要点和笔记目录，别的用到时再查。')}</p>
+      <p className="pod-muted">{t('记忆管“知道什么”。白天 bot 随手记成一条条的；夜里整理时并成主题笔记、更新要点。每段会话开头带要点和笔记目录，别的用到时再查。')}</p>
       <DreamBar scope={scope} />
       <CoreEditor key={scope.key} scope={scope} />
       <NotesSection scope={scope} />

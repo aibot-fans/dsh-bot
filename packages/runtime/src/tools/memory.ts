@@ -215,5 +215,21 @@ export function memoryTools(pod: PodRuntime, session: PodSession): readonly Tool
     },
   })
 
-  return [remember, recall, searchHistory, readHistory, listChats, readChat, searchFiles, searchWeb]
+  const tidy = podTool({
+    name: 'tidy_memory',
+    description:
+      '现在整理一次记忆（平时每晚自动做）：核对白天记的条目，说同一件事的并成笔记，过时的说法换掉，更新每段会话开头带的要点。用户说“整理一下记忆”时用。在后台做，一般几分钟；做完 dsh-bot 会在对话里说一声，头几次的结果要用户看过才生效。调完告诉用户已经开始了，不用等结果。',
+    properties: {},
+    required: [],
+    parse: () => ({}),
+    run: async () => {
+      const started = pod.dreams.start('manual')
+      if (!started.ok) return failure(started.error.message)
+      pod.announceDream(started.value.id)
+      return success('开始整理了，在后台做。做完会在对话里说一声；结果在 设置 → 工作方式 → 整理记录 里。')
+    },
+  })
+
+  const lead = pod.bots.get(session.botId)?.role === 'lead'
+  return [remember, recall, searchHistory, readHistory, listChats, readChat, searchFiles, searchWeb, ...(lead ? [tidy] : [])]
 }

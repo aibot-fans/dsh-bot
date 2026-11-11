@@ -2,21 +2,18 @@ import type { DatabaseSync } from 'node:sqlite'
 import {
   ARCHIVE_AFTER_DAYS,
   ARCHIVE_SCORE,
-  CORE_LIMITS,
   MEMORY_TYPES,
   OWNER,
   POD,
-  coreOverLimit,
   isRecord,
   retentionScore,
-  similarity,
   t,
   truncate,
   type MemoryScopeKind,
   type MemoryType,
   type Room,
 } from 'pod-domain'
-import { expireMemories, listCores, listMemories, listMessages, listRooms, readState, writeState } from 'pod-store'
+import { expireMemories, listMemories, listMessages, listRooms, readState, writeState } from 'pod-store'
 import type { LiteLlm } from '../core/lite.ts'
 import type { MemoryService } from './service.ts'
 
@@ -75,9 +72,9 @@ export interface ExtractorDeps {
 }
 
 /**
- * 自动提取：一段对话空闲 15 分钟后，一次轻量调用从新消息里提取候选，和已有条目比对后决定新增或替代。
+ * 自动提取：一段对话空闲 15 分钟后，一次轻量调用从新消息里提取候选，追加成条目；和旧条目说法不一样时只记下它是来改哪一条的。
  * 只有你本人说的话能直接写进你的档案；bot 推断的标为“待确认”。无痕单聊不提取。
- * 夜间整理：过期失效、长期不用的归档、合并重复、压缩超限的核心记忆。
+ * 每天的清理只做两件不用判断的事：过期的失效、长期不用的归档。合并、改写和要点归夜里的整理（memory/dream）。
  */
 export class MemoryExtractor {
   private running = false
@@ -146,69 +143,27 @@ export class MemoryExtractor {
           source: fromOwner ? 'owner' : 'extracted',
           sourceRef: room.id,
           status: scopeKind === 'owner' && !fromOwner ? 'pending' : 'active',
+          // 是来改哪一条的只记下来：旧的那条白天不动，夜里整理时对着原话再定。
+          supersedes: candidate.target,
         },
         'pod',
         t('从「{title}」的对话里提取', { title: room.title }),
       )
-      if (result.ok) {
-        written += 1
-        if (candidate.target !== null) {
-          const target = this.deps.memory.get(candidate.target)
-          if (target !== undefined && !target.userEdited && target.id !== result.value.id) this.deps.memory.update(target.id, { status: 'superseded' }, 'pod', t('被「{content}」替代', { content: truncate(candidate.content, 40) }))
-        }
-      }
+      if (result.ok) written += 1
     }
     return written
   }
 
-  /** 夜间整理。返回做了几处改动。 */
-  async consolidate(): Promise<number> {
+  /** 每天的清理：有效期过了的失效，90 天没用过、分又低的转入归档（还搜得到）。返回做了几处。 */
+  tidy(): number {
     const { db } = this.deps
     const now = this.deps.now()
     let changes = expireMemories(db, now)
-    const active = listMemories(db, { statuses: ['active'], limit: 100_000 })
-    for (const entry of active) {
+    for (const entry of listMemories(db, { statuses: ['active'], limit: 100_000 })) {
       const idle = now - (entry.lastUsedAt ?? entry.createdAt)
       if (idle > ARCHIVE_AFTER_DAYS * 86_400_000 && retentionScore(entry, now) < ARCHIVE_SCORE) {
-        this.deps.memory.update(entry.id, { status: 'archived' }, 'pod', t('夜间整理：{days} 天没用过，转入归档', { days: ARCHIVE_AFTER_DAYS }))
+        this.deps.memory.update(entry.id, { status: 'archived' }, 'pod', t('{days} 天没用过，转入归档', { days: ARCHIVE_AFTER_DAYS }))
         changes += 1
-      }
-    }
-    // 合并重复：同一作用域里几乎一样的两条，保留你改过的或更早的那条。
-    const groups = new Map<string, typeof active>()
-    for (const entry of listMemories(db, { statuses: ['active'], limit: 100_000 })) {
-      const key = `${entry.scopeKind}:${entry.scopeId}`
-      groups.set(key, [...(groups.get(key) ?? []), entry])
-    }
-    for (const entries of groups.values()) {
-      const dropped = new Set<string>()
-      for (const [index, left] of entries.entries()) {
-        for (const right of entries.slice(index + 1)) {
-          if (dropped.has(left.id) || dropped.has(right.id) || similarity(left.content, right.content) < 0.85) continue
-          const loser = left.userEdited ? right : right.userEdited ? left : left.createdAt <= right.createdAt ? right : left
-          this.deps.memory.update(loser.id, { status: 'superseded' }, 'pod', t('夜间整理：和另一条重复'))
-          dropped.add(loser.id)
-          changes += 1
-        }
-      }
-    }
-    if (this.deps.lite.available) {
-      for (const core of listCores(db)) {
-        if (core.userEdited || !coreOverLimit(core)) continue
-        try {
-          const compressed = await this.deps.lite.complete({
-            purpose: 'memory-core-compress',
-            system: `把下面这段核心记忆压缩到 ${CORE_LIMITS[core.scopeKind]} token 以内：保留最重要、最常用的内容，删掉细节和重复。直接输出压缩后的文字。`,
-            prompt: core.text,
-            maxTokens: CORE_LIMITS[core.scopeKind] * 2,
-          })
-          if (compressed.text !== '') {
-            this.deps.memory.setCore(core.scopeKind, core.scopeId, compressed.text, 'pod')
-            changes += 1
-          }
-        } catch (error) {
-          this.deps.warn(`压缩核心记忆失败：${error instanceof Error ? error.message : String(error)}`)
-        }
       }
     }
     return changes

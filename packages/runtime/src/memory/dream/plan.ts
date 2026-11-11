@@ -9,6 +9,7 @@ import {
   noteBody,
   noteLines,
   sameMemory,
+  t,
   textUnits,
   truncate,
   type CoreMemory,
@@ -29,9 +30,14 @@ import type { Finding } from './types.ts'
 export const ROUND_ENTRIES = 60
 /** 一轮最多带多少条发现。 */
 const ROUND_FINDINGS = 40
-/** 要点最多几句、每句多少字。 */
+/** 一轮最多往要点里加几句；要点一共最多几句、每句多少字。 */
 const POINTS_MAX = 8
+const CORE_LINES_MAX = 12
 const POINT_LINE_MAX = 120
+
+function unbullet(line: string): string {
+  return line.replace(/^\s*[-*]\s+/, '').trim()
+}
 
 export interface ScopeRef {
   readonly kind: MemoryScopeKind
@@ -126,11 +132,18 @@ export class ScopePlanner {
   private readonly asks: Ask[] = []
   private readonly rejected: DreamRejection[] = []
   private readonly confirmed: MemoryEntry[] = []
-  private points: readonly Line[] | undefined
+  /** 要点，一行一句：原来的照原样留着，整理只在后面加，明说过时的才去掉。 */
+  private core: readonly string[]
+  private coreEvidence: readonly DreamEvidence[] = []
+  private coreTouched = false
   private rounds = 0
 
   constructor(input: PlannerInput) {
     this.input = input
+    this.core = input.core.text
+      .split('\n')
+      .map((line) => line.trimEnd())
+      .filter((line) => line.trim() !== '')
     this.entries = [...input.entries].filter((entry) => !entry.pinned && entry.updatedAt > input.since).sort((left, right) => left.updatedAt - right.updatedAt)
     this.entries.forEach((entry, index) => {
       this.alias.set(`e${index + 1}`, entry)
@@ -164,8 +177,13 @@ export class ScopePlanner {
     // 记录里纠正过的：新说法压得过旧的那条，就直接替掉，不靠模型记得写。
     for (const finding of this.findings.values()) {
       if (finding.kind !== 'contradict' || finding.target === null) continue
-      const target = this.entries.find((entry) => entry.id === finding.target)
-      if (target !== undefined) this.replace(target, finding.id, '记录里纠正过')
+      const target = input.entries.find((entry) => entry.id === finding.target)
+      if (target !== undefined && !target.pinned) this.replace(target, finding.id, t('记录里纠正过'))
+    }
+    // 白天记的时候就说了是来改哪一条的：照同样的规矩替。
+    for (const entry of this.entries) {
+      const target = entry.supersedes === null ? undefined : input.entries.find((candidate) => candidate.id === entry.supersedes)
+      if (target !== undefined && !target.pinned) this.replace(target, entry.id, t('记的时候就说是来改这条的'))
     }
   }
 
@@ -193,7 +211,7 @@ export class ScopePlanner {
     return consolidatePrompt({
       label: this.input.scope.label,
       guide: this.input.guide,
-      core: this.points === undefined ? this.input.core : { ...this.input.core, text: this.points.map((line) => `- ${line.text}`).join('\n') },
+      core: { ...this.input.core, text: this.core.join('\n') },
       notes: this.notes.map((note) => ({ alias: note.alias, title: note.title, description: note.description, body: noteBody(note.lines.map((line) => line.text)), locked: note.existing?.userEdited === true })),
       pinned: this.input.entries.filter((entry) => entry.pinned),
       entries: batch.map((entry) => ({ alias: this.aliasOf.get(entry.id) ?? '', entry })),
@@ -227,13 +245,13 @@ export class ScopePlanner {
   /** 旧的一条被新的替掉：新的压得过旧的才自动替，压不过的问你。by 是条目的编号或发现的编号。 */
   private replace(old: MemoryEntry, by: string, why: string): void {
     if (this.replaced.has(old.id) || this.asked.has(old.id)) return
-    const entry = this.alias.get(by) ?? this.entries.find((candidate) => candidate.id === by)
+    const entry = this.alias.get(by) ?? this.input.entries.find((candidate) => candidate.id === by)
     const finding = this.findings.get(by)
-    if (entry === undefined && finding === undefined) return this.refuse(old.content, '说不出被哪一条替掉')
+    if (entry === undefined && finding === undefined) return this.refuse(old.content, t('说不出被哪一条替掉'))
     if (entry?.id === old.id) return
     const newer = entry === undefined ? { owner: finding?.byOwner === true, time: finding?.time ?? 0, text: finding?.content ?? '', evidence: finding === undefined ? [] : [finding.evidence] } : { owner: entry.source === 'owner', time: entry.createdAt, text: entry.content, evidence: [] }
     const strong = (newer.owner ? 2 : 1) > (old.source === 'owner' ? 2 : 1) || ((newer.owner ? 2 : 1) === (old.source === 'owner' ? 2 : 1) && newer.time >= old.createdAt)
-    const reason = why === '' ? `被「${truncate(newer.text, 40)}」替了` : `${why}：被「${truncate(newer.text, 40)}」替了`
+    const reason = why === '' ? t('被「{text}」替了', { text: truncate(newer.text, 40) }) : t('{why}：被「{text}」替了', { why, text: truncate(newer.text, 40) })
     if (strong && !old.userEdited) {
       this.replaced.set(old.id, { by: entry?.id ?? '', why: reason, evidence: newer.evidence })
       return
@@ -241,18 +259,18 @@ export class ScopePlanner {
     this.asked.add(old.id)
     if (entry !== undefined) this.asked.add(entry.id)
     this.asks.push({
-      text: `「${truncate(old.content, 60)}」${old.userEdited ? '是你亲手写的' : '是你说的'}，后来又有一条说法不一样：「${truncate(newer.text, 60)}」。以哪条为准？`,
+      text: t(old.userEdited ? '「{old}」是你亲手写的，后来又有一条说法不一样：「{fresh}」。以哪条为准？' : '「{old}」是你说的，后来又有一条说法不一样：「{fresh}」。以哪条为准？', { old: truncate(old.content, 60), fresh: truncate(newer.text, 60) }),
       options: [
-        { label: '用后一条', ops: [{ ...this.supersede(old, entry?.id ?? '', reason, newer.evidence), held: true }] },
-        { label: '留着前一条', ops: entry === undefined ? [] : [{ ...this.supersede(entry, old.id, `你定了以「${truncate(old.content, 40)}」为准`, []), held: true }] },
+        { label: t('用后一条'), ops: [{ ...this.supersede(old, entry?.id ?? '', reason, newer.evidence), held: true }] },
+        { label: t('留着前一条'), ops: entry === undefined ? [] : [{ ...this.supersede(entry, old.id, t('你定了以「{text}」为准', { text: truncate(old.content, 40) }), []), held: true }] },
       ],
     })
   }
 
   /** 核对一句话：出处要认得、和出处对得上；返回过了的那一句，或者 undefined（原因记进没过的清单）。 */
   private line(raw: RawLine, max: number, allowNotes: boolean): Line | undefined {
-    if (textUnits(raw.text) > max) return void this.refuse(raw.text, '一句话太长')
-    if (isCredentialMemory(raw.text)) return void this.refuse(raw.text, '账号、密码这类的不进笔记和要点')
+    if (textUnits(raw.text) > max) return void this.refuse(raw.text, t('一句话太长'))
+    if (isCredentialMemory(raw.text)) return void this.refuse(raw.text, t('账号、密码这类的不进笔记和要点'))
     const entries: MemoryEntry[] = []
     const findings: Finding[] = []
     const pages: NoteState[] = []
@@ -264,9 +282,9 @@ export class ScopePlanner {
       else if (finding !== undefined) findings.push(finding)
       else if (page !== undefined) pages.push(page)
     }
-    if (entries.length + findings.length + pages.length === 0) return void this.refuse(raw.text, '没有出处，或者出处是你亲手写的条目却改了它的字')
+    if (entries.length + findings.length + pages.length === 0) return void this.refuse(raw.text, t('没有出处，或者出处是你亲手写的条目却改了它的字'))
     const sources = [...entries.map((entry) => entry.content), ...findings.flatMap((finding) => [finding.content, finding.evidence.quote]), ...pages.flatMap((page) => page.lines.map((line) => line.text))].join('\n')
-    if (!grounded(raw.text, sources)) return void this.refuse(raw.text, '和它写的出处对不上')
+    if (!grounded(raw.text, sources)) return void this.refuse(raw.text, t('和它写的出处对不上'))
     for (const finding of findings) this.cited.add(finding.id)
     return { text: raw.text, entries: entries.map((entry) => entry.id), evidence: findings.map((finding) => finding.evidence) }
   }
@@ -274,8 +292,8 @@ export class ScopePlanner {
   private page(raw: RawNote): void {
     const lines = raw.lines
     const known = this.notes.find((note) => note.alias === raw.id) ?? (raw.title === '' ? undefined : this.notes.find((note) => sameMemory(note.title, raw.title)))
-    if (known === undefined && raw.title === '') return lines.forEach((line) => this.refuse(line.text, '新开的一页没有标题'))
-    if (known?.existing?.userEdited === true) return lines.forEach((line) => this.refuse(line.text, `笔记「${known.title}」你改过，整理时不动；要加可以在页面上自己加`))
+    if (known === undefined && raw.title === '') return lines.forEach((line) => this.refuse(line.text, t('新开的一页没有标题')))
+    if (known?.existing?.userEdited === true) return lines.forEach((line) => this.refuse(line.text, t('笔记「{title}」你改过，整理时不动；要加可以在页面上自己加', { title: known.title })))
     const note: NoteState =
       known ?? { id: this.input.newId('note'), alias: `n${this.notes.length + 1}`, existing: null, title: truncate(raw.title, NOTE_TITLE_MAX), description: truncate(raw.description, NOTE_DESCRIPTION_MAX), lines: [], added: 0, removed: 0 }
     for (const gone of raw.remove) {
@@ -290,7 +308,7 @@ export class ScopePlanner {
       const checked = this.line(item, NOTE_LINE_MAX, false)
       if (checked === undefined) continue
       if (size + textUnits(checked.text) > NOTE_BODY_MAX) {
-        this.refuse(checked.text, `笔记「${note.title}」写满了，这句等下次另开一页`)
+        this.refuse(checked.text, t('笔记「{title}」写满了，这句等下次另开一页', { title: note.title }))
         continue
       }
       const fresh = checked.entries.filter((id) => !this.merged.has(id))
@@ -307,20 +325,20 @@ export class ScopePlanner {
   absorb(value: unknown): boolean {
     const plan = parsePlan(value)
     if (plan === undefined) {
-      this.refuse(this.input.scope.label, '模型交回的不是能读的结果，这一轮没有用')
+      this.refuse(this.input.scope.label, t('模型交回的不是能读的结果，这一轮没有用'))
       return false
     }
     for (const item of plan.replaced) {
       const old = this.alias.get(item.old)
       if (old === undefined) continue
-      if (old.pinned) this.refuse(old.content, '置顶的条目整理时不动')
+      if (old.pinned) this.refuse(old.content, t('置顶的条目整理时不动'))
       else this.replace(old, item.by, item.why)
     }
     for (const item of plan.dropped) {
       const entry = this.alias.get(item.id)
       if (entry === undefined || !this.free(entry)) continue
-      if (entry.userEdited || entry.source === 'owner') this.refuse(entry.content, '你说的、你写的不自动归档')
-      else this.dropped.set(entry.id, item.why === '' ? '一次性的细节' : item.why)
+      if (entry.userEdited || entry.source === 'owner') this.refuse(entry.content, t('你说的、你写的不自动归档'))
+      else this.dropped.set(entry.id, item.why === '' ? t('一次性的细节') : item.why)
     }
     for (const item of plan.questions) {
       const about = item.about.map((name) => this.alias.get(name)).filter((entry): entry is MemoryEntry => entry !== undefined && this.free(entry))
@@ -332,22 +350,34 @@ export class ScopePlanner {
           first === undefined || second === undefined
             ? []
             : [
-                { label: `留「${truncate(first.content, 16)}」`, ops: first.userEdited && second.userEdited ? [] : [{ ...this.supersede(second, first.id, '你定了留另一条', []), held: true }] },
-                { label: `留「${truncate(second.content, 16)}」`, ops: [{ ...this.supersede(first, second.id, '你定了留另一条', []), held: true }] },
+                { label: t('留「{text}」', { text: truncate(first.content, 16) }), ops: first.userEdited && second.userEdited ? [] : [{ ...this.supersede(second, first.id, t('你定了留另一条'), []), held: true }] },
+                { label: t('留「{text}」', { text: truncate(second.content, 16) }), ops: [{ ...this.supersede(first, second.id, t('你定了留另一条'), []), held: true }] },
               ],
       })
     }
     for (const note of plan.notes) this.page(note)
-    if (plan.points.length > 0) {
-      if (this.input.core.userEdited) this.refuse(plan.points.map((line) => line.text).join('；'), '要点你改过，整理时不动；要改可以在页面上自己改')
+    if (plan.points.length + plan.dropPoints.length > 0) {
+      if (this.input.core.userEdited) this.refuse([...plan.points, ...plan.dropPoints].map((line) => line.text).join('；'), t('要点你改过，整理时不动；要改可以在页面上自己改'))
       else {
-        const lines = plan.points.slice(0, POINTS_MAX).flatMap((raw) => this.line(raw, POINT_LINE_MAX, true) ?? [])
-        const kept: Line[] = []
-        for (const line of lines) {
-          if (estimateTokens([...kept, line].map((item) => `- ${item.text}`).join('\n')) > CORE_LIMITS[this.input.scope.kind]) break
-          kept.push(line)
+        for (const gone of plan.dropPoints) {
+          const at = this.core.findIndex((line) => sameMemory(unbullet(line), gone.text))
+          if (at < 0 || gone.why === '') continue
+          this.core = this.core.filter((_, index) => index !== at)
+          this.coreTouched = true
         }
-        if (kept.length > 0) this.points = kept
+        for (const raw of plan.points.slice(0, POINTS_MAX)) {
+          if (this.core.some((line) => sameMemory(unbullet(line), raw.text))) continue
+          const line = this.line(raw, POINT_LINE_MAX, true)
+          if (line === undefined) continue
+          const next = [...this.core, `- ${line.text}`]
+          if (next.length > CORE_LINES_MAX || estimateTokens(next.join('\n')) > CORE_LIMITS[this.input.scope.kind]) {
+            this.refuse(line.text, t('要点满了，这句没加进去；可以在页面上自己调'))
+            continue
+          }
+          this.core = next
+          this.coreEvidence = [...this.coreEvidence, ...line.evidence]
+          this.coreTouched = true
+        }
       }
     }
     return true
@@ -369,7 +399,7 @@ export class ScopePlanner {
     const at = { scopeKind: scope.kind, scopeId: scope.id }
     const bodies: OpBody[] = []
     for (const entry of this.confirmed) {
-      bodies.push({ kind: 'entry-confirm', ...at, ref: entry.id, before: { entry }, after: { status: 'active' }, reason: '你的原话证实了', evidence: this.input.findings.filter((finding) => finding.target === entry.id).map((finding) => finding.evidence), held: false })
+      bodies.push({ kind: 'entry-confirm', ...at, ref: entry.id, before: { entry }, after: { status: 'active' }, reason: t('你的原话证实了'), evidence: this.input.findings.filter((finding) => finding.target === entry.id).map((finding) => finding.evidence), held: false })
     }
     let touchedNotes = 0
     for (const note of this.notes) {
@@ -382,13 +412,18 @@ export class ScopePlanner {
         ref: note.id,
         before: { note: note.existing, merged },
         after: { note: this.draft(note) },
-        reason: note.existing === null ? `新开的一页，并进 ${merged.length} 条` : `加了 ${note.added} 句${note.removed > 0 ? `，去掉 ${note.removed} 句` : ''}，并进 ${merged.length} 条`,
+        reason:
+          note.existing === null
+            ? t('新开的一页，并进 {merged} 条', { merged: merged.length })
+            : note.removed > 0
+              ? t('加了 {added} 句，去掉 {removed} 句，并进 {merged} 条', { added: note.added, removed: note.removed, merged: merged.length })
+              : t('加了 {added} 句，并进 {merged} 条', { added: note.added, merged: merged.length }),
         evidence: note.lines.flatMap((line) => line.evidence).slice(0, 12),
         held: false,
       })
     }
     for (const [id, info] of this.replaced) {
-      const entry = this.entries.find((candidate) => candidate.id === id)
+      const entry = this.input.entries.find((candidate) => candidate.id === id)
       if (entry !== undefined) bodies.push(this.supersede(entry, info.by, info.why, info.evidence))
     }
     for (const [id, why] of this.dropped) {
@@ -407,14 +442,14 @@ export class ScopePlanner {
         ref: this.input.newId('mem'),
         before: {},
         after: { entry: { type: finding.type, content: finding.content, source: finding.byOwner ? 'owner' : 'extracted', sourceRef: finding.evidence.ref, status: finding.pending ? 'pending' : 'active' } },
-        reason: finding.pending ? '从记录里看出来的，不是你亲口说的，等你确认' : '记录里有，白天没记',
+        reason: finding.pending ? t('从记录里看出来的，不是你亲口说的，等你确认') : t('记录里有，白天没记'),
         evidence: [finding.evidence],
         held: false,
       })
     }
-    if (this.points !== undefined) {
-      const text = this.points.map((line) => `- ${line.text}`).join('\n')
-      if (text !== this.input.core.text) bodies.push({ kind: 'core-set', ...at, ref: '', before: { text: this.input.core.text, userEdited: this.input.core.userEdited }, after: { text }, reason: '重写要点', evidence: this.points.flatMap((line) => line.evidence).slice(0, 12), held: false })
+    const text = this.core.join('\n')
+    if (this.coreTouched && text !== this.input.core.text) {
+      bodies.push({ kind: 'core-set', ...at, ref: '', before: { text: this.input.core.text, userEdited: this.input.core.userEdited }, after: { text }, reason: t('更新要点'), evidence: this.coreEvidence.slice(0, 12), held: false })
     }
     const ops: NewDreamOp[] = bodies.map((body, index) => ({ ...body, dreamId, seq: from + index }))
     const questions: DreamQuestion[] = this.asks.map((ask, index) => ({
@@ -431,7 +466,7 @@ export class ScopePlanner {
             return seq
           }),
         })),
-        { label: ask.options.length === 0 ? '知道了' : '都留着', ops: [] },
+        { label: ask.options.length === 0 ? t('知道了') : t('都留着'), ops: [] },
       ],
       answer: null,
     }))

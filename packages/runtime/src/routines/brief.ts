@@ -11,6 +11,8 @@ export interface BriefData {
   readonly running: readonly Task[]
   readonly waits: readonly Wait[]
   readonly cost: { readonly today: number; readonly yesterday: number }
+  /** 过去一天整理记忆的结果，一句话；没整理过是空串。 */
+  readonly memory: string
 }
 
 export interface BriefDeps {
@@ -34,6 +36,7 @@ function compose(data: BriefData): string {
     `正在进行（${data.running.length} 个）：${data.running.length === 0 ? '无' : data.running.map((task) => `「${task.title}」${TASK_STATUS_LABELS[task.status]}${task.note === '' ? '' : `，${task.note}`}`).join('；')}`,
     `等用户处理（${data.waits.length} 件）：${data.waits.length === 0 ? '无' : data.waits.map((wait) => wait.title).join('；')}`,
     `花费：今天 ${formatCost(data.cost.today)}，昨天 ${formatCost(data.cost.yesterday)}`,
+    ...(data.memory === '' ? [] : [`记忆整理（简报里用一行带过）：${data.memory}`]),
   ]
   return lines.join('\n')
 }

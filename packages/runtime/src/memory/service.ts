@@ -86,6 +86,8 @@ export interface MemoryServiceDeps {
   readonly groupOf: (taskId: string) => string | undefined
   readonly roomTitle: (roomId: string) => string | undefined
   readonly timezone: () => string
+  /** 组织目录里系统算出来的那一段：每个群、每个 bot 最近做了什么。只给 Super-agent。 */
+  readonly orgFacts: () => string
 }
 
 export interface NewEntryInput {
@@ -474,8 +476,11 @@ export class MemoryService {
     const ids: string[] = []
     for (const scope of this.scopesOf(session)) {
       const block = this.always(session, scope.scopeKind, scope.scopeId)
-      if (block.text === '') continue
-      blocks.push({ label: scope.label, text: block.text })
+      // 组织目录：先是系统按任务结果算的事实，再是整理时记下的交活经验。
+      const facts = scope.scopeKind === 'org' ? this.deps.orgFacts() : ''
+      const text = facts === '' ? block.text : block.text === '' ? facts : `${facts}\n${t('交活时留意的：')}\n${block.text}`
+      if (text === '') continue
+      blocks.push({ label: scope.label, text })
       ids.push(...block.ids)
     }
     this.used(session.id, ids)
@@ -517,6 +522,8 @@ export class MemoryService {
     for (const word of words) {
       const hits = await this.deps.search.search(word, { kinds: ['memory'], limit: HINT_HITS })
       for (const [rank, hit] of hits.entries()) {
+        // 笔记不顺带附：它的目录已经在开头了，要看正文用 recall。
+        if (!hit.ref.startsWith('memory:')) continue
         const id = hit.ref.slice('memory:'.length)
         const current = score.get(id)
         score.set(id, { matched: (current?.matched ?? 0) + 1, rank: Math.min(current?.rank ?? rank, rank) })

@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { isCredentialMemory, type DreamScope, type MemoryEntry, type MemoryScopeKind } from 'pod-domain'
+import { isCredentialMemory, t, type DreamScope, type MemoryEntry, type MemoryScopeKind } from 'pod-domain'
 import { listMemories } from 'pod-store'
 import type { OpBody } from './plan.ts'
 
@@ -32,23 +32,23 @@ export function rehomeOps(deps: RehomeDeps): { readonly ops: readonly OpBody[]; 
   const tasks = usable('task')
   for (const entry of tasks.slice(0, REHOME_MAX)) {
     if (entry.source === 'task' && entry.content.startsWith('任务「')) {
-      ops.push({ kind: 'entry-archive', scopeKind: 'task', scopeId: entry.scopeId, ref: entry.id, before: { entry }, after: { status: 'archived' }, reason: '任务每轮的结果在汇报里，不用再留一份', evidence: [], held: false })
+      ops.push({ kind: 'entry-archive', scopeKind: 'task', scopeId: entry.scopeId, ref: entry.id, before: { entry }, after: { status: 'archived' }, reason: t('任务每轮的结果在汇报里，不用再留一份'), evidence: [], held: false })
       continue
     }
     const group = deps.groupOf(entry.scopeId)
     const owner = deps.ownerOf(entry.scopeId)
-    if (group !== undefined) ops.push(move(entry, 'room', group, `任务里记的，归到${deps.label('room', group)}`))
-    else if (owner !== undefined) ops.push(move(entry, 'bot', owner, `任务里记的，归到${deps.label('bot', owner)}`))
+    if (group !== undefined) ops.push(move(entry, 'room', group, t('任务里记的，归到{place}', { place: deps.label('room', group) })))
+    else if (owner !== undefined) ops.push(move(entry, 'bot', owner, t('任务里记的，归到{place}', { place: deps.label('bot', owner) })))
   }
   const before = ops.length
   const teams = usable('team')
   for (const entry of teams.slice(0, REHOME_MAX)) {
     const room = deps.teamRoom(entry.scopeId)
-    if (room !== undefined) ops.push(move(entry, 'room', room, `旧团队的约定，并进${deps.label('room', room)}`))
+    if (room !== undefined) ops.push(move(entry, 'room', room, t('旧团队的约定，并进{place}', { place: deps.label('room', room) })))
   }
   const scopes: DreamScope[] = [
-    ...(before === 0 ? [] : [{ kind: 'task' as const, id: '*', label: '任务里记的，分到群和 bot 名下', size: tasks.length, touched: before }]),
-    ...(ops.length === before ? [] : [{ kind: 'team' as const, id: '*', label: '旧团队的，并进群', size: teams.length, touched: ops.length - before }]),
+    ...(before === 0 ? [] : [{ kind: 'task' as const, id: '*', label: t('任务里记的，分到群和 bot 名下'), size: tasks.length, touched: before }]),
+    ...(ops.length === before ? [] : [{ kind: 'team' as const, id: '*', label: t('旧团队的，并进群'), size: teams.length, touched: ops.length - before }]),
   ]
   return { ops, scopes }
 }

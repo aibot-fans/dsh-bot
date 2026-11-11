@@ -8,7 +8,7 @@ import { demoDecision, demoFront } from './demo.js'
 import { newPage, pageDecision, wantedKind } from './pages.js'
 import { progressDecision, routineDecision, turnCalls } from './progress.js'
 import { batchBody, frontDecision, frontOwnText, memoryEcho } from './front.js'
-import { dreamConsolidate, dreamReplay } from './dream.js'
+import { dreamConsolidate, dreamReplay, dreamSort } from './dream.js'
 
 export const name = 'pod-dev-mock-llm'
 
@@ -389,6 +389,7 @@ function decide(options) {
   // 记忆整理的两步：回放一份记录交发现，整合一个范围交新的一版。
   if (system.includes('“记忆整理”的第一步')) return { text: JSON.stringify(dreamReplay(textOf(messages.find((message) => message.role === 'user')?.content))) }
   if (system.includes('“记忆整理”的第二步')) return { text: JSON.stringify(dreamConsolidate(textOf(messages.find((message) => message.role === 'user')?.content))) }
+  if (system.includes('“记忆整理”里的分拣')) return { text: JSON.stringify(dreamSort(textOf(messages.find((message) => message.role === 'user')?.content))) }
   if (system.includes('你是 dsh-bot 的看门狗')) return watchdogDecision(system, messages)
 
   // 前台：消息成批送来，逐条记去向。出错后接着处理时，从最近一批开始数调过的工具。

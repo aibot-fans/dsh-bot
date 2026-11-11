@@ -67,7 +67,7 @@ export interface PodSettings {
   readonly softContextTokens: number
   /** 自动从对话里提取记忆。 */
   readonly memoryExtraction: boolean
-  /** 每晚自动整理记忆：核对条目、并成笔记、重写要点。关掉以后只在你点“现在整理”时做。 */
+  /** 每晚自动整理记忆：核对条目、并成笔记、更新要点。关掉以后只在你点“现在整理”时做。 */
   readonly memoryDream: boolean
   /** dsh web 标签页开着时发浏览器系统通知（需要你在浏览器里允许）。 */
   readonly browserNotifications: boolean

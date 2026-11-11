@@ -194,6 +194,8 @@ function stepsFor(item, context) {
   if (body.includes('测试漏掉')) return []
   // 记忆测试：把系统提示里每次都带的记忆、这批附的相关记忆和群里定的事照样回出来。
   if (body.includes('你记得什么')) return [reply(item, memoryEcho(context.system, batch))]
+  // “整理一下记忆”：叫 dsh-bot 现在整理一次，回一句已经开始了。
+  if (body.includes('整理一下记忆') && tools.has('tidy_memory')) return [() => ({ tool: 'tidy_memory', args: {} }), (result) => ({ tool: 'reply', args: { to: id, text: `（测试模型）${result.slice(0, 160)}` } })]
   if (body.includes('测试追问') && !nudged) return []
   const relay = /转达给任务 (task_[0-9a-z]+)/.exec(body)?.[1]
   if (relay !== undefined) {

@@ -96,6 +96,8 @@ export function startRuntime(pod: PodRuntime): () => void {
       pod.sleep.set(pod.settings.get().preventSleep && busy)
     }),
     every(5 * 60_000, () => void pod.extractor.tick().catch(warn('记忆提取出错'))),
+    // 夜里的记忆整理：过了两点、当天备份做完、现在空着才开始；停着的那一次空了接着做。
+    every(10 * 60_000, () => pod.dreams.tick()),
     every(60_000, () => pod.refreshExposure()),
     every(5 * 60_000, () => void pod.evolutionKit.retro.tick().catch(warn('复盘出错'))),
     every(60_000, () => void pod.browser.browser.sweep().catch(warn('关闭空闲标签页出错'))),

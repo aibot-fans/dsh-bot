@@ -1,10 +1,11 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { join } from 'node:path'
-import { LEAD_BOT_ID, LEAD_PERSONA, OWNER, POD, POD_VERSION, PRIORITY, botFolder, composePersona, roomFolder, fail, sessionBrowses, sessionMakesPages, t, withLanguage, worthSummary, type Bot, type BotStats, type Language, type PodEvent, type PodResult, type PodSession, type Room, type Task, type TaskTeam, type TeamTemplate, triggerSource } from 'pod-domain'
+import { LEAD_BOT_ID, LEAD_PERSONA, OWNER, POD, POD_VERSION, PRIORITY, botFolder, composePersona, dreamChanges, roomFolder, fail, sessionBrowses, sessionMakesPages, t, withLanguage, worthSummary, type Bot, type BotStats, type Language, type MemoryDream, type PodEvent, type PodResult, type PodSession, type Room, type Task, type TaskTeam, type TeamTemplate, triggerSource } from 'pod-domain'
 import { afterCommit, deliveryByMessageId, getMessage, inTransaction, listRooms, onAfterCommitError, pendingFor, pinnedMessages, raiseProblem, resolveProblem, runningTasksByRoom, taskCardMessage, taskConversationOf, teamsOfBot } from 'pod-store'
 import { SegmentManager } from './agents/segments.ts'
 import { AibotService } from './aibot/service.ts'
 import { DreamService } from './memory/dream/service.ts'
+import { orgFacts } from './memory/org.ts'
 import { MemoryExtractor } from './memory/extract.ts'
 import { MemoryService } from './memory/service.ts'
 import { SearchIndex } from './search/index.ts'
@@ -51,9 +52,10 @@ import { LiteLlm } from './core/lite.ts'
 import { Maintenance } from './core/maintenance.ts'
 import { LanguageService } from './core/language.ts'
 import { SettingsService } from './core/settings.ts'
-import type { HostContext, LlmService, SessionEvent, SessionPersistenceLike } from './dsh.ts'
+import type { HostContext, LlmService, SessionPersistenceLike } from './dsh.ts'
 import { healthReport, type HealthReport } from './effects/health.ts'
-import { DeliveryLedger, release as releaseLog } from './effects/ledger.ts'
+import { DeliveryLedger } from './effects/ledger.ts'
+import { readSessionEvents } from './effects/session-log.ts'
 import { Effects } from './effects/queue.ts'
 import { SystemProblems } from './effects/problems.ts'
 import { SessionFactory } from './sessions/factory.ts'
@@ -168,6 +170,8 @@ export class PodRuntime {
   readonly memory: MemoryService
   readonly extractor: MemoryExtractor
   readonly dreams: DreamService
+  /** 你在对话里叫出来的整理：做完要在对话里说一声的那几次。 */
+  private readonly dreamsToAnnounce = new Set<string>()
   readonly segments: SegmentManager
   readonly notifications: NotificationService
   readonly routines: RoutineService
@@ -288,6 +292,7 @@ export class PodRuntime {
       groupOf: (taskId) => this.tasks.groupOf(taskId)?.id,
       roomTitle: (roomId) => this.rooms.get(roomId)?.title,
       timezone: () => this.settings.get().timezone,
+      orgFacts: () => orgFacts({ db, now, groups: () => this.rooms.groups.list(), leaderName: (room) => this.rooms.leaderOf(room)?.name, bots: () => this.bots.active() }),
     })
     this.rooms = new RoomService({
       db,
@@ -667,10 +672,13 @@ export class PodRuntime {
         const room = this.rooms.get(roomId)
         return room === undefined ? undefined : this.rooms.leaderOf(room)?.id
       },
-      sessionEvents: (sessionId, from, to) => this.sessionEvents(sessionId, from, to),
+      sessionEvents: (sessionId, from, to) => readSessionEvents(ctx.get('sessionPersistence') as SessionPersistenceLike | undefined, sessionId, from, to, (message, error) => ctx.logger.warn(message, error)),
       groupOf: (taskId) => this.tasks.groupOf(taskId)?.id,
       ownerOf: (taskId) => this.tasks.get(taskId)?.ownerBotId ?? undefined,
       teamRoom: (teamId) => listRooms(db, { archived: false }).find((room) => room.teamId === teamId)?.id,
+      leadBot: () => this.bots.lead().id,
+      groups: () => this.rooms.groups.list().map((room) => ({ id: room.id, title: room.title, about: room.topic })),
+      finished: (dream) => this.dreamFinished(dream),
       busy: () => this.busyNow(),
       enabled: () => this.settings.get().memoryDream,
       warn,
@@ -969,7 +977,8 @@ export class PodRuntime {
       this.bus.emit({ type: 'resync' })
     })
     this.maintenance = new Maintenance(db, options.dataRoot, () => this.settings.get().timezone, warn)
-    this.maintenance.addDaily({ name: '整理记忆', run: () => this.extractor.consolidate().then(() => undefined) })
+    // 每天只做不用判断的清理（过期失效、长期不用的归档）；合并、改写和要点归夜里的整理（this.dreams，空了才做）。
+    this.maintenance.addDaily({ name: '清理过期的记忆', run: () => void this.extractor.tidy() })
     this.maintenance.addDaily({
       name: '自我优化',
       run: async () => {
@@ -1306,32 +1315,43 @@ export class PodRuntime {
       running: roots.filter((task) => task.status === 'running' || task.status === 'waiting' || task.status === 'paused'),
       waits: this.waits.open(),
       cost: { today: this.meter.since(now - day).cost, yesterday: this.meter.since(now - 2 * day).cost - this.meter.since(now - day).cost },
+      memory: this.dreamBrief(now - day),
     }
   }
 
-  /** 一段会话在 from 到 to 之间的日志；dsh 没有这个接口、会话读不了都返回空的。夜里整理记忆时回放任务会话用。 */
-  private async sessionEvents(sessionId: string, from: number, to: number): Promise<readonly SessionEvent[]> {
-    const service = this.ctx.get('sessionPersistence') as SessionPersistenceLike | undefined
-    if (service === undefined || typeof service.open !== 'function') return []
-    const kept: SessionEvent[] = []
-    try {
-      if (typeof service.flush === 'function') await service.flush()
-      const handle = await service.open(sessionId, 'read')
-      try {
-        for (let offset = 0; ; ) {
-          const { events } = await handle.read(offset, 512)
-          if (events.length === 0) break
-          for (const event of events) if (event.time <= 0 || (event.time >= from && event.time <= to)) kept.push(event)
-          offset += events.length
-        }
-      } finally {
-        await releaseLog(handle)
-      }
-    } catch (error) {
-      this.ctx.logger.warn(`读会话 ${sessionId} 的日志没成`, error)
-    }
-    return kept
+  /** 简报里说记忆整理的那一句：过去一天里最近的一次；等你看的写明去哪看。 */
+  private dreamBrief(since: number): string {
+    const dream = this.dreams.list(10).find((item) => (item.finishedAt ?? 0) > since && (item.status === 'applied' || item.status === 'preview'))
+    if (dream === undefined) return ''
+    const changes = dreamChanges(dream.stats)
+    if (dream.status === 'preview') return t('夜里整理了一版，等用户看过才生效：{changes}。在 设置 → 工作方式 → 整理记录 里看', { changes })
+    return t('夜里整理过了，已经生效：{changes}。不合适能在整理记录里整晚撤销', { changes })
   }
+
+  /** “整理一下记忆”叫出来的那一次：做完在 Super-agent 的单聊里说一声。 */
+  announceDream(dreamId: string): void {
+    this.dreamsToAnnounce.add(dreamId)
+  }
+
+  /** 一次整理收尾了：你在对话里叫的，在对话里说结果；夜里自动的、要等你看的，发一条通知。 */
+  private dreamFinished(dream: MemoryDream): void {
+    const changes = dreamChanges(dream.stats)
+    const text =
+      dream.status === 'failed'
+        ? t('记忆没整理成：{error}', { error: dream.error })
+        : dream.status === 'empty'
+          ? t('记忆看过一遍，没有要改的。')
+          : dream.status === 'preview'
+            ? t('记忆整理好了一版，等你看过才生效：{changes}。在 设置 → 工作方式 → 整理记录 里看。', { changes })
+            : t('记忆整理好了，已经生效：{changes}。不合适能在整理记录里整晚撤销。', { changes })
+    if (this.dreamsToAnnounce.delete(dream.id)) {
+      this.rooms.milestone(this.rooms.ensureLeadRoom().id, text)
+      return
+    }
+    if (dream.trigger === 'nightly' && dream.status === 'preview') this.notifications.notify({ kind: 'system', title: t('记忆整理好了一版，等你看'), body: changes, roomId: null })
+  }
+
+
 
   /** 现在忙不忙：有任务在跑，或者你十分钟内说过话。夜里的整理挑空的时候做。 */
   private busyNow(): boolean {

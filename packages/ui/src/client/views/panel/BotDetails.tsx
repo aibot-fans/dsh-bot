@@ -300,6 +300,7 @@ export function BotDetails(props: { readonly bot: Bot; readonly taskId?: string;
       </Section>
       <section className="pod-box">
         <Entry label={t('记忆')} value={memories === undefined ? '' : t('{length} 条', { length: memories.filter((entry) => entry.status !== 'archived').length })} onClick={() => app.openDrawer({ kind: 'memory', scope: 'bot', scopeId: bot.id, label: t('{name}的记忆', { name: bot.name }) })} />
+        {bot.role === 'lead' ? <Entry label={t('组织目录')} value={t('哪个群管什么、哪类事交给谁')} onClick={() => app.openDrawer({ kind: 'memory', scope: 'org', scopeId: '', label: t('组织目录') })} /> : null}
         <Entry label={t('技能')} value={t('{length} 个', { length: ownSkills.length })} onClick={() => app.openDrawer({ kind: 'skills', botId: bot.id })} />
         <Entry label={t('成长记录')} value={changes.length === 0 ? t('还没有调整') : t('{length} 次调整，可撤回', { length: changes.length })} onClick={() => app.openDrawer({ kind: 'growth', botId: bot.id })} />
         <Entry label={t('历史版本')} value={t('每次改设定都留一版')} onClick={() => app.openDrawer({ kind: 'versions', botId: bot.id })} />

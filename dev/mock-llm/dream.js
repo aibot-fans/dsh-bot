@@ -69,6 +69,17 @@ export function dreamReplay(prompt) {
   return findings
 }
 
+/** 分拣 Super-agent 名下的条目：提到用户的归关于用户，提到某个群名的归那个群，说“交给谁”的归组织目录，别的不动。 */
+export function dreamSort(prompt) {
+  const groups = [...prompt.matchAll(/^\((g\d+)\) 「([^」]+)」/gm)].map((match) => ({ alias: match[1], title: match[2] }))
+  const entries = [...prompt.matchAll(/^\((e\d+)\) (.*)$/gm)].map((match) => ({ alias: match[1], text: match[2] }))
+  return entries.map((entry) => {
+    const group = groups.find((item) => entry.text.includes(item.title))
+    const to = group !== undefined ? group.alias : entry.text.includes('交给') ? 'org' : entry.text.includes('用户') ? 'owner' : 'self'
+    return { id: entry.alias, to }
+  })
+}
+
 function section(prompt, title) {
   const start = prompt.indexOf(`[${title}]`)
   if (start < 0) return ''
