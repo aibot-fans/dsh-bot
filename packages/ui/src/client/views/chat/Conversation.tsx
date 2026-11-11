@@ -11,9 +11,10 @@ import { ChatBody, useChatBots } from './ChatBody.tsx'
 import { ChatHeader } from './ChatHeader.tsx'
 import { ChatResize } from './ChatResize.tsx'
 import { PinnedBar } from './PinnedBar.tsx'
+import { WaitsBar } from './WaitsBar.tsx'
 
 /**
- * 中间的对话：顶部是对象（有置顶消息时下面一条置顶条），中间是时间线，底部是输入框；群里不放状态条，状态在群详情里；
+ * 中间的对话：顶部是对象（还有要你处理的事时下面一条“需要你”，有置顶消息时再下面一条置顶条），中间是时间线，底部是输入框；群里不放状态条，状态在群详情里；
  * 宽窄在对话区右边缘拖出来（设置里也能恢复默认、铺满）。默认打开和主管的单聊（主对话）；任务的状态在左侧列表每一行的右边，主对话右边不放任务栏。
  * 进了任务对话，右边默认打开干活的 bot 或任务群的详情；进了群聊默认打开群详情，你在宽屏上关掉过就不再自动开（手机上都不自动打开）。
  */
@@ -58,6 +59,7 @@ export function Conversation() {
   return (
     <main className="pod-convo" style={chatWidthStyle(width)}>
       <ChatHeader room={room} bots={bots} memberIds={memberIds} />
+      <WaitsBar room={room} />
       <PinnedBar room={room} bots={authors} />
       <ChatBody room={room} bots={bots} authors={authors} members={memberBots} lead={lead} />
       {narrow ? null : <ChatResize width={width} />}

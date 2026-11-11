@@ -258,6 +258,8 @@ export const api = {
   waits: () => apiGet<readonly Wait[]>('/waits'),
   /** 一件等你处理的事，处理过的也取得到（卡片上要画出选了哪个）。 */
   wait: (id: string) => apiGet<Wait>('/wait', { id }),
+  /** 带着这件事卡片的那条消息，卡片已经不在了是 null。 */
+  waitCard: (id: string) => apiGet<RoomMessage | null>('/wait/card', { id }),
   /** 答复；在对话里的问题卡片上答的带上卡片在哪段对话、哪条消息上，回答也作为你的一句话留在那里。 */
   answerWait: (waitId: string, answer: string, card?: { readonly roomId: string; readonly messageId: string }) => apiPost<Wait>('/wait/answer', { waitId, answer, ...card }),
   dismissWait: (waitId: string) => apiPost<Wait>('/wait/dismiss', { waitId }),

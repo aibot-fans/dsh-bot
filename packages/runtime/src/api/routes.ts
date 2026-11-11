@@ -14,7 +14,7 @@ import {
   type SearchKind,
   type TaskStatus,
 } from 'pod-domain'
-import { getMessage, listAudit, taskResultMessage, updateHandoverNote } from 'pod-store'
+import { getMessage, listAudit, taskResultMessage, updateHandoverNote, waitCardMessageId } from 'pod-store'
 import type { PodRuntime } from '../pod.ts'
 import { roomActivity, taskActivity, type ActivityDeps } from '../tasks/activity.ts'
 import type { ControlAction } from '../tasks/service.ts'
@@ -163,6 +163,14 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
       const id = readId(query, 'id')
       const wait = id === undefined ? undefined : pod.waits.get(id)
       return wait === undefined ? fail('not-found', t('找不到这件事')) : ok(wait)
+    }),
+    // 带着这件事卡片的那条消息（对话顶上的“需要你”点了跳过去）；卡片已经不在了是 null。
+    get('/wait/card', (query) => {
+      const id = readId(query, 'id')
+      const wait = id === undefined ? undefined : pod.waits.get(id)
+      if (wait === undefined) return fail('not-found', t('找不到这件事'))
+      const messageId = waitCardMessageId(pod.db, wait.id, wait.roomId)
+      return ok((messageId === undefined ? undefined : getMessage(pod.db, messageId)) ?? null)
     }),
 
     // ---------- 例程和通知 ----------

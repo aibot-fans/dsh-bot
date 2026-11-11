@@ -207,4 +207,12 @@ export const UI_EN_CHAT: Readonly<Record<string, string>> = {
   '置顶消息': 'Pinned messages',
   '{count} 条': '{count}',
   '置顶消息 · {count} 条': 'Pinned messages · {count}',
+  '需要你：{title}': 'Needs you: {title}',
+  '跳到对话里这张卡片': 'Jump to this card in the chat',
+  '这件事的卡片找不到了': "Couldn't find the card for this item",
+  '关掉这件事，干活的 bot 按能做到的继续': 'Close it; the bot carries on with what it can do',
+  '全部要你处理的事': 'Everything that needs you',
+  '要你处理的事': 'Needs you',
+  '要你处理的事 · {count} 件': 'Needs you · {count}',
+  '{count} 件': '{count}',
 }

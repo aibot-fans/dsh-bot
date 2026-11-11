@@ -63,6 +63,13 @@ export function waitsOfEndedTasks(db: DatabaseSync): readonly Wait[] {
   return rows.map(toWait)
 }
 
+/** 带着这件事卡片的消息：它所在对话里问的那句优先，没有就是最新的一条（比如前台转告的那句）。 */
+export function waitCardMessageId(db: DatabaseSync, waitId: string, roomId: string | null): string | undefined {
+  const row = db
+    .prepare("SELECT id FROM messages WHERE json_extract(data, '$.waitId') = ? AND deleted_at IS NULL ORDER BY room_id = ? DESC, seq DESC LIMIT 1")
+    .get(waitId, roomId ?? '') as { readonly id: string } | undefined
+  return row?.id
+}
 
 export interface NewWait {
   readonly id: string
