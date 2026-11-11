@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { t, type DreamDetail, type DreamQuestion, type MemoryDream } from 'pod-domain'
+import { t, type DreamDetail, type DreamOp, type DreamQuestion, type MemoryDream } from 'pod-domain'
 import { api } from '../../api/endpoints.ts'
 import { errorText } from '../../api/http.ts'
 import { Badge, Button, Empty, money, tokens } from '../../components/common.tsx'
@@ -104,7 +104,12 @@ function DreamView(props: { readonly id: string }) {
   const answers = new Set(dream.questions.flatMap((question) => question.options.flatMap((option) => option.ops)))
   const main = ops.filter((op) => !op.held)
   const chosen = ops.filter((op) => op.held && answers.has(op.seq) && op.appliedAt !== null)
-  const scopes = [...new Set(main.map((op) => `${op.scopeKind}:${op.scopeId}`))]
+  // 任务、旧团队里搬走的条目各算一组（范围写成 kind:*），别的按自己的范围分。
+  const groupOf = (op: DreamOp): string => {
+    const exact = `${op.scopeKind}:${op.scopeId}`
+    return dream.scopes.some((item) => `${item.kind}:${item.id}` === exact) || !dream.scopes.some((item) => item.kind === op.scopeKind && item.id === '*') ? exact : `${op.scopeKind}:*`
+  }
+  const scopes = [...new Set(main.map(groupOf))]
   const label = (scope: string): string => dream.scopes.find((item) => `${item.kind}:${item.id}` === scope)?.label ?? scope
   const toggle = (seq: number): void => {
     const next = new Set(skip)
@@ -130,7 +135,7 @@ function DreamView(props: { readonly id: string }) {
           <div className="pod-section-title">{label(scope)}</div>
           <ul className="pod-dream-ops">
             {main
-              .filter((op) => `${op.scopeKind}:${op.scopeId}` === scope)
+              .filter((op) => groupOf(op) === scope)
               .map((op) => (
                 <OpRow key={op.seq} op={op} preview={preview} checked={!skip.has(op.seq)} onToggle={() => toggle(op.seq)} />
               ))}

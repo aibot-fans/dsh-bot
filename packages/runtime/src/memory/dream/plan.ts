@@ -56,7 +56,8 @@ interface NoteState {
   removed: number
 }
 
-type OpBody = Omit<NewDreamOp, 'dreamId' | 'seq'>
+/** 一处改动，还没编号。 */
+export type OpBody = Omit<NewDreamOp, 'dreamId' | 'seq'>
 
 interface Ask {
   readonly text: string

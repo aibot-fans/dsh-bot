@@ -47,17 +47,20 @@ import {
   type NewDreamOp,
 } from 'pod-store'
 import { extractJson, type LiteLlm } from '../../core/lite.ts'
-import type { ModelSelection } from '../../dsh.ts'
+import type { ModelSelection, SessionEvent } from '../../dsh.ts'
 import type { MemoryService } from '../service.ts'
 import { applyOps, revertOps, type ApplyResult } from './apply.ts'
 import { CONSOLIDATE_SYSTEM, DEFAULT_GUIDES } from './consolidate.ts'
 import { ScopePlanner, type ScopeRef } from './plan.ts'
 import { chatRecords } from './records.ts'
+import { rehomeOps } from './rehome.ts'
 import { REPLAY_SYSTEM, parseFindings, replayPrompt, settleFindings, type Known } from './replay.ts'
+import { taskRecords } from './task-records.ts'
 import { EMPTY_WORK, addSpent, type DreamRecord, type DreamWork, type Mark, type Spent } from './types.ts'
 
-/** 一晚最多读多少份记录；多的下一晚接着读。 */
-const MAX_RECORDS = 40
+/** 一晚最多读多少段对话、多少件事；多的下一晚接着读。 */
+const MAX_CHATS = 30
+const MAX_TASKS = 12
 /** 一个范围一晚最多整合几轮（一轮 60 条）。 */
 const MAX_ROUNDS = 4
 /** 一次模型调用最多等多久。 */
@@ -69,8 +72,8 @@ const NIGHT_HOUR = 2
 /** 没过核对的最多留多少条给你看。 */
 const REJECTED_KEEP = 80
 
-/** 这一步先整理哪几种范围。 */
-const SCOPE_KINDS: readonly MemoryScopeKind[] = ['owner']
+/** 整理哪几种范围：关于你、bot、群。任务和旧团队不再是家，里面的条目先搬走。 */
+const SCOPE_KINDS: readonly MemoryScopeKind[] = ['owner', 'bot', 'room']
 
 export interface DreamDeps {
   readonly db: DatabaseSync
@@ -83,6 +86,12 @@ export interface DreamDeps {
   readonly botName: (id: string) => string | undefined
   readonly roomTitle: (id: string) => string | undefined
   readonly leadOf: (roomId: string) => string | undefined
+  /** 读一段会话在 from 到 to 之间的日志（任务会话里的工具调用和结果）。 */
+  readonly sessionEvents: (sessionId: string, from: number, to: number) => Promise<readonly SessionEvent[]>
+  /** 任务交进了哪个群、归哪个 bot 负责；旧团队转成了哪个群。 */
+  readonly groupOf: (taskId: string) => string | undefined
+  readonly ownerOf: (taskId: string) => string | undefined
+  readonly teamRoom: (teamId: string) => string | undefined
   /** 有任务在跑，或者你刚说过话：这时候不开始，自动的那一次做完手上这一份就先停。 */
   readonly busy: () => boolean
   readonly enabled: () => boolean
@@ -255,7 +264,10 @@ export class DreamService {
     let work = readDreamWork<DreamWork>(this.db, id, EMPTY_WORK)
 
     // 第一步：挑记录。读过的（停下来之前读完的）不再读。
-    const picked = work.only.length > 0 ? { records: [], skipped: [] } : chatRecords({ db: this.db, now: this.deps.now, botName: this.deps.botName }, MAX_RECORDS)
+    const sources = { db: this.db, now: this.deps.now, botName: this.deps.botName }
+    const chats = work.only.length > 0 ? { records: [], skipped: [] } : chatRecords(sources, MAX_CHATS)
+    const tasks = work.only.length > 0 ? { records: [], skipped: [] } : await taskRecords({ ...sources, sessionEvents: this.deps.sessionEvents, groupOf: this.deps.groupOf }, MAX_TASKS)
+    const picked = { records: [...chats.records, ...tasks.records], skipped: [...chats.skipped, ...tasks.skipped] }
     if (work.done.length === 0 && work.marks.length === 0) work = { ...work, marks: picked.skipped }
 
     // 第二步：逐份回放，只交发现。自动的那一次碰上有任务在跑就先停，空了接着做。
@@ -288,6 +300,11 @@ export class DreamService {
     const scopes: DreamScope[] = []
     const marks: Mark[] = [...work.marks]
     let spent = work.spent
+    if (work.only.length === 0) {
+      const moved = rehomeOps({ db: this.db, groupOf: this.deps.groupOf, ownerOf: this.deps.ownerOf, teamRoom: this.deps.teamRoom, label: (kind, scopeId) => this.label(kind, scopeId) })
+      ops.push(...moved.ops.map((body, index) => ({ ...body, dreamId: id, seq: index + 1 })))
+      scopes.push(...moved.scopes)
+    }
     for (const scope of this.scopes(work)) {
       const manual = work.only.some((item) => item.kind === scope.kind && item.id === scope.id)
       const planner = new ScopePlanner({

@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { join } from 'node:path'
 import { LEAD_BOT_ID, LEAD_PERSONA, OWNER, POD, POD_VERSION, PRIORITY, botFolder, composePersona, roomFolder, fail, sessionBrowses, sessionMakesPages, t, withLanguage, worthSummary, type Bot, type BotStats, type Language, type PodEvent, type PodResult, type PodSession, type Room, type Task, type TaskTeam, type TeamTemplate, triggerSource } from 'pod-domain'
-import { afterCommit, deliveryByMessageId, getMessage, inTransaction, onAfterCommitError, pendingFor, pinnedMessages, raiseProblem, resolveProblem, runningTasksByRoom, taskCardMessage, taskConversationOf, teamsOfBot } from 'pod-store'
+import { afterCommit, deliveryByMessageId, getMessage, inTransaction, listRooms, onAfterCommitError, pendingFor, pinnedMessages, raiseProblem, resolveProblem, runningTasksByRoom, taskCardMessage, taskConversationOf, teamsOfBot } from 'pod-store'
 import { SegmentManager } from './agents/segments.ts'
 import { AibotService } from './aibot/service.ts'
 import { DreamService } from './memory/dream/service.ts'
@@ -51,9 +51,9 @@ import { LiteLlm } from './core/lite.ts'
 import { Maintenance } from './core/maintenance.ts'
 import { LanguageService } from './core/language.ts'
 import { SettingsService } from './core/settings.ts'
-import type { HostContext, LlmService, SessionPersistenceLike } from './dsh.ts'
+import type { HostContext, LlmService, SessionEvent, SessionPersistenceLike } from './dsh.ts'
 import { healthReport, type HealthReport } from './effects/health.ts'
-import { DeliveryLedger } from './effects/ledger.ts'
+import { DeliveryLedger, release as releaseLog } from './effects/ledger.ts'
 import { Effects } from './effects/queue.ts'
 import { SystemProblems } from './effects/problems.ts'
 import { SessionFactory } from './sessions/factory.ts'
@@ -667,6 +667,10 @@ export class PodRuntime {
         const room = this.rooms.get(roomId)
         return room === undefined ? undefined : this.rooms.leaderOf(room)?.id
       },
+      sessionEvents: (sessionId, from, to) => this.sessionEvents(sessionId, from, to),
+      groupOf: (taskId) => this.tasks.groupOf(taskId)?.id,
+      ownerOf: (taskId) => this.tasks.get(taskId)?.ownerBotId ?? undefined,
+      teamRoom: (teamId) => listRooms(db, { archived: false }).find((room) => room.teamId === teamId)?.id,
       busy: () => this.busyNow(),
       enabled: () => this.settings.get().memoryDream,
       warn,
@@ -1303,6 +1307,30 @@ export class PodRuntime {
       waits: this.waits.open(),
       cost: { today: this.meter.since(now - day).cost, yesterday: this.meter.since(now - 2 * day).cost - this.meter.since(now - day).cost },
     }
+  }
+
+  /** 一段会话在 from 到 to 之间的日志；dsh 没有这个接口、会话读不了都返回空的。夜里整理记忆时回放任务会话用。 */
+  private async sessionEvents(sessionId: string, from: number, to: number): Promise<readonly SessionEvent[]> {
+    const service = this.ctx.get('sessionPersistence') as SessionPersistenceLike | undefined
+    if (service === undefined || typeof service.open !== 'function') return []
+    const kept: SessionEvent[] = []
+    try {
+      if (typeof service.flush === 'function') await service.flush()
+      const handle = await service.open(sessionId, 'read')
+      try {
+        for (let offset = 0; ; ) {
+          const { events } = await handle.read(offset, 512)
+          if (events.length === 0) break
+          for (const event of events) if (event.time <= 0 || (event.time >= from && event.time <= to)) kept.push(event)
+          offset += events.length
+        }
+      } finally {
+        await releaseLog(handle)
+      }
+    } catch (error) {
+      this.ctx.logger.warn(`读会话 ${sessionId} 的日志没成`, error)
+    }
+    return kept
   }
 
   /** 现在忙不忙：有任务在跑，或者你十分钟内说过话。夜里的整理挑空的时候做。 */

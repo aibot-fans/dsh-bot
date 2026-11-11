@@ -13,7 +13,7 @@ function record(value: unknown): Readonly<Record<string, unknown>> {
 }
 
 /** 释放只读句柄；拿不到 Symbol.asyncDispose 的旧运行时就算了（只读句柄不占东西）。 */
-async function release(handle: SessionLogHandle): Promise<void> {
+export async function release(handle: SessionLogHandle): Promise<void> {
   const key = (Symbol as unknown as { readonly asyncDispose?: symbol }).asyncDispose
   const dispose = key === undefined ? undefined : (handle as unknown as Record<symbol, unknown>)[key]
   if (typeof dispose === 'function') await (dispose as () => Promise<void>).call(handle)

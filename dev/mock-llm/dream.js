@@ -42,6 +42,22 @@ export function dreamReplay(prompt) {
       findings.push({ kind: 'new', about: line.text.includes('这个群') ? 'group' : 'owner', type: line.text.includes('这个群') ? 'convention' : 'preference', content: `用户要求：${quote}`, quote, at: line.at })
       continue
     }
+    // 任务会话里的：跑过的命令记成这个 bot 的做法，出错的工具结果记成踩过的坑，汇报里的结论记成这件事的决定。
+    if (line.name.includes(' 调用 ') && !/调用 (report|complete_task|reply|remember|recall)$/.test(line.name)) {
+      const quote = line.text.slice(0, 70)
+      findings.push({ kind: 'new', about: 'bot', type: 'experience', content: `用过的做法：${quote}`, quote, at: line.at })
+      continue
+    }
+    if (line.name.includes('工具结果（出错）')) {
+      const quote = line.text.slice(0, 70)
+      findings.push({ kind: 'new', about: 'bot', type: 'experience', content: `踩过的坑：${quote}`, quote, at: line.at })
+      continue
+    }
+    if (line.name.includes('的汇报（ready）')) {
+      const quote = line.text.slice(0, 60)
+      findings.push({ kind: 'new', about: 'group', type: 'decision', content: `这件事的结论：${quote}`, quote, at: line.at })
+      continue
+    }
     if (!owner && line.text.includes('（推断）')) {
       const quote = line.text.slice(0, 60)
       findings.push({ kind: 'new', about: 'owner', type: 'fact', content: `用户可能${quote.replace('（推断）', '').slice(0, 40)}`, quote, at: line.at })
@@ -64,7 +80,7 @@ function section(prompt, title) {
 export function dreamConsolidate(prompt) {
   const notes = [...section(prompt, '现有的笔记').matchAll(/^\((n\d+)\) 《([^》]+)》/gm)].map((match) => ({ alias: match[1], title: match[2] }))
   const entries = [...section(prompt, '还没整理的条目').matchAll(/^\((e\d+)\) ([^：]*)：(.*)$/gm)].map((match) => ({ alias: match[1], tags: match[2], text: match[3] }))
-  const findings = [...section(prompt, '今晚的发现').matchAll(/^\((f\d+)\) ([^：]*)：(.*)$/gm)].map((match) => ({ alias: match[1], tags: match[2], text: match[3] }))
+  const findings = [...section(prompt, '今晚的发现').matchAll(/^\((f\d+)\) (.*?」，\d\d-\d\d)：(.*)$/gm)].map((match) => ({ alias: match[1], tags: match[2], text: match[3] }))
   const replaced = []
   const dropped = []
   const questions = []
