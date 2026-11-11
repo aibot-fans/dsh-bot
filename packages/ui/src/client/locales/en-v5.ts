@@ -58,6 +58,7 @@ export const UI_EN_V5: Readonly<Record<string, string>> = {
   '还有 {count} 项': '{count} more steps',
   '更早的 {count} 组': '{count} earlier requests',
   '{count} 项': '{count} steps',
+  '正在读取更早的…': 'Loading earlier…',
   '干活的 bot 做成一步会记在这里': 'Steps the working bot finishes are recorded here',
   '在群里交代一件事，组长会接，或者交给对口的成员；干到哪会记在这里。': 'Ask for something in the group. The leader takes it or hands it to the right member, and how far it has got is recorded here.',
   '在单聊里交代{name}一件事，干到哪会记在这里。': 'Ask {name} for something in this chat, and how far it has got is recorded here.',

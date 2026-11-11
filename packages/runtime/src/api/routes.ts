@@ -121,15 +121,15 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
       const snapshot = id === undefined ? undefined : pod.tasks.snapshot(id)
       return snapshot === undefined ? fail('not-found', t('找不到这个任务')) : ok(snapshot)
     }),
-    // 动态：群、单聊详情里成员下面那一栏；任务详情里也是它。
+    // 动态：群、单聊详情里成员下面那一栏；任务详情里也是它。默认只列最近的几十组，all=1 全读。
     get('/room/activity', (query) => {
       const id = readId(query, 'id')
-      const activity = id === undefined ? undefined : roomActivity(activityDeps(pod), id)
+      const activity = id === undefined ? undefined : roomActivity(activityDeps(pod), id, readString(query, 'all') === '1')
       return activity === undefined ? fail('not-found', t('找不到这个聊天室')) : ok(activity)
     }),
     get('/task/activity', (query) => {
       const id = readId(query, 'id')
-      const activity = id === undefined ? undefined : taskActivity(activityDeps(pod), id)
+      const activity = id === undefined ? undefined : taskActivity(activityDeps(pod), id, readString(query, 'all') === '1')
       return activity === undefined ? fail('not-found', t('找不到这个任务')) : ok(activity)
     }),
     // 没有自己对话的任务放结果的那条消息：点这种任务时跳过去。

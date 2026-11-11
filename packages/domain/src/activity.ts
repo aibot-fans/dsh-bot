@@ -39,6 +39,8 @@ export interface ActivityGroup {
 /** 一段对话（群、单聊、任务对话）或一件任务的动态，先的在前。 */
 export interface Activity {
   readonly groups: readonly ActivityGroup[]
+  /** 太早、这次没列出来的几组，和这几组里一共几步；要看再全读。 */
+  readonly earlier: { readonly groups: number; readonly steps: number }
 }
 
 export interface RoomActivity extends Activity {

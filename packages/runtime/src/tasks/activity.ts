@@ -13,6 +13,9 @@ export interface ActivityDeps {
 /** 一段对话里最多看最近动过的几件事。 */
 const ROOTS = 50
 
+/** 一次最多列最近的几组（建群、创建任务那一行另算），更早的只给个数，要看再全读。 */
+const GROUPS = 50
+
 /** 一行最多这么长。 */
 const LINE = 80
 
@@ -147,33 +150,42 @@ function kept(groups: readonly ActivityGroup[]): readonly ActivityGroup[] {
   return groups.filter((group) => group.steps.length > 0 || group.live || group.request.kind === 'group' || group.request.kind === 'task')
 }
 
-/** 一件事自己的动态：开头是创建了任务，之后每次接着说、每一轮一组。 */
-function ownActivity(deps: ActivityDeps, roomId: string | null, snapshot: TaskSnapshot): Activity {
-  return { groups: kept(treeGroups(deps, treeOf(deps, roomId, snapshot), true)) }
+/** 开头那一行（建群、创建任务）总列；后面的不是全读就只列最近 GROUPS 组，更早的给个数。 */
+function limited(groups: readonly ActivityGroup[], all: boolean): Activity {
+  const head = groups[0]?.request.kind === 'group' || groups[0]?.request.kind === 'task' ? groups.slice(0, 1) : []
+  const rest = groups.slice(head.length)
+  const cut = all ? 0 : Math.max(0, rest.length - GROUPS)
+  const omitted = rest.slice(0, cut)
+  return { groups: [...head, ...rest.slice(cut)], earlier: { groups: omitted.length, steps: omitted.reduce((sum, group) => sum + group.steps.length, 0) } }
 }
 
-/** 一段对话的动态：任务自己的对话就是这件任务的；群、单聊里是在这里交代的每件事，群的最上面是建群。 */
-export function roomActivity(deps: ActivityDeps, roomId: string): RoomActivity | undefined {
+/** 一件事自己的动态：开头是创建了任务，之后每次接着说、每一轮一组。 */
+function ownActivity(deps: ActivityDeps, roomId: string | null, snapshot: TaskSnapshot, all: boolean): Activity {
+  return limited(kept(treeGroups(deps, treeOf(deps, roomId, snapshot), true)), all)
+}
+
+/** 一段对话的动态：任务自己的对话就是这件任务的；群、单聊里是在这里交代的每件事，群的最上面是建群。all 是全读。 */
+export function roomActivity(deps: ActivityDeps, roomId: string, all = false): RoomActivity | undefined {
   const room = deps.room(roomId)
   if (room === undefined) return undefined
   if (room.taskId !== null) {
     const snapshot = deps.snapshot(room.taskId)
-    return { roomId, groups: snapshot === undefined ? [] : ownActivity(deps, roomId, snapshot).groups }
+    return { roomId, ...(snapshot === undefined ? limited([], all) : ownActivity(deps, roomId, snapshot, all)) }
   }
   const trees = activityRoots(deps.db, roomId, ROOTS).flatMap((id) => {
     const snapshot = deps.snapshot(id)
     return snapshot === undefined ? [] : [treeOf(deps, roomId, snapshot)]
   })
   const created: readonly ActivityGroup[] = room.kind === 'direct' ? [] : [{ key: room.id, request: { kind: 'group', text: '', at: room.createdAt }, steps: [], live: false }]
-  return { roomId, groups: [...created, ...kept(merged(trees.flatMap((tree) => treeGroups(deps, tree, false))))] }
+  return { roomId, ...limited([...created, ...kept(merged(trees.flatMap((tree) => treeGroups(deps, tree, false))))], all) }
 }
 
-/** 任务详情里的动态，和任务对话里的一样。 */
-export function taskActivity(deps: ActivityDeps, taskId: string): Activity | undefined {
+/** 任务详情里的动态，和任务对话里的一样。all 是全读。 */
+export function taskActivity(deps: ActivityDeps, taskId: string, all = false): Activity | undefined {
   const task = deps.task(taskId)
   const snapshot = task === undefined ? undefined : deps.snapshot(task.rootId)
   if (snapshot === undefined) return undefined
   const rooms = [snapshot.conversationId, snapshot.groupRoomId].flatMap((id) => (id === null ? [] : [deps.room(id)])).filter((room): room is Room => room !== undefined)
   const roomId = rooms.find((room) => room.taskId === snapshot.task.id)?.id ?? rooms[0]?.id ?? snapshot.task.roomId
-  return ownActivity(deps, roomId, snapshot)
+  return ownActivity(deps, roomId, snapshot, all)
 }
