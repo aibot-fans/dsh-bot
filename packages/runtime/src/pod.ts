@@ -441,6 +441,7 @@ export class PodRuntime {
         }),
       notify: (task, event) => this.onTaskNotify(task, event),
       onRootStateChange: (rootId, change) => this.waits.onRootChange(rootId, change).map((wait) => WaitService.describe(wait)),
+      closeWaits: (task) => this.waits.closeForEnded(task),
       onSubtaskStalled: (task, reason) => this.coordinator.onStalled(task, reason),
       learn: (session, task, lessons) => this.learnFromTask(session, task, lessons),
       markRead: (sessionId) => this.dispatcher.turnEnded(sessionId),
@@ -1304,6 +1305,12 @@ export class PodRuntime {
   adoptTeams(): void {
     const adopted = this.rooms.groups.adoptTeams(this.teams.list(), (message, error) => this.ctx.logger.warn(message, error))
     if (adopted > 0) this.ctx.logger.info(`正式团队转成了 ${String(adopted)} 个群`)
+  }
+
+  /** 以前任务结束了、却还开着的等你事项关掉，对话不再一直显示需要你。 */
+  closeStaleWaits(): void {
+    const closed = this.waits.closeStale()
+    if (closed > 0) this.ctx.logger.info(`关掉了 ${String(closed)} 件任务结束后还开着的等你事项`)
   }
 
   private briefData(): BriefData {

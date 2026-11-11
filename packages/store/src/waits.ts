@@ -55,6 +55,15 @@ export function waitsForRoot(db: DatabaseSync, rootId: string): readonly Wait[] 
   return rows.map(toWait)
 }
 
+/** 任务已经结束、却还开着的事（以前交了结果、看过了不用做时没有关上的）。 */
+export function waitsOfEndedTasks(db: DatabaseSync): readonly Wait[] {
+  const rows = db
+    .prepare("SELECT w.* FROM waits w JOIN tasks t ON t.id = w.task_id WHERE w.status IN ('open', 'bypassed') AND t.ended_at IS NOT NULL ORDER BY w.created_at")
+    .all() as unknown as readonly WaitRow[]
+  return rows.map(toWait)
+}
+
+
 export interface NewWait {
   readonly id: string
   readonly kind: WaitKind

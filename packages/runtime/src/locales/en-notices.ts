@@ -264,6 +264,7 @@ export const RUNTIME_EN_NOTICES: Readonly<Record<string, string>> = {
   '不用处理': 'No action needed',
   '跳过了': 'Skipped',
   '已绕过，写进交付的前提和待确认': 'Worked around; listed under assumptions and items to confirm in the delivery',
+  '任务已经结束，不用再处理': 'The task has ended; nothing left to do here',
   '{kind}：{title}（已先绕过）': '{kind}: {title} (worked around first)',
   '{name}没回成：{reason}': "{name} couldn't reply: {reason}",
   '模型服务认证失败，Key 可能填错了、过期了或者没填': 'The model service rejected the credentials; the key may be wrong, expired or missing',

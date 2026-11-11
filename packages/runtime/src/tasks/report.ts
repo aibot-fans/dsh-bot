@@ -63,6 +63,8 @@ export interface ReportingDeps {
   }) => Wait
   readonly notify: (task: Task, event: 'done' | 'failed' | 'stalled') => void
   readonly onRootStateChange: (rootId: string, change: 'delivered') => readonly string[]
+  /** 任务交了结果、看过了不用做：它还开着的等你事项关掉。 */
+  readonly closeWaits: (task: Task) => void
   readonly onSubtaskStalled: (task: Task, reason: string) => void
   readonly learn: (session: PodSession, task: Task, lessons: string) => void
   /** 汇报时这一轮之前收进历史的消息都算读过（任务结束时没读的才退回前台）。 */
@@ -154,6 +156,7 @@ export class TaskReporting {
         tasks.tellRequester(outcome.task, `[任务没做成] 「${task.title}」：${args.summary}`)
         return ok({ task: outcome.task, message: t('已记下失败，等用户决定重试还是结束。这一轮到这里结束。') })
       case 'dismissed':
+        if (!outcome.standing) this.deps.closeWaits(outcome.task)
         return ok({ task: outcome.task, message: outcome.standing ? t('已记下：这次没有要说的，不发消息，等下次到点。') : t('已记下：无需处理，任务结束。') })
       case 'ready': {
         const bypassed = this.deps.onRootStateChange(task.rootId, 'delivered')
@@ -163,6 +166,7 @@ export class TaskReporting {
         replies.result(delivered, session.botId, session.id, result.summary, outcome.report.id)
         if (args.lessons !== '') this.deps.learn(session, delivered, args.lessons)
         if (outcome.standing) return ok({ task: delivered, message: t('已发出这次的结果，等下次到点。') })
+        this.deps.closeWaits(delivered)
         tasks.tellRequester(delivered, `[任务交付] 「${delivered.title}」已完成，结果已经发给用户。摘要：${args.summary}`)
         this.deps.notify(delivered, 'done')
         if (bot !== undefined && bot.temporary && bot.role === 'member' && outcome.completed) tasks.retireTemporary(bot)
@@ -198,6 +202,7 @@ export class TaskReporting {
         told(false)
         return ok({ task: outcome.task, message: t('已记下失败，交给组长处理。这一轮到这里结束。') })
       case 'dismissed':
+        this.deps.closeWaits(outcome.task)
         told(false)
         return ok({ task: outcome.task, message: t('已记下：无需处理，子任务结束。') })
       case 'ready': {
@@ -205,6 +210,7 @@ export class TaskReporting {
         const delivered = engine.tickets.patch(outcome.task, { result })
         replies.result(delivered, session.botId, session.id, result.summary)
         if (args.lessons !== '') this.deps.learn(session, delivered, args.lessons)
+        this.deps.closeWaits(delivered)
         told(false)
         return ok({ task: delivered, message: t('已交给组长验收。') })
       }

@@ -18,7 +18,7 @@ import {
   type Wait,
   type WaitKind,
 } from 'pod-domain'
-import { getMessage, getWait, insertWait, listWaits, setRootWaitStatus, setWaitStatus, taskConversationOf, waitsForRoot } from 'pod-store'
+import { getMessage, getWait, insertWait, listWaits, setRootWaitStatus, setWaitStatus, taskConversationOf, waitsForRoot, waitsOfEndedTasks } from 'pod-store'
 import type { Dispatcher } from '../effects/delivery.ts'
 import type { RoomService } from '../chat/rooms.ts'
 import type { Auditor } from '../core/audit.ts'
@@ -272,6 +272,22 @@ export class WaitService {
     }
     this.deps.bus.emit({ type: 'waits' })
     return moved
+  }
+
+  /**
+   * 任务交了结果、看过了不用做：它还开着的事用不上了，关掉，卡片上写明，对话不再显示需要你。
+   * 根任务连带整棵树一起关，子任务只关自己的。常开任务每轮都交，问的事可能还要你处理，不走这里。
+   */
+  closeForEnded(task: Task): void {
+    const stale = waitsForRoot(this.db, task.rootId).filter((wait) => isOpenWait(wait) && (task.parentId === null || wait.taskId === task.id))
+    for (const wait of stale) this.afterChange(setWaitStatus(this.db, wait.id, 'closed', t('任务已经结束，不用再处理'), this.deps.now()) ?? wait)
+  }
+
+  /** 启动时：以前任务结束了却没关上的事一并关掉，返回关了几件。 */
+  closeStale(): number {
+    const stale = waitsOfEndedTasks(this.db)
+    for (const wait of stale) this.afterChange(setWaitStatus(this.db, wait.id, 'closed', t('任务已经结束，不用再处理'), this.deps.now()) ?? wait)
+    return stale.length
   }
 
   /** 交付卡上的一行：已绕过的事项。 */
