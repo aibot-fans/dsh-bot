@@ -16,11 +16,19 @@ export interface DreamEvidence {
   readonly by: string
 }
 
-/** 笔记正文里一句话是怎么来的：并进来的条目，和从记录里找到的原话。 */
+/** 笔记正文里一句话是怎么来的：并进来的条目，和从记录里找到的原话；什么时候说的、核对过没有。 */
 export interface NoteSource {
   readonly line: string
   readonly entries: readonly string[]
   readonly evidence: readonly DreamEvidence[]
+  /** 这句话是什么时候说的、记的（出处里最新的那个时间）。老数据没有，启动时补上。 */
+  readonly at?: number
+  /** 最近一次有记录证实它的时间。 */
+  readonly checkedAt?: number
+  /** 拿不准：记忆里说得肯定，记录里其实没核实。这里是记录里那句原话。 */
+  readonly doubt?: string
+  /** 它替掉了原来的哪一句。 */
+  readonly replaces?: string
 }
 
 export type NoteStatus = 'active' | 'archived' | 'deleted'
@@ -236,6 +244,23 @@ export function noteLines(body: string): readonly string[] {
     .split('\n')
     .map((line) => line.replace(/^[-*]\s+/, '').trim())
     .filter((line) => line !== '')
+}
+
+/**
+ * 笔记正文给 bot 和模型看的样子：每句后面带上日期，拿不准的标出来。新旧说法不一样时看日期。
+ * day 把时间换成“月-日”（时区由调用的一方定）。
+ */
+export function datedNoteLines(note: Pick<MemoryNote, 'body' | 'sources' | 'updatedAt'>, day: (time: number) => string): readonly string[] {
+  const sources = new Map(note.sources.map((source) => [source.line, source]))
+  return noteLines(note.body).map((line) => {
+    const source = sources.get(line)
+    return `${line}（${day(source?.at ?? note.updatedAt)}${source?.doubt === undefined ? '' : t('，拿不准')}）`
+  })
+}
+
+/** 模型照抄笔记里的一句时可能连后面的日期一起抄回来：去掉它再比。 */
+export function undated(line: string): string {
+  return line.replace(/（\d{1,2}-\d{1,2}(，[^（）]*)?）\s*$/, '').trim()
 }
 
 /** 几句话拼成笔记正文。 */

@@ -2,13 +2,16 @@ import type { DatabaseSync } from 'node:sqlite'
 import {
   EMPTY_DREAM_STATS,
   costOf,
+  datedNoteLines,
   dreamHold,
   fail,
   isCredentialMemory,
   isDeepSeekPeak,
+  keywords,
   localDate,
   newId,
   noteIndexLine,
+  noteLines,
   ok,
   t,
   truncate,
@@ -55,14 +58,15 @@ import { CONSOLIDATE_SYSTEM, DEFAULT_GUIDES } from './consolidate.ts'
 import { ScopePlanner, type ScopeRef } from './plan.ts'
 import { chatRecords } from './records.ts'
 import { rehomeOps } from './rehome.ts'
-import { REPLAY_SYSTEM, parseFindings, replayPrompt, settleFindings, type Known } from './replay.ts'
+import { ORGANIZE_SYSTEM } from './organize.ts'
+import { REPLAY_SYSTEM, parseFindings, replayPrompt, settleFindings, type ReplayContext, type ReplayPage } from './replay.ts'
 import { SORT_MAX, SORT_SYSTEM, sortOps, sortPrompt } from './sort.ts'
 import { taskRecords } from './task-records.ts'
 import { EMPTY_WORK, NOTHING_SPENT, WORK_VERSION, addSpent, settledMarks, type DreamRecord, type DreamWork, type Mark, type Spent } from './types.ts'
 
-/** 一晚最多读多少段对话、多少件事；多的下一晚接着读。 */
-const MAX_CHATS = 30
-const MAX_TASKS = 12
+/** 一晚最多读多少份对话、多少份任务的记录（长的一件事会拆成几份）；多的下一晚接着读。 */
+const MAX_CHATS = 40
+const MAX_TASKS = 24
 /** 一个范围一晚最多整合几轮（一轮 40 条条目、40 条发现）。 */
 const MAX_ROUNDS = 6
 /** 一次模型调用最多等多久：要认真想的那一步（整合）多等一会儿。 */
@@ -72,8 +76,10 @@ const THOROUGH_TIMEOUT_MS = 480_000
 const TROUBLE_LIMIT = 3
 /** 上一次没做成、读过的记录还留着：这么久以内再整理就接着用，不重读。 */
 const REUSE_MS = 24 * 3_600_000
-/** 回放时给模型看多少条已有的记忆。 */
+/** 回放时给模型看多少条已有的条目；带正文的笔记最多几页、一共多少字。 */
 const KNOWN_MAX = 80
+const PAGES_MAX = 6
+const PAGES_CHARS = 9000
 /** 夜里几点以后才自动整理（本地时间）。 */
 const NIGHT_HOUR = 2
 /** 一份记录连着几次整理都没读成，就不再读它（免得每晚卡在同一份上）。 */
@@ -283,12 +289,16 @@ export class DreamService {
     return { value: undefined, spent, error }
   }
 
-  /** 回放时给模型看的已有记忆：关于你的，加上这份记录所在的群、这个 bot 名下的。 */
-  private known(record: DreamRecord): { readonly known: readonly Known[]; readonly notes: string } {
+  /**
+   * 回放一份记录时带的已有记忆：关于你的，加上这份记录所在的群、里面干活的 bot 名下的。
+   * 零散的条目都列出来；笔记里，和这份记录的话对得上的几页带正文（每句有编号，发现能指到某一句），别的只列目录。
+   */
+  private context(record: DreamRecord): ReplayContext {
+    const bots = [...new Set([record.botId, ...record.lines.map((line) => line.botId)].filter((id): id is string => id !== null))].slice(0, 4)
     const scopes: { readonly kind: MemoryScopeKind; readonly id: string }[] = [
       { kind: 'owner', id: '' },
       ...(record.roomId === null ? [] : [{ kind: 'room' as const, id: record.roomId }]),
-      ...(record.botId === null ? [] : [{ kind: 'bot' as const, id: record.botId }]),
+      ...bots.map((id) => ({ kind: 'bot' as const, id })),
     ]
     const entries = scopes.flatMap((scope) => this.usable(scope.kind, scope.id, ['active', 'pending']).slice(0, scope.kind === 'owner' ? 50 : 20)).slice(0, KNOWN_MAX)
     const known = entries.map((entry, index) => ({
@@ -298,8 +308,40 @@ export class DreamService {
       scopeId: entry.scopeId,
       text: `${entry.status === 'pending' ? '（待确认）' : ''}${truncate(entry.content, 160)}`,
     }))
-    const notes = scopes.flatMap((scope) => listNotes(this.db, { scopeKind: scope.kind, scopeId: scope.id }).slice(0, 12).map(noteIndexLine)).join('\n')
-    return { known, notes }
+    const said = record.lines.map((line) => line.text).join('\n').toLowerCase()
+    const day = (time: number): string => localDate(time, this.deps.timezone()).slice(5)
+    // 一页和这份记录有多相关：它的关键词有几个在记录里出现过。
+    const ranked = scopes
+      .flatMap((scope) => listNotes(this.db, { scopeKind: scope.kind, scopeId: scope.id }))
+      .map((note) => {
+        const words = keywords(`${note.title} ${note.description} ${note.body}`, 40)
+        return { note, words: words.length, score: words.filter((word) => said.includes(word)).length }
+      })
+      .sort((left, right) => right.score - left.score)
+    const pages: ReplayPage[] = []
+    const rest: string[] = []
+    let size = 0
+    let counter = 0
+    for (const item of ranked) {
+      const related = item.score >= 2 || (item.score >= 1 && item.words <= 4)
+      if (!related || pages.length >= PAGES_MAX || size + item.note.body.length > PAGES_CHARS) {
+        if (rest.length < 24) rest.push(noteIndexLine(item.note))
+        continue
+      }
+      size += item.note.body.length
+      const shown = datedNoteLines(item.note, day)
+      pages.push({
+        title: item.note.title,
+        where: this.label(item.note.scopeKind, item.note.scopeId),
+        description: item.note.description,
+        lines: noteLines(item.note.body).map((line, index) => {
+          counter += 1
+          return { alias: `n${counter}`, noteId: item.note.id, scopeKind: item.note.scopeKind, scopeId: item.note.scopeId, line, shown: shown[index] ?? line }
+        }),
+      })
+    }
+    const guides = scopes.map((scope) => `${this.label(scope.kind, scope.id)}：${this.guide(scope.kind, scope.id) || DEFAULT_GUIDES[scope.kind]}`)
+    return { known, pages, index: rest.join('\n'), guides }
   }
 
   private scopes(work: DreamWork): readonly ScopeRef[] {
@@ -347,8 +389,8 @@ export class DreamService {
         updateDream(this.db, id, { status: 'paused' })
         return
       }
-      const { known, notes } = this.known(record)
-      const answer = await this.ask('memory-dream-replay', REPLAY_SYSTEM, replayPrompt(record, known, notes), model, false)
+      const context = this.context(record)
+      const answer = await this.ask('memory-dream-replay', REPLAY_SYSTEM, replayPrompt(record, context), model, false)
       if (answer.error !== '') {
         // 模型服务出错：这份先不算。连着几份都这样多半是服务有问题，先停下，空了接着做。
         troubles += 1
@@ -380,7 +422,7 @@ export class DreamService {
         writeDreamWork(this.db, id, work)
         continue
       }
-      const settled = settleFindings({ leadOf: this.deps.leadOf }, record, raw, known, work.findings.length)
+      const settled = settleFindings({ leadOf: this.deps.leadOf }, record, raw, context, work.findings.length)
       work = {
         ...work,
         done: [...work.done, record.id],
@@ -440,6 +482,7 @@ export class DreamService {
         core: getCore(this.db, scope.kind, scope.id),
         notes: listNotes(this.db, { scopeKind: scope.kind, scopeId: scope.id }),
         entries: this.usable(scope.kind, scope.id).filter((entry) => !leaving.has(entry.id)),
+        merged: listMemories(this.db, { scopeKind: scope.kind, scopeId: scope.id, statuses: ['merged'], limit: 5000 }),
         since: manual ? 0 : readState<number>(this.db, seenKey(scope), 0),
         pending: this.usable(scope.kind, scope.id, ['pending']),
         findings: work.findings.filter((finding) => finding.scopeKind === scope.kind && finding.scopeId === scope.id),
@@ -458,6 +501,14 @@ export class DreamService {
           break
         }
         if (!planner.absorb(answer.value)) break
+      }
+      // 整理员那一趟：这个范围动过笔记（或者你点了它的“现在整理”），把笔记收拾一遍：重复的页并起来、标题太泛的改名、相关的页连起来。句子原样搬，一句不丢。
+      const tidy = planner.organizePrompt(manual)
+      if (tidy !== undefined) {
+        const answer = await this.ask('memory-dream-organize', ORGANIZE_SYSTEM, tidy, model, false)
+        spent = addSpent(spent, answer.spent)
+        if (answer.error === '') planner.organize(answer.value)
+        else rejected.push({ what: scope.label, why: t('收拾笔记时模型服务出错，这一次没有收拾') })
       }
       const result = planner.result(id, ops.length + 1)
       ops.push(...result.ops)

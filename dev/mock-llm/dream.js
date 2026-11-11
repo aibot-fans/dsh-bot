@@ -16,9 +16,17 @@ function clause(text, words) {
   return hit.trim().slice(0, 78)
 }
 
-/** 第一步：回放。用户说“以后、记住、不要、都用”的记成偏好；说“改成、不对”又对得上已有记忆的记成纠正。 */
+/**
+ * 第一步：回放。用户说“以后、记住、不要、都用”的记成偏好；说“改成、不对”又对得上已有记忆的记成纠正（先找笔记里的一句，再找零散的条目）；
+ * 说“没错、是这样”的证实同一个话题的那句笔记；bot 说“（猜的）”的把同一个话题的那句笔记标成拿不准。
+ */
 export function dreamReplay(prompt) {
   const known = [...prompt.matchAll(/^\((k\d+)\) (.*)$/gm)].map((match) => ({ alias: match[1], text: match[2] }))
+  const sentences = [...prompt.matchAll(/^\((n\d+)\) (.*)$/gm)].map((match) => ({ alias: match[1], text: match[2] }))
+  const about = (text) => {
+    const topic = topicOf(text)
+    return topic === '其他约定' ? undefined : (sentences.find((item) => topicOf(item.text) === topic) ?? known.find((item) => topicOf(item.text) === topic))
+  }
   const lines = [...prompt.matchAll(/^\[(m\d+)\] ([^：]+)：(.*)$/gm)].map((match) => ({ at: match[1], name: match[2], text: match[3] }))
   const findings = []
   for (const line of lines) {
@@ -31,8 +39,20 @@ export function dreamReplay(prompt) {
       findings.push({ kind: 'new', about: 'owner', type: 'fact', content: `用户给了密码：${line.text.slice(0, 40)}`, quote: line.text.slice(0, 30), at: line.at })
       continue
     }
+    if (owner && /没错|是这样/.test(line.text)) {
+      const target = about(line.text)
+      const quote = clause(line.text, ['没错', '是这样'])
+      if (target !== undefined) findings.push({ kind: 'confirm', about: 'owner', type: 'preference', content: `用户确认：${quote}`, quote, at: line.at, target: target.alias })
+      continue
+    }
+    if (line.text.includes('（猜的）')) {
+      const target = about(line.text)
+      const quote = line.text.slice(0, 60)
+      if (target !== undefined) findings.push({ kind: 'doubt', about: 'owner', type: 'fact', content: '这句只是猜的，没验证过', quote, at: line.at, target: target.alias })
+      continue
+    }
     if (owner && /改成|不对|别再/.test(line.text)) {
-      const target = known.find((item) => topicOf(item.text) === topicOf(line.text) && topicOf(line.text) !== '其他约定')
+      const target = about(line.text)
       const quote = clause(line.text, ['改成', '不对', '别再'])
       findings.push({ kind: target === undefined ? 'new' : 'contradict', about: 'owner', type: 'preference', content: `用户改了说法：${quote}`, quote, at: line.at, ...(target === undefined ? {} : { target: target.alias }) })
       continue
@@ -78,6 +98,26 @@ export function dreamSort(prompt) {
     const to = group !== undefined ? group.alias : entry.text.includes('交给') ? 'org' : entry.text.includes('用户') ? 'owner' : 'self'
     return { id: entry.alias, to }
   })
+}
+
+/** 最后一步：收拾笔记。标题里是同一个话题的页并成一页，“其他约定”改个名，剩下的头两页连起来。 */
+export function dreamOrganize(prompt) {
+  const pages = [...prompt.matchAll(/^\((n\d+)\) 《([^》]+)》(（用户改过，不能动）)?/gm)].map((match) => ({ alias: match[1], title: match[2], locked: match[3] !== undefined }))
+  const merge = []
+  const rename = []
+  const first = new Map()
+  for (const page of pages) {
+    if (page.locked) continue
+    const topic = TOPICS.find((item) => page.title.includes(item))
+    if (topic === undefined) {
+      if (/其他约定|杂项/.test(page.title)) rename.push({ id: page.alias, title: '零散的约定', description: '还没归到别的页里的约定和做法' })
+      continue
+    }
+    if (first.has(topic)) merge.push({ from: page.alias, into: first.get(topic), why: `都是讲${topic}的` })
+    else first.set(topic, page.alias)
+  }
+  const kept = [...first.values()]
+  return { merge, rename, links: kept.length >= 2 ? [{ id: kept[0], to: [kept[1]] }] : [] }
 }
 
 function section(prompt, title) {

@@ -11,6 +11,7 @@ import {
   NOTE_TITLE_MAX,
   PRIORITY,
   admitMemory,
+  datedNoteLines,
   fail,
   isCredentialMemory,
   keywords,
@@ -368,6 +369,40 @@ export class MemoryService {
 
   note(id: string): MemoryNote | undefined {
     return getNote(this.db, id)
+  }
+
+  /** 一页笔记给 bot 看的正文：每句后面带日期，拿不准的标出来（新旧说法不一样时看日期）。 */
+  noteText(note: MemoryNote): string {
+    return datedNoteLines(note, (time) => this.day(time))
+      .map((line) => `- ${line}`)
+      .join('\n')
+  }
+
+  /** 这页链接到的别的页的标题。 */
+  noteLinks(note: MemoryNote): readonly string[] {
+    return getNotes(this.db, note.links)
+      .filter((linked) => linked.status === 'active')
+      .map((linked) => linked.title)
+  }
+
+  /**
+   * 老数据适配：早先整理出来的笔记，句子上没记日期。启动时按并进来的条目的时间补上（没有条目的用这页建的时间）。
+   * 不动这页的修改时间；补过的不再补。返回补了几页。
+   */
+  backfillNoteDates(): number {
+    let fixed = 0
+    for (const note of listNotes(this.db, { statuses: ['active', 'archived'] })) {
+      if (note.sources.every((source) => source.at !== undefined)) continue
+      const entries = new Map(getMemories(this.db, note.sources.flatMap((source) => source.entries)).map((entry) => [entry.id, entry]))
+      const sources = note.sources.map((source) => {
+        if (source.at !== undefined) return source
+        const recorded = source.entries.map((id) => entries.get(id)?.createdAt ?? 0).reduce((latest, time) => Math.max(latest, time), 0)
+        return { ...source, at: recorded > 0 ? recorded : note.createdAt }
+      })
+      putNote(this.db, { ...note, sources })
+      fixed += 1
+    }
+    return fixed
   }
 
   /** 笔记落库以后：进索引、通知页面。夜里的整理和页面上的修改都走这里。 */

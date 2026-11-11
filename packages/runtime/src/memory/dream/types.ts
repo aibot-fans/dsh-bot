@@ -37,8 +37,10 @@ export interface Mark {
   readonly value: number
 }
 
-/** confirm 证实了已有的一条；contradict 和已有的一条相反（被纠正了）；new 新的事。 */
-export type FindingKind = 'new' | 'confirm' | 'contradict'
+/**
+ * confirm 证实了已有的一条；contradict 和已有的一条相反（被纠正了）；doubt 已有的一条说得肯定、记录里其实拿不准；new 新的事。
+ */
+export type FindingKind = 'new' | 'confirm' | 'contradict' | 'doubt'
 
 /** 回放找到的一条发现：出处已经在原文里查过，家也定好了。 */
 export interface Finding {
@@ -55,6 +57,8 @@ export interface Finding {
   readonly pending: boolean
   /** 被证实或被纠正的那条条目。 */
   readonly target: string | null
+  /** 被证实、被纠正或被存疑的是笔记里的哪一句。 */
+  readonly line: { readonly noteId: string; readonly text: string } | null
   readonly time: number
   readonly recordId: string
 }

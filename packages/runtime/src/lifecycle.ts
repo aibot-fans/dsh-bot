@@ -61,6 +61,8 @@ export function startRuntime(pod: PodRuntime): () => void {
   // 以前的正式团队转成普通群；以前建的群补组长：没点名的话先给它，群里留一行。
   pod.adoptTeams()
   pod.rooms.groups.assignLeaders()
+  // 早先整理出来的笔记，句子上补记日期。
+  pod.memory.backfillNoteDates()
   const stopAibot = pod.aibot.start()
   pod.seeds.sync()
   // 上次没交出的接着交，交了没收进历史的查过再重交；没结束的执行记成被打断、各开一次新的；然后副作用队列开始干活。

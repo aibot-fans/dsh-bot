@@ -8,7 +8,7 @@ import { demoDecision, demoFront } from './demo.js'
 import { newPage, pageDecision, wantedKind } from './pages.js'
 import { progressDecision, routineDecision, turnCalls } from './progress.js'
 import { batchBody, frontDecision, frontOwnText, memoryEcho } from './front.js'
-import { dreamConsolidate, dreamReplay, dreamSort } from './dream.js'
+import { dreamConsolidate, dreamOrganize, dreamReplay, dreamSort } from './dream.js'
 
 export const name = 'pod-dev-mock-llm'
 
@@ -395,6 +395,7 @@ function decide(options) {
     return { text: prompt.includes('测试截断') ? answer.slice(0, -30) : answer }
   }
   if (system.includes('“记忆整理”的第二步')) return { text: JSON.stringify(dreamConsolidate(textOf(messages.find((message) => message.role === 'user')?.content))) }
+  if (system.includes('“记忆整理”的最后一步')) return { text: JSON.stringify(dreamOrganize(textOf(messages.find((message) => message.role === 'user')?.content))) }
   if (system.includes('“记忆整理”里的分拣')) return { text: JSON.stringify(dreamSort(textOf(messages.find((message) => message.role === 'user')?.content))) }
   if (system.includes('你是 dsh-bot 的看门狗')) return watchdogDecision(system, messages)
 
