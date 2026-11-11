@@ -36,7 +36,7 @@ export const V15_CSS = `
 
 
 .pod-msg-gutter { flex: none; display: flex; align-items: flex-end; width: 28px; }
-.pod-msg-label { margin: 0 0 3px 13px; font-size: 12px; line-height: 16px; font-weight: 600; }
+.pod-msg-label { margin: 0 0 3px 13px; font-size: 13px; line-height: 18px; font-weight: 600; }
 .pod-tail { position: absolute; bottom: -7px; width: 16px; height: 10px; pointer-events: none; }
 .pod-tail-left { left: 8px; transform: scaleX(-1); color: var(--pod-bot-bubble); }
 
