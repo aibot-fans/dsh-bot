@@ -387,7 +387,13 @@ function decide(options) {
 
   if (system.includes('你是群聊里的分派器')) return { text: JSON.stringify({ to: routeTarget(textOf(messages.find((message) => message.role === 'user')?.content)) }) }
   // 记忆整理的两步：回放一份记录交发现，整合一个范围交新的一版。
-  if (system.includes('“记忆整理”的第一步')) return { text: JSON.stringify(dreamReplay(textOf(messages.find((message) => message.role === 'user')?.content))) }
+  if (system.includes('“记忆整理”的第一步')) {
+    const prompt = textOf(messages.find((message) => message.role === 'user')?.content)
+    // 演真模型会出的两种状况：想太久没写出结果；数组写到一半被截断。
+    if (prompt.includes('测试读不出')) return { text: '（想了很久，输出额度用完了，没有写出结果）' }
+    const answer = JSON.stringify(dreamReplay(prompt))
+    return { text: prompt.includes('测试截断') ? answer.slice(0, -30) : answer }
+  }
   if (system.includes('“记忆整理”的第二步')) return { text: JSON.stringify(dreamConsolidate(textOf(messages.find((message) => message.role === 'user')?.content))) }
   if (system.includes('“记忆整理”里的分拣')) return { text: JSON.stringify(dreamSort(textOf(messages.find((message) => message.role === 'user')?.content))) }
   if (system.includes('你是 dsh-bot 的看门狗')) return watchdogDecision(system, messages)

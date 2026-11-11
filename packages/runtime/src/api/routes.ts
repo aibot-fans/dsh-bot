@@ -257,6 +257,7 @@ export function workRoutes(pod: PodRuntime): readonly RouteSpec[] {
       return pod.dreams.apply(readString(body, 'id'), Array.isArray(skip) ? skip.filter((seq): seq is number => typeof seq === 'number') : [])
     }),
     post('/memory/dream/discard', (body) => pod.dreams.discard(readString(body, 'id'))),
+    post('/memory/dream/reread', () => pod.dreams.reread()),
     post('/memory/dream/revert', (body) => pod.dreams.revert(readString(body, 'id'))),
     post('/memory/dream/answer', (body) => pod.dreams.answer(readString(body, 'id'), readString(body, 'questionId'), readString(body, 'label'))),
 

@@ -23,6 +23,13 @@ export function readState<T>(db: DatabaseSync, key: string, fallback: T): T {
   return row === undefined ? fallback : readJson<T>(row.value, fallback)
 }
 
+/** 删掉一批运行状态：键以 prefix 开头的都删。返回删了几项。 */
+export function clearState(db: DatabaseSync, prefix: string): number {
+  const escaped = prefix.replace(/[\\%_]/g, (char) => `\\${char}`)
+  const result = db.prepare("DELETE FROM state WHERE key LIKE ? ESCAPE '\\'").run(`${escaped}%`)
+  return Number(result.changes)
+}
+
 export function writeState(db: DatabaseSync, key: string, value: unknown): void {
   db.prepare('INSERT INTO state (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value').run(
     key,

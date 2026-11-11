@@ -285,6 +285,8 @@ export const api = {
   startDream: (scope?: MemoryScopeKind, scopeId?: string) => apiPost<MemoryDream>('/memory/dream/start', { scope, scopeId }),
   applyDream: (id: string, skip: readonly number[]) => apiPost<DreamDetail>('/memory/dream/apply', { id, skip }),
   discardDream: (id: string) => apiPost<MemoryDream>('/memory/dream/discard', { id }),
+  /** 下一次整理把最近 30 天的对话和任务重新读一遍。 */
+  rereadDreams: () => apiPost<number>('/memory/dream/reread', {}),
   revertDream: (id: string) => apiPost<DreamDetail>('/memory/dream/revert', { id }),
   answerDream: (id: string, questionId: string, label: string) => apiPost<DreamDetail>('/memory/dream/answer', { id, questionId, label }),
   routines: () => apiGet<readonly (Routine & { readonly description: string })[]>('/routines'),

@@ -199,6 +199,7 @@ export function DreamsPanel(props: { readonly dreamId?: string }) {
   const { data: dreams } = useResource(app.cache, 'memory:dreams', () => api.dreams())
   const [picked, setPicked] = useState<string | null | undefined>(props.dreamId)
   const [error, setError] = useState<string | undefined>(undefined)
+  const [note, setNote] = useState<string | undefined>(undefined)
   const list = dreams ?? []
   const working = list.some((dream) => dream.status === 'running' || dream.status === 'paused')
   // 没点过哪一行时，等你看的那一次自己展开。
@@ -223,6 +224,23 @@ export function DreamsPanel(props: { readonly dreamId?: string }) {
         >
           {working ? t('正在整理…') : t('现在整理')}
         </Button>
+        <Button
+          small
+          kind="quiet"
+          disabled={working}
+          title={t('换了模型想重来，或者哪一次没读好时用')}
+          onClick={() => {
+            if (!window.confirm(t('下一次整理时，把最近 30 天的对话和任务重新读一遍？已经整理出来的笔记不动。'))) return
+            setError(undefined)
+            api
+              .rereadDreams()
+              .then(() => setNote(t('好了，下一次整理会从头读最近 30 天的记录。')))
+              .catch((reason: unknown) => setError(errorText(reason)))
+          }}
+        >
+          {t('重读最近 30 天')}
+        </Button>
+        {note === undefined ? null : <span className="pod-muted-inline">{note}</span>}
         {error === undefined ? null : <span className="pod-form-error">{error}</span>}
       </div>
       {list.length === 0 ? (

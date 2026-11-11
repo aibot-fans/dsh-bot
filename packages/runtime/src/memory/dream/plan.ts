@@ -137,6 +137,7 @@ export class ScopePlanner {
   private coreEvidence: readonly DreamEvidence[] = []
   private coreTouched = false
   private rounds = 0
+  private batch: readonly string[] = []
 
   constructor(input: PlannerInput) {
     this.input = input
@@ -206,6 +207,7 @@ export class ScopePlanner {
     if (!this.hasWork()) return undefined
     const batch = this.remaining().slice(0, ROUND_ENTRIES)
     for (const entry of batch) this.offered.add(entry.id)
+    this.batch = batch.map((entry) => entry.id)
     const findings = this.rounds === 0 ? [...this.findings.values()].slice(0, ROUND_FINDINGS) : []
     this.rounds += 1
     return consolidatePrompt({
@@ -325,7 +327,9 @@ export class ScopePlanner {
   absorb(value: unknown): boolean {
     const plan = parsePlan(value)
     if (plan === undefined) {
-      this.refuse(this.input.scope.label, t('模型交回的不是能读的结果，这一轮没有用'))
+      // 这一轮没读成：给模型看的那几条不算看过，下次整理再拿出来。
+      for (const id of this.batch) this.offered.delete(id)
+      this.refuse(this.input.scope.label, t('模型交回的不是能读的结果，这一轮没有用，这些条目下次再整理'))
       return false
     }
     for (const item of plan.replaced) {

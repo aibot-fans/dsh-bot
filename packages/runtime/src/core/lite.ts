@@ -12,7 +12,8 @@ export interface LiteRequest {
   readonly purpose: string
   readonly system: string
   readonly prompt: string
-  readonly maxTokens?: number
+  /** 最多输出多少 token；'model' 是不另设上限、用模型自己的（会先思考的模型，思考也算在输出里，设小了正文会被截断）。 */
+  readonly maxTokens?: number | 'model'
   readonly signal?: AbortSignal
   /** 不填就用设置里的轻量模型。 */
   readonly model?: ModelSelection
@@ -41,6 +42,45 @@ function failureText(reason: unknown): string | undefined {
   if (record.kind !== 'error' && record.kind !== 'aborted') return undefined
   const message = record.failure?.message
   return typeof message === 'string' ? message : String(record.kind)
+}
+
+/**
+ * 回答被截断、整段解析不了时，把数组里已经写完整的那几个对象捞出来（只认最外层数组里一个个平铺的对象）。
+ * 一个完整的都没有就返回 undefined。
+ */
+export function salvageObjects(text: string): readonly unknown[] | undefined {
+  const start = text.indexOf('[')
+  if (start < 0) return undefined
+  const found: unknown[] = []
+  let depth = 0
+  let open = -1
+  let quoted = false
+  let escaped = false
+  for (let index = start + 1; index < text.length; index += 1) {
+    const char = text[index]
+    if (quoted) {
+      if (escaped) escaped = false
+      else if (char === '\\') escaped = true
+      else if (char === '"') quoted = false
+      continue
+    }
+    if (char === '"') quoted = true
+    else if (char === '{') {
+      if (depth === 0) open = index
+      depth += 1
+    } else if (char === '}') {
+      depth -= 1
+      if (depth === 0 && open >= 0) {
+        try {
+          found.push(JSON.parse(text.slice(open, index + 1)) as unknown)
+        } catch {
+          // 这个对象不完整，跳过。
+        }
+        open = -1
+      }
+    } else if (char === ']' && depth === 0) break
+  }
+  return found.length === 0 ? undefined : found
 }
 
 /** 从模型输出里取第一个 JSON 值：先找 ```json 代码块，再找第一个 { 或 [ 起的片段。 */
@@ -80,7 +120,7 @@ export class LiteLlm {
     if (llm === undefined) throw new Error('这个 dsh 没有提供 ctx.llm，轻量调用不可用')
     const route = request.model ?? (await this.deps.resolveModel())
     const call = await llm.prepareCall(
-      { provider: route.provider, model: route.model, maxTokens: request.maxTokens ?? DEFAULT_MAX_TOKENS },
+      { provider: route.provider, model: route.model, ...(request.maxTokens === 'model' ? {} : { maxTokens: request.maxTokens ?? DEFAULT_MAX_TOKENS }) },
       request.signal,
       (controls, model) => {
         const lowest = model.reasoning?.efforts[0]?.id

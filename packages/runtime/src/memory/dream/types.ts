@@ -80,13 +80,35 @@ export interface StepOutcome {
 
 /** 做到一半存下来的进度：读完了哪几份记录、找到了什么。停下来以后接着做。 */
 export interface DreamWork {
+  /** 进度的格式：和现在的不一样（旧版本存的）就丢掉，从头再读。 */
+  readonly version: number
   readonly done: readonly string[]
   readonly findings: readonly Finding[]
   readonly rejected: readonly DreamRejection[]
   readonly marks: readonly Mark[]
+  /** 这一次没读成的记录原本要推的水位：同一个聊天室、同一类任务的水位只能推到它前面，下次接着读它。 */
+  readonly failed: readonly Mark[]
+  /** 这一次没读成的记录有几份（统计“读了几份”时不算它们）。 */
+  readonly missed: number
   readonly spent: Spent
   /** 只整理这几个范围（页面上点某个范围的“现在整理”）；空的是全部。 */
   readonly only: readonly { readonly kind: MemoryScopeKind; readonly id: string }[]
 }
 
-export const EMPTY_WORK: DreamWork = { done: [], findings: [], rejected: [], marks: [], spent: NOTHING_SPENT, only: [] }
+export const WORK_VERSION = 2
+
+export const EMPTY_WORK: DreamWork = { version: WORK_VERSION, done: [], findings: [], rejected: [], marks: [], failed: [], missed: 0, spent: NOTHING_SPENT, only: [] }
+
+/**
+ * 读完以后各个水位推到哪：一份记录没读成，它那个水位（同一个聊天室、同一类任务）只推到它前面，后面读成的也不算，下次从它接着读。
+ */
+export function settledMarks(marks: readonly Mark[], failed: readonly Mark[]): ReadonlyMap<string, number> {
+  const floor = new Map<string, number>()
+  for (const mark of failed) floor.set(mark.key, Math.min(floor.get(mark.key) ?? Number.POSITIVE_INFINITY, mark.value))
+  const latest = new Map<string, number>()
+  for (const mark of marks) {
+    if (mark.value >= (floor.get(mark.key) ?? Number.POSITIVE_INFINITY)) continue
+    latest.set(mark.key, Math.max(latest.get(mark.key) ?? 0, mark.value))
+  }
+  return latest
+}
