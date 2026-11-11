@@ -12,14 +12,21 @@ interface Choice {
   /** 点了就是这句答复；去接管只是帮你打开那个标签页，没有答复。 */
   readonly answer?: string
   readonly open?: () => void
+  /** 不用管：关掉这件事，让干活的 bot 按能做到的继续。 */
+  readonly dismiss?: true
 }
 
-/** 按钮：批准、先不；允许一次、先不；去接管、登好了。第一个是蓝色的。 */
+/** 不做也行的事（登录、没法一次放行的安全拦截）最后都有“不用管”，免得卡片只能点“好了”。 */
+function skip(): Choice {
+  return { label: t('不用管'), dismiss: true }
+}
+
+/** 按钮：批准、先不；允许一次、先不；去接管、登好了、不用管。第一个是蓝色的。 */
 function choicesOf(wait: Wait, takeover: (tabId: string) => void): readonly Choice[] {
   switch (wait.kind) {
     case 'login': {
       const tabId = typeof wait.data.tabId === 'string' ? wait.data.tabId : undefined
-      return [...(tabId === undefined ? [] : [{ label: t('去接管'), open: () => takeover(tabId) }]), { label: t('登好了'), answer: '' }]
+      return [...(tabId === undefined ? [] : [{ label: t('去接管'), open: () => takeover(tabId) }]), { label: t('登好了'), answer: '' }, skip()]
     }
     case 'security':
       return typeof wait.data.key === 'string'
@@ -27,7 +34,7 @@ function choicesOf(wait: Wait, takeover: (tabId: string) => void): readonly Choi
             { label: t('允许一次'), answer: t('允许') },
             { label: t('先不'), answer: t('不允许') },
           ]
-        : [{ label: t('处理好了'), answer: '' }]
+        : [{ label: t('处理好了'), answer: '' }, skip()]
     default:
       return [
         { label: t('批准'), answer: t('批准') },
@@ -55,7 +62,8 @@ export function ApproveCard(props: { readonly wait: Wait; readonly place: CardPl
     app.openBrowserTab(tabId)
   })
   const act = (choice: Choice): void => {
-    if (choice.answer === undefined) choice.open?.()
+    if (choice.dismiss === true) actions.dismiss()
+    else if (choice.answer === undefined) choice.open?.()
     else actions.answer(choice.answer)
   }
   return (
