@@ -29,6 +29,10 @@ const STATUS_TONES: Readonly<Record<MemoryDream['status'], 'warn' | 'info' | 'ok
   empty: 'muted',
 }
 
+/** 一个范围的改动超过这么多处就先收起来，只列前几处。 */
+const FOLD_OVER = 12
+const FOLD_SHOW = 6
+
 function stamp(time: number): string {
   const date = new Date(time)
   const two = (value: number): string => String(value).padStart(2, '0')
@@ -79,6 +83,7 @@ function DreamView(props: { readonly id: string }) {
   const key = `memory:dream:${props.id}`
   const { data, reload } = useResource<DreamDetail>(app.cache, key, () => api.dream(props.id))
   const [skip, setSkip] = useState<ReadonlySet<number>>(new Set())
+  const [shown, setShown] = useState<ReadonlySet<string>>(new Set())
   const [error, setError] = useState<string | undefined>(undefined)
   const [busy, setBusy] = useState(false)
   if (data === undefined) return <p className="pod-muted">{t('加载中…')}</p>
@@ -124,18 +129,26 @@ function DreamView(props: { readonly id: string }) {
           </ul>
         </section>
       )}
-      {scopes.map((scope) => (
-        <section key={scope} className="pod-stack">
-          <div className="pod-section-title">{label(scope)}</div>
-          <ul className="pod-dream-ops">
-            {main
-              .filter((op) => groupOf(op) === scope)
-              .map((op) => (
+      {scopes.map((scope) => {
+        // 一个范围里改动多（比如一次归档几十条任务流水账）先只列前几处，要看再展开；没列出来的照样算在里面。
+        const all = main.filter((op) => groupOf(op) === scope)
+        const folded = all.length > FOLD_OVER && !shown.has(scope)
+        return (
+          <section key={scope} className="pod-stack">
+            <div className="pod-section-title">{t('{label}（{count} 处）', { label: label(scope), count: all.length })}</div>
+            <ul className="pod-dream-ops">
+              {(folded ? all.slice(0, FOLD_SHOW) : all).map((op) => (
                 <OpRow key={op.seq} op={op} preview={preview} checked={!skip.has(op.seq)} onToggle={() => toggle(op.seq)} />
               ))}
-          </ul>
-        </section>
-      ))}
+            </ul>
+            {folded ? (
+              <button type="button" className="pod-link" onClick={() => setShown(new Set([...shown, scope]))}>
+                {t('还有 {count} 处，展开看', { count: all.length - FOLD_SHOW })}
+              </button>
+            ) : null}
+          </section>
+        )
+      })}
       {chosen.length === 0 ? null : (
         <section className="pod-stack">
           <div className="pod-section-title">{t('你回答以后做的')}</div>

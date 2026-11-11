@@ -37,6 +37,8 @@ export const UI_EN_MEMORY: Readonly<Record<string, string>> = {
   '没有要改的': 'Nothing to change',
   '加载中…': 'Loading…',
   '想跟你确认的': 'Questions for you',
+  '{label}（{count} 处）': '{label} ({count} {count:change|changes})',
+  '还有 {count} 处，展开看': 'Show {count} more',
   '你回答以后做的': 'Done after your answers',
   '核对没过、没有落库的 {count} 条': '{count} {count:item|items} failed the check and were not saved',
   '让这些改动生效': 'Apply these changes',
