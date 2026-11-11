@@ -21,6 +21,7 @@ export const V20_CSS = `
 .pod-note-lines > li, .pod-dream-lines > li { padding-left: 10px; border-left: 2px solid transparent; }
 .pod-note-line { flex: 1; min-width: 0; }
 .pod-note-trace { flex: none; font-size: 12px; color: var(--dsw-alias-label-tertiary); }
+.pod-note-date { flex: none; font-variant-numeric: tabular-nums; }
 .pod-dream-evidence { margin: 2px 0 4px; padding: 0 0 0 14px; list-style: none; font-size: 12px; color: var(--dsw-alias-label-tertiary); display: flex; flex-direction: column; gap: 2px; }
 .pod-dream-evidence .pod-link { font-size: 12px; }
 .pod-dream-detail { display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--pod-line); padding-top: 10px; }

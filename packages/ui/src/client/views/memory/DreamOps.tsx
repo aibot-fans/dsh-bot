@@ -50,20 +50,49 @@ function NoteChange(props: { readonly op: DreamOp }) {
   const after = noteLines(draft.body)
   const gone = [...before].filter((line) => !after.includes(line))
   const merged = new Map((op.before.merged ?? []).map((entry: MemoryEntry) => [entry.id, entry]))
+  const priorTitle = op.before.note?.title
   return (
     <div className="pod-dream-note">
       <div className="pod-dream-note-title">
         {t('《{title}》', { title: draft.title })}
         {draft.description === '' ? null : <span className="pod-muted-inline"> {draft.description}</span>}
+        {priorTitle === undefined || priorTitle === draft.title ? null : <span className="pod-muted-inline"> {t('原来叫《{title}》', { title: priorTitle })}</span>}
       </div>
       <ul className="pod-dream-lines">
         {after.map((line) => {
           const source = draft.sources.find((item) => item.line === line)
+          const prior = op.before.note?.sources.find((item) => item.line === line)
           const fresh = !before.has(line)
+          const checked = !fresh && source?.checkedAt !== undefined && source.checkedAt !== prior?.checkedAt
+          const doubted = source?.doubt !== undefined && source.doubt !== prior?.doubt
           const entries = (source?.entries ?? []).map((id) => merged.get(id)).filter((entry): entry is MemoryEntry => entry !== undefined)
           return (
             <li key={line} className={fresh ? 'pod-dream-line-new' : undefined}>
-              <div>{line}</div>
+              <div>
+                {line}
+                {checked ? (
+                  <>
+                    {' '}
+                    <Badge tone="ok">{t('核对过')}</Badge>
+                  </>
+                ) : null}
+                {doubted ? (
+                  <>
+                    {' '}
+                    <Badge tone="warn">{t('拿不准')}</Badge>
+                  </>
+                ) : null}
+              </div>
+              {doubted ? (
+                <ul className="pod-dream-evidence">
+                  <li>{t('拿不准：{why}', { why: source?.doubt ?? '' })}</li>
+                </ul>
+              ) : null}
+              {fresh && source?.replaces !== undefined ? (
+                <ul className="pod-dream-evidence">
+                  <li>{t('替了原来的：{old}', { old: source.replaces })}</li>
+                </ul>
+              ) : null}
               {fresh && entries.length > 0 ? (
                 <ul className="pod-dream-evidence">
                   {entries.map((entry) => (
@@ -71,7 +100,7 @@ function NoteChange(props: { readonly op: DreamOp }) {
                   ))}
                 </ul>
               ) : null}
-              {fresh ? <Evidence items={source?.evidence ?? []} /> : null}
+              {fresh || checked || doubted ? <Evidence items={source?.evidence ?? []} /> : null}
             </li>
           )
         })}

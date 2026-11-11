@@ -14,8 +14,17 @@ export interface NoteScope {
   readonly id: string
 }
 
-/** 一页笔记：收起时只有标题和一句说明；点开是正文，每句话能看它的出处（并进来的条目、原话）；能改、能归档。 */
-function NoteCard(props: { readonly note: MemoryNote; readonly merged: ReadonlyMap<string, MemoryEntry>; readonly onChanged: () => void }) {
+function shortDate(time: number): string {
+  const date = new Date(time)
+  const two = (value: number): string => String(value).padStart(2, '0')
+  return `${two(date.getMonth() + 1)}-${two(date.getDate())}`
+}
+
+/**
+ * 一页笔记：收起时只有标题和一句说明；点开是正文，每句后面是它的日期，拿不准的标出来；
+ * 每句话能看出处（并进来的条目、原话、最近什么时候核对过、替了原来的哪一句）；下面列着相关的页；能改、能归档。
+ */
+function NoteCard(props: { readonly note: MemoryNote; readonly merged: ReadonlyMap<string, MemoryEntry>; readonly titles: ReadonlyMap<string, string>; readonly onChanged: () => void }) {
   const { note } = props
   const [open, setOpen] = useState(false)
   const [shown, setShown] = useState<string | undefined>(undefined)
@@ -66,11 +75,13 @@ function NoteCard(props: { readonly note: MemoryNote; readonly merged: ReadonlyM
             {noteLines(note.body).map((line) => {
               const source = note.sources.find((item) => item.line === line)
               const entries = (source?.entries ?? []).map((id) => props.merged.get(id)).filter((entry): entry is MemoryEntry => entry !== undefined)
-              const traced = source !== undefined && entries.length + source.evidence.length > 0
+              const traced = source !== undefined && (entries.length + source.evidence.length > 0 || source.doubt !== undefined || source.replaces !== undefined || source.checkedAt !== undefined)
               return (
                 <li key={line}>
                   <div className="pod-row">
                     <span className="pod-note-line">{line}</span>
+                    {source?.doubt === undefined ? null : <Badge tone="warn">{t('拿不准')}</Badge>}
+                    <span className="pod-muted-inline pod-note-date">{shortDate(source?.at ?? note.updatedAt)}</span>
                     {traced ? (
                       <button type="button" className="pod-link pod-note-trace" onClick={() => setShown(shown === line ? undefined : line)}>
                         {t('出处')}
@@ -79,6 +90,13 @@ function NoteCard(props: { readonly note: MemoryNote; readonly merged: ReadonlyM
                   </div>
                   {shown === line && source !== undefined ? (
                     <>
+                      {source.doubt === undefined && source.replaces === undefined && source.checkedAt === undefined ? null : (
+                        <ul className="pod-dream-evidence">
+                          {source.doubt === undefined ? null : <li>{t('拿不准：{why}', { why: source.doubt })}</li>}
+                          {source.replaces === undefined ? null : <li>{t('替了原来的：{old}', { old: source.replaces })}</li>}
+                          {source.checkedAt === undefined ? null : <li>{t('最近核对：{date}', { date: shortDate(source.checkedAt) })}</li>}
+                        </ul>
+                      )}
                       {entries.length === 0 ? null : (
                         <ul className="pod-dream-evidence">
                           {entries.map((entry) => (
@@ -99,6 +117,16 @@ function NoteCard(props: { readonly note: MemoryNote; readonly merged: ReadonlyM
               )
             })}
           </ul>
+          {note.links.some((id) => props.titles.has(id)) ? (
+            <p className="pod-muted">
+              {t('相关：{titles}', {
+                titles: note.links
+                  .flatMap((id) => props.titles.get(id) ?? [])
+                  .map((title) => `《${title}》`)
+                  .join(t('、')),
+              })}
+            </p>
+          ) : null}
           <div className="pod-row pod-wrap">
             <Button small kind="quiet" onClick={() => setEditing(true)}>
               {t('编辑')}
@@ -121,6 +149,7 @@ export function NotesSection(props: { readonly scope: NoteScope }) {
   const { data, reload } = useResource(app.cache, `memory:notes:${scope.key}`, () => api.notes(scope.kind, scope.id))
   const notes = data?.notes ?? []
   const merged = new Map((data?.merged ?? []).map((entry) => [entry.id, entry]))
+  const titles = new Map(notes.filter((note) => note.status === 'active').map((note) => [note.id, note.title]))
   return (
     <section className="pod-stack">
       <div className="pod-section-title">{t('主题笔记（{count} 页）', { count: notes.filter((note) => note.status === 'active').length })}</div>
@@ -129,7 +158,7 @@ export function NotesSection(props: { readonly scope: NoteScope }) {
       ) : (
         <ul className="pod-notes">
           {notes.map((note) => (
-            <NoteCard key={`${note.id}:${note.updatedAt}`} note={note} merged={merged} onChanged={reload} />
+            <NoteCard key={`${note.id}:${note.updatedAt}`} note={note} merged={merged} titles={titles} onChanged={reload} />
           ))}
         </ul>
       )}
